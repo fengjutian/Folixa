@@ -1,0 +1,85 @@
+name: windows-build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Windows x64 / Debug + Release
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    env:
+      AIPDF_QT_ROOT: 'C:\Qt\6.8.3\mingw_64'
+      AIPDF_MINGW_ROOT: 'C:\Qt\Tools\mingw1310_64'
+      QT_VERSION: '6.8.3'
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装固定工具链
+        shell: pwsh
+        run: ./scripts/bootstrap-toolchain.ps1
+
+      - name: 配置 Debug
+        shell: pwsh
+        run: cmake --preset windows-debug
+
+      - name: 构建 Debug
+        shell: pwsh
+        run: cmake --build --preset windows-debug
+
+      - name: 测试 Debug
+        shell: pwsh
+        run: ctest --preset windows-debug --output-on-failure
+
+      - name: 启动验收 Debug
+        shell: pwsh
+        run: |
+          ./scripts/verify-m0.ps1 `
+            -BuildDir build/windows-debug/bin `
+            -ScreenshotPath build/acceptance/m0-debug.png
+
+      - name: 配置 Release
+        shell: pwsh
+        run: cmake --preset windows-release
+
+      - name: 构建 Release
+        shell: pwsh
+        run: cmake --build --preset windows-release
+
+      - name: 测试 Release
+        shell: pwsh
+        run: ctest --preset windows-release --output-on-failure
+
+      - name: 打包
+        shell: pwsh
+        run: |
+          cmake --build --preset windows-release --target package
+
+      - name: 打包验收（无 Qt SDK 环境）
+        shell: pwsh
+        run: |
+          ./scripts/verify-package.ps1 `
+            -PackagePath dist/ai-pdf-editor-0.2.0-win64.zip `
+            -Version 0.2.0 `
+            -ScreenshotPath build/acceptance/package-0.2.0.png
+
+      - name: 上传安装包与验收证据
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-pdf-editor-0.2.0-win64
+          path: |
+            dist/ai-pdf-editor-0.2.0-win64.zip
+            dist/ai-pdf-editor-0.2.0-win64.zip.sha256
+            build/acceptance/
+          if-no-files-found: error

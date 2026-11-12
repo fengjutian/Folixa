@@ -40,8 +40,12 @@ install(FILES ${CMAKE_SOURCE_DIR}/THIRD_PARTY_LICENSES.md DESTINATION licenses)
 
 # 打包目标：生成自带 Qt 运行库、许可证材料与 SBOM 的 Windows x64 ZIP。
 if(WIN32)
+    find_program(AIPDF_POWERSHELL NAMES pwsh powershell)
+    if(NOT AIPDF_POWERSHELL)
+        message(FATAL_ERROR "未找到 PowerShell，无法执行打包脚本")
+    endif()
     add_custom_target(package
-        COMMAND pwsh -NoProfile -ExecutionPolicy Bypass
+        COMMAND ${AIPDF_POWERSHELL} -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/scripts/package.ps1"
                 -BuildDir "${CMAKE_BINARY_DIR}"
                 -OutputDir "${CMAKE_SOURCE_DIR}/dist"
