@@ -29,7 +29,7 @@ void trace(const QString& message) {
     }
     QFile file(path);
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
 }
 }  // namespace

@@ -170,6 +170,55 @@ def long_pdf(page_count=500, width=300, height=400):
     return multipage_pdf(page_count=page_count, width=width, height=height)
 
 
+def dense_pdf(page_count=600, width=612, height=792, lines_per_page=60, chars_per_line=100):
+    """文字密集文档：让全文搜索跑得足够久。
+
+    扫描成本按**字形数量**走，不是按页数走：3000 个只有几个字的小页，
+    全文搜索只要 0.5 秒就扫完了，验收脚本根本来不及在搜索进行中点「停止」。
+    换成每页几千字符的密集页面，几百页就能把搜索拉到好几秒。
+
+    每页只有第一行含 "Page"：命中数与页数相同（1:1），
+    结果列表才不会因为几十万个命中把界面压垮。
+    """
+    font_id = 4
+    first_page_id = 3
+    kids = []
+    objects = []
+    filler = "The quick brown fox jumps over the lazy dog and keeps running along. "
+
+    for index in range(page_count):
+        page_id = first_page_id + index * 2
+        content_id = page_id + 1
+        kids.append(b"%d 0 R" % page_id)
+        objects.append((
+            page_id,
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] "
+            b"/Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
+            % (width, height, font_id, content_id),
+        ))
+
+        lines = []
+        for line in range(lines_per_page):
+            if line == 0:
+                text = ("Page %d of %d: " % (index + 1, page_count)).ljust(chars_per_line)
+            else:
+                text = (filler * 3)[:chars_per_line]
+            lines.append((text, 8, 40, height - 50 - line * 12))
+        stream = _page_content_stream(lines)
+        objects.append((
+            content_id,
+            b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream),
+        ))
+
+    objects.insert(0, (1, b"<< /Type /Catalog /Pages 2 0 R >>"))
+    objects.insert(1, (
+        2,
+        b"<< /Type /Pages /Kids [%s] /Count %d >>" % (b" ".join(kids), page_count),
+    ))
+    objects.append((font_id, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"))
+    return _build_pdf(objects, 1)
+
+
 # --------------------------------------------------------------------------
 # 中文夹具：Type0 / Identity-H 编码 + 内嵌 TrueType + ToUnicode CMap。
 # --------------------------------------------------------------------------
@@ -511,6 +560,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output", help="输出目录")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--dense-pages", type=int, default=0,
+                        help="额外生成 dense.pdf（页数）。默认不生成：别的验收脚本"
+                             "用不上，生成它纯属浪费磁盘与时间。")
+    parser.add_argument("--dense-lines", type=int, default=120,
+                        help="dense.pdf 每页的行数（行数越多，搜索越慢）。")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -521,6 +575,14 @@ def main():
             handle.write(data)
         if not args.quiet:
             print("wrote %-16s %6d bytes" % (name, len(data)))
+
+    if args.dense_pages > 0:
+        data = dense_pdf(page_count=args.dense_pages, lines_per_page=args.dense_lines)
+        path = os.path.join(args.output, "dense.pdf")
+        with open(path, "wb") as handle:
+            handle.write(data)
+        if not args.quiet:
+            print("wrote %-16s %6d bytes" % ("dense.pdf", len(data)))
 
     return 0
 

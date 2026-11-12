@@ -48,7 +48,7 @@ void trace(const QString& message) {
     }
     QFile file(path);
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
 }
 }  // namespace
@@ -59,6 +59,10 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(workerClient_, &ipc::WorkerClient::stateChanged,
             this, [this](const QString& state) {
+                // Worker 状态记进轨迹：验收脚本靠它断言「Worker 就绪」。
+                // 界面上的状态标签在默认收起的 AI 面板里，UI Automation 读不到，
+                // 而面板文案还会随改版变化——断言绑在轨迹上才稳。
+                trace(QStringLiteral("worker state=%1").arg(state));
                 const QString label = state == QStringLiteral("ready") ? tr("已就绪")
                     : state == QStringLiteral("starting") ? tr("正在启动")
                     : state == QStringLiteral("stopped") ? tr("已停止")
@@ -73,6 +77,9 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this](const QString&, const QJsonObject& response) {
                 const QJsonObject payload = response.value("payload").toObject();
                 if (payload.contains("status")) {
+                    trace(QStringLiteral("worker health protocol=%1 version=%2")
+                              .arg(payload.value("protocol_version").toInt())
+                              .arg(payload.value("worker_version").toString()));
                     conversation_->append(
                         tr("<b>系统：</b>本地 AI 服务已就绪（协议 %1，版本 %2）。")
                             .arg(payload.value("protocol_version").toInt())
@@ -157,6 +164,7 @@ void MainWindow::buildUi() {
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
     connect(findAction, &QAction::triggered, this, [this]() {
+        trace(QStringLiteral("open search panel"));
         navigationDock_->setVisible(true);
         if (navigationRail_ != nullptr) {
             // 切到导航栏的搜索页（第四个按钮）。

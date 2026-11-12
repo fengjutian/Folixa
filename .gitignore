@@ -153,6 +153,10 @@ credentials.json
 *.tar
 *.tar.gz
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Temporary and operating-system files
 *.tmp
 *.temp

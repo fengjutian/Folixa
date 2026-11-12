@@ -141,7 +141,8 @@ void SearchPanel::setController(TextController* controller) {
             statusLabel_->setText(QStringLiteral("搜索已取消（共 %1 处结果）")
                                       .arg(results_->count()));
         }
-    });}
+    });
+}
 
 void SearchPanel::focusSearch() {
     queryEdit_->setFocus();
@@ -175,12 +176,18 @@ void SearchPanel::refreshResults() {
 
     // 重建列表会触发 currentRowChanged，后台搜索推进时不该把视图拽走。
     suppressNavigation_ = true;
-    results_->clear();
-    for (const SearchHit& hit : hits) {
+    // 只补新增的条目：后台搜索是逐页推进的，每命中一页就重建整张列表，
+    // 长文档下会退化成 O(n²)（500 页 = 12.5 万次条目创建），界面直接卡住。
+    // 换关键词时 runSearch() 已经把两边都清空了，这里从空列表往后追加即可。
+    while (results_->count() < hits.size()) {
+        const SearchHit& hit = hits.at(results_->count());
         auto* item = new QListWidgetItem(
             QStringLiteral("第 %1 页 · %2").arg(hit.pageIndex + 1).arg(hit.snippet), results_);
         item->setData(Qt::UserRole, hit.pageIndex);
         item->setToolTip(hit.snippet);
+    }
+    while (results_->count() > hits.size()) {
+        delete results_->takeItem(results_->count() - 1);
     }
     if (keepSelection) {
         currentResult_ = previous;

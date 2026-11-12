@@ -22,7 +22,7 @@ void trace(const QString& message) {
     }
     QFile file(path);
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
 }
 }  // namespace
@@ -58,6 +58,9 @@ public:
     void startSearch(const QString& query) {
         {
             QMutexLocker locker(&mutex_);
+            // 换关键词时旧搜索可能还在跑：给每次搜索一个代号，
+            // 旧搜索的结果回来时直接作废，否则会把上一个关键词的命中混进来。
+            ++searchGeneration_;
             searchQuery_ = query;
             searchCancelled_ = false;
             searching_ = !query.isEmpty();
@@ -171,11 +174,13 @@ private:
     void runSearchStep() {
         QString query;
         int pageIndex = 0;
+        int generation = 0;
         {
             QMutexLocker locker(&mutex_);
             if (!searching_ || searchCancelled_) {
                 return;
             }
+            generation = searchGeneration_;
             query = searchQuery_;
             pageIndex = scannedPages_;
             const int totalPages = document_.pageCount();
@@ -199,6 +204,10 @@ private:
         int total = 0;
         {
             QMutexLocker locker(&mutex_);
+            if (generation != searchGeneration_) {
+                // 关键词已经换了：这一页属于上一轮搜索，结果作废。
+                return;
+            }
             if (searchCancelled_) {
                 cancelled = true;
                 searching_ = false;
@@ -332,6 +341,7 @@ private:
     // 有命中的页的文本，换关键词时可以直接复用。
     QHash<int, pdf::TextPage> hitPageCache_;
     int scannedPages_ = 0;
+    int searchGeneration_ = 0;
     bool searching_ = false;
     bool searchCancelled_ = false;
     bool stop_ = false;
@@ -474,6 +484,7 @@ QVector<QRectF> TextController::selectionRects() const {
 void TextController::startSearch(const QString& query) {
     hits_.clear();
     worker_->startSearch(query);
+    trace(QStringLiteral("search start query=%1").arg(query));
     emit searchStarted();
 }
 
@@ -544,6 +555,9 @@ void TextController::handleHitsFound(int count) {
 
 void TextController::handleSearchFinished(bool cancelled) {
     hits_ = worker_->searchHits();
+    trace(QStringLiteral("search finished cancelled=%1 hits=%2")
+              .arg(cancelled ? 1 : 0)
+              .arg(hits_.size()));
     emit searchFinished(cancelled);
 }
 

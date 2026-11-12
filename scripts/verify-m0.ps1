@@ -73,6 +73,12 @@ Write-Host "启动 $appExe ..." -ForegroundColor Cyan
 # 记录启动前已存在的 Worker，避免把历史遗留进程算进本次验收。
 $workersBefore = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
     ForEach-Object { $_.Id })
+# Worker 状态与健康检查结果记在轨迹里：界面上的状态标签在默认收起的
+# AI 面板中，UI Automation 读不到，面板文案也会随改版变化。
+# 轨迹写在 bin 目录之外，别混进发布包。
+$tracePath = Join-Path (Split-Path -Parent $buildPath) 'worker-trace.log'
+$env:AIPDF_TRACE_FILE = $tracePath
+Reset-AiPdfTrace -Path $tracePath
 $app = Start-Process -FilePath $appExe -WorkingDirectory $buildPath -PassThru
 try {
     Start-Sleep -Seconds $StartupSeconds
@@ -87,13 +93,16 @@ try {
     Test-Check '主窗口可被自动化接口访问' ($null -ne $probe)
     if ($probe) {
         Test-Check "窗口标题显示版本 $Version" ($probe.Title -match [regex]::Escape($Version)) $probe.Title
-        Test-Check '界面显示 Worker 就绪' ($probe.Text -match 'ready') ''
-        Test-Check '健康检查返回协议版本与 Worker 版本' `
-            ($probe.Text -match 'protocol 1' -and $probe.Text -match 'worker ' + [regex]::Escape($Version)) ''
+    }
 
-        if ($ScreenshotPath) {
-            Test-Check '界面截图已保存' (Save-AiPdfWindowScreenshot -Process $app -Path $ScreenshotPath) $ScreenshotPath
-        }
+    $ready = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
+    Test-Check 'Worker 状态上报为 ready' $ready ''
+    $health = Wait-AiPdfTraceMatch -Path $tracePath `
+        -Pattern ("worker health protocol=1 version=" + [regex]::Escape($Version)) -TimeoutSeconds 20
+    Test-Check '健康检查返回协议版本与 Worker 版本' $health ''
+
+    if ($ScreenshotPath) {
+        Test-Check '界面截图已保存' (Save-AiPdfWindowScreenshot -Process $app -Path $ScreenshotPath) $ScreenshotPath
     }
 } finally {
     if (-not $app.HasExited) {

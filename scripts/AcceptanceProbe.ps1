@@ -34,6 +34,15 @@ public static class AiPdfWindows {
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    // 窗口面积：用来把「小窗口」排在前面查。
+    public static int Area(IntPtr hWnd) {
+        RECT r;
+        if (!GetWindowRect(hWnd, out r)) return 0;
+        return Math.Max(0, r.Right - r.Left) * Math.Max(0, r.Bottom - r.Top);
+    }
     public static List<IntPtr> ForProcess(int processId) {
         var handles = new List<IntPtr>();
         EnumWindows((hWnd, lParam) => {
@@ -380,6 +389,50 @@ function Get-AiPdfWindowProbe {
     }
 }
 
+function Get-AiPdfWindowRect {
+    <#
+    .SYNOPSIS
+        取主窗口在屏幕上的矩形（物理像素）。
+    .DESCRIPTION
+        用 Win32 的 GetWindowRect，而不是 UI Automation：
+        UIA 树里 '*MainWindow*' 这种片段匹配会先命中导航栏这类后代节点，
+        拿到的矩形不是主窗口的，截图换算就整体偏了。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    if (-not ('AiPdfWindowRect' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfWindowRect {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+}
+'@
+    }
+
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) {
+        return $null
+    }
+    $rect = New-Object AiPdfWindowRect+RECT
+    if (-not [AiPdfWindowRect]::GetWindowRect($handle, [ref]$rect)) {
+        return $null
+    }
+    return [pscustomobject]@{
+        Left   = $rect.Left
+        Top    = $rect.Top
+        Right  = $rect.Right
+        Bottom = $rect.Bottom
+        Width  = $rect.Right - $rect.Left
+        Height = $rect.Bottom - $rect.Top
+    }
+}
+
 function Save-AiPdfWindowScreenshot {
     param(
         [Parameter(Mandatory = $true)]
@@ -476,7 +529,14 @@ function Wait-AiPdfWindowProbe {
         $probe = Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern
         if ($probe) {
             $last = $probe
-            $ready = $probe.Text -match 'ready'
+            # 就绪标记：窗口标题里一直有 'AI PDF Editor'，窗口可见即匹配；
+            # 状态栏的「就绪」也算一个信号，但状态栏会被临时提示替换
+            # （例如「已取消打开 xxx」），所以不能只靠它。
+            #
+            # 这个标记必须真的能匹配：标记失效时探针每次都空等满超时，
+            # 返回的是**过期**的快照——带 -RequirePattern 的场景就会
+            # 读不到一闪而过的提示，看起来像功能坏了。
+            $ready = $probe.Text -match 'AI PDF Editor|就绪|ready'
             $matched = (-not $RequirePattern) -or ($probe.Text -match $RequirePattern)
             if ($ready -and $matched) {
                 return $probe
@@ -527,6 +587,13 @@ function Get-AiPdfElementById {
     <#
     .SYNOPSIS
         按 AutomationId 片段找元素（Qt 把 objectName 放进 AutomationId）。
+    .DESCRIPTION
+        逐个窗口查、查到就返回，不把整棵 UIA 树先塞进 PowerShell 数组。
+        长文档的缩略图面板有几百个后代元素，整树物化一次要好几秒，
+        轮询状态时会直接超时。
+
+        小窗口优先：我们要找的控件通常在停靠面板这种小窗口里，
+        先查它们就不用等主窗口那棵大树。
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -535,13 +602,32 @@ function Get-AiPdfElementById {
         [string]$IdPattern
     )
 
-    foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+
+    $handles = Get-AiPdfProcessWindows -Process $Process
+    $ordered = @($handles | Sort-Object { [AiPdfWindows]::Area($_) })
+
+    foreach ($handle in $ordered) {
         try {
-            if ($element.Current.AutomationId -like $IdPattern) {
-                return $element
+            $window = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+            if (-not $window) {
+                continue
+            }
+            $children = $window.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.Condition]::TrueCondition)
+            foreach ($element in $children) {
+                try {
+                    if ($element.Current.AutomationId -like $IdPattern) {
+                        return $element
+                    }
+                } catch {
+                    # 元素可能刚好失效：继续找下一个。
+                }
             }
         } catch {
-            # 元素可能刚好失效：继续找下一个。
+            # 窗口正在关闭：跳过。
         }
     }
     return $null
@@ -726,6 +812,53 @@ function Get-AiPdfTraceText {
     }
 }
 
+function Reset-AiPdfTrace {
+    <#
+    .SYNOPSIS
+        清空轨迹文件。
+    .DESCRIPTION
+        轨迹文件是追加写的，不清空的话上一轮的内容会留在里面，
+        断言会拿陈旧记录当成本轮证据——「拖选选中了预期的文字」这种检查
+        会在根本没拖选的情况下也显示通过。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    try {
+        [System.IO.File]::WriteAllText($Path, '')
+    } catch {
+    }
+}
+
+function Wait-AiPdfTraceMatch {
+    <#
+    .SYNOPSIS
+        等轨迹文件里出现匹配指定正则的内容。
+    .DESCRIPTION
+        比轮询界面控件可靠：界面上的瞬时状态（比如「正在搜索…」）
+        可能一闪而过，等界面读到时早就变了；轨迹是按时间顺序记下来的。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Pattern,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $text = Get-AiPdfTraceText -Path $Path
+        if ($text -match $Pattern) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 150
+    }
+    return $false
+}
+
 function Enable-AiPdfDpiAwareness {
     <#
     .SYNOPSIS
@@ -774,24 +907,51 @@ public static class AiPdfForeground {
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr SetActiveWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
-    // ALT 技巧：后台进程直接调 SetForegroundWindow 会被系统的前景锁拒绝，
-    // 窗口其实没到前台，合成鼠标事件就静默送不进去。
-    // 先按一下 ALT 让系统认为「刚有用户输入」，再 AttachThreadInput
-    // 挂到目标窗口的线程上，借它的权限去抢前台。
+    // 把窗口切到前台。
+    //
+    // 两条路：
+    // 1. ALT 技巧：系统的前台锁没放开时，只有「刚有用户输入」才允许后台进程
+    //    抢前台。这条路实测有效，但 ALT 会激活菜单栏，收尾要按 ESC，
+    //    否则紧接着发过去的 Ctrl+F 会被菜单吃掉（表现为「按了没反应」）。
+    // 2. 退路：借当前前台窗口的线程权限（AttachThreadInput）直接切。
+    //    这条路不动 ALT 键，但前台锁生效时可能切不动。
     public static bool ForceForeground(IntPtr hWnd) {
         uint pid;
         uint target = GetWindowThreadProcessId(hWnd, out pid);
+        IntPtr fg = GetForegroundWindow();
+        uint fgPid;
+        uint fgThread = (fg != IntPtr.Zero) ? GetWindowThreadProcessId(fg, out fgPid) : 0;
         uint self = GetCurrentThreadId();
+
         AttachThreadInput(self, target, true);
-        ShowWindow(hWnd, 9);
         keybd_event(0x12, 0, 0, UIntPtr.Zero);
         keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
-        bool ok = SetForegroundWindow(hWnd);
+        SetForegroundWindow(hWnd);
         BringWindowToTop(hWnd);
         AttachThreadInput(self, target, false);
-        return ok;
+        // ALT 会激活菜单栏，按 ESC 把它关掉，别让它吃掉后面的按键。
+        keybd_event(0x1B, 0, 0, UIntPtr.Zero);
+        keybd_event(0x1B, 0, 0x0002, UIntPtr.Zero);
+        if (GetForegroundWindow() == hWnd) {
+            return true;
+        }
+
+        if (fgThread != 0 && fgThread != self) {
+            AttachThreadInput(self, fgThread, true);
+        }
+        AttachThreadInput(self, target, true);
+        ShowWindow(hWnd, 9);
+        SetForegroundWindow(hWnd);
+        BringWindowToTop(hWnd);
+        SetActiveWindow(hWnd);
+        AttachThreadInput(self, target, false);
+        if (fgThread != 0 && fgThread != self) {
+            AttachThreadInput(self, fgThread, false);
+        }
+        return GetForegroundWindow() == hWnd;
     }
 }
 '@
@@ -885,6 +1045,53 @@ public static class AiPdfGeometry {
         $handle, [IntPtr]::Zero, 0, 0, $Width, $Height,
         [AiPdfGeometry]::NOZORDER -bor [AiPdfGeometry]::NOACTIVATE)
     Start-Sleep -Milliseconds 400
+    return $ok
+}
+
+function Set-AiPdfWindowTopmost {
+    <#
+    .SYNOPSIS
+        把主窗口临时置顶（或取消置顶）。
+    .DESCRIPTION
+        合成鼠标事件落在**光标下的那个窗口**上，跟前台是谁无关。
+        验收跑的时候，机器上别的程序（比如另一个编辑器）随时可能弹到前台
+        并盖住我们的窗口——实测点击落到了隔壁窗口上，拖选毫无反应，
+        看起来像产品缺陷。
+
+        所以做鼠标操作前把窗口置顶，操作完再取消。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [bool]$Enable
+    )
+
+    if (-not ('AiPdfTopmost' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfTopmost {
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    public static readonly IntPtr TOPMOST = new IntPtr(-1);
+    public static readonly IntPtr NOTOPMOST = new IntPtr(-2);
+    public const uint NOMOVE = 0x0002;
+    public const uint NOSIZE = 0x0001;
+    public const uint NOACTIVATE = 0x0010;
+    public const uint SHOWWINDOW = 0x0040;
+}
+'@
+    }
+
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) {
+        return $false
+    }
+    $after = if ($Enable) { [AiPdfTopmost]::TOPMOST } else { [AiPdfTopmost]::NOTOPMOST }
+    $flags = [AiPdfTopmost]::NOMOVE -bor [AiPdfTopmost]::NOSIZE -bor
+    [AiPdfTopmost]::NOACTIVATE -bor [AiPdfTopmost]::SHOWWINDOW
+    $ok = [AiPdfTopmost]::SetWindowPos($handle, $after, 0, 0, 0, 0, $flags)
+    Start-Sleep -Milliseconds 250
     return $ok
 }
 
