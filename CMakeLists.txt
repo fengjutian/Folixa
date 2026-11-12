@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(AiPdfEditor VERSION 0.1.0 LANGUAGES CXX)
+project(AiPdfEditor VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,5 +29,26 @@ add_subdirectory(worker)
 if(AIPDF_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# 安装规则：主程序与 Worker 平铺在同一目录，运行库由 scripts/package.ps1 部署。
+install(TARGETS AiPdfEditor PdfAiWorker
+    RUNTIME DESTINATION .
+)
+install(FILES ${CMAKE_SOURCE_DIR}/LICENSE DESTINATION .)
+install(FILES ${CMAKE_SOURCE_DIR}/THIRD_PARTY_LICENSES.md DESTINATION licenses)
+
+# 打包目标：生成自带 Qt 运行库、许可证材料与 SBOM 的 Windows x64 ZIP。
+if(WIN32)
+    add_custom_target(package
+        COMMAND pwsh -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_SOURCE_DIR}/scripts/package.ps1"
+                -BuildDir "${CMAKE_BINARY_DIR}"
+                -OutputDir "${CMAKE_SOURCE_DIR}/dist"
+                -Version "${PROJECT_VERSION}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Packaging AI PDF Editor ${PROJECT_VERSION}"
+        VERBATIM
+    )
 endif()
 

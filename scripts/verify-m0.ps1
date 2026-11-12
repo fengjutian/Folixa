@@ -1,83 +1,24 @@
 ﻿<#
 .SYNOPSIS
-    AI PDF Editor v0.1.0（M0）手工启动验收脚本。
+    AI PDF Editor 启动验收脚本（开发构建）。
 
 .DESCRIPTION
     启动主程序，验证 Worker 自动拉起、IPC 健康检查、版本显示与退出处理。
     每项检查输出 PASS / FAIL，脚本退出码在全部通过时为 0。
-
-.EXAMPLE
-    powershell -ExecutionPolicy Bypass -File scripts/verify-m0.ps1
-    powershell -ExecutionPolicy Bypass -File scripts/verify-m0.ps1 -BuildDir build/windows-release/bin
 #>
 param(
     [string]$BuildDir = (Join-Path $PSScriptRoot '..\build\windows-debug\bin'),
     [int]$StartupSeconds = 8,
     [int]$ShutdownTimeoutSeconds = 10,
-    [string]$ScreenshotPath = ''
+    [string]$ScreenshotPath = '',
+    [string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'AcceptanceProbe.ps1')
+
 $script:Failures = 0
-
-function Save-WindowScreenshot {
-    param(
-        [System.Diagnostics.Process]$Process,
-        [string]$Path
-    )
-
-    Add-Type -AssemblyName System.Drawing
-    Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class NativeWindow {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int command);
-    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint flags);
-}
-'@
-
-    $handle = $Process.MainWindowHandle
-    if ($handle -eq [IntPtr]::Zero) {
-        return $false
-    }
-    [NativeWindow]::ShowWindow($handle, 9) | Out-Null
-    [NativeWindow]::SetForegroundWindow($handle) | Out-Null
-    Start-Sleep -Milliseconds 700
-
-    $rect = New-Object NativeWindow+RECT
-    if (-not [NativeWindow]::GetWindowRect($handle, [ref]$rect)) {
-        return $false
-    }
-    $width = $rect.Right - $rect.Left
-    $height = $rect.Bottom - $rect.Top
-    if ($width -le 0 -or $height -le 0) {
-        return $false
-    }
-
-    # 只抓窗口自身内容，避免把桌面上其他窗口截进来。
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $hdc = $graphics.GetHdc()
-    $captured = [NativeWindow]::PrintWindow($handle, $hdc, 2)
-    $graphics.ReleaseHdc($hdc)
-    if (-not $captured) {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-        return $false
-    }
-    $directory = Split-Path -Parent $Path
-    if ($directory -and -not (Test-Path -LiteralPath $directory)) {
-        New-Item -ItemType Directory -Path $directory -Force | Out-Null
-    }
-    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    $graphics.Dispose()
-    $bitmap.Dispose()
-    return $true
-}
 
 function Test-Check {
     param(
@@ -99,6 +40,16 @@ if (-not $buildPath) {
     exit 2
 }
 $buildPath = $buildPath.Path
+
+if (-not $Version) {
+    $cmakeLists = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\CMakeLists.txt') -Raw
+    $match = [regex]::Match($cmakeLists, 'project\(AiPdfEditor VERSION ([0-9.]+)')
+    if (-not $match.Success) {
+        Write-Host '无法从 CMakeLists.txt 解析版本号' -ForegroundColor Red
+        exit 2
+    }
+    $Version = $match.Groups[1].Value
+}
 
 # 让子进程能加载 Qt 与 MinGW 运行库，即使 bin 目录里还没有部署 DLL。
 $qtRoot = if ($env:AIPDF_QT_ROOT) { $env:AIPDF_QT_ROOT } else { 'C:\Qt\6.8.3\mingw_64' }
@@ -132,42 +83,16 @@ try {
         Where-Object { $workersBefore -notcontains $_.Id })
     Test-Check 'Worker 被主程序自动拉起' ($workers.Count -ge 1) "count=$($workers.Count)"
 
-    # 通过 UI Automation 读取界面文本，验证就绪状态与版本显示。
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type -AssemblyName UIAutomationTypes
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $app.Id)
-    $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
-
-    Test-Check '主窗口可被自动化接口访问' ($null -ne $window)
-    if ($window) {
-        $texts = New-Object System.Collections.Generic.List[string]
-        $texts.Add($window.Current.Name)
-        $children = $window.FindAll(
-            [System.Windows.Automation.TreeScope]::Descendants,
-            [System.Windows.Automation.Condition]::TrueCondition)
-        foreach ($element in $children) {
-            $texts.Add($element.Current.Name)
-            # QTextBrowser 的正文通过 TextPattern 暴露，不在 Name 里。
-            $textPattern = $null
-            if ($element.TryGetCurrentPattern(
-                    [System.Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)) {
-                $document = $textPattern.DocumentRange.GetText(-1)
-                if ($document) {
-                    $texts.Add($document)
-                }
-            }
-        }
-        $all = ($texts -join "`n")
-
-        Test-Check '窗口标题显示版本 0.1.0' ($window.Current.Name -match '0\.1\.0') $window.Current.Name
-        Test-Check '界面显示 Worker 就绪' ($all -match 'ready') ''
-        Test-Check '健康检查返回协议版本与 Worker 版本' ($all -match 'protocol 1' -and $all -match 'worker 0\.1\.0') ''
+    $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15
+    Test-Check '主窗口可被自动化接口访问' ($null -ne $probe)
+    if ($probe) {
+        Test-Check "窗口标题显示版本 $Version" ($probe.Title -match [regex]::Escape($Version)) $probe.Title
+        Test-Check '界面显示 Worker 就绪' ($probe.Text -match 'ready') ''
+        Test-Check '健康检查返回协议版本与 Worker 版本' `
+            ($probe.Text -match 'protocol 1' -and $probe.Text -match 'worker ' + [regex]::Escape($Version)) ''
 
         if ($ScreenshotPath) {
-            $saved = Save-WindowScreenshot -Process $app -Path $ScreenshotPath
-            Test-Check '界面截图已保存' $saved $ScreenshotPath
+            Test-Check '界面截图已保存' (Save-AiPdfWindowScreenshot -Process $app -Path $ScreenshotPath) $ScreenshotPath
         }
     }
 } finally {
