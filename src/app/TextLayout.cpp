@@ -189,6 +189,24 @@ void TextLayout::rebuild() {
     orderPositions_ = positionOf;
 }
 
+int TextLayout::lineOfPosition(int orderPosition) const {
+    // lines_ 是阅读顺序上的连续区间，二分查找即可。
+    int low = 0;
+    int high = lines_.size() - 1;
+    while (low <= high) {
+        const int middle = (low + high) / 2;
+        const Line& line = lines_[middle];
+        if (orderPosition < line.start) {
+            high = middle - 1;
+        } else if (orderPosition >= line.end) {
+            low = middle + 1;
+        } else {
+            return middle;
+        }
+    }
+    return -1;
+}
+
 int TextLayout::hitTest(const QPointF& point) const {
     int best = -1;
     double bestDistance = std::numeric_limits<double>::max();
