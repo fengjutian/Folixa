@@ -36,3 +36,26 @@ powershell -ExecutionPolicy Bypass -File scripts\fetch-licenses.ps1 -VerifyOnly
 
 `-VerifyOnly` 只校验本目录内的文件与 `CHECKSUMS.txt` 是否一致；
 不带参数则从上表来源重新下载并校验。
+
+### 哈希按规范化文本计算
+
+上游来源的行尾并不统一：gnu.org 提供的 LGPL / GPL 是 LF，MinGW 工具包里的
+`COPYING.RUNTIME` 是 CRLF；而仓库按 `.gitattributes`（`* text=auto eol=lf`）
+以 LF 存对象库，检出时也按 LF 落地。
+
+如果直接对文件字节算哈希，同一份许可证会因行尾不同而得到两个哈希：
+本地工作区可能是 CRLF，CI runner 检出的是 LF，清单里却只能记一个 ——
+远端流水线会必然失败（这是本仓库实际踩过的坑）。
+
+因此 `CHECKSUMS.txt` 记录的是**规范化文本**（CRLF 与孤立 CR 全部折成 LF）
+的 SHA-256，由 `scripts/LicenseText.ps1` 统一实现，三处行为一致：
+
+- 取件时写入规范化后的内容，工作区文件与仓库对象库保持字节一致；
+- 校验时先归一化再算哈希，与检出方式、机器行尾策略无关；
+- 打包时写入规范化后的内容，安装包在任意机器上字节可复现。
+
+`scripts/test-gates.ps1` 的 I2 / I4 用例分别守住两件事：
+「内容被篡改必须失败」和「仅行尾不同必须仍然通过」。
+
+PDFium 及其第三方组件的许可证原文不走这套规则：它们来自固定 SHA-256 的
+官方 tarball，字节完全确定，用原始字节哈希才是更强的保证。

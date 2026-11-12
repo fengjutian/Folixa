@@ -25,6 +25,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'LicenseMap.ps1')
+. (Join-Path $PSScriptRoot 'LicenseText.ps1')
 
 if (-not $Version) {
     $cmakeLists = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'CMakeLists.txt') -Raw -Encoding UTF8
@@ -114,13 +115,15 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination $stag
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\THIRD_PARTY_LICENSES.md') -Destination $licenseDir
 
 # 第三方许可证全文（LGPL-3.0 / GPL-3.0 / GCC 运行时例外）
+# 写入前统一按 LF 归一化：上游来源行尾不一致（MinGW 的 COPYING.RUNTIME 是 CRLF），
+# 而仓库与安装包都按 LF 落地，归一化后安装包才是可复现的。
 $licenseSources = Join-Path $PSScriptRoot '..\licenses'
 foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt')) {
     $source = Join-Path $licenseSources $licenseFile
     if (-not (Test-Path -LiteralPath $source)) {
         throw "缺少许可证全文 $source（可运行 scripts\fetch-licenses.ps1 补齐）"
     }
-    Copy-Item -LiteralPath $source -Destination $licenseDir
+    Write-AiPdfCanonicalTextFile -Path (Join-Path $licenseDir $licenseFile) -Bytes ([System.IO.File]::ReadAllBytes($source))
 }
 
 $qtSbom = Join-Path $QtRoot 'sbom\qtbase-6.8.3.spdx.json'

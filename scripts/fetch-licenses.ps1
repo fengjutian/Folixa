@@ -6,6 +6,11 @@
     默认从权威来源重新下载许可证全文并按 licenses\CHECKSUMS.txt 校验；
     -VerifyOnly 只校验本地已有文件，不访问网络。
 
+    取件与校验都按「规范化文本」处理（行尾统一为 LF 再算 SHA-256，
+    见 scripts\LicenseText.ps1）：上游来源行尾不一致（gnu.org 是 LF，
+    MinGW 工具包是 CRLF），而仓库按 .gitattributes 以 LF 存对象库，
+    不归一化的话本地工作区与 CI runner 必然算出两个不同的哈希。
+
     下载失败或校验不通过都会返回非零退出码。
 #>
 param(
@@ -15,6 +20,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'LicenseText.ps1')
 
 if (-not $MinGWRoot) {
     $MinGWRoot = if ($env:AIPDF_MINGW_ROOT) { $env:AIPDF_MINGW_ROOT } else { 'C:\Qt\Tools\mingw1310_64' }
@@ -57,6 +64,9 @@ if (-not $VerifyOnly) {
             Write-Host "下载失败: $($_.Exception.Message)" -ForegroundColor Red
             exit 1
         }
+        # 落地即归一化：仓库按 .gitattributes 以 LF 存对象库，
+        # 写回 CRLF 会让工作区文件与仓库内容不一致。
+        Write-AiPdfCanonicalTextFile -Path $target -Bytes ([System.IO.File]::ReadAllBytes($target))
     }
     foreach ($name in $localSources.Keys) {
         $origin = $localSources[$name]
@@ -64,7 +74,8 @@ if (-not $VerifyOnly) {
             Write-Host "找不到本地许可证来源: $origin" -ForegroundColor Red
             exit 1
         }
-        Copy-Item -LiteralPath $origin -Destination (Join-Path $dir $name) -Force
+        # 直接写规范化后的内容，而不是原样复制 CRLF 原件。
+        Write-AiPdfCanonicalTextFile -Path (Join-Path $dir $name) -Bytes ([System.IO.File]::ReadAllBytes($origin))
     }
 }
 
@@ -76,7 +87,7 @@ foreach ($name in $expected.Keys) {
         $failures++
         continue
     }
-    $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actual = Get-AiPdfCanonicalTextHashFromFile -Path $path
     if ($actual -eq $expected[$name]) {
         Write-Host "PASS  $name" -ForegroundColor Green
     } else {

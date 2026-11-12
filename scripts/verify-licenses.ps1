@@ -7,6 +7,10 @@
       1. 必须存在；
       2. SHA-256 必须与 licenses\CHECKSUMS.txt 一致。
 
+    顶层三份许可证全文按「规范化文本」校验（行尾统一为 LF 再算哈希，
+    见 scripts\LicenseText.ps1）：上游来源行尾不一致，而仓库与安装包
+    都按 LF 落地，不归一化就会因检出方式不同而误报。
+
     另检查 PDFium 及其第三方组件的许可证材料（licenses\pdfium\）：
       3. 包内文件集合必须与 licenses\pdfium-CHECKSUMS.txt 完全一致（不多不少）；
       4. 每份文件的 SHA-256 必须与清单一致；
@@ -22,6 +26,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'LicenseText.ps1')
 
 if (-not $ManifestPath) {
     $ManifestPath = Join-Path $PSScriptRoot '..\licenses\CHECKSUMS.txt'
@@ -71,7 +77,7 @@ foreach ($line in (Get-Content -LiteralPath $ManifestPath -Encoding UTF8)) {
         Test-Check "包含 $name" $false '缺失'
         continue
     }
-    $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actual = Get-AiPdfCanonicalTextHashFromFile -Path $path
     Test-Check "$name 与校验清单一致" ($actual -eq $expected) "期望 $expected 实际 $actual"
 }
 

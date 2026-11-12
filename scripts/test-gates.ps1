@@ -18,7 +18,15 @@
         H4. 少发一份 PDFium 第三方许可证必须失败；
         H5. 篡改一份 PDFium 许可证必须失败；
         H6. 多发一份清单之外的许可证必须失败；
-        H7. 还原后 PDFium 许可证校验恢复通过。
+        H7. 还原后 PDFium 许可证校验恢复通过；
+        H8. 包内许可证改成 CRLF 行尾必须仍然通过（行尾不是许可证内容的一部分）。
+
+      取件门（scripts\fetch-licenses.ps1 -VerifyOnly）
+        I1. 仓库内许可证齐全时通过；
+        I2. 篡改仓库内 GCC 运行时例外必须失败；
+        I3. 还原后恢复通过；
+        I4. 仓库内许可证改成 CRLF 行尾必须仍然通过；
+        I5. 全部破坏性验证结束后仓库内许可证必须仍然通过。
 
       版本门（scripts\check-version.ps1）
         E. 版本一致必须通过；
@@ -172,6 +180,44 @@ Remove-Item -LiteralPath $extraLicense -Force
 
 $exit = Invoke-Gate '许可证还原后（PDFium）' $licenseGate @('-PackageDir', $appDir)
 Test-Check 'H7 还原后 PDFium 许可证校验恢复通过' ($exit -eq 0) "exit=$exit"
+
+# H8. 包内许可证改成 CRLF 行尾仍应通过：行尾不是许可证内容的一部分，
+# 归一化之后，包的哈希就不该随打包机器的行尾策略漂移。
+$crlfLicenseFile = Join-Path $appDir 'licenses\LGPL-3.0.txt'
+$crlfBackup = [System.IO.File]::ReadAllBytes($crlfLicenseFile)
+$crlfText = ([System.Text.Encoding]::UTF8.GetString($crlfBackup) -replace "`r`n", "`n") -replace "`n", "`r`n"
+[System.IO.File]::WriteAllBytes($crlfLicenseFile, [System.Text.Encoding]::UTF8.GetBytes($crlfText))
+$exit = Invoke-Gate '包内许可证改 CRLF' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H8 包内许可证改成 CRLF 时仍然通过' ($exit -eq 0) "exit=$exit"
+[System.IO.File]::WriteAllBytes($crlfLicenseFile, $crlfBackup)
+
+Write-Host '=== 取件门 ===' -ForegroundColor Cyan
+$fetchGate = Join-Path $PSScriptRoot 'fetch-licenses.ps1'
+$repoLicenseDir = Join-Path $root 'licenses'
+
+$exit = Invoke-Gate '仓库许可证完整' $fetchGate @('-VerifyOnly', '-LicenseDir', $repoLicenseDir)
+Test-Check 'I1 仓库内许可证齐全时通过' ($exit -eq 0) "exit=$exit"
+
+$repoLicenseFile = Join-Path $repoLicenseDir 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+$repoLicenseBackup = [System.IO.File]::ReadAllBytes($repoLicenseFile)
+[System.IO.File]::AppendAllText($repoLicenseFile, "`n<!-- tampered -->`n")
+$exit = Invoke-Gate '篡改仓库许可证' $fetchGate @('-VerifyOnly', '-LicenseDir', $repoLicenseDir)
+Test-Check 'I2 仓库内许可证被篡改时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllBytes($repoLicenseFile, $repoLicenseBackup)
+
+$exit = Invoke-Gate '仓库许可证还原后' $fetchGate @('-VerifyOnly', '-LicenseDir', $repoLicenseDir)
+Test-Check 'I3 还原后恢复通过' ($exit -eq 0) "exit=$exit"
+
+# I4. 仓库内许可证改成 CRLF 仍应通过：这条正是远端 CI 曾经失败的场景
+# （runner 检出 LF、本地工作区是 CRLF，清单里只能记一个哈希）。
+$repoCrlfText = ([System.Text.Encoding]::UTF8.GetString($repoLicenseBackup) -replace "`r`n", "`n") -replace "`n", "`r`n"
+[System.IO.File]::WriteAllBytes($repoLicenseFile, [System.Text.Encoding]::UTF8.GetBytes($repoCrlfText))
+$exit = Invoke-Gate '仓库许可证改 CRLF' $fetchGate @('-VerifyOnly', '-LicenseDir', $repoLicenseDir)
+Test-Check 'I4 仓库内许可证改成 CRLF 时仍然通过' ($exit -eq 0) "exit=$exit"
+[System.IO.File]::WriteAllBytes($repoLicenseFile, $repoLicenseBackup)
+
+$exit = Invoke-Gate '仓库许可证最终还原后' $fetchGate @('-VerifyOnly', '-LicenseDir', $repoLicenseDir)
+Test-Check 'I5 全部破坏性验证结束后仍然通过' ($exit -eq 0) "exit=$exit"
 
 Write-Host '=== 版本门 ===' -ForegroundColor Cyan
 $versionGate = Join-Path $PSScriptRoot 'check-version.ps1'
