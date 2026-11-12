@@ -1,6 +1,8 @@
 #include "pdf/PdfiumAdapter.h"
 
 #include <fpdf_edit.h>
+#include <fpdf_text.h>
+#include <fpdf_transformpage.h>
 #include <fpdfview.h>
 
 #include <QByteArray>
@@ -49,6 +51,8 @@ struct PageImpl {
     // 持有文档实现，保证页面句柄存活期间文档不被关闭。
     std::shared_ptr<DocumentImpl> document;
     FPDF_PAGE page = nullptr;
+    // 页序号（从 0 开始），文本层要带上。
+    int index = 0;
 
     ~PageImpl() {
         if (page != nullptr) {
@@ -199,6 +203,87 @@ QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
     return image;
 }
 
+QRectF PdfPage::mediaBox() const {
+    if (!isValid()) {
+        return {};
+    }
+    float left = 0.0F;
+    float bottom = 0.0F;
+    float right = 0.0F;
+    float top = 0.0F;
+    if (!FPDFPage_GetMediaBox(impl_->page, &left, &bottom, &right, &top)) {
+        return QRectF(0.0, 0.0, widthPoints(), heightPoints());
+    }
+    return QRectF(left, bottom, right - left, top - bottom);
+}
+
+std::optional<TextPage> PdfPage::extractText() const {
+    if (!isValid()) {
+        return std::nullopt;
+    }
+
+    FPDF_TEXTPAGE textPage = FPDFText_LoadPage(impl_->page);
+    if (textPage == nullptr) {
+        return std::nullopt;
+    }
+
+    TextPage result;
+    result.pageIndex = impl_->index;
+
+    const int count = FPDFText_CountChars(textPage);
+    result.chars.reserve(count);
+
+    // 代理对：PDFium 给的是 UTF-16 码元，高代理项要等下一个低代理项。
+    QString pendingHighSurrogate;
+    QRectF pendingBox;
+
+    for (int i = 0; i < count; ++i) {
+        const unsigned short unit = FPDFText_GetUnicode(textPage, i);
+        if (FPDFText_HasUnicodeMapError(textPage, i)) {
+            result.unicodeMapError = true;
+        }
+
+        double left = 0.0;
+        double right = 0.0;
+        double bottom = 0.0;
+        double top = 0.0;
+        FPDFText_GetCharBox(textPage, i, &left, &right, &bottom, &top);
+        const QRectF box(left, bottom, right - left, top - bottom);
+
+        if (unit >= 0xD800 && unit <= 0xDBFF) {
+            pendingHighSurrogate = QString(QChar(static_cast<char16_t>(unit)));
+            pendingBox = box;
+            continue;
+        }
+
+        TextChar character;
+        character.box = box;
+        character.index = i;
+        if (unit >= 0xDC00 && unit <= 0xDFFF && !pendingHighSurrogate.isEmpty()) {
+            // 代理对：合并成一个字符，框取两者的并集。
+            pendingHighSurrogate.append(QChar(static_cast<char16_t>(unit)));
+            character.text = pendingHighSurrogate;
+            character.box = pendingBox.united(box);
+            pendingHighSurrogate.clear();
+        } else {
+            character.text = QString(QChar(static_cast<char16_t>(unit)));
+        }
+        result.chars.append(character);
+    }
+
+    if (!pendingHighSurrogate.isEmpty()) {
+        // 落单的代理项：单独作为字符保留。
+        TextChar character;
+        character.text = pendingHighSurrogate;
+        character.box = pendingBox;
+        character.index = count > 0 ? count - 1 : 0;
+        result.chars.append(character);
+    }
+
+    FPDFText_ClosePage(textPage);
+    return result;
+}
+
 // ------------------------------------------------------------- PdfDocument ----
 
 PdfDocument::PdfDocument(std::shared_ptr<detail::DocumentImpl> impl)
@@ -231,6 +316,7 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
     auto pageImpl = std::make_shared<detail::PageImpl>();
     pageImpl->document = impl_;
     pageImpl->page = page;
+    pageImpl->index = index;
     return PdfPage(pageImpl);
 }
 

@@ -19,6 +19,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenuBar>
+#include <QMenu>
 #include <QSettings>
 #include <QPushButton>
 #include <QStackedWidget>
@@ -121,6 +122,7 @@ void MainWindow::buildUi() {
     fileMenu->addAction(tr("退出"), QKeySequence::Quit, this, &QWidget::close);
 
     auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
+    menuBar()->hide();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
     auto* commandBar = addToolBar(tr("功能导航"));
@@ -131,6 +133,19 @@ void MainWindow::buildUi() {
     brand->setObjectName(QStringLiteral("brandMark"));
     brand->setToolTip(tr("Folixa 文档工作区"));
     commandBar->addWidget(brand);
+    auto* appMenuButton = new QToolButton(commandBar);
+    appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
+    appMenuButton->setText(QStringLiteral("☰"));
+    appMenuButton->setToolTip(tr("主菜单"));
+    appMenuButton->setPopupMode(QToolButton::InstantPopup);
+    auto* appMenu = new QMenu(appMenuButton);
+    appMenu->addAction(openAction);
+    appMenu->addSeparator();
+    appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
+    appMenu->addSeparator();
+    appMenu->addAction(tr("退出"), this, &QWidget::close);
+    appMenuButton->setMenu(appMenu);
+    commandBar->addWidget(appMenuButton);
     commandBar->addSeparator();
     auto* homeAction = commandBar->addAction(tr("阅读"));
     homeAction->setCheckable(true);
@@ -193,6 +208,16 @@ void MainWindow::buildUi() {
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
+    // 菜单在导航面板创建后补齐切换动作。
+    const QList<QAction*> appMenuActions = appMenu->actions();
+    if (appMenuActions.size() >= 3) {
+        QAction* navigationAction = appMenuActions.at(2);
+        navigationAction->setText(tr("显示导航面板"));
+        navigationAction->setCheckable(true);
+        navigationAction->setChecked(true);
+        connect(navigationAction, &QAction::toggled, navigationDock_, &QDockWidget::setVisible);
+        connect(navigationDock_, &QDockWidget::visibilityChanged, navigationAction, &QAction::setChecked);
+    }
     viewMenu->addAction(navigationDock_->toggleViewAction());
 
     aiDock_ = new QDockWidget(tr("AI 助手"), this);
@@ -260,8 +285,16 @@ void MainWindow::buildUi() {
     });
 
     QSettings settings;
+    constexpr int kWorkspaceLayoutVersion = 2;
+    const bool isNewWorkspaceLayout =
+        settings.value(QStringLiteral("workspace/layoutVersion"), 0).toInt() < kWorkspaceLayoutVersion;
+    if (isNewWorkspaceLayout) {
+        settings.setValue(QStringLiteral("workspace/layoutVersion"), kWorkspaceLayoutVersion);
+        settings.setValue(QStringLiteral("workspace/navigationVisible"), true);
+        settings.setValue(QStringLiteral("workspace/aiVisible"), true);
+    }
     navigationDock_->setVisible(settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool());
-    aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
+    aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), true).toBool());
     connect(navigationDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
         QSettings().setValue(QStringLiteral("workspace/navigationVisible"), visible);
     });

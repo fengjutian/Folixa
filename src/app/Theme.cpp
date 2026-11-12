@@ -26,6 +26,8 @@ QToolBar#commandBar QToolButton:hover { color: #3555B7; background: #F1F4FF; }
 QToolBar#commandBar QToolButton:checked { color: #3555B7; background: #EAF0FF; border-bottom: 2px solid #5277E8; border-radius: 8px; }
 QToolBar#commandBar QToolButton:disabled { color: #AAB2C0; background: transparent; }
 QLabel#brandMark { min-width: 30px; min-height: 30px; color: white; background: #5277E8; border-radius: 9px; font-size: 16px; font-weight: 700; }
+QToolButton#appMenuButton { min-width: 34px; max-width: 34px; padding: 0; border: 0; color: #465267; background: transparent; font-size: 17px; }
+QToolButton#appMenuButton:hover { background: #F1F4FF; color: #3555B7; }
 QPushButton, QToolButton {
     min-height: 30px; padding: 0 11px; border: 1px solid #E3E7EE;
     border-radius: 8px; background: #FFFFFF;
@@ -47,7 +49,7 @@ QTabBar::tab { min-height: 34px; padding: 0 14px; color: #465267; background: #F
 QTabBar::tab:selected { color: #202A3A; background: #FFFFFF; font-weight: 600; border-top: 2px solid #5277E8; }
 QTabBar::tab:hover:!selected { background: #F1F4FF; }
 QDockWidget { color: #202A3A; font-weight: 600; }
-QDockWidget::title { background: #FFFFFF; border-bottom: 1px solid #E3E7EE; padding: 10px 12px; }
+QDockWidget::title { background: #FBFCFE; border-bottom: 1px solid #E3E7EE; padding: 11px 12px; }
 QFrame#navigationRail { background: #F7F8FB; border-right: 1px solid #E3E7EE; }
 QToolButton#railButton { min-width: 38px; max-width: 38px; min-height: 38px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 19px; }
 QToolButton#railButton:hover { background: #EAF0FF; color: #3555B7; }
