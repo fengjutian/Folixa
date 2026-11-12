@@ -103,7 +103,8 @@ function Invoke-AppWithPdf {
         [switch]$CancelDialog,
         [string]$ScreenshotTitlePattern = '',
         [string]$DialogScreenshot = '',
-        [string]$ExpectTextPattern = ''
+        [string]$ExpectTextPattern = '',
+        [string]$RequireText = ''
     )
 
     Stop-LeftoverApp
@@ -150,7 +151,8 @@ function Invoke-AppWithPdf {
             Start-Sleep -Seconds 1
         }
 
-        $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15 -TitlePattern 'AI PDF Editor'
+        $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15 -TitlePattern 'AI PDF Editor' `
+            -RequirePattern $RequireText
         if ($Screenshot) {
             $screenshotTaken = Save-AiPdfWindowScreenshot -Process $app -Path $Screenshot `
                 -WindowTitlePattern $ScreenshotTitlePattern
@@ -181,7 +183,7 @@ function Invoke-AppWithPdf {
 
 Write-Host '==> 打开普通 PDF' -ForegroundColor Cyan
 $normal = Join-Path $fixtureDir 'normal.pdf'
-$run = Invoke-AppWithPdf -PdfPath $normal -Screenshot $ScreenshotPath
+$run = Invoke-AppWithPdf -PdfPath $normal -Screenshot $ScreenshotPath -RequireText '已打开\s*normal\.pdf'
 Test-Check '主程序保持运行' $run.Alive
 if ($run.Probe) {
     Test-Check '出现 normal.pdf 标签页' ($run.Probe.Text -match 'normal\.pdf') ''
@@ -196,7 +198,7 @@ if ($run.Probe) {
 
 Write-Host '==> 打开旋转页 PDF' -ForegroundColor Cyan
 $rotated = Join-Path $fixtureDir 'rotated.pdf'
-$run = Invoke-AppWithPdf -PdfPath $rotated
+$run = Invoke-AppWithPdf -PdfPath $rotated -RequireText '已打开\s*rotated\.pdf'
 Test-Check '主程序保持运行' $run.Alive
 if ($run.Probe) {
     Test-Check '旋转页显示页码信息' ($run.Probe.Text -match '第\s*1\s*/\s*1\s*页') ''
@@ -205,7 +207,7 @@ if ($run.Probe) {
 
 Write-Host '==> 打开损坏 PDF' -ForegroundColor Cyan
 $corrupt = Join-Path $fixtureDir 'corrupt.pdf'
-$run = Invoke-AppWithPdf -PdfPath $corrupt
+$run = Invoke-AppWithPdf -PdfPath $corrupt -RequireText '无法打开\s*corrupt\.pdf'
 Test-Check '损坏文件不会导致崩溃' $run.Alive
 if ($run.Probe) {
     Test-Check '状态栏给出可见错误' ($run.Probe.Text -match '无法打开') ''
@@ -220,7 +222,8 @@ if ($ScreenshotPath) {
         [System.IO.Path]::GetFileNameWithoutExtension($ScreenshotPath) + '-password.png')
 }
 $run = Invoke-AppWithPdf -PdfPath $encrypted -Password 'secret' `
-    -DialogTitlePattern '需要密码' -DialogScreenshot $dialogScreenshot
+    -DialogTitlePattern '需要密码' -DialogScreenshot $dialogScreenshot `
+    -RequireText '已打开\s*encrypted\.pdf'
 Test-Check '主程序保持运行' $run.Alive
 Test-Check '弹出密码输入框' $run.DialogSeen
 Test-Check '密码已提交' $run.PasswordEntered
@@ -232,13 +235,14 @@ if ($run.Probe) {
 
 Write-Host '==> 打开加密 PDF（错误密码）' -ForegroundColor Cyan
 $run = Invoke-AppWithPdf -PdfPath $encrypted -Password 'wrong-password' `
-    -DialogTitlePattern '需要密码' -ExpectTextPattern '无法打开'
+    -DialogTitlePattern '需要密码' -ExpectTextPattern '无法打开' `
+    -RequireText '无法打开\s*encrypted\.pdf'
 Test-Check '错误密码不会导致崩溃' $run.Alive
 Test-Check '错误密码给出可见错误' $run.TextMatched ''
 
 Write-Host '==> 打开加密 PDF（取消）' -ForegroundColor Cyan
 $run = Invoke-AppWithPdf -PdfPath $encrypted -DialogTitlePattern '需要密码' -CancelDialog `
-    -ExpectTextPattern '已取消打开'
+    -ExpectTextPattern '已取消打开' -RequireText '已取消打开'
 Test-Check '取消密码不会导致崩溃' $run.Alive
 Test-Check '密码框已取消' $run.DialogSeen
 Test-Check '取消后状态栏提示已取消' $run.TextMatched (

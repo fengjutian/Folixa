@@ -451,25 +451,40 @@ public static class NativeWindow {
 }
 
 function Wait-AiPdfWindowProbe {
+    <#
+    .SYNOPSIS
+        轮询主窗口，直到窗口文本满足条件后返回最后一次探测结果。
+    .DESCRIPTION
+        -RequirePattern 用来消除竞态：窗口「就绪」不等于内容已经就位，
+        比如 500 页文档刚打开时页码标签可能还没更新。
+        指定后一直等到预期内容出现（或超时），断言才是确定的。
+    #>
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process,
         [int]$TimeoutSeconds = 15,
-        [string]$TitlePattern = ''
+        [string]$TitlePattern = '',
+        [string]$RequirePattern = ''
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $last = $null
     while ((Get-Date) -lt $deadline) {
         if ($Process.HasExited) {
-            return $null
+            return $last
         }
         $probe = Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern
-        if ($probe -and $probe.Text -match 'ready') {
-            return $probe
+        if ($probe) {
+            $last = $probe
+            $ready = $probe.Text -match 'ready'
+            $matched = (-not $RequirePattern) -or ($probe.Text -match $RequirePattern)
+            if ($ready -and $matched) {
+                return $probe
+            }
         }
         Start-Sleep -Milliseconds 400
     }
-    return (Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern)
+    return $last
 }
 
 function Stop-AiPdfOrphanWorker {

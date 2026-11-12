@@ -82,7 +82,8 @@ try {
     Start-Sleep -Seconds $StartupSeconds
 
     Test-Check '主程序保持运行' (-not $app.HasExited)
-    $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 20 -TitlePattern 'AI PDF Editor'
+    $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 20 -TitlePattern 'AI PDF Editor' `
+        -RequirePattern '第\s*1\s*/\s*500\s*页'
     Test-Check '主窗口可被自动化接口访问' ($null -ne $probe)
     if (-not $probe) {
         exit 1
