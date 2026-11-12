@@ -18,5 +18,8 @@ function Get-AiPdfLicense {
     if ($lower -match '^(libgcc|libstdc\+\+|libwinpthread|libgomp|libssp)') {
         return @{ id = 'GPL-3.0-with-GCC-exception'; name = 'GNU General Public License v3.0 with GCC Runtime Library Exception' }
     }
+    if ($lower -match '^pdfium\.dll$') {
+        return @{ id = 'BSD-3-Clause'; name = 'BSD 3-Clause License (PDFium)' }
+    }
     return @{ id = 'LicenseRef-Project-Proprietary'; name = 'AI PDF Editor build output, all rights reserved' }
 }

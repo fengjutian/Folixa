@@ -60,6 +60,9 @@ try {
         Invoke-Script '安装固定工具链' (Join-Path $PSScriptRoot 'bootstrap-toolchain.ps1')
     }
 
+    Write-Host '=== PDFium ===' -ForegroundColor Cyan
+    Invoke-Script '获取 PDFium' (Join-Path $PSScriptRoot 'bootstrap-pdfium.ps1')
+
     Write-Host '=== 许可证全文 ===' -ForegroundColor Cyan
     Invoke-Script '校验许可证全文' (Join-Path $PSScriptRoot 'fetch-licenses.ps1') @('-VerifyOnly')
 
@@ -70,6 +73,10 @@ try {
     Invoke-Script '启动验收 Debug' (Join-Path $PSScriptRoot 'verify-m0.ps1') @(
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/m0-debug.png'
+    )
+    Invoke-Script 'PDF 能力验收' (Join-Path $PSScriptRoot 'verify-pdf.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/pdf-open.png'
     )
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

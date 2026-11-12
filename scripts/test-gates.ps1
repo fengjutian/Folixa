@@ -3,13 +3,22 @@
     发布门的负例守卫测试：故意弄坏它负责的东西，门必须变红。
 
 .DESCRIPTION
-    没有负例的门等于没被观察过报红的门。本脚本对两道门各做一次破坏性验证：
+    没有负例的门等于没被观察过报红的门。本脚本对三道门各做一次破坏性验证：
 
       SBOM 门（scripts\verify-sbom.ps1）
         A. 正常状态必须通过；
         B. 篡改某个文件的 SHA-256 必须失败；
         C. 从 SBOM 里删掉某个文件条目必须失败；
         D. 改掉 SBOM 声明的版本号必须失败。
+
+      许可证门（scripts\verify-licenses.ps1）
+        H1. 许可证齐全时通过；
+        H2. 篡改 LGPL 全文必须失败；
+        H3. 还原后恢复通过；
+        H4. 少发一份 PDFium 第三方许可证必须失败；
+        H5. 篡改一份 PDFium 许可证必须失败；
+        H6. 多发一份清单之外的许可证必须失败；
+        H7. 还原后 PDFium 许可证校验恢复通过。
 
       版本门（scripts\check-version.ps1）
         E. 版本一致必须通过；
@@ -127,6 +136,42 @@ Test-Check 'H2 许可证被篡改时必须失败' ($exit -ne 0) "exit=$exit"
 
 $exit = Invoke-Gate '许可证还原后' $licenseGate @('-PackageDir', $appDir)
 Test-Check 'H3 还原后恢复通过' ($exit -eq 0) "exit=$exit"
+
+# H4. 删掉一份 PDFium 许可证材料（漏发一份第三方许可证）
+$pdfiumLicenseDir = Join-Path $appDir 'licenses\pdfium'
+$missingLicense = Join-Path $pdfiumLicenseDir 'libjpeg_turbo.ijg'
+$missingBackup = Join-Path $workRoot 'libjpeg_turbo.ijg.bak'
+if (Test-Path -LiteralPath $missingLicense) {
+    Copy-Item -LiteralPath $missingLicense -Destination $missingBackup -Force
+    Remove-Item -LiteralPath $missingLicense -Force
+    $exit = Invoke-Gate '缺少 PDFium 许可证' $licenseGate @('-PackageDir', $appDir)
+    Test-Check 'H4 缺少一份 PDFium 许可证时必须失败' ($exit -ne 0) "exit=$exit"
+    Copy-Item -LiteralPath $missingBackup -Destination $missingLicense -Force
+} else {
+    Test-Check 'H4 缺少一份 PDFium 许可证时必须失败' $false '包内没有可删除的 PDFium 许可证样本'
+}
+
+# H5. 篡改一份 PDFium 许可证材料
+$pdfiumLicenseFile = Join-Path $pdfiumLicenseDir 'pdfium.txt'
+if (Test-Path -LiteralPath $pdfiumLicenseFile) {
+    $pdfiumBackup = [System.IO.File]::ReadAllBytes($pdfiumLicenseFile)
+    [System.IO.File]::AppendAllText($pdfiumLicenseFile, "`n<!-- tampered -->`n")
+    $exit = Invoke-Gate '篡改 PDFium 许可证' $licenseGate @('-PackageDir', $appDir)
+    Test-Check 'H5 PDFium 许可证被篡改时必须失败' ($exit -ne 0) "exit=$exit"
+    [System.IO.File]::WriteAllBytes($pdfiumLicenseFile, $pdfiumBackup)
+} else {
+    Test-Check 'H5 PDFium 许可证被篡改时必须失败' $false '包内没有可篡改的 PDFium 许可证样本'
+}
+
+# H6. 塞进一份清单之外的文件（多发一份未登记的许可证）
+$extraLicense = Join-Path $pdfiumLicenseDir 'unlisted-license.txt'
+[System.IO.File]::WriteAllText($extraLicense, 'unlisted', (New-Object System.Text.UTF8Encoding($false)))
+$exit = Invoke-Gate '多出未登记的许可证' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H6 出现清单之外的许可证时必须失败' ($exit -ne 0) "exit=$exit"
+Remove-Item -LiteralPath $extraLicense -Force
+
+$exit = Invoke-Gate '许可证还原后（PDFium）' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H7 还原后 PDFium 许可证校验恢复通过' ($exit -eq 0) "exit=$exit"
 
 Write-Host '=== 版本门 ===' -ForegroundColor Cyan
 $versionGate = Join-Path $PSScriptRoot 'check-version.ps1'

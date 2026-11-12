@@ -57,6 +57,7 @@ Write-Host '==> 校验包内文件' -ForegroundColor Cyan
 foreach ($required in @(
     'AiPdfEditor.exe',
     'PdfAiWorker.exe',
+    'pdfium.dll',
     'Qt6Core.dll',
     'Qt6Gui.dll',
     'Qt6Widgets.dll',
@@ -71,6 +72,8 @@ foreach ($required in @(
     'licenses/LGPL-3.0.txt',
     'licenses/GPL-3.0.txt',
     'licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+    'licenses/pdfium-CHECKSUMS.txt',
+    'licenses/pdfium/pdfium-BSD-3-Clause.txt',
     "sbom/ai-pdf-editor-$Version.cdx.json"
 )) {
     Test-Check "包含 $required" (Test-Path -LiteralPath (Join-Path $appDir $required))

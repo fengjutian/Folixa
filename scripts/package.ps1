@@ -15,9 +15,10 @@
 param(
     [string]$BuildDir = 'build\windows-release',
     [string]$OutputDir = 'dist',
-    [string]$Version = '0.2.0',
+    [string]$Version = '',
     [string]$QtRoot = '',
     [string]$MinGWRoot = '',
+    [string]$PdfiumRoot = '',
     [switch]$KeepStaging
 )
 
@@ -25,11 +26,27 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'LicenseMap.ps1')
 
+if (-not $Version) {
+    $cmakeLists = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'CMakeLists.txt') -Raw -Encoding UTF8
+    $match = [regex]::Match($cmakeLists, 'project\(AiPdfEditor VERSION ([0-9.]+)')
+    if (-not $match.Success) {
+        throw '无法从 CMakeLists.txt 解析项目版本'
+    }
+    $Version = $match.Groups[1].Value
+}
+
 if (-not $QtRoot) {
     $QtRoot = if ($env:AIPDF_QT_ROOT) { $env:AIPDF_QT_ROOT } else { 'C:\Qt\6.8.3\mingw_64' }
 }
 if (-not $MinGWRoot) {
     $MinGWRoot = if ($env:AIPDF_MINGW_ROOT) { $env:AIPDF_MINGW_ROOT } else { 'C:\Qt\Tools\mingw1310_64' }
+}
+if (-not $PdfiumRoot) {
+    $PdfiumRoot = if ($env:AIPDF_PDFIUM_ROOT) {
+        $env:AIPDF_PDFIUM_ROOT
+    } else {
+        Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\pdfium'
+    }
 }
 
 $packageName = "ai-pdf-editor-$Version-win64"
@@ -59,6 +76,13 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Write-Host '==> 复制构建产物' -ForegroundColor Cyan
 Copy-Item -LiteralPath (Join-Path $binDir 'AiPdfEditor.exe') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $binDir 'PdfAiWorker.exe') -Destination $stage
+
+Write-Host '==> 复制 PDFium 运行库' -ForegroundColor Cyan
+$pdfiumDll = Join-Path $PdfiumRoot 'bin\pdfium.dll'
+if (-not (Test-Path -LiteralPath $pdfiumDll)) {
+    throw "找不到 PDFium 运行库 $pdfiumDll（请运行 scripts\bootstrap-pdfium.ps1）"
+}
+Copy-Item -LiteralPath $pdfiumDll -Destination $stage
 
 Write-Host '==> 部署 Qt 运行库' -ForegroundColor Cyan
 & $windeployqt --release --no-translations --no-opengl-sw --dir $stage (Join-Path $stage 'AiPdfEditor.exe')
@@ -107,6 +131,40 @@ if (Test-Path -LiteralPath $qtSbom) {
     Write-Warning "未找到 Qt 官方 SPDX SBOM: $qtSbom"
 }
 
+# PDFium 及其第三方组件的许可证原文：按仓库内清单逐份复制并核对哈希。
+# 清单是仓库内的锚点，缺任何一份或哈希不符都在打包阶段就中止。
+$repoRoot = Join-Path $PSScriptRoot '..'
+$pdfiumLicenseManifest = Join-Path $repoRoot 'licenses\pdfium-CHECKSUMS.txt'
+if (-not (Test-Path -LiteralPath $pdfiumLicenseManifest)) {
+    throw "缺少 PDFium 许可证清单 $pdfiumLicenseManifest"
+}
+$pdfiumLicenseTarget = Join-Path $licenseDir 'pdfium'
+New-Item -ItemType Directory -Path $pdfiumLicenseTarget -Force | Out-Null
+$copiedPdfiumLicenses = 0
+foreach ($line in (Get-Content -LiteralPath $pdfiumLicenseManifest -Encoding UTF8)) {
+    if ($line -notmatch '^([0-9a-f]{64})\s+(\S+)\s+(\S+)$') {
+        continue
+    }
+    $expectedHash = $matches[1]
+    $targetName = $matches[2]
+    $sourceRelative = $matches[3]
+    $sourcePath = Join-Path $repoRoot ($sourceRelative -replace '/', '\')
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        throw "PDFium 许可证源文件缺失: $sourceRelative（清单条目 $targetName）"
+    }
+    $actualHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+        throw "PDFium 许可证源文件哈希不符: $sourceRelative 期望 $expectedHash 实际 $actualHash"
+    }
+    Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $pdfiumLicenseTarget $targetName)
+    $copiedPdfiumLicenses++
+}
+if ($copiedPdfiumLicenses -lt 1) {
+    throw 'PDFium 许可证清单没有有效条目，打包中止'
+}
+Copy-Item -LiteralPath $pdfiumLicenseManifest -Destination $licenseDir
+Write-Host "    附带 PDFium 许可证材料: $copiedPdfiumLicenses 份"
+
 Write-Host '==> 生成 NOTICE.txt' -ForegroundColor Cyan
 $noticeLines = New-Object System.Collections.Generic.List[string]
 $noticeLines.Add("AI PDF Editor $Version - Windows x64 开发包")
@@ -133,11 +191,25 @@ $noticeLines.Add('完整依赖清单与 SBOM：licenses/THIRD_PARTY_LICENSES.md�
 
 Write-Host '==> 生成 SBOM' -ForegroundColor Cyan
 $sbomOutput = Join-Path $stage "sbom\ai-pdf-editor-$Version.cdx.json"
+$pdfiumVersion = ''
+$pdfiumVersionFile = Join-Path $PdfiumRoot 'VERSION'
+if (Test-Path -LiteralPath $pdfiumVersionFile) {
+    $fields = @{}
+    foreach ($line in (Get-Content -LiteralPath $pdfiumVersionFile -Encoding UTF8)) {
+        if ($line -match '^(\w+)=(\d+)$') {
+            $fields[$matches[1]] = $matches[2]
+        }
+    }
+    if ($fields.ContainsKey('MAJOR')) {
+        $pdfiumVersion = "$($fields['MAJOR']).$($fields['MINOR']).$($fields['BUILD']).$($fields['PATCH'])"
+    }
+}
 & (Join-Path $PSScriptRoot 'generate-sbom.ps1') `
     -PackageDir $stage `
     -OutputPath $sbomOutput `
     -Version $Version `
-    -QtSbomPath $qtSbom
+    -QtSbomPath $qtSbom `
+    -PdfiumVersion $pdfiumVersion
 
 Write-Host '==> 压缩' -ForegroundColor Cyan
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null

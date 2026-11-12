@@ -6,13 +6,14 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 
 - Qt Widgets 主窗口和多文档标签框架
 - 文档视图、缩略图、书签和 AI 助手面板占位
+- **用 PDFium 打开 PDF 并渲染首页**（支持密码保护文件、旋转页、缩放与高 DPI）
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
-- IPC 协议单元测试与 Worker 集成测试
+- IPC 协议单元测试、Worker 集成测试与 PDFium 适配层测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
-PDF 渲染、索引和真实模型 Provider 将在后续里程碑接入。
+PDF 索引、文本提取和真实模型 Provider 将在后续里程碑接入。
 
 ## 构建环境
 
@@ -22,6 +23,7 @@ PDF 渲染、索引和真实模型 Provider 将在后续里程碑接入。
 |---|---|---|
 | Qt | 6.8.3 `mingw_64` | 官方二进制套件，仅 qtbase |
 | MinGW-w64 | GCC 13.1.0 | Qt 官方工具包 |
+| PDFium | API 159（chromium/8152） | 预编译 Windows x64 包，按 SHA-256 校验 |
 | CMake | 3.25+ | 系统安装 |
 | Ninja | 1.10+ | 系统安装 |
 
@@ -29,6 +31,12 @@ PDF 渲染、索引和真实模型 Provider 将在后续里程碑接入。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap-toolchain.ps1
+```
+
+PDFium 单独获取（同样免管理员权限，校验 SHA-256）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ```
 
 脚本会打印实际路径。按需设置环境变量覆盖默认位置：
@@ -83,6 +91,20 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-m0.ps1
 启动主程序，检查 Worker 拉起、就绪状态、版本显示、健康检查返回值与退出清理，
 可用 `-ScreenshotPath` 保存窗口截图。
 
+## PDF 能力验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-pdf.ps1
+```
+
+用命令行参数直接打开测试 PDF，验证标签页、页码信息、缩放比例与损坏文件的错误提示。
+
+也可以直接打开文件：
+
+```powershell
+.\build\windows-debug\bin\AiPdfEditor.exe 某个文件.pdf
+```
+
 ## 打包
 
 ```powershell
@@ -109,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 |---|---|
 | `scripts\verify-package.ps1` | 安装包内容齐全，且在没有 Qt SDK 的环境可运行 |
 | `scripts\verify-sbom.ps1` | 包内每个文件都在 SBOM 中登记，且 SHA-256 与实际一致 |
-| `scripts\verify-licenses.ps1` | 安装包随附第三方许可证全文，且与 `licenses\CHECKSUMS.txt` 一致 |
+| `scripts\verify-licenses.ps1` | 安装包随附第三方许可证全文，与 `licenses\CHECKSUMS.txt` 和 `licenses\pdfium-CHECKSUMS.txt` 一致（文件集合与哈希，不少也不多） |
 | `scripts\check-version.ps1` | CMake、vcpkg 清单、版本文档、索引状态、exe 版本、安装包名称一致 |
 | `scripts\test-gates.ps1` | 上述门的负例守卫：故意弄坏输入，门必须变红 |
 
@@ -127,6 +149,14 @@ powershell -ExecutionPolicy Bypass -File scripts\test-gates.ps1
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\fetch-licenses.ps1 -VerifyOnly
+```
+
+PDFium 及其 19 份第三方组件许可证原文的清单是 `licenses\pdfium-CHECKSUMS.txt`，
+打包时按清单逐份复制并核对哈希，缺一份即中止打包；发布门再核对安装包内的文件集合与哈希。
+清单与固定版本 PDFium 的一致性由获取脚本守卫：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ```
 
 ## 持续集成

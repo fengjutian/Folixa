@@ -7,18 +7,27 @@
       1. 必须存在；
       2. SHA-256 必须与 licenses\CHECKSUMS.txt 一致。
 
+    另检查 PDFium 及其第三方组件的许可证材料（licenses\pdfium\）：
+      3. 包内文件集合必须与 licenses\pdfium-CHECKSUMS.txt 完全一致（不多不少）；
+      4. 每份文件的 SHA-256 必须与清单一致；
+      5. 包内随附的清单副本必须与仓库内的清单一致。
+
     任何一项不满足即返回非零退出码。
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string]$PackageDir,
-    [string]$ManifestPath = ''
+    [string]$ManifestPath = '',
+    [string]$PdfiumManifestPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 if (-not $ManifestPath) {
     $ManifestPath = Join-Path $PSScriptRoot '..\licenses\CHECKSUMS.txt'
+}
+if (-not $PdfiumManifestPath) {
+    $PdfiumManifestPath = Join-Path $PSScriptRoot '..\licenses\pdfium-CHECKSUMS.txt'
 }
 
 $script:Failures = 0
@@ -64,6 +73,48 @@ foreach ($line in (Get-Content -LiteralPath $ManifestPath -Encoding UTF8)) {
     }
     $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
     Test-Check "$name 与校验清单一致" ($actual -eq $expected) "期望 $expected 实际 $actual"
+}
+
+# --- PDFium 及其第三方组件的许可证材料 ---
+if (-not (Test-Path -LiteralPath $PdfiumManifestPath)) {
+    Test-Check '存在 PDFium 许可证清单' $false $PdfiumManifestPath
+} else {
+    $pdfiumDir = Join-Path $licenseDir 'pdfium'
+    Test-Check '安装包包含 licenses/pdfium 目录' (Test-Path -LiteralPath $pdfiumDir)
+
+    $packagedManifest = Join-Path $licenseDir 'pdfium-CHECKSUMS.txt'
+    Test-Check '安装包包含 PDFium 许可证清单副本' (Test-Path -LiteralPath $packagedManifest)
+    if (Test-Path -LiteralPath $packagedManifest) {
+        $repoHash = (Get-FileHash -LiteralPath $PdfiumManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $packageHash = (Get-FileHash -LiteralPath $packagedManifest -Algorithm SHA256).Hash.ToLowerInvariant()
+        Test-Check '包内 PDFium 清单副本与仓库一致' ($repoHash -eq $packageHash) "仓库 $repoHash 包内 $packageHash"
+    }
+
+    $expectedFiles = @{}
+    foreach ($line in (Get-Content -LiteralPath $PdfiumManifestPath -Encoding UTF8)) {
+        if ($line -notmatch '^([0-9a-f]{64})\s+(\S+)\s+(\S+)$') {
+            continue
+        }
+        $expectedFiles[$matches[2]] = $matches[1]
+    }
+    Test-Check 'PDFium 许可证清单非空' ($expectedFiles.Count -gt 0) "条目 $($expectedFiles.Count)"
+
+    foreach ($name in ($expectedFiles.Keys | Sort-Object)) {
+        $path = Join-Path $pdfiumDir $name
+        if (-not (Test-Path -LiteralPath $path)) {
+            Test-Check "包含 pdfium/$name" $false '缺失'
+            continue
+        }
+        $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        Test-Check "pdfium/$name 与清单一致" ($actual -eq $expectedFiles[$name]) "期望 $($expectedFiles[$name]) 实际 $actual"
+    }
+
+    # 包内不得有清单之外的多余文件（漏进来一份未登记的许可证同样是不合规）
+    if (Test-Path -LiteralPath $pdfiumDir) {
+        foreach ($file in (Get-ChildItem -LiteralPath $pdfiumDir -File)) {
+            Test-Check "pdfium/$($file.Name) 在清单内" ($expectedFiles.ContainsKey($file.Name)) '清单中无此文件'
+        }
+    }
 }
 
 if ($script:Failures -gt 0) {

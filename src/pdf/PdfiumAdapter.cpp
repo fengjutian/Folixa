@@ -1,14 +1,62 @@
 #include "pdf/PdfiumAdapter.h"
 
+#include <fpdf_edit.h>
 #include <fpdfview.h>
 
 #include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
 
+#include <cstring>
 #include <mutex>
 
 namespace aipdf::pdf {
+
+namespace detail {
+
+struct DocumentImpl {
+    QByteArray fileData;
+    QString path;
+    FPDF_FILEACCESS access{};
+    FPDF_DOCUMENT handle = nullptr;
+
+    ~DocumentImpl() {
+        if (handle != nullptr) {
+            FPDF_CloseDocument(handle);
+        }
+    }
+
+    static int readBlock(void* param,
+                         unsigned long position,
+                         unsigned char* buffer,
+                         unsigned long size) {
+        auto* self = static_cast<DocumentImpl*>(param);
+        if (self == nullptr || buffer == nullptr) {
+            return 0;
+        }
+        if (static_cast<qint64>(position) + static_cast<qint64>(size) >
+            static_cast<qint64>(self->fileData.size())) {
+            return 0;
+        }
+        memcpy(buffer, self->fileData.constData() + position, size);
+        return 1;
+    }
+};
+
+struct PageImpl {
+    // 持有文档实现，保证页面句柄存活期间文档不被关闭。
+    std::shared_ptr<DocumentImpl> document;
+    FPDF_PAGE page = nullptr;
+
+    ~PageImpl() {
+        if (page != nullptr) {
+            FPDF_ClosePage(page);
+        }
+    }
+};
+
+}  // namespace detail
+
 namespace {
 
 std::once_flag g_initializeFlag;
@@ -46,22 +94,8 @@ QString describePdfiumError(unsigned long error) {
 
 // ---------------------------------------------------------------- PdfPage ----
 
-struct PdfPage::Impl {
-    // 持有文档实现，保证页面句柄存活期间文档不被关闭。
-    std::shared_ptr<PdfDocument::Impl> document;
-    FPDF_PAGE page = nullptr;
-
-    ~Impl() {
-        if (page != nullptr) {
-            FPDF_ClosePage(page);
-        }
-    }
-};
-
-PdfPage::PdfPage(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
+PdfPage::PdfPage(std::shared_ptr<detail::PageImpl> impl) : impl_(std::move(impl)) {}
 PdfPage::~PdfPage() = default;
-PdfPage::PdfPage(PdfPage&&) noexcept = default;
-PdfPage& PdfPage::operator=(PdfPage&&) noexcept = default;
 
 bool PdfPage::isValid() const {
     return impl_ != nullptr && impl_->page != nullptr;
@@ -85,7 +119,8 @@ int PdfPage::rotationDegrees() const {
     if (!isValid()) {
         return 0;
     }
-    return FPDFPage_GetRotation(impl_->page);
+    // PDFium 返回的是四分之一圈：0=0°，1=90°，2=180°，3=270°。
+    return FPDFPage_GetRotation(impl_->page) * 90;
 }
 
 QImage PdfPage::render(double zoom) const {
@@ -136,39 +171,9 @@ QImage PdfPage::render(double zoom) const {
 
 // ------------------------------------------------------------- PdfDocument ----
 
-struct PdfDocument::Impl {
-    QByteArray fileData;
-    QString path;
-    FPDF_FILEACCESS access{};
-    FPDF_DOCUMENT handle = nullptr;
-
-    ~Impl() {
-        if (handle != nullptr) {
-            FPDF_CloseDocument(handle);
-        }
-    }
-
-    static int readBlock(void* param,
-                         unsigned long position,
-                         unsigned char* buffer,
-                         unsigned long size) {
-        auto* self = static_cast<Impl*>(param);
-        if (self == nullptr || buffer == nullptr) {
-            return 0;
-        }
-        if (static_cast<qint64>(position) + static_cast<qint64>(size) >
-            static_cast<qint64>(self->fileData.size())) {
-            return 0;
-        }
-        memcpy(buffer, self->fileData.constData() + position, size);
-        return 1;
-    }
-};
-
-PdfDocument::PdfDocument(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
+PdfDocument::PdfDocument(std::shared_ptr<detail::DocumentImpl> impl)
+    : impl_(std::move(impl)) {}
 PdfDocument::~PdfDocument() = default;
-PdfDocument::PdfDocument(PdfDocument&&) noexcept = default;
-PdfDocument& PdfDocument::operator=(PdfDocument&&) noexcept = default;
 
 bool PdfDocument::isValid() const {
     return impl_ != nullptr && impl_->handle != nullptr;
@@ -193,7 +198,7 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
     if (page == nullptr) {
         return std::nullopt;
     }
-    auto pageImpl = std::make_shared<PdfPage::Impl>();
+    auto pageImpl = std::make_shared<detail::PageImpl>();
     pageImpl->document = impl_;
     pageImpl->page = page;
     return PdfPage(pageImpl);
@@ -230,11 +235,11 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
         return result;
     }
 
-    auto impl = std::make_shared<PdfDocument::Impl>();
+    auto impl = std::make_shared<detail::DocumentImpl>();
     impl->fileData = data;
     impl->path = filePath;
     impl->access.m_FileLen = static_cast<unsigned long>(data.size());
-    impl->access.m_GetBlock = &PdfDocument::Impl::readBlock;
+    impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
     impl->access.m_Param = impl.get();
 
     const QByteArray passwordBytes = password.toUtf8();

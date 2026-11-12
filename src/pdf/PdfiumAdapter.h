@@ -8,21 +8,29 @@
 
 namespace aipdf::pdf {
 
-class PdfDocument;
+namespace detail {
+struct DocumentImpl;
+struct PageImpl;
+}  // namespace detail
+
+struct PdfOpenResult;
 
 // 单页句柄。页面生命周期依附于所属文档，文档关闭后页面自动失效。
 class PdfPage {
 public:
     PdfPage() = default;
     ~PdfPage();
-    PdfPage(PdfPage&&) noexcept;
-    PdfPage& operator=(PdfPage&&) noexcept;
+    PdfPage(const PdfPage&) = default;
+    PdfPage& operator=(const PdfPage&) = default;
+    PdfPage(PdfPage&&) noexcept = default;
+    PdfPage& operator=(PdfPage&&) noexcept = default;
 
     bool isValid() const;
 
     // 页面尺寸，单位为点（1/72 英寸），已包含页面旋转。
     double widthPoints() const;
     double heightPoints() const;
+    // 页面旋转角度：0、90、180 或 270。
     int rotationDegrees() const;
 
     // 渲染页面。zoom=1 表示 72 DPI；返回值格式为 ARGB32。
@@ -30,9 +38,8 @@ public:
     QImage render(double zoom = 1.0) const;
 
 private:
-    struct Impl;
-    std::shared_ptr<Impl> impl_;
-    explicit PdfPage(std::shared_ptr<Impl> impl);
+    std::shared_ptr<detail::PageImpl> impl_;
+    explicit PdfPage(std::shared_ptr<detail::PageImpl> impl);
     friend class PdfDocument;
 };
 
@@ -41,8 +48,10 @@ class PdfDocument {
 public:
     PdfDocument() = default;
     ~PdfDocument();
-    PdfDocument(PdfDocument&&) noexcept;
-    PdfDocument& operator=(PdfDocument&&) noexcept;
+    PdfDocument(const PdfDocument&) = default;
+    PdfDocument& operator=(const PdfDocument&) = default;
+    PdfDocument(PdfDocument&&) noexcept = default;
+    PdfDocument& operator=(PdfDocument&&) noexcept = default;
 
     bool isValid() const;
     int pageCount() const;
@@ -51,10 +60,9 @@ public:
     std::optional<PdfPage> page(int index) const;
 
 private:
-    struct Impl;
-    std::shared_ptr<Impl> impl_;
-    explicit PdfDocument(std::shared_ptr<Impl> impl);
-    friend struct PdfOpenResult;
+    std::shared_ptr<detail::DocumentImpl> impl_;
+    explicit PdfDocument(std::shared_ptr<detail::DocumentImpl> impl);
+    friend PdfOpenResult openDocument(const QString& filePath, const QString& password);
 };
 
 // 打开结果。passwordRequired 为真时表示需要密码，可用密码重试。

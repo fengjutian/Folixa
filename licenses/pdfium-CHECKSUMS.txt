@@ -1,0 +1,32 @@
+# PDFium 及其第三方组件的许可证材料清单
+#
+# 格式：<SHA-256>  <包内文件名>  <仓库内来源路径>
+# 包内位置：licenses/pdfium/<包内文件名>
+#
+# 来源：bblanchon/pdfium-binaries 的 chromium/8152 发布产物（pdfium-win-x64.tgz）
+# 归档 SHA-256：cee2b0e9990bc67c0721774932961b9dbf2766046c10eec925acd4cfba6fdfe3
+# PDFium API 版本：MAJOR=159 MINOR=0 BUILD=8152 PATCH=0
+#
+# 这份清单是仓库内的锚点：打包时按清单逐份复制并核对哈希，
+# 发布门再核对安装包内的文件集合与哈希，任一份缺失或被改动都必须变红。
+# 清单可由 scripts\bootstrap-pdfium.ps1 -RegenerateLicenseManifest 重新生成。
+
+f54fff0b905df5b3464527c652a30e903b172d6dcab4d89b5e6f105d5e4a4603  abseil.txt  tools/pdfium/licenses/abseil.txt
+c110d3ea2ad77467ce0dcff7d3337e6c8be8049a5103f4b9bd5fd911a77972e5  agg23.txt  tools/pdfium/licenses/agg23.txt
+4964a7aaf2801a42d2342d2f5bbccd2126be7a5d8d46150e1338a43ea70da5de  dragonbox-Apache2-LLVM.txt  tools/pdfium/licenses/dragonbox-Apache2-LLVM.txt
+beb8e42e9d6b4284e03304d05a81a0755200a965fc8d0a5e0aea1e84cf805d6e  dragonbox-Boost.txt  tools/pdfium/licenses/dragonbox-Boost.txt
+bf1b57355feca8fce77ee95f48002f8d4789fb71b30ec7599c06cda4901fbb2b  fast_float.txt  tools/pdfium/licenses/fast_float.txt
+f4b133e25df1f86ad3ffea453aa0e613f0474f34778dbbb3e437e7b2724937d8  freetype.txt  tools/pdfium/licenses/freetype.txt
+bd836c0ddca8ea0bab54a03cd32b6ff7256cbb3840fca2edc1249a4ed92c5b02  harfbuzz.txt  tools/pdfium/licenses/harfbuzz.txt
+c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4  highway.txt  tools/pdfium/licenses/highway.txt
+93679f4389d53b6835d89843f251844fb9bc455b35bab036d3c8e7abe497a47a  icu.txt  tools/pdfium/licenses/icu.txt
+7312b68c5b25e9bf2b828706fb4e29588f22705112f411fd42e1f7d84c3d139a  lcms.txt  tools/pdfium/licenses/lcms.txt
+db16a04128171879c60708d171b88d97345a2dd20f9bfc173680a4497c73f704  libjpeg_turbo.ijg  tools/pdfium/licenses/libjpeg_turbo.ijg
+be2b2b5ab168bce87bc3e31f2a5c5adba4b7f6e9e51d618e958d1d46972ebd95  libjpeg_turbo.md  tools/pdfium/licenses/libjpeg_turbo.md
+c5ab0890a737c2dfa7ba675036554f6d17741d98629b0c2a145354d00617e6b2  libopenjpeg.txt  tools/pdfium/licenses/libopenjpeg.txt
+452390433ba0f88aa3e2b122c647741b72a0c117cd6ed7a329b49785aecb5511  libpng.txt  tools/pdfium/licenses/libpng.txt
+3b6226c32e168c83b891d8d6f0d3c29c2116dc3ef93dc93c307b54f279ecf383  llvm-libc.txt  tools/pdfium/licenses/llvm-libc.txt
+961eacd9633fff6d051db7208b755e9210e30efac7adec3e6a6d52798f0ccf0e  pdfium.txt  tools/pdfium/licenses/pdfium.txt
+c172a0ba936ff31230febb5dad869e25cb7c1a07480c7a381be8cf011bb52719  simdutf.txt  tools/pdfium/licenses/simdutf.txt
+33fd641c9f3b0e0be64bc78fea9e94807674cdd70c48477599226cb8956565fe  zlib.txt  tools/pdfium/licenses/zlib.txt
+8854f4388f1ca13b3ad9baa42e95f5546b4c0b17109c159256d3eca7be39b09b  pdfium-BSD-3-Clause.txt  tools/pdfium/LICENSE

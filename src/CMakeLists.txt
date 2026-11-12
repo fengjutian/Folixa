@@ -2,10 +2,14 @@ qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
+    app/PdfView.h
+    app/PdfView.cpp
     ipc/WorkerClient.cpp
     ipc/WorkerClient.h
     ipc/IpcProtocol.cpp
     ipc/IpcProtocol.h
+    pdf/PdfiumAdapter.cpp
+    pdf/PdfiumAdapter.h
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
@@ -13,9 +17,11 @@ target_link_libraries(AiPdfEditor PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    ${AIPDF_PDFIUM_LIBRARY}
 )
 
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(AiPdfEditor PRIVATE ${AIPDF_PDFIUM_INCLUDE_DIR})
 target_compile_definitions(AiPdfEditor PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
 
 set_target_properties(AiPdfEditor PROPERTIES
@@ -33,4 +39,5 @@ configure_file(
 target_sources(AiPdfEditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
 aipdf_deploy_qt_runtime(AiPdfEditor)
+aipdf_deploy_pdfium(AiPdfEditor)
 

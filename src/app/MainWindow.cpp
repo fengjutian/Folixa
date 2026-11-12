@@ -1,10 +1,14 @@
 #include "app/MainWindow.h"
 
+#include "app/PdfView.h"
 #include "ipc/WorkerClient.h"
+#include "pdf/PdfiumAdapter.h"
 
 #include <QAction>
 #include <QDockWidget>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QInputDialog>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
@@ -67,6 +71,7 @@ void MainWindow::buildUi() {
     emptyDocument->setAlignment(Qt::AlignCenter);
     tabs->addTab(emptyDocument, "Welcome");
     setCentralWidget(tabs);
+    tabs_ = tabs;
 
     auto* fileMenu = menuBar()->addMenu("&File");
     auto* openAction = fileMenu->addAction("&Open PDF...");
@@ -75,7 +80,7 @@ void MainWindow::buildUi() {
         const QString path = QFileDialog::getOpenFileName(
             this, "Open PDF", {}, "PDF documents (*.pdf)");
         if (!path.isEmpty()) {
-            statusBar()->showMessage("PDFium integration pending: " + path, 5000);
+            openPdfFile(path);
         }
     });
     fileMenu->addSeparator();
@@ -129,6 +134,39 @@ void MainWindow::sendEcho() {
     conversation_->append("<b>You:</b> " + text.toHtmlEscaped());
     prompt_->clear();
     workerClient_->sendRequest("ai.echo", {{"text", text}});
+}
+
+void MainWindow::openPdfFile(const QString& filePath) {
+    pdf::PdfOpenResult result = pdf::openDocument(filePath);
+    if (result.passwordRequired) {
+        bool accepted = false;
+        const QString password = QInputDialog::getText(
+            this,
+            tr("需要密码"),
+            tr("请输入 PDF 密码："),
+            QLineEdit::Password,
+            QString(),
+            &accepted);
+        if (!accepted) {
+            statusBar()->showMessage(tr("已取消打开 %1").arg(QFileInfo(filePath).fileName()), 5000);
+            return;
+        }
+        result = pdf::openDocument(filePath, password);
+    }
+
+    if (!result.document.isValid()) {
+        // 错误提示常驻，直到下一次操作覆盖它。
+        statusBar()->showMessage(
+            tr("无法打开 %1：%2").arg(QFileInfo(filePath).fileName(), result.errorMessage));
+        return;
+    }
+
+    auto* view = new PdfView(this);
+    view->setDocument(result.document, filePath);
+    const QString title = QFileInfo(filePath).fileName();
+    tabs_->addTab(view, title);
+    tabs_->setCurrentWidget(view);
+    statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
 
 }  // namespace aipdf::app

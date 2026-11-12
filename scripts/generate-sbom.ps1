@@ -12,9 +12,10 @@ param(
     [string]$PackageDir,
     [Parameter(Mandatory = $true)]
     [string]$OutputPath,
-    [string]$Version = '0.2.0',
+    [string]$Version = '0.3.0',
     [string]$QtVersion = '6.8.3',
     [string]$MinGWVersion = '13.1.0',
+    [string]$PdfiumVersion = '',
     [string]$QtSbomPath = ''
 )
 
@@ -72,6 +73,27 @@ $dependencies.Add([pscustomobject]@{
     ref       = $applicationRef
     dependsOn = @($mingwRef)
 })
+
+if ($PdfiumVersion) {
+    $pdfiumRef = "pkg:generic/pdfium@$PdfiumVersion"
+    $components.Add([pscustomobject]@{
+        type    = 'library'
+        'bom-ref' = $pdfiumRef
+        name    = 'PDFium'
+        version = $PdfiumVersion
+        purl    = $pdfiumRef
+        licenses = @(@{ license = @{ id = 'BSD-3-Clause' } })
+        description = 'Chromium PDFium (PDFium API ' + $PdfiumVersion + '), BSD-3-Clause'
+        externalReferences = @(
+            @{ type = 'website'; url = 'https://pdfium.googlesource.com/pdfium/' },
+            @{ type = 'vcs'; url = 'https://github.com/bblanchon/pdfium-binaries' }
+        )
+    })
+    $dependencies.Add([pscustomobject]@{
+        ref       = $applicationRef
+        dependsOn = @($pdfiumRef)
+    })
+}
 
 foreach ($file in $files) {
     $relative = $file.FullName.Substring($packageRoot.Length).TrimStart('\', '/')

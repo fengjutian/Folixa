@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(AiPdfEditor VERSION 0.2.0 LANGUAGES CXX)
+project(AiPdfEditor VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -59,6 +59,34 @@ if(WIN32)
         endif()
     endfunction()
 endif()
+
+# PDFium：固定版本的 Windows 预编译包，由 scripts/bootstrap-pdfium.ps1 获取。
+# 该 DLL 静态链接 CRT，只依赖 Windows 系统库，可直接被 MinGW 构建的程序调用。
+set(AIPDF_PDFIUM_ROOT "" CACHE PATH "PDFium 根目录")
+if(NOT AIPDF_PDFIUM_ROOT AND DEFINED ENV{AIPDF_PDFIUM_ROOT})
+    set(AIPDF_PDFIUM_ROOT "$ENV{AIPDF_PDFIUM_ROOT}")
+endif()
+if(NOT AIPDF_PDFIUM_ROOT)
+    set(AIPDF_PDFIUM_ROOT "${CMAKE_SOURCE_DIR}/tools/pdfium")
+endif()
+
+set(AIPDF_PDFIUM_INCLUDE_DIR "${AIPDF_PDFIUM_ROOT}/include")
+set(AIPDF_PDFIUM_LIBRARY "${AIPDF_PDFIUM_ROOT}/lib/pdfium.dll.lib")
+set(AIPDF_PDFIUM_DLL "${AIPDF_PDFIUM_ROOT}/bin/pdfium.dll")
+if(NOT EXISTS "${AIPDF_PDFIUM_LIBRARY}" OR NOT EXISTS "${AIPDF_PDFIUM_DLL}")
+    message(FATAL_ERROR
+        "未找到 PDFium（${AIPDF_PDFIUM_ROOT}）。\n"
+        "请先运行：powershell -ExecutionPolicy Bypass -File scripts/bootstrap-pdfium.ps1")
+endif()
+
+function(aipdf_deploy_pdfium target)
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${AIPDF_PDFIUM_DLL}" "$<TARGET_FILE_DIR:${target}>"
+        COMMENT "Copying pdfium.dll for ${target}"
+        VERBATIM
+    )
+endfunction()
 
 add_subdirectory(src)
 add_subdirectory(worker)
