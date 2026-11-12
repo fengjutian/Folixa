@@ -31,11 +31,17 @@ function Write-Step {
 
 function Get-ToolVersion {
     param([string]$Command, [string]$Arguments = '--version')
-    $output = & $Command $Arguments 2>&1 | Select-Object -First 1
+    # 必须先收完输出再取第一行：直接管道给 Select-Object -First 1 会提前掐断
+    # 原生命令的输出流，导致退出码异常、版本探测失败。
+    $output = & $Command $Arguments 2>&1
     if ($LASTEXITCODE -ne 0) {
         return $null
     }
-    return ($output -replace '\s+', ' ').Trim()
+    $first = $output | Select-Object -First 1
+    if (-not $first) {
+        return $null
+    }
+    return ($first -replace '\s+', ' ').Trim()
 }
 
 $qtRoot = Join-Path $InstallDir "$QtVersion\mingw_64"

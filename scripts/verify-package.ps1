@@ -76,6 +76,16 @@ if ($script:Failures -gt 0) {
     exit 1
 }
 
+Write-Host '==> 校验 SBOM 与包内文件一致' -ForegroundColor Cyan
+$sbomScript = Join-Path $PSScriptRoot 'verify-sbom.ps1'
+$sbomPath = Join-Path $appDir "sbom/ai-pdf-editor-$Version.cdx.json"
+& powershell -NoProfile -ExecutionPolicy Bypass -File $sbomScript `
+    -PackageDir $appDir -SbomPath $sbomPath -Version $Version
+if ($LASTEXITCODE -ne 0) {
+    $script:Failures++
+    Write-Host 'FAIL  SBOM 校验未通过' -ForegroundColor Red
+}
+
 Write-Host '==> 清空 Qt SDK 与工具链环境' -ForegroundColor Cyan
 $originalPath = $env:PATH
 $env:PATH = @(

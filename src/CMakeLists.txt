@@ -22,3 +22,15 @@ set_target_properties(AiPdfEditor PROPERTIES
     OUTPUT_NAME "AiPdfEditor"
 )
 
+set(AIPDF_FILE_DESCRIPTION "AI PDF Editor")
+set(AIPDF_INTERNAL_NAME "AiPdfEditor")
+set(AIPDF_ORIGINAL_FILENAME "AiPdfEditor.exe")
+configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/version.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    @ONLY
+)
+target_sources(AiPdfEditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+aipdf_deploy_qt_runtime(AiPdfEditor)
+

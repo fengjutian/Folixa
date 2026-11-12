@@ -21,7 +21,44 @@ if(AIPDF_BUILD_TESTS)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 endif()
 
+# Windows 版本资源：让可执行文件在资源管理器与安装包清单里带上版本号。
+if(WIN32)
+    enable_language(RC)
+endif()
+
 qt_standard_project_setup()
+
+# 把 Qt 运行库与平台插件部署到构建输出目录，使构建树自包含：
+# 测试与验收脚本不再依赖开发机上的 Qt SDK 路径。
+# 部署固定用 windeployqt 做动态链接，符合 LGPL 动态链接要求。
+if(WIN32)
+    if(AIPDF_QT_ROOT AND EXISTS "${AIPDF_QT_ROOT}/bin/windeployqt.exe")
+        set(AIPDF_WINDEPLOYQT "${AIPDF_QT_ROOT}/bin/windeployqt.exe")
+    else()
+        find_program(AIPDF_WINDEPLOYQT windeployqt)
+    endif()
+
+    # MinGW 套件只提供 release 运行库；MSVC 套件同时提供 debug 运行库。
+    if(AIPDF_QT_ROOT AND EXISTS "${AIPDF_QT_ROOT}/bin/Qt6Cored.dll")
+        set(AIPDF_DEPLOY_MODE_DEBUG --debug)
+    else()
+        set(AIPDF_DEPLOY_MODE_DEBUG --release)
+    endif()
+
+    function(aipdf_deploy_qt_runtime target)
+        if(AIPDF_WINDEPLOYQT)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND "${AIPDF_WINDEPLOYQT}"
+                        "$<$<CONFIG:Debug>:${AIPDF_DEPLOY_MODE_DEBUG}>$<$<NOT:$<CONFIG:Debug>>:--release>"
+                        --no-translations --no-opengl-sw
+                        --dir "$<TARGET_FILE_DIR:${target}>"
+                        "$<TARGET_FILE:${target}>"
+                COMMENT "Deploying Qt runtime for ${target}"
+                VERBATIM
+            )
+        endif()
+    endfunction()
+endif()
 
 add_subdirectory(src)
 add_subdirectory(worker)

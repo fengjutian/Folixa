@@ -15,7 +15,6 @@ jobs:
     env:
       AIPDF_QT_ROOT: 'C:\Qt\6.8.3\mingw_64'
       AIPDF_MINGW_ROOT: 'C:\Qt\Tools\mingw1310_64'
-      QT_VERSION: '6.8.3'
 
     steps:
       - name: 检出代码
@@ -26,60 +25,18 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 安装固定工具链
+      # 与本地完全相同的流水线：工具链 → Debug/Release 构建与测试 → 启动验收
+      # → 打包 → 无 SDK 打包验收 → 版本一致性。
+      - name: 运行完整流水线
         shell: pwsh
-        run: ./scripts/bootstrap-toolchain.ps1
-
-      - name: 配置 Debug
-        shell: pwsh
-        run: cmake --preset windows-debug
-
-      - name: 构建 Debug
-        shell: pwsh
-        run: cmake --build --preset windows-debug
-
-      - name: 测试 Debug
-        shell: pwsh
-        run: ctest --preset windows-debug --output-on-failure
-
-      - name: 启动验收 Debug
-        shell: pwsh
-        run: |
-          ./scripts/verify-m0.ps1 `
-            -BuildDir build/windows-debug/bin `
-            -ScreenshotPath build/acceptance/m0-debug.png
-
-      - name: 配置 Release
-        shell: pwsh
-        run: cmake --preset windows-release
-
-      - name: 构建 Release
-        shell: pwsh
-        run: cmake --build --preset windows-release
-
-      - name: 测试 Release
-        shell: pwsh
-        run: ctest --preset windows-release --output-on-failure
-
-      - name: 打包
-        shell: pwsh
-        run: |
-          cmake --build --preset windows-release --target package
-
-      - name: 打包验收（无 Qt SDK 环境）
-        shell: pwsh
-        run: |
-          ./scripts/verify-package.ps1 `
-            -PackagePath dist/ai-pdf-editor-0.2.0-win64.zip `
-            -Version 0.2.0 `
-            -ScreenshotPath build/acceptance/package-0.2.0.png
+        run: ./scripts/ci.ps1
 
       - name: 上传安装包与验收证据
         uses: actions/upload-artifact@v4
         with:
-          name: ai-pdf-editor-0.2.0-win64
+          name: ai-pdf-editor-win64
           path: |
-            dist/ai-pdf-editor-0.2.0-win64.zip
-            dist/ai-pdf-editor-0.2.0-win64.zip.sha256
+            dist/*.zip
+            dist/*.zip.sha256
             build/acceptance/
           if-no-files-found: error

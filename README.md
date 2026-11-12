@@ -53,6 +53,9 @@ cmake --build --preset windows-release
 ctest --preset windows-release
 ```
 
+构建后 CMake 会自动把 Qt 运行库与平台插件部署到 `bin` 目录，
+**构建树是自包含的**——即使机器上没有 Qt SDK，`ctest` 与验收脚本也能直接运行。
+
 主程序与 Worker 输出到同一个 `bin` 目录，运行：
 
 ```powershell
@@ -60,6 +63,16 @@ ctest --preset windows-release
 ```
 
 主程序会自动拉起同目录下的 `PdfAiWorker.exe` 并完成健康检查。
+
+## 一条命令跑完整流水线
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\ci.ps1
+```
+
+依次执行：安装固定工具链 → Debug 构建/测试/启动验收 → Release 构建/测试 →
+打包 → 无 SDK 打包验收 → 版本一致性 → 发布门负例守卫。
+本地和 CI 跑的是同一个脚本。
 
 ## 启动验收
 
@@ -90,10 +103,27 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 脚本把安装包解压到临时目录、把 `PATH` 限制为系统目录（找不到任何 Qt SDK 与工具链），
 再启动其中的主程序，验证包确实可以脱离开发环境运行。
 
+## 发布门
+
+| 门 | 作用 |
+|---|---|
+| `scripts\verify-package.ps1` | 安装包内容齐全，且在没有 Qt SDK 的环境可运行 |
+| `scripts\verify-sbom.ps1` | 包内每个文件都在 SBOM 中登记，且 SHA-256 与实际一致 |
+| `scripts\check-version.ps1` | CMake、vcpkg 清单、版本文档、索引状态、exe 版本、安装包名称一致 |
+| `scripts\test-gates.ps1` | 上述门的负例守卫：故意弄坏输入，门必须变红 |
+
+单独执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\check-version.ps1
+powershell -ExecutionPolicy Bypass -File scripts\test-gates.ps1
+```
+
 ## 持续集成
 
-`.github/workflows/windows.yml` 在 `windows-2022` 上执行与上面完全相同的命令：
-安装固定工具链 → Debug/Release 构建与测试 → 启动验收 → 打包 → 无 SDK 打包验收 → 上传安装包。
+`.github/workflows/windows.yml` 在 `windows-2022` 上调用 `scripts/ci.ps1`，
+即与本地完全相同的流水线：安装固定工具链 → Debug/Release 构建与测试 → 启动验收
+→ 打包 → 无 SDK 打包验收 → 发布门，并上传安装包与验收证据。
 
 ## 文档
 

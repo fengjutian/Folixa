@@ -7,6 +7,7 @@ qt_add_executable(IpcProtocolTests
 target_link_libraries(IpcProtocolTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(IpcProtocolTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 set_target_properties(IpcProtocolTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(IpcProtocolTests)
 
 add_test(NAME IpcProtocolTests COMMAND IpcProtocolTests)
 
@@ -25,6 +26,7 @@ target_compile_definitions(WorkerIntegrationTests PRIVATE
     AIPDF_WORKER_EXE="$<TARGET_FILE:PdfAiWorker>"
 )
 set_target_properties(WorkerIntegrationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(WorkerIntegrationTests)
 
 add_dependencies(WorkerIntegrationTests PdfAiWorker)
 
