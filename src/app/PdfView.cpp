@@ -216,6 +216,15 @@ QString PdfView::filePath() const {
     return filePath_;
 }
 
+QImage PdfView::renderThumbnail(int pageIndex, int targetWidth) const {
+    const auto page = document_.page(pageIndex);
+    if (!page.has_value() || targetWidth <= 0) {
+        return {};
+    }
+    const double width = std::max(1.0, page->displayWidthPoints());
+    return page->render(static_cast<double>(targetWidth) / width);
+}
+
 qint64 PdfView::cacheBytes() const {
     return cache_.bytes();
 }

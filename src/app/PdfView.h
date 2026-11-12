@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QImage>
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
@@ -34,6 +35,8 @@ public:
     int currentPage() const;
     double zoom() const;
     QString filePath() const;
+    // 为导航面板生成真实页面缩略图；仅按需渲染请求页。
+    QImage renderThumbnail(int pageIndex, int targetWidth) const;
 
     // 缓存当前占用的字节数，用于观测内存上限是否生效。
     qint64 cacheBytes() const;

@@ -87,3 +87,49 @@ set_target_properties(PdfViewportTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(PdfViewportTests)
 
 add_test(NAME PdfViewportTests COMMAND PdfViewportTests)
+
+# ------------------------------------------------------------ 文本与选区 ----
+
+qt_add_executable(TextSelectionTests
+    TextSelectionTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
+)
+
+target_link_libraries(TextSelectionTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(TextSelectionTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(TextSelectionTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(TextSelectionTests)
+
+add_test(NAME TextSelectionTests COMMAND TextSelectionTests)
+
+qt_add_executable(TextExtractionTests
+    TextExtractionTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+)
+
+target_link_libraries(TextExtractionTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(TextExtractionTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(TextExtractionTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(TextExtractionTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(TextExtractionTests pdf-fixtures)
+aipdf_deploy_qt_runtime(TextExtractionTests)
+aipdf_deploy_pdfium(TextExtractionTests)
+
+add_test(NAME TextExtractionTests COMMAND TextExtractionTests)
