@@ -42,6 +42,8 @@ private:
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
+    bool navigationWasVisible_ = true;
+    bool aiWasVisible_ = false;
 };
 
 }  // namespace aipdf::app

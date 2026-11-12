@@ -5,6 +5,7 @@
 #include "pdf/PdfiumAdapter.h"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QDockWidget>
 #include <QDateTime>
 #include <QFrame>
@@ -19,6 +20,7 @@
 #include <QSettings>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QToolBar>
@@ -46,7 +48,11 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(workerClient_, &ipc::WorkerClient::stateChanged,
             this, [this](const QString& state) {
-                workerStatus_->setText("AI Worker: " + state);
+                const QString label = state == QStringLiteral("ready") ? tr("已就绪")
+                    : state == QStringLiteral("starting") ? tr("正在启动")
+                    : state == QStringLiteral("stopped") ? tr("已停止")
+                    : state;
+                workerStatus_->setText(tr("AI 服务：%1").arg(label));
                 sendButton_->setEnabled(state == "ready");
                 if (state == "ready") {
                     sendHealthCheck();
@@ -57,42 +63,59 @@ MainWindow::MainWindow(QWidget* parent)
                 const QJsonObject payload = response.value("payload").toObject();
                 if (payload.contains("status")) {
                     conversation_->append(
-                        QString("<b>System:</b> Worker is ready (protocol %1, worker %2).")
+                        tr("<b>系统：</b>本地 AI 服务已就绪（协议 %1，版本 %2）。")
                             .arg(payload.value("protocol_version").toInt())
                             .arg(payload.value("worker_version").toString().toHtmlEscaped()));
                 } else if (payload.contains("text")) {
-                    conversation_->append("<b>Worker:</b> " +
+                    conversation_->append(tr("<b>服务：</b>") +
                                           payload.value("text").toString().toHtmlEscaped());
                 } else {
-                    conversation_->append("<b>Worker:</b> " +
+                    conversation_->append(tr("<b>服务：</b>") +
                         QString::fromUtf8(QJsonDocument(response).toJson(QJsonDocument::Compact)).toHtmlEscaped());
                 }
             });
     connect(workerClient_, &ipc::WorkerClient::requestFailed,
             this, [this](const QString&, const QString& message) {
-                conversation_->append("<b>Error:</b> " + message.toHtmlEscaped());
+                conversation_->append(tr("<b>错误：</b>") + message.toHtmlEscaped());
             });
 
     workerClient_->start();
 }
 
 void MainWindow::buildUi() {
-    setWindowTitle(QString("Folixa %1").arg(QStringLiteral(AIPDF_VERSION)));
+    setWindowTitle(QString("Folixa · AI PDF Editor %1").arg(QStringLiteral(AIPDF_VERSION)));
     resize(1440, 900);
 
     auto* tabs = new QTabWidget(this);
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
-    tabs->addTab(createWelcomePage(), tr("欢迎"));
+    auto* welcome = createWelcomePage();
+    welcome->setProperty("welcomePage", true);
+    tabs->addTab(welcome, tr("欢迎"));
+    tabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+    connect(tabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
+        QWidget* page = tabs_->widget(index);
+        if (page == nullptr || page->property("welcomePage").toBool()) {
+            return;
+        }
+        tabs_->removeTab(index);
+        page->deleteLater();
+        if (tabs_->count() == 0) {
+            auto* welcomePage = createWelcomePage();
+            welcomePage->setProperty("welcomePage", true);
+            tabs_->addTab(welcomePage, tr("欢迎"));
+            tabs_->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+        }
+    });
     setCentralWidget(tabs);
     tabs_ = tabs;
 
-    auto* fileMenu = menuBar()->addMenu("&File");
-    auto* openAction = fileMenu->addAction("&Open PDF...");
+    auto* fileMenu = menuBar()->addMenu(tr("文件(&F)"));
+    auto* openAction = fileMenu->addAction(tr("打开 PDF…"));
     openAction->setShortcut(QKeySequence::Open);
     connect(openAction, &QAction::triggered, this, &MainWindow::openPdfDialog);
     fileMenu->addSeparator();
-    fileMenu->addAction("E&xit", QKeySequence::Quit, this, &QWidget::close);
+    fileMenu->addAction(tr("退出"), QKeySequence::Quit, this, &QWidget::close);
 
     auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
 
@@ -132,14 +155,22 @@ void MainWindow::buildUi() {
     aiLayout->addWidget(sendButton_);
     aiDock_->setWidget(aiPanel);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
+    resizeDocks({navigationDock_, aiDock_}, {220, 340}, Qt::Horizontal);
     viewMenu->addAction(aiDock_->toggleViewAction());
 
     auto* focusAction = viewMenu->addAction(tr("专注模式"));
     focusAction->setCheckable(true);
     focusAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+F")));
     connect(focusAction, &QAction::toggled, this, [this](bool enabled) {
-        navigationDock_->setVisible(!enabled);
-        aiDock_->setVisible(!enabled);
+        if (enabled) {
+            navigationWasVisible_ = navigationDock_->isVisible();
+            aiWasVisible_ = aiDock_->isVisible();
+            navigationDock_->hide();
+            aiDock_->hide();
+        } else {
+            navigationDock_->setVisible(navigationWasVisible_);
+            aiDock_->setVisible(aiWasVisible_);
+        }
     });
 
     QSettings settings;
@@ -163,7 +194,8 @@ void MainWindow::buildUi() {
     statusBar()->addPermanentWidget(metricsLabel_);
     // 验收探针通过 trace 文件运行；正式用户只有显式开启诊断时才看到指标。
     metricsLabel_->setVisible(qEnvironmentVariableIsSet("AIPDF_DIAGNOSTICS") ||
-                              qEnvironmentVariableIsSet("AIPDF_TRACE_FILE"));
+                              qEnvironmentVariableIsSet("AIPDF_TRACE_FILE") ||
+                              QCoreApplication::arguments().contains(QStringLiteral("--diagnostics")));
 }
 
 QWidget* MainWindow::createWelcomePage() {
@@ -237,7 +269,7 @@ void MainWindow::sendEcho() {
     if (text.isEmpty()) {
         return;
     }
-    conversation_->append("<b>You:</b> " + text.toHtmlEscaped());
+    conversation_->append(tr("<b>你：</b>") + text.toHtmlEscaped());
     prompt_->clear();
     workerClient_->sendRequest("ai.echo", {{"text", text}});
 }
@@ -281,6 +313,11 @@ void MainWindow::openPdfFile(const QString& filePath) {
     auto* view = new PdfView(this);
     view->setDocument(result.document, filePath);
     const QString title = QFileInfo(filePath).fileName();
+    if (tabs_->count() == 1 && tabs_->widget(0)->property("welcomePage").toBool()) {
+        QWidget* welcome = tabs_->widget(0);
+        tabs_->removeTab(0);
+        welcome->deleteLater();
+    }
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);

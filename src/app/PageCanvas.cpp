@@ -12,13 +12,18 @@ namespace aipdf::app {
 
 namespace {
 // 页与页之间留一点空隙，页面本身画一圈浅色边框。
-constexpr double kPageSpacing = 12.0;
-constexpr double kPageMargin = 16.0;
+constexpr double kPageSpacing = 20.0;
+constexpr double kPageMargin = 24.0;
 constexpr int kPrefetchPages = 1;
 }  // namespace
 
 PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
+    QPalette canvasPalette = palette();
+    canvasPalette.setColor(QPalette::Mid, QColor(QStringLiteral("#D9DEE7")));
+    canvasPalette.setColor(QPalette::Text, QColor(QStringLiteral("#465267")));
+    setPalette(canvasPalette);
     setBackgroundRole(QPalette::Mid);
+    setFrameShape(QFrame::NoFrame);
     viewport()->setAutoFillBackground(true);
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
 }
@@ -110,9 +115,10 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         const double left = pageLeft(index);
         const QRectF pageRect(left, top, size.width(), size.height());
 
-        // 页面底板。
+        // 页面底板和克制的投影，帮助纸张从工作区背景中分离。
+        painter.fillRect(pageRect.translated(0.0, 3.0), QColor(32, 42, 58, 28));
         painter.fillRect(pageRect, Qt::white);
-        painter.setPen(QPen(palette().color(QPalette::Mid).darker(120), 1.0));
+        painter.setPen(QPen(QColor(QStringLiteral("#CBD2DE")), 1.0));
         painter.drawRect(pageRect.adjusted(0.0, 0.0, -1.0, -1.0));
 
         if (cache_ == nullptr) {

@@ -5,6 +5,8 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QShortcut>
+#include <QSizePolicy>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -38,7 +40,9 @@ void PdfView::buildUi() {
     layout->setSpacing(0);
 
     auto* toolBar = new QToolBar(this);
+    toolBar->setObjectName(QStringLiteral("documentToolBar"));
     toolBar->setMovable(false);
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
 
     auto* zoomOut = new QToolButton(this);
     zoomOut->setText(QStringLiteral("−"));
@@ -88,9 +92,17 @@ void PdfView::buildUi() {
     toolBar->addWidget(rotateRightButton);
     toolBar->addSeparator();
     toolBar->addWidget(zoomLabel_);
+    auto* spacer = new QWidget(toolBar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolBar->addWidget(spacer);
     toolBar->addSeparator();
     toolBar->addWidget(pageInfoLabel_);
     layout->addWidget(toolBar);
+
+    auto* zoomInShortcut = new QShortcut(QKeySequence::ZoomIn, this);
+    connect(zoomInShortcut, &QShortcut::activated, this, &PdfView::zoomIn);
+    auto* zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
+    connect(zoomOutShortcut, &QShortcut::activated, this, &PdfView::zoomOut);
 
     canvas_ = new PageCanvas(this);
     canvas_->setTileCache(&cache_);

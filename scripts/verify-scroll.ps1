@@ -78,7 +78,7 @@ $app = $null
 try {
     Write-Host '==> 打开 500 页长文档' -ForegroundColor Cyan
     $app = Start-Process -FilePath $appExe -WorkingDirectory $buildPath `
-        -ArgumentList $longPdf -PassThru
+        -ArgumentList @($longPdf, '--diagnostics') -PassThru
     Start-Sleep -Seconds $StartupSeconds
 
     Test-Check '主程序保持运行' (-not $app.HasExited)
