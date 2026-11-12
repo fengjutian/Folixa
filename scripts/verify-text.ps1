@@ -221,9 +221,16 @@ try {
         $viewport = Get-AiPdfElementById -Process $app -IdPattern '*pdfCanvas*viewport*'
         $rect = $viewport.Current.BoundingRectangle
         $viewportWidth = $rect.Width / $scale
-        # 页面在视口里水平居中（PageCanvas::pageLeft 的算法）。
-        $pageLeft = [Math]::Max(24.0, ($viewportWidth - 612.0) / 2.0 + 24.0)
+        # 页面在视口里水平居中（PageCanvas::pageLeft 的算法）：
+        # 先扣掉两侧页边距，再把剩余空间平分。
+        $pageMargin = 24.0
+        $available = $viewportWidth - 2 * $pageMargin
+        $pageLeft = [Math]::Max($pageMargin, ($available - 612.0) / 2.0 + $pageMargin)
         Write-Host "    视口矩形 $($rect.Left),$($rect.Top) $($rect.Width)x$($rect.Height)，DPI 比例 $scale，页面左边 $pageLeft"
+        # 合成鼠标事件只送到前台窗口：不在前台会被静默丢掉，
+        # 表现出来就是「拖选没反应」，很容易误判成产品缺陷。
+        Test-Check '主窗口已在前台（否则鼠标事件送不进来）' `
+            (Test-AiPdfForeground -Process $app) ''
         # "Folixa"：PDF 坐标 x=60、基线 y=320、字号 32 →
         # 显示空间 x 60..146、y 57..80（页面高 400）。
         $x1 = [int]($rect.Left + ($pageLeft + 66.0) * $scale)
@@ -307,7 +314,9 @@ try {
                 if ($viewport -and $windowElement) {
                     # 第 2 页的内容起点：页高 400 + 页间距 12。
                     $pageTopInViewport = (400.0 + 12.0) - $scroll
-                    $pageLeft = [Math]::Max(24.0, ($viewport.Current.BoundingRectangle.Width / $scale - 612.0) / 2.0 + 24.0)
+                    $pageMargin = 24.0
+                    $available = $viewport.Current.BoundingRectangle.Width / $scale - 2 * $pageMargin
+                    $pageLeft = [Math]::Max($pageMargin, ($available - 612.0) / 2.0 + $pageMargin)
                     $highlighted = Test-AiPdfHighlightPixel -Path $ScreenshotPath `
                         -Viewport $viewport.Current.BoundingRectangle `
                         -Window $windowElement.Current.BoundingRectangle `
@@ -371,8 +380,18 @@ try {
     $input = Wait-AiPdfElementById -Process $app -IdPattern '*searchQueryInput*' -TimeoutSeconds 15
     if ($input) {
         Set-AiPdfElementText -Element $input -Text 'Page' | Out-Null
-        $searching = Wait-AiPdfProcessTextMatch -Process $app -Pattern '正在搜索' -TimeoutSeconds 10
-        Test-Check '搜索开始（界面显示正在搜索）' $searching ''
+        # 只读搜索面板的状态标签：整进程文本转储会把 500 个缩略图
+        # 也拉一遍，慢到根本等不到「正在搜索」。
+        $deadline = (Get-Date).AddSeconds(10)
+        $status = ''
+        while ((Get-Date) -lt $deadline) {
+            $status = Get-AiPdfSearchStatus -Process $app
+            if ($status -match '正在搜索') {
+                break
+            }
+            Start-Sleep -Milliseconds 200
+        }
+        Test-Check '搜索开始（界面显示正在搜索）' ($status -match '正在搜索') "status='$status'"
 
         $stop = Get-AiPdfElementById -Process $app -IdPattern '*searchStopButton*'
         Test-Check '找到停止按钮' ($null -ne $stop) ''
@@ -382,8 +401,17 @@ try {
                     [System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
                 $invoke.Invoke()
             }
-            $cancelled = Wait-AiPdfProcessTextMatch -Process $app -Pattern '搜索已取消' -TimeoutSeconds 15
-            Test-Check '搜索可以被停止' $cancelled ''
+            $cancelled = $false
+            $deadline = (Get-Date).AddSeconds(15)
+            while ((Get-Date) -lt $deadline) {
+                $status = Get-AiPdfSearchStatus -Process $app
+                if ($status -match '搜索已取消') {
+                    $cancelled = $true
+                    break
+                }
+                Start-Sleep -Milliseconds 300
+            }
+            Test-Check '搜索可以被停止' $cancelled "status='$status'"
         }
     }
     Test-Check '场景 3 结束时主程序仍在运行' (-not $app.HasExited) ''

@@ -756,17 +756,11 @@ public static class AiPdfDpi {
     return [AiPdfDpi]::Enable()
 }
 
-function Set-AiPdfForeground {
+function Initialize-AiPdfForegroundType {
     <#
     .SYNOPSIS
-        把主窗口切到前台（键盘与鼠标事件要送到前台窗口）。
+        加载前台切换需要的 Win32 声明（只加载一次）。
     #>
-    param(
-        [Parameter(Mandatory = $true)]
-        [System.Diagnostics.Process]$Process,
-        [string]$TitlePattern = ''
-    )
-
     if (-not ('AiPdfForeground' -as [type])) {
         Add-Type @'
 using System;
@@ -775,22 +769,85 @@ public static class AiPdfForeground {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int command);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+    // ALT 技巧：后台进程直接调 SetForegroundWindow 会被系统的前景锁拒绝，
+    // 窗口其实没到前台，合成鼠标事件就静默送不进去。
+    // 先按一下 ALT 让系统认为「刚有用户输入」，再 AttachThreadInput
+    // 挂到目标窗口的线程上，借它的权限去抢前台。
+    public static bool ForceForeground(IntPtr hWnd) {
+        uint pid;
+        uint target = GetWindowThreadProcessId(hWnd, out pid);
+        uint self = GetCurrentThreadId();
+        AttachThreadInput(self, target, true);
+        ShowWindow(hWnd, 9);
+        keybd_event(0x12, 0, 0, UIntPtr.Zero);
+        keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
+        bool ok = SetForegroundWindow(hWnd);
+        BringWindowToTop(hWnd);
+        AttachThreadInput(self, target, false);
+        return ok;
+    }
 }
 '@
     }
+}
+
+function Set-AiPdfForeground {
+    <#
+    .SYNOPSIS
+        把主窗口切到前台（键盘与鼠标事件要送到前台窗口）。
+    .DESCRIPTION
+        返回窗口的 DPI 比例（物理像素 / 逻辑像素）。
+        切不成功时不要以为「功能坏了」——用 Test-AiPdfForeground 先确认一下。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [string]$TitlePattern = ''
+    )
+
+    Initialize-AiPdfForegroundType
 
     $handle = $Process.MainWindowHandle
     if ($handle -eq [IntPtr]::Zero) {
         return 1.0
     }
-    [AiPdfForeground]::ShowWindow($handle, 9) | Out-Null
-    [AiPdfForeground]::SetForegroundWindow($handle) | Out-Null
+    [AiPdfForeground]::ForceForeground($handle) | Out-Null
     Start-Sleep -Milliseconds 400
     $dpi = [AiPdfForeground]::GetDpiForWindow($handle)
     if ($dpi -le 0) {
         $dpi = 96
     }
     return ($dpi / 96.0)
+}
+
+function Test-AiPdfForeground {
+    <#
+    .SYNOPSIS
+        确认主窗口真的在前台。
+    .DESCRIPTION
+        合成鼠标事件只送到前台窗口；窗口不在前台时事件会被静默丢掉，
+        表现得像「拖选功能坏了」。做鼠标操作前必须先过这一关，
+        否则失败原因会归错地方。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    Initialize-AiPdfForegroundType
+
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) {
+        return $false
+    }
+    return ([AiPdfForeground]::GetForegroundWindow() -eq $handle)
 }
 
 function Set-AiPdfWindowGeometry {
