@@ -107,12 +107,22 @@ void PdfiumAdapterTests::rotatedDocumentSwapsDimensions() {
     QVERIFY(page.has_value());
 
     QCOMPARE(page->rotationDegrees(), 90);
+    // MediaBox 原始尺寸：不含 /Rotate。
     QCOMPARE(page->widthPoints(), 100.0);
     QCOMPARE(page->heightPoints(), 200.0);
+    // 显示尺寸：应用 /Rotate 后宽高互换。
+    QCOMPARE(page->displayWidthPoints(), 200.0);
+    QCOMPARE(page->displayHeightPoints(), 100.0);
 
+    // 渲染出来的位图也要应用 /Rotate（PDFium 自己不会转）。
     const QImage image = page->render(1.0);
-    QCOMPARE(image.width(), 100);
-    QCOMPARE(image.height(), 200);
+    QCOMPARE(image.width(), 200);
+    QCOMPARE(image.height(), 100);
+
+    // 再叠加用户 90 度旋转，宽高再换回来。
+    const QImage rotated = page->render(1.0, 1);
+    QCOMPARE(rotated.width(), 100);
+    QCOMPARE(rotated.height(), 200);
 }
 
 void PdfiumAdapterTests::corruptDocumentFailsWithoutCrash() {

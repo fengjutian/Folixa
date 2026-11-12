@@ -19,7 +19,7 @@ RenderThread::~RenderThread() {
     wait();
 }
 
-void RenderThread::requestRange(int firstPage, int lastPage, double zoom) {
+void RenderThread::requestRange(int firstPage, int lastPage, double zoom, int rotateQuarterTurns) {
     {
         QMutexLocker locker(&mutex_);
         if (stop_) {
@@ -28,6 +28,7 @@ void RenderThread::requestRange(int firstPage, int lastPage, double zoom) {
         firstPage_ = qMax(0, firstPage);
         lastPage_ = lastPage;
         zoom_ = (zoom > 0.0) ? zoom : 1.0;
+        rotateQuarterTurns_ = ((rotateQuarterTurns % 4) + 4) % 4;
         ++generation_;
         dirty_ = true;
     }
@@ -54,13 +55,14 @@ void RenderThread::run() {
     source_ = pdf::PdfDocument();
 
     if (!document_.isValid()) {
-        emit pageFailed(-1, 0);
+        emit pageFailed(-1, 0, 0);
     }
 
     while (true) {
         int first = 0;
         int last = -1;
         double zoom = 1.0;
+        int rotateQuarterTurns = 0;
         quint64 generation = 0;
 
         {
@@ -74,6 +76,7 @@ void RenderThread::run() {
             first = firstPage_;
             last = lastPage_;
             zoom = zoom_;
+            rotateQuarterTurns = rotateQuarterTurns_;
             generation = generation_;
             dirty_ = false;
             pending_ = qMax(0, last - first + 1);
@@ -91,15 +94,15 @@ void RenderThread::run() {
 
             const auto page = document_.page(index);
             if (!page.has_value()) {
-                emit pageFailed(index, zoomKey);
+                emit pageFailed(index, zoomKey, rotateQuarterTurns);
                 continue;
             }
-            const QImage image = page->render(zoom);
+            const QImage image = page->render(zoom, rotateQuarterTurns);
             if (image.isNull()) {
-                emit pageFailed(index, zoomKey);
+                emit pageFailed(index, zoomKey, rotateQuarterTurns);
                 continue;
             }
-            emit pageRendered(index, zoomKey, image);
+            emit pageRendered(index, zoomKey, rotateQuarterTurns, image);
         }
 
         {

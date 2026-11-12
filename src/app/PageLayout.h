@@ -15,10 +15,10 @@ namespace aipdf::app {
 class PageLayout {
 public:
     // 单页的静态信息（单位是点，1/72 英寸）。
+    // widthPoints/heightPoints 是**显示尺寸**（页面自带 /Rotate 已经应用过）。
     struct PageInfo {
         double widthPoints = 0.0;
         double heightPoints = 0.0;
-        int rotationDegrees = 0;
     };
 
     // 设置页面列表。rotationDegrees 必须是 0/90/180/270。

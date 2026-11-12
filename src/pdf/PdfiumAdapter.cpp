@@ -125,7 +125,22 @@ int PdfPage::rotationDegrees() const {
     return FPDFPage_GetRotation(impl_->page) * 90;
 }
 
-QImage PdfPage::render(double zoom) const {
+double PdfPage::displayWidthPoints() const {
+    const double width = widthPoints();
+    const double height = heightPoints();
+    // /Rotate 为 90°/270° 时，显示尺寸的宽高互换。
+    const int turns = (rotationDegrees() / 90) % 4;
+    return (turns == 1 || turns == 3) ? height : width;
+}
+
+double PdfPage::displayHeightPoints() const {
+    const double width = widthPoints();
+    const double height = heightPoints();
+    const int turns = (rotationDegrees() / 90) % 4;
+    return (turns == 1 || turns == 3) ? width : height;
+}
+
+QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
     if (!isValid() || zoom <= 0.0) {
         return {};
     }
@@ -136,8 +151,21 @@ QImage PdfPage::render(double zoom) const {
         return {};
     }
 
-    const int pixelWidth = static_cast<int>(width * zoom + 0.5);
-    const int pixelHeight = static_cast<int>(height * zoom + 0.5);
+    // PDFium 渲染时不会自动应用页面的 /Rotate，
+    // 所以要把「页面自带旋转 + 用户额外旋转」一起传进去。
+    const int pageTurns = (rotationDegrees() / 90) % 4;
+    const int userTurns = ((rotateQuarterTurns % 4) + 4) % 4;
+    const int totalTurns = (pageTurns + userTurns) % 4;
+
+    // 输出尺寸：显示尺寸再叠加用户旋转。
+    double outputWidth = displayWidthPoints();
+    double outputHeight = displayHeightPoints();
+    if (userTurns == 1 || userTurns == 3) {
+        std::swap(outputWidth, outputHeight);
+    }
+
+    const int pixelWidth = static_cast<int>(outputWidth * zoom + 0.5);
+    const int pixelHeight = static_cast<int>(outputHeight * zoom + 0.5);
     if (pixelWidth <= 0 || pixelHeight <= 0) {
         return {};
     }
@@ -165,7 +193,7 @@ QImage PdfPage::render(double zoom) const {
 
     FPDFBitmap_FillRect(bitmap, 0, 0, pixelWidth, pixelHeight, 0xFFFFFFFF);
     FPDF_RenderPageBitmap(
-        bitmap, impl_->page, 0, 0, pixelWidth, pixelHeight, 0, FPDF_ANNOT);
+        bitmap, impl_->page, 0, 0, pixelWidth, pixelHeight, totalTurns, FPDF_ANNOT);
     FPDFBitmap_Destroy(bitmap);
 
     return image;

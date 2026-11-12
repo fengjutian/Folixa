@@ -9,20 +9,24 @@ void PageLayout::setPages(const QVector<PageInfo>& pages) {
     recomputeTops();
 }
 
-void PageLayout::setScale(double zoom, double devicePixelRatio) {
+void PageLayout::setScale(double zoom) {
     zoom_ = (zoom > 0.0) ? zoom : 1.0;
-    devicePixelRatio_ = (devicePixelRatio > 0.0) ? devicePixelRatio : 1.0;
+    recomputeTops();
+}
+
+void PageLayout::setUserRotation(int degrees) {
+    // 归一到 0/90/180/270。
+    int normalized = ((degrees % 360) + 360) % 360;
+    normalized = (normalized / 90) * 90;
+    if (normalized == userRotation_) {
+        return;
+    }
+    userRotation_ = normalized;
     recomputeTops();
 }
 
 void PageLayout::setPageSpacing(double spacing) {
     spacing_ = (spacing >= 0.0) ? spacing : 0.0;
-    recomputeTops();
-}
-
-void PageLayout::setMargins(double left, double right) {
-    marginLeft_ = (left >= 0.0) ? left : 0.0;
-    marginRight_ = (right >= 0.0) ? right : 0.0;
     recomputeTops();
 }
 
@@ -44,8 +48,8 @@ double PageLayout::zoom() const {
     return zoom_;
 }
 
-double PageLayout::devicePixelRatio() const {
-    return devicePixelRatio_;
+int PageLayout::userRotation() const {
+    return userRotation_;
 }
 
 QSizeF PageLayout::pageSize(int index) const {
@@ -53,9 +57,13 @@ QSizeF PageLayout::pageSize(int index) const {
         return {};
     }
     const PageInfo& info = pages_.at(index);
-    // 页面尺寸已经包含 PDF 自带的旋转（适配层返回的是旋转后的宽高）。
-    const double scale = zoom_ * devicePixelRatio_;
-    return {info.widthPoints * scale, info.heightPoints * scale};
+    // 页面自带的旋转已经在显示尺寸里了，这里只叠加用户旋转。
+    double width = info.widthPoints;
+    double height = info.heightPoints;
+    if (userRotation_ == 90 || userRotation_ == 270) {
+        std::swap(width, height);
+    }
+    return {width * zoom_, height * zoom_};
 }
 
 double PageLayout::pageTop(int index) const {
@@ -63,11 +71,6 @@ double PageLayout::pageTop(int index) const {
         return 0.0;
     }
     return tops_.at(index);
-}
-
-double PageLayout::pageLeft(int index) const {
-    Q_UNUSED(index);
-    return marginLeft_;
 }
 
 double PageLayout::totalHeight() const {
@@ -81,7 +84,7 @@ int PageLayout::pageAt(double y) const {
     if (y < 0.0) {
         return 0;
     }
-    // tops_ 是递增的，二分查找最后一页起点不超过 y 的页。
+    // tops_ 递增，二分查找最后一页起点不超过 y 的页。
     int low = 0;
     int high = static_cast<int>(tops_.size()) - 1;
     int result = 0;

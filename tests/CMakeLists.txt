@@ -70,3 +70,20 @@ aipdf_deploy_qt_runtime(PdfiumAdapterTests)
 aipdf_deploy_pdfium(PdfiumAdapterTests)
 
 add_test(NAME PdfiumAdapterTests COMMAND PdfiumAdapterTests)
+
+# ------------------------------------------------------------ 视口与缓存 ----
+
+qt_add_executable(PdfViewportTests
+    PdfViewportTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/TileCache.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TileCache.h
+)
+
+target_link_libraries(PdfViewportTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(PdfViewportTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(PdfViewportTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PdfViewportTests)
+
+add_test(NAME PdfViewportTests COMMAND PdfViewportTests)

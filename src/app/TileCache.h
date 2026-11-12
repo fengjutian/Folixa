@@ -16,9 +16,12 @@ public:
     struct Key {
         int pageIndex = -1;
         qint64 zoomKey = 0;
+        // 用户旋转的四分之一圈数：内容变了，键必须跟着变。
+        int rotation = 0;
 
         bool operator==(const Key& other) const {
-            return pageIndex == other.pageIndex && zoomKey == other.zoomKey;
+            return pageIndex == other.pageIndex && zoomKey == other.zoomKey &&
+                   rotation == other.rotation;
         }
     };
 
@@ -58,5 +61,10 @@ private:
     void touch(const Key& key);
     void evictUntilWithinLimit();
 };
+
+inline size_t qHash(const TileCache::Key& key, size_t seed = 0) noexcept {
+    return ::qHash(key.zoomKey, seed) ^ ::qHash(key.pageIndex, seed + 1) ^
+           ::qHash(key.rotation, seed + 2);
+}
 
 }  // namespace aipdf::app

@@ -27,7 +27,7 @@ public:
 
     // 主线程调用：更新要渲染的页区间与缩放。
     // 旧区间的请求自动作废。
-    void requestRange(int firstPage, int lastPage, double zoom);
+    void requestRange(int firstPage, int lastPage, double zoom, int rotateQuarterTurns = 0);
 
     // 主线程调用：作废当前所有请求（换文档或换缩放时用）。
     void cancel();
@@ -37,8 +37,8 @@ public:
 
 signals:
     // 渲染完成。zoomKey 与 TileCache::zoomToKey 对应。
-    void pageRendered(int pageIndex, qint64 zoomKey, const QImage& image);
-    void pageFailed(int pageIndex, qint64 zoomKey);
+    void pageRendered(int pageIndex, qint64 zoomKey, int rotation, const QImage& image);
+    void pageFailed(int pageIndex, qint64 zoomKey, int rotation);
 
 protected:
     void run() override;
@@ -53,6 +53,7 @@ private:
     int firstPage_ = 0;
     int lastPage_ = -1;
     double zoom_ = 1.0;
+    int rotateQuarterTurns_ = 0;
     quint64 generation_ = 0;
     bool dirty_ = false;
     bool stop_ = false;

@@ -4,6 +4,14 @@ qt_add_executable(AiPdfEditor WIN32
     app/MainWindow.h
     app/PdfView.h
     app/PdfView.cpp
+    app/PageCanvas.h
+    app/PageCanvas.cpp
+    app/PageLayout.h
+    app/PageLayout.cpp
+    app/RenderThread.h
+    app/RenderThread.cpp
+    app/TileCache.h
+    app/TileCache.cpp
     ipc/WorkerClient.cpp
     ipc/WorkerClient.h
     ipc/IpcProtocol.cpp

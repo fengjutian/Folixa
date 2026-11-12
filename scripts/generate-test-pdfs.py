@@ -81,6 +81,42 @@ def rotated_pdf():
     return _build_pdf(objects, 1)
 
 
+def multipage_pdf(page_count=12, width=300, height=400):
+    """多页文档：每页有页码，用来验证连续滚动。"""
+    font_id = 4
+    first_page_id = 3
+    kids = []
+    objects = []
+
+    for index in range(page_count):
+        page_id = first_page_id + index * 2
+        content_id = page_id + 1
+        kids.append(b"%d 0 R" % page_id)
+        objects.append((
+            page_id,
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] "
+            b"/Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
+            % (width, height, font_id, content_id),
+        ))
+        objects.append((
+            content_id,
+            _content_stream("Page %d" % (index + 1), size=32),
+        ))
+
+    objects.insert(0, (1, b"<< /Type /Catalog /Pages 2 0 R >>"))
+    objects.insert(1, (
+        2,
+        b"<< /Type /Pages /Kids [%s] /Count %d >>" % (b" ".join(kids), page_count),
+    ))
+    objects.append((font_id, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"))
+    return _build_pdf(objects, 1)
+
+
+def long_pdf(page_count=500, width=300, height=400):
+    """长文档：用于压力测试连续浏览与缓存上限。"""
+    return multipage_pdf(page_count=page_count, width=width, height=height)
+
+
 def corrupt_pdf():
     """结构被破坏的 PDF：文件头正常，但对象内容是垃圾。"""
     body = b"%PDF-1.7\n" + os.urandom(0) + b"this is not a pdf body at all\n"
@@ -184,6 +220,8 @@ FIXTURES = {
     "corrupt.pdf": corrupt_pdf,
     "truncated.pdf": truncated_pdf,
     "encrypted.pdf": encrypted_pdf,
+    "multipage.pdf": multipage_pdf,
+    "long.pdf": long_pdf,
 }
 
 
