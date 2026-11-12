@@ -9,7 +9,38 @@
 #include <QStringList>
 #include <QUuid>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 namespace aipdf::ipc {
+namespace {
+
+/**
+ * 当前进程的创建时间（Windows 100ns 刻度）。
+ *
+ * 传给 worker 用于识别 PID 复用：worker 拿到 --parent-pid 后会按 PID 打开父进程，
+ * 如果这个 PID 已经被别的进程占用，说明原父进程早就没了，worker 应当立即退出。
+ */
+quint64 currentProcessStartTicks() {
+#ifdef Q_OS_WIN
+    FILETIME creation{};
+    FILETIME exitTime{};
+    FILETIME kernel{};
+    FILETIME user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &creation, &exitTime, &kernel, &user)) {
+        return 0;
+    }
+    ULARGE_INTEGER ticks{};
+    ticks.LowPart = creation.dwLowDateTime;
+    ticks.HighPart = creation.dwHighDateTime;
+    return ticks.QuadPart;
+#else
+    return 0;
+#endif
+}
+
+}  // namespace
 
 WorkerClient::WorkerClient(QObject* parent)
     : QObject(parent),
@@ -54,7 +85,11 @@ void WorkerClient::start() {
         }
 
         workerProcess_.setProgram(executable);
-        workerProcess_.setArguments({"--server-name", serverName_});
+        // 把父进程信息传给 worker：编辑器被强杀时 worker 靠自己退出，
+        // 否则会成为孤儿进程一直锁住 PdfAiWorker.exe。
+        workerProcess_.setArguments({"--server-name", serverName_,
+                                     "--parent-pid", QString::number(QCoreApplication::applicationPid()),
+                                     "--parent-start-time", QString::number(currentProcessStartTicks())});
         workerProcess_.setProcessChannelMode(QProcess::ForwardedErrorChannel);
         workerProcess_.start();
 

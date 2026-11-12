@@ -306,7 +306,7 @@ void PdfView::updateMetrics() {
     lastCacheBytes_ = bytes;
     lastPending_ = pending;
     emit metricsChanged(QStringLiteral("缓存 %1 MiB · 待渲染 %2")
-                            .arg(bytes / (1024 * 1024), 0, 'f', 1)
+                            .arg(static_cast<double>(bytes) / (1024.0 * 1024.0), 0, 'f', 1)
                             .arg(pending));
 }
 

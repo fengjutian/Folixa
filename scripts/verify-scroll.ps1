@@ -185,6 +185,7 @@ try {
             $app.Kill()
         }
     }
+    Stop-AiPdfOrphanWorker -Quiet | Out-Null
     Remove-Item -LiteralPath $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

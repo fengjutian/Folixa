@@ -7,10 +7,14 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - Qt Widgets 主窗口和多文档标签框架
 - 文档视图、缩略图、书签和 AI 助手面板占位
 - **用 PDFium 打开 PDF 并渲染首页**（支持密码保护文件、旋转页、缩放与高 DPI）
+- **连续页面视口与瓦片渲染**：按视口渲染、邻页预取、LRU 缓存（按像素字节计量上限）、
+  渲染任务按代取消，500 页文档可连续浏览
+- 缩放、用户旋转、适应宽度与适应页面
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
-- IPC 协议单元测试、Worker 集成测试与 PDFium 适配层测试
+- Worker 跟随主程序退出：主程序被强制结束时 Worker 自行退出，不留孤儿进程
+- IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试与视口/缓存单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
 PDF 索引、文本提取和真实模型 Provider 将在后续里程碑接入。
@@ -168,6 +172,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ## 文档
 
 - [技术设计](docs/AI_PDF_EDITOR_TECHNICAL_DESIGN.md)
+- [Prism Document UI 设计规范](docs/UI_DESIGN_SYSTEM.md)
 - [版本与任务管理规范](docs/VERSIONING.md)
 - [版本任务索引](docs/versions/README.md)
 - [依赖与许可证政策](docs/DEPENDENCY_POLICY.md)

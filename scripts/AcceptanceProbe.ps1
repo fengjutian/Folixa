@@ -421,3 +421,34 @@ function Wait-AiPdfWindowProbe {
     }
     return (Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern)
 }
+
+function Stop-AiPdfOrphanWorker {
+    <#
+    .SYNOPSIS
+        清理残留的 AI worker 进程。
+
+    .DESCRIPTION
+        验收脚本会用 Kill() 强杀主程序，此时 QProcess 析构函数不会执行，
+        AI worker 会变成孤儿进程继续运行，并锁住 PdfAiWorker.exe，
+        让后续构建链接失败（cannot open output file ... Permission denied）。
+
+        产品侧已加入父进程看门狗（worker 跟随编辑器一起退出），
+        这里作为兜底，保证旧版本遗留的孤儿进程不会污染后续验收。
+    #>
+    param(
+        [switch]$Quiet
+    )
+
+    $workers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue)
+    if ($workers.Count -eq 0) {
+        return 0
+    }
+    foreach ($worker in $workers) {
+        Stop-Process -Id $worker.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 500
+    if (-not $Quiet) {
+        Write-Host "    清理残留 AI worker 进程 $($workers.Count) 个" -ForegroundColor DarkGray
+    }
+    return $workers.Count
+}

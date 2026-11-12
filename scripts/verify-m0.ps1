@@ -109,6 +109,37 @@ $remaining = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
     Where-Object { $workersBefore -notcontains $_.Id })
 Test-Check '主程序退出后 Worker 随之结束' ($remaining.Count -eq 0) "count=$($remaining.Count)"
 
+# 强杀路径：CloseMainWindow 走的是正常退出，WorkerClient 析构函数能收尾。
+# 被 Kill() 强杀时析构函数不会执行，只有 worker 自己的父进程看门狗能收尾，
+# 否则会留下永久孤儿进程并锁住 PdfAiWorker.exe。
+Write-Host '==> 强杀主程序，验证 Worker 自行退出' -ForegroundColor Cyan
+$workersBeforeKill = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+    ForEach-Object { $_.Id })
+$killedApp = Start-Process -FilePath $appExe -WorkingDirectory $buildPath -PassThru
+try {
+    Start-Sleep -Seconds $StartupSeconds
+    $killWorkers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+        Where-Object { $workersBeforeKill -notcontains $_.Id })
+    Test-Check '强杀前 Worker 已拉起' ($killWorkers.Count -ge 1) "count=$($killWorkers.Count)"
+
+    $killedApp.Kill()
+    $killedApp.WaitForExit(5000) | Out-Null
+
+    $deadline = (Get-Date).AddSeconds(15)
+    $aliveAfterKill = @()
+    do {
+        Start-Sleep -Milliseconds 500
+        $aliveAfterKill = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+            Where-Object { $workersBeforeKill -notcontains $_.Id })
+    } while ($aliveAfterKill.Count -gt 0 -and (Get-Date) -lt $deadline)
+    Test-Check '主程序被强杀后 Worker 自行退出' ($aliveAfterKill.Count -eq 0) "count=$($aliveAfterKill.Count)"
+} finally {
+    if (-not $killedApp.HasExited) {
+        $killedApp.Kill()
+    }
+    Stop-AiPdfOrphanWorker -Quiet | Out-Null
+}
+
 if ($script:Failures -gt 0) {
     Write-Host "`n验收失败：$($script:Failures) 项未通过" -ForegroundColor Red
     exit 1

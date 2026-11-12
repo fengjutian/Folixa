@@ -90,6 +90,7 @@ function Stop-LeftoverApp {
         Write-Host "    清理遗留主程序进程 $($leftovers.Count) 个" -ForegroundColor DarkGray
         Start-Sleep -Milliseconds 500
     }
+    Stop-AiPdfOrphanWorker -Quiet | Out-Null
 }
 
 function Invoke-AppWithPdf {
@@ -166,6 +167,7 @@ function Invoke-AppWithPdf {
                 $app.WaitForExit(5000) | Out-Null
             }
         }
+        Stop-AiPdfOrphanWorker -Quiet | Out-Null
     }
 }
 

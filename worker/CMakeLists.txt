@@ -1,5 +1,7 @@
 qt_add_executable(PdfAiWorker
     main.cpp
+    ParentWatchdog.cpp
+    ParentWatchdog.h
     WorkerServer.cpp
     WorkerServer.h
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
