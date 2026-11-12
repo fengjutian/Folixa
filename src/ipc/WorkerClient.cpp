@@ -4,7 +4,9 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QJsonDocument>
+#include <QStringList>
 #include <QUuid>
 
 namespace aipdf::ipc {
@@ -42,19 +44,43 @@ void WorkerClient::start() {
     }
 
     emit stateChanged("starting");
-    workerProcess_.setProgram(workerExecutablePath());
-    workerProcess_.setArguments({"--server-name", serverName_});
-    workerProcess_.setProcessChannelMode(QProcess::ForwardedErrorChannel);
-    workerProcess_.start();
 
-    if (!workerProcess_.waitForStarted(3000)) {
-        emit stateChanged("unavailable");
-        emit requestFailed({}, "Unable to start PdfAiWorker: " + workerProcess_.errorString());
-        return;
+    if (autoLaunchWorker_) {
+        const QString executable = workerExecutablePath();
+        if (!QFileInfo::exists(executable)) {
+            emit stateChanged("unavailable");
+            emit requestFailed({}, "AI Worker executable not found: " + executable);
+            return;
+        }
+
+        workerProcess_.setProgram(executable);
+        workerProcess_.setArguments({"--server-name", serverName_});
+        workerProcess_.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+        workerProcess_.start();
+
+        if (!workerProcess_.waitForStarted(3000)) {
+            emit stateChanged("unavailable");
+            emit requestFailed({}, "Unable to start PdfAiWorker: " + workerProcess_.errorString());
+            return;
+        }
     }
 
     connectionAttempts_ = 0;
     QTimer::singleShot(50, this, &WorkerClient::connectToWorker);
+}
+
+void WorkerClient::setServerName(const QString& serverName) {
+    if (!serverName.isEmpty()) {
+        serverName_ = serverName;
+    }
+}
+
+void WorkerClient::setWorkerExecutable(const QString& executablePath) {
+    workerExecutableOverride_ = executablePath;
+}
+
+void WorkerClient::setAutoLaunchWorker(bool enabled) {
+    autoLaunchWorker_ = enabled;
 }
 
 QString WorkerClient::sendRequest(const QString& operation,
@@ -163,12 +189,30 @@ void WorkerClient::failPendingRequests(const QString& message) {
 }
 
 QString WorkerClient::workerExecutablePath() const {
+    if (!workerExecutableOverride_.isEmpty()) {
+        return workerExecutableOverride_;
+    }
+
 #ifdef Q_OS_WIN
     constexpr auto workerName = "PdfAiWorker.exe";
 #else
     constexpr auto workerName = "PdfAiWorker";
 #endif
-    return QDir(QCoreApplication::applicationDirPath()).filePath(workerName);
+
+    const QString applicationDir = QCoreApplication::applicationDirPath();
+    const QStringList candidateDirectories = {
+        applicationDir,
+        QDir(applicationDir).filePath(QStringLiteral("../worker")),
+    };
+
+    for (const QString& directory : candidateDirectories) {
+        const QString candidate = QDir(directory).filePath(workerName);
+        if (QFileInfo::exists(candidate)) {
+            return QDir::cleanPath(candidate);
+        }
+    }
+
+    return QDir(applicationDir).filePath(workerName);
 }
 
 }  // namespace aipdf::ipc

@@ -8,23 +8,23 @@
   "configurePresets": [
     {
       "name": "windows-debug",
-      "displayName": "Windows Debug",
+      "displayName": "Windows Debug (Qt 6.8.3 / MinGW 13.1)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/qt-mingw.cmake",
         "AIPDF_BUILD_TESTS": "ON"
       }
     },
     {
       "name": "windows-release",
       "inherits": "windows-debug",
-      "displayName": "Windows Release",
+      "displayName": "Windows Release (Qt 6.8.3 / MinGW 13.1)",
       "binaryDir": "${sourceDir}/build/windows-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "AIPDF_BUILD_TESTS": "OFF"
+        "AIPDF_BUILD_TESTS": "ON"
       }
     }
   ],
@@ -45,7 +45,13 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
-

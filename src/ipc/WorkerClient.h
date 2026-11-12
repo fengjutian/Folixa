@@ -21,6 +21,13 @@ public:
                         const QJsonObject& payload = {},
                         int timeoutMs = 10'000);
 
+    // 连接到外部已运行的 Worker，而不是由本客户端拉起进程。
+    void setServerName(const QString& serverName);
+    // 覆盖 Worker 可执行文件位置，默认在应用同目录查找。
+    void setWorkerExecutable(const QString& executablePath);
+    // 关闭自动拉起 Worker 进程，用于连接已存在的 Worker 实例。
+    void setAutoLaunchWorker(bool enabled);
+
 signals:
     void stateChanged(const QString& state);
     void responseReceived(const QString& requestId, const QJsonObject& response);
@@ -37,6 +44,8 @@ private:
     QString workerExecutablePath() const;
 
     QString serverName_;
+    QString workerExecutableOverride_;
+    bool autoLaunchWorker_ = true;
     QProcess workerProcess_;
     QLocalSocket socket_;
     QByteArray receiveBuffer_;

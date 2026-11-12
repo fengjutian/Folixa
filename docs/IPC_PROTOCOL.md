@@ -36,7 +36,11 @@ Errors use `type: "error"`, `ok: false`, and a stable error object containing `c
 | Operation | Purpose |
 |---|---|
 | `system.health` | Verify protocol and Worker readiness |
+| `system.shutdown` | Ask the Worker to acknowledge and exit |
 | `ai.echo` | Development-only streaming-path placeholder |
+
+`system.health` returns `status`, `protocol_version` and `worker_version` in the payload.
+`system.shutdown` returns `status: "stopping"` and the Worker exits after the frame is flushed.
 
 Unknown operations return `operation_not_supported`. Protocol version mismatches return `protocol_version_unsupported`.
 

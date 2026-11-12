@@ -9,29 +9,34 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
-- IPC 协议单元测试
+- IPC 协议单元测试与 Worker 集成测试
+- 可重复执行的启动验收脚本
 
 PDF 渲染、索引和真实模型 Provider 将在后续里程碑接入。
 
-## 依赖
+## 构建环境
 
 - CMake 3.25+
-- Ninja 或 Visual Studio 2022
-- C++20 编译器
-- Qt 6.5+
-- vcpkg（推荐）
+- Ninja
+- C++20 编译器（当前固定 MinGW-w64 GCC 13.1.0）
+- Qt 6.8.3（官方二进制套件 `mingw_64`）
 
-## Windows 构建
-
-安装 Visual Studio 2022 的“使用 C++ 的桌面开发”工作负载，然后安装 vcpkg：
+Qt 与 MinGW 工具链不需要管理员权限，用 `aqtinstall` 直接装到本地目录：
 
 ```powershell
-git clone https://github.com/microsoft/vcpkg.git C:\dev\vcpkg
-C:\dev\vcpkg\bootstrap-vcpkg.bat
-$env:VCPKG_ROOT = 'C:\dev\vcpkg'
+pip install aqtinstall
+aqt install-qt windows desktop 6.8.3 win64_mingw --outputdir C:\Qt --archives qtbase
+aqt install-tool windows desktop tools_mingw1310 qt.tools.win64_mingw1310 --outputdir C:\Qt
 ```
 
-配置、构建和测试：
+工具链路径写在 `cmake/toolchains/qt-mingw.cmake`，也可用环境变量覆盖：
+
+```powershell
+$env:AIPDF_QT_ROOT = 'C:\Qt\6.8.3\mingw_64'
+$env:AIPDF_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64'
+```
+
+## Windows 构建
 
 ```powershell
 cmake --preset windows-debug
@@ -39,13 +44,30 @@ cmake --build --preset windows-debug
 ctest --preset windows-debug
 ```
 
-运行：
+Release 构建与测试：
 
 ```powershell
-.\build\windows-debug\src\AiPdfEditor.exe
+cmake --preset windows-release
+cmake --build --preset windows-release
+ctest --preset windows-release
 ```
 
-主程序会从同级目录启动 `PdfAiWorker.exe`。
+主程序与 Worker 输出到同一个 `bin` 目录，运行：
+
+```powershell
+.\build\windows-debug\bin\AiPdfEditor.exe
+```
+
+主程序会自动拉起同目录下的 `PdfAiWorker.exe` 并完成健康检查。
+
+## 启动验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-m0.ps1
+```
+
+脚本会启动主程序，检查 Worker 拉起、就绪状态、版本显示、健康检查返回值与退出清理，
+可额外用 `-ScreenshotPath` 保存窗口截图。
 
 ## 文档
 
@@ -66,4 +88,3 @@ ctest --preset windows-debug
 - AI 不直接修改 PDF；变更必须转为可验证、可撤销的命令。
 - 文档内容是不可信数据，不能扩大模型或工具权限。
 - 密钥不写入源码、普通配置文件或日志。
-

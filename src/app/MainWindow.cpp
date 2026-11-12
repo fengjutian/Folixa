@@ -35,7 +35,10 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this](const QString&, const QJsonObject& response) {
                 const QJsonObject payload = response.value("payload").toObject();
                 if (payload.contains("status")) {
-                    conversation_->append("<b>System:</b> Worker is ready.");
+                    conversation_->append(
+                        QString("<b>System:</b> Worker is ready (protocol %1, worker %2).")
+                            .arg(payload.value("protocol_version").toInt())
+                            .arg(payload.value("worker_version").toString().toHtmlEscaped()));
                 } else if (payload.contains("text")) {
                     conversation_->append("<b>Worker:</b> " +
                                           payload.value("text").toString().toHtmlEscaped());
@@ -53,7 +56,7 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::buildUi() {
-    setWindowTitle("AI PDF Editor");
+    setWindowTitle(QString("AI PDF Editor %1").arg(QStringLiteral(AIPDF_VERSION)));
     resize(1280, 820);
 
     auto* tabs = new QTabWidget(this);
@@ -76,7 +79,7 @@ void MainWindow::buildUi() {
         }
     });
     fileMenu->addSeparator();
-    fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
+    fileMenu->addAction("E&xit", QKeySequence::Quit, this, &QWidget::close);
 
     auto* toolbar = addToolBar("Document");
     toolbar->setMovable(false);
@@ -110,7 +113,8 @@ void MainWindow::buildUi() {
     connect(sendButton_, &QPushButton::clicked, this, &MainWindow::sendEcho);
     connect(prompt_, &QLineEdit::returnPressed, this, &MainWindow::sendEcho);
 
-    statusBar()->showMessage("M0 development shell");
+    statusBar()->showMessage(QString("AI PDF Editor %1 · M0 development shell")
+                                 .arg(QStringLiteral(AIPDF_VERSION)));
 }
 
 void MainWindow::sendHealthCheck() {

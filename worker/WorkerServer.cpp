@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
+#include <QTimer>
 
 #include <utility>
 
@@ -83,6 +84,7 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
         socket->write(ipc::encodeFrame(ipc::makeResult(
             requestId,
             {{"status", "ready"},
+             {"protocol_version", ipc::kProtocolVersion},
              {"worker_version", QCoreApplication::applicationVersion()}})));
         return;
     }
@@ -90,6 +92,14 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
         const QString text = request.value("payload").toObject().value("text").toString();
         socket->write(ipc::encodeFrame(ipc::makeResult(
             requestId, {{"text", text}, {"placeholder", true}})));
+        return;
+    }
+    if (operation == "system.shutdown") {
+        socket->write(ipc::encodeFrame(ipc::makeResult(
+            requestId, {{"status", "stopping"}})));
+        socket->flush();
+        // 先让客户端读到确认帧，再结束事件循环。
+        QTimer::singleShot(100, qApp, &QCoreApplication::quit);
         return;
     }
     socket->write(ipc::encodeFrame(ipc::makeError(

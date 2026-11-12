@@ -9,6 +9,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(AIPDF_BUILD_TESTS "Build tests" ON)
 
+# 主程序与 Worker 必须落在同一目录：主程序按自身路径查找 PdfAiWorker。
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${config} "${CMAKE_BINARY_DIR}/bin")
+endforeach()
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network)
 
 if(AIPDF_BUILD_TESTS)
