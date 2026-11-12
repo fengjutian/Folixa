@@ -35,12 +35,11 @@ notices must be generated and reviewed for every release.
 
 ## Outstanding
 
-- Full license texts are not yet bundled: the `aqtinstall` kit contains no
-  license files, so the package carries license identifiers plus the upstream
-  SBOM. The release pipeline for v1.0.0 must bundle the full texts and source
-  offers.
 - The project itself has no public license yet; `LICENSE` reserves all rights,
   so the current packages are internal development artifacts only.
+- The license texts bundled in `licenses/` cover the components shipped today
+  (Qt LGPL-3.0, MinGW-w64 GCC runtime). Components added in later versions
+  must extend `licenses/CHECKSUMS.txt` in the same commit that introduces them.
 
 No Foxit binary, resource, icon, text, private protocol or other proprietary
 artifact is a redistributable dependency of this project.

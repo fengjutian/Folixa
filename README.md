@@ -109,6 +109,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 |---|---|
 | `scripts\verify-package.ps1` | 安装包内容齐全，且在没有 Qt SDK 的环境可运行 |
 | `scripts\verify-sbom.ps1` | 包内每个文件都在 SBOM 中登记，且 SHA-256 与实际一致 |
+| `scripts\verify-licenses.ps1` | 安装包随附第三方许可证全文，且与 `licenses\CHECKSUMS.txt` 一致 |
 | `scripts\check-version.ps1` | CMake、vcpkg 清单、版本文档、索引状态、exe 版本、安装包名称一致 |
 | `scripts\test-gates.ps1` | 上述门的负例守卫：故意弄坏输入，门必须变红 |
 
@@ -117,6 +118,15 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\check-version.ps1
 powershell -ExecutionPolicy Bypass -File scripts\test-gates.ps1
+```
+
+## 第三方许可证
+
+`licenses/` 保存随包分发的许可证全文（LGPL-3.0、GPL-3.0、GCC 运行时例外）及来源说明，
+打包时随安装包一起分发并按 SHA-256 校验：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\fetch-licenses.ps1 -VerifyOnly
 ```
 
 ## 持续集成
