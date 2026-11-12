@@ -125,18 +125,26 @@ function Invoke-AppWithPdf {
         }
 
         if ($DialogTitlePattern) {
-            $dialog = Wait-AiPdfDialog -Process $app -TitlePattern $DialogTitlePattern -TimeoutSeconds 15
-            $dialogSeen = ($null -ne $dialog)
-            if ($dialogSeen -and $DialogScreenshot) {
-                Save-AiPdfWindowScreenshot -Process $app -Path $DialogScreenshot `
-                    -WindowTitlePattern $DialogTitlePattern | Out-Null
-            }
-            if ($dialogSeen -and $CancelDialog) {
-                $dialogSeen = (Invoke-AiPdfDialogButton -Process $app `
-                    -ButtonPattern '^(Cancel|取消|Abort)$' -TitlePattern $DialogTitlePattern)
-            } elseif ($dialogSeen -and $Password) {
-                $passwordEntered = (Enter-AiPdfDialogPassword -Process $app -Password $Password `
-                    -TitlePattern $DialogTitlePattern)
+            # UI Automation 的元素随时可能失效：异常只让本场景判失败，
+            # 不应该把整条验收流水线打断。
+            try {
+                $dialog = Wait-AiPdfDialog -Process $app -TitlePattern $DialogTitlePattern -TimeoutSeconds 15
+                $dialogSeen = ($null -ne $dialog)
+                if ($dialogSeen -and $DialogScreenshot) {
+                    Save-AiPdfWindowScreenshot -Process $app -Path $DialogScreenshot `
+                        -WindowTitlePattern $DialogTitlePattern | Out-Null
+                }
+                if ($dialogSeen -and $CancelDialog) {
+                    $dialogSeen = (Invoke-AiPdfDialogButton -Process $app `
+                        -ButtonPattern '^(Cancel|取消|Abort)$' -TitlePattern $DialogTitlePattern)
+                } elseif ($dialogSeen -and $Password) {
+                    $passwordEntered = (Enter-AiPdfDialogPassword -Process $app -Password $Password `
+                        -TitlePattern $DialogTitlePattern)
+                }
+            } catch {
+                Write-Host "    对话框交互异常：$($_.Exception.Message)" -ForegroundColor Red
+                $dialogSeen = $false
+                $passwordEntered = $false
             }
             # 等对话框关掉，再读主窗口。
             Start-Sleep -Seconds 1

@@ -107,6 +107,10 @@ function Set-AiPdfElementText {
     .DESCRIPTION
         写入后回读校验长度；Qt 的 ValueProvider 在密码框上并不可靠，
         偶尔会只写进去一部分，必须确认写满了再点确定。
+
+        控件元素随时可能失效（Qt 重建控件时 UIA provider 会被释放，
+        抛 ElementNotAvailableException），所以每次尝试都重新取一次 pattern，
+        失效时返回 false 让调用方重新取元素，而不是把异常抛穿整个验收脚本。
     #>
     param(
         [Parameter(Mandatory = $true)]$Element,
@@ -114,21 +118,25 @@ function Set-AiPdfElementText {
         [int]$MaxAttempts = 3
     )
 
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
-        return $false
-    }
-
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $pattern.SetValue($Text)
-        Start-Sleep -Milliseconds 200
-        $current = $pattern.Current.Value
-        if ($null -ne $current -and $current.Length -eq $Text.Length) {
-            return $true
+        try {
+            $pattern = $null
+            if (-not $Element.TryGetCurrentPattern(
+                    [System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+                return $false
+            }
+            $pattern.SetValue($Text)
+            Start-Sleep -Milliseconds 200
+            $current = $pattern.Current.Value
+            if ($null -ne $current -and $current.Length -eq $Text.Length) {
+                return $true
+            }
+            # 没写满就清空重来。
+            $pattern.SetValue('')
+        } catch {
+            # 元素已失效：换一次 pattern 再试，仍不行就交给调用方重新取元素。
+            Start-Sleep -Milliseconds 300
         }
-        # 没写满就清空重来。
-        $pattern.SetValue('')
         Start-Sleep -Milliseconds 100
     }
     return $false
@@ -143,11 +151,15 @@ function Invoke-AiPdfElement {
         [Parameter(Mandatory = $true)]$Element
     )
 
-    $pattern = $null
-    if ($Element.TryGetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
-        $pattern.Invoke()
-        return $true
+    try {
+        $pattern = $null
+        if ($Element.TryGetCurrentPattern(
+                [System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+            $pattern.Invoke()
+            return $true
+        }
+    } catch {
+        # 元素失效：当作这一次没点成。
     }
     return $false
 }
@@ -199,11 +211,15 @@ function Invoke-AiPdfDialogButton {
     $buttonCondition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::Button)
-    foreach ($button in $dialog.FindAll(
-            [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
-        if ($button.Current.Name -match $ButtonPattern) {
-            return (Invoke-AiPdfElement -Element $button)
+    try {
+        foreach ($button in $dialog.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
+            if ($button.Current.Name -match $ButtonPattern) {
+                return (Invoke-AiPdfElement -Element $button)
+            }
         }
+    } catch {
+        # 按钮元素失效：当作这一次没点成。
     }
     return $false
 }
@@ -215,38 +231,58 @@ function Enter-AiPdfDialogPassword {
     .DESCRIPTION
         只用控件级 InvokePattern 点击确定按钮：不要用键盘兜底，
         回车键会发给前台窗口，在连续跑多个场景时可能打到下一个进程的对话框上。
+
+        密码框的 UIA 元素可能在写入前就失效，所以整段流程按次重试：
+        每次重新取对话框和输入框，而不是复用上一次的元素。
     #>
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process,
         [Parameter(Mandatory = $true)][string]$Password,
         [string]$TitlePattern = '需要密码',
-        [int]$TimeoutSeconds = 15
+        [int]$TimeoutSeconds = 15,
+        [int]$MaxAttempts = 3
     )
-
-    $dialog = Wait-AiPdfDialog -Process $Process -TitlePattern $TitlePattern -TimeoutSeconds $TimeoutSeconds
-    if (-not $dialog) {
-        return $false
-    }
 
     $editCondition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::Edit)
-    $edit = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
-    if (-not $edit) {
-        return $false
-    }
-    if (-not (Set-AiPdfElementText -Element $edit -Text $Password)) {
-        return $false
-    }
-
     $buttonCondition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::Button)
-    foreach ($button in $dialog.FindAll(
-            [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
-        if ($button.Current.Name -match '^(OK|确定|好|Yes)$') {
-            return (Invoke-AiPdfElement -Element $button)
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        if ($Process.HasExited) {
+            return $false
+        }
+
+        $dialog = Wait-AiPdfDialog -Process $Process -TitlePattern $TitlePattern -TimeoutSeconds $TimeoutSeconds
+        if (-not $dialog) {
+            return $false
+        }
+
+        try {
+            $edit = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
+            if (-not $edit) {
+                Start-Sleep -Milliseconds 300
+                continue
+            }
+            if (-not (Set-AiPdfElementText -Element $edit -Text $Password)) {
+                continue
+            }
+
+            foreach ($button in $dialog.FindAll(
+                    [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
+                if ($button.Current.Name -match '^(OK|确定|好|Yes)$') {
+                    if (Invoke-AiPdfElement -Element $button) {
+                        return $true
+                    }
+                    break
+                }
+            }
+        } catch {
+            # 对话框在读取过程中被重建：重新取一次对话框再来。
+            Start-Sleep -Milliseconds 300
         }
     }
     return $false
@@ -307,25 +343,39 @@ function Get-AiPdfWindowProbe {
     }
 
     $texts = New-Object System.Collections.Generic.List[string]
-    $texts.Add($window.Current.Name)
+    try {
+        $texts.Add($window.Current.Name)
+    } catch {
+        return $null
+    }
     $children = $window.FindAll(
         [System.Windows.Automation.TreeScope]::Descendants,
         [System.Windows.Automation.Condition]::TrueCondition)
     foreach ($element in $children) {
-        $texts.Add($element.Current.Name)
-        # QTextBrowser 的正文通过 TextPattern 暴露，不在 Name 里。
-        $textPattern = $null
-        if ($element.TryGetCurrentPattern(
-                [System.Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)) {
-            $document = $textPattern.DocumentRange.GetText(-1)
-            if ($document) {
-                $texts.Add($document)
+        try {
+            $texts.Add($element.Current.Name)
+            # QTextBrowser 的正文通过 TextPattern 暴露，不在 Name 里。
+            $textPattern = $null
+            if ($element.TryGetCurrentPattern(
+                    [System.Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)) {
+                $document = $textPattern.DocumentRange.GetText(-1)
+                if ($document) {
+                    $texts.Add($document)
+                }
             }
+        } catch {
+            # 元素可能在读取的瞬间失效（例如状态栏标签被定时刷新重建），
+            # 跳过这一个元素，不让整次探测失败。
         }
     }
 
+    try {
+        $title = $window.Current.Name
+    } catch {
+        $title = ''
+    }
     return [pscustomobject]@{
-        Title = $window.Current.Name
+        Title = $title
         Text  = ($texts -join "`n")
     }
 }
