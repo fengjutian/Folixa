@@ -74,6 +74,24 @@ if ($LASTEXITCODE -ne 0) {
     exit 2
 }
 
+function Stop-LeftoverApp {
+    <#
+    .SYNOPSIS
+        清掉上一轮遗留的主程序进程。
+    .DESCRIPTION
+        连续跑多个场景时，前一个进程若还带着模态密码框活着，
+        它的窗口会留在桌面上并抢前台，干扰下一个场景的查找。
+    #>
+    $leftovers = @(Get-Process -Name 'AiPdfEditor' -ErrorAction SilentlyContinue)
+    foreach ($process in $leftovers) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+    if ($leftovers.Count -gt 0) {
+        Write-Host "    清理遗留主程序进程 $($leftovers.Count) 个" -ForegroundColor DarkGray
+        Start-Sleep -Milliseconds 500
+    }
+}
+
 function Invoke-AppWithPdf {
     param(
         [string]$PdfPath,
@@ -87,6 +105,8 @@ function Invoke-AppWithPdf {
         [string]$ExpectTextPattern = ''
     )
 
+    Stop-LeftoverApp
+
     $app = Start-Process -FilePath $appExe -WorkingDirectory $buildPath `
         -ArgumentList $PdfPath -PassThru
     $screenshotTaken = $false
@@ -99,6 +119,7 @@ function Invoke-AppWithPdf {
             return [pscustomobject]@{
                 Process = $app; Probe = $null; Alive = $false
                 ScreenshotTaken = $false; DialogSeen = $false; PasswordEntered = $false
+                TextMatched = $false
             }
         }
 
@@ -139,8 +160,10 @@ function Invoke-AppWithPdf {
     } finally {
         if (-not $app.HasExited) {
             $app.CloseMainWindow() | Out-Null
-            if (-not $app.WaitForExit(10000)) {
-                $app.Kill()
+            # 带模态对话框时关闭请求可能不生效，别在这里空等十秒。
+            if (-not $app.WaitForExit(3000)) {
+                $app.Kill() | Out-Null
+                $app.WaitForExit(5000) | Out-Null
             }
         }
     }
@@ -210,6 +233,10 @@ Test-Check '取消密码不会导致崩溃' $run.Alive
 Test-Check '密码框已取消' $run.DialogSeen
 Test-Check '取消后状态栏提示已取消' $run.TextMatched (
     ($run.Probe.Text -split "`n" | Where-Object { $_ -match '取消|无法打开|密码' }) -join ' | ')
+if ($run.Probe) {
+    # 取消不能留下半开的文档：既没有标签页，也没有成功提示。
+    Test-Check '取消后没有打开文档' ($run.Probe.Text -notmatch '已打开\s*encrypted\.pdf') ''
+}
 
 Remove-Item -LiteralPath $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
 

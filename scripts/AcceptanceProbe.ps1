@@ -173,7 +173,8 @@ function Enter-AiPdfDialogPassword {
     .SYNOPSIS
         等待标题匹配的对话框出现，填写密码并确定。成功返回 $true。
     .DESCRIPTION
-        找不到确定按钮时回退到键盘回车（先把对话框置前）。
+        只用控件级 InvokePattern 点击确定按钮：不要用键盘兜底，
+        回车键会发给前台窗口，在连续跑多个场景时可能打到下一个进程的对话框上。
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -205,27 +206,8 @@ function Enter-AiPdfDialogPassword {
     foreach ($button in $dialog.FindAll(
             [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
         if ($button.Current.Name -match '^(OK|确定|好|Yes)$') {
-            if (Invoke-AiPdfElement -Element $button) {
-                return $true
-            }
+            return (Invoke-AiPdfElement -Element $button)
         }
-    }
-
-    # 回退：把对话框置前后按回车。
-    Add-Type -AssemblyName System.Windows.Forms
-    $handle = [IntPtr]$dialog.Current.NativeWindowHandle
-    if ($handle -ne [IntPtr]::Zero) {
-        Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class AiPdfFocus {
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-}
-'@
-        [AiPdfFocus]::SetForegroundWindow($handle) | Out-Null
-        Start-Sleep -Milliseconds 300
-        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-        return $true
     }
     return $false
 }
