@@ -151,9 +151,16 @@ void PageCanvas::updateScrollRange() {
     QScrollBar* bar = verticalScrollBar();
     const int viewportHeight = std::max(1, viewport()->height());
     const int contentHeight = static_cast<int>(std::ceil(layout_.totalHeight())) + kPageMargin;
-    bar->setRange(0, std::max(0, contentHeight - viewportHeight));
-    bar->setPageStep(viewportHeight);
-    bar->setSingleStep(std::max(1, viewportHeight / 20));
+
+    // 只有内容高度或视口高度真的变了才重设范围：
+    // 每次滚动都重设会把当前滚动位置钳回去（范围一变，Qt 就会夹紧取值）。
+    if (contentHeight != lastContentHeight_ || viewportHeight != lastViewportHeight_) {
+        lastContentHeight_ = contentHeight;
+        lastViewportHeight_ = viewportHeight;
+        bar->setRange(0, std::max(0, contentHeight - viewportHeight));
+        bar->setPageStep(viewportHeight);
+        bar->setSingleStep(std::max(1, viewportHeight / 20));
+    }
 
     const int page = layout_.isEmpty() ? 0 : std::max(0, layout_.pageAt(bar->value()));
     if (page != currentPage_) {

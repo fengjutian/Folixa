@@ -30,6 +30,8 @@ private:
 
     ipc::WorkerClient* workerClient_ = nullptr;
     QLabel* workerStatus_ = nullptr;
+    // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
+    QLabel* metricsLabel_ = nullptr;
     QTextBrowser* conversation_ = nullptr;
     QLineEdit* prompt_ = nullptr;
     QPushButton* sendButton_ = nullptr;

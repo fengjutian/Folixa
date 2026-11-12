@@ -55,6 +55,8 @@ signals:
     void zoomChanged(double factor);
     void pageCountChanged(int pages);
     void currentPageChanged(int index);
+    // 性能指标文本（缓存占用与待渲染任务数），交给主窗口显示在状态栏。
+    void metricsChanged(const QString& text);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -78,9 +80,9 @@ private:
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;
-    // 性能指标：缓存占用与待渲染任务数。
-    // 这两个数字是「缓存遵守内存上限」和「快速滚动不积压任务」的观测点。
-    QLabel* metricsLabel_ = nullptr;
+    // 指标不放进工具栏：标签宽度一变，工具栏的溢出状态就变，
+    // 画布高度跟着变，滚动范围又跟着变，滚动位置会被钳制——
+    // 一个文字宽度引发的反馈环。指标交给主窗口放状态栏。
     QTimer* metricsTimer_ = nullptr;
     qint64 lastCacheBytes_ = -1;
     int lastPending_ = -1;

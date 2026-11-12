@@ -51,6 +51,9 @@ private:
     TileCache* cache_ = nullptr;
     RenderThread* renderThread_ = nullptr;
     int currentPage_ = 0;
+    // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
+    int lastContentHeight_ = -1;
+    int lastViewportHeight_ = -1;
 
     void updateScrollRange();
     void requestVisiblePages();

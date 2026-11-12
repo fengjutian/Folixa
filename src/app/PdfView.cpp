@@ -71,10 +71,6 @@ void PdfView::buildUi() {
     pageInfoLabel_ = new QLabel(QStringLiteral("未打开文档"), this);
     pageInfoLabel_->setAlignment(Qt::AlignCenter);
 
-    metricsLabel_ = new QLabel(QStringLiteral("缓存 0 MiB · 待渲染 0"), this);
-    metricsLabel_->setAlignment(Qt::AlignCenter);
-    metricsLabel_->setToolTip(QStringLiteral("页面缓存占用与待完成渲染任务数"));
-
     toolBar->addWidget(zoomOut);
     toolBar->addWidget(zoomIn);
     toolBar->addWidget(fitWidthButton);
@@ -86,8 +82,6 @@ void PdfView::buildUi() {
     toolBar->addWidget(zoomLabel_);
     toolBar->addSeparator();
     toolBar->addWidget(pageInfoLabel_);
-    toolBar->addSeparator();
-    toolBar->addWidget(metricsLabel_);
     layout->addWidget(toolBar);
 
     canvas_ = new PageCanvas(this);
@@ -311,9 +305,9 @@ void PdfView::updateMetrics() {
     }
     lastCacheBytes_ = bytes;
     lastPending_ = pending;
-    metricsLabel_->setText(QStringLiteral("缓存 %1 MiB · 待渲染 %2")
-                               .arg(bytes / (1024 * 1024), 0, 'f', 1)
-                               .arg(pending));
+    emit metricsChanged(QStringLiteral("缓存 %1 MiB · 待渲染 %2")
+                            .arg(bytes / (1024 * 1024), 0, 'f', 1)
+                            .arg(pending));
 }
 
 void PdfView::requestVisiblePages() {

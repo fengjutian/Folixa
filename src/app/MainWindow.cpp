@@ -134,6 +134,11 @@ void MainWindow::buildUi() {
 
     statusBar()->showMessage(QString("AI PDF Editor %1 · M0 development shell")
                                  .arg(QStringLiteral(AIPDF_VERSION)));
+    // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
+    // 触发工具栏溢出，导致画布高度变化、滚动范围漂移。
+    metricsLabel_ = new QLabel(QStringLiteral("缓存 0 MiB · 待渲染 0"), this);
+    metricsLabel_->setToolTip(QStringLiteral("页面缓存占用与待完成渲染任务数"));
+    statusBar()->addPermanentWidget(metricsLabel_);
 }
 
 void MainWindow::sendHealthCheck() {
@@ -191,6 +196,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     const QString title = QFileInfo(filePath).fileName();
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
+    connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
 
