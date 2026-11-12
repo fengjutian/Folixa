@@ -7,6 +7,9 @@ namespace aipdf::app {
 
 // 连续文档的页面布局：负责把「页序号 + 缩放 + 旋转」换算成视口坐标。
 //
+// 坐标单位是逻辑像素（滚动区域用的就是逻辑像素）；
+// 渲染出来的图像按设备像素比给位图设置 devicePixelRatio，画出来正好对上。
+//
 // 这是一个纯计算服务，不碰 PDFium，也不碰 Qt 事件循环，
 // 因此可以脱离界面直接做单元测试。
 class PageLayout {
@@ -21,14 +24,14 @@ public:
     // 设置页面列表。rotationDegrees 必须是 0/90/180/270。
     void setPages(const QVector<PageInfo>& pages);
 
-    // 设置缩放倍率与设备像素比。zoom=1 表示 72 DPI。
-    void setScale(double zoom, double devicePixelRatio);
+    // 设置缩放倍率。zoom=1 表示 72 DPI。
+    void setScale(double zoom);
 
-    // 页与页之间的间距（设备像素）。
+    // 用户额外旋转的角度（0/90/180/270），叠加在页面自带的旋转之上。
+    void setUserRotation(int degrees);
+
+    // 页与页之间的间距（逻辑像素）。
     void setPageSpacing(double spacing);
-
-    // 左右留白（设备像素）。
-    void setMargins(double left, double right);
 
     void clear();
 
@@ -36,30 +39,27 @@ public:
     bool isEmpty() const;
 
     double zoom() const;
-    double devicePixelRatio() const;
+    int userRotation() const;
 
-    // 某一页在视口坐标系里的尺寸与上边缘位置（设备像素）。
+    // 某一页在视口坐标系里的尺寸与上边缘位置（逻辑像素）。
     QSizeF pageSize(int index) const;
     double pageTop(int index) const;
-    double pageLeft(int index) const;
 
-    // 整篇文档的尺寸（设备像素），供滚动区域使用。
+    // 整篇文档的高度（逻辑像素），供滚动区域使用。
     double totalHeight() const;
 
     // 纵坐标落在哪一页上；超出范围返回 -1。
     int pageAt(double y) const;
 
-    // 落在这一页上的纵向区间（设备像素）。
+    // 落在这一页上的纵向区间下边缘（逻辑像素）。
     double pageBottom(int index) const;
 
 private:
     QVector<PageInfo> pages_;
     QVector<double> tops_;
     double zoom_ = 1.0;
-    double devicePixelRatio_ = 1.0;
+    int userRotation_ = 0;
     double spacing_ = 12.0;
-    double marginLeft_ = 0.0;
-    double marginRight_ = 0.0;
     double totalHeight_ = 0.0;
 
     void recomputeTops();
