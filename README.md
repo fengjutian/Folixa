@@ -1,6 +1,6 @@
 # AI PDF Editor
 
-AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 编辑器。当前版本处于 M0 工程骨架阶段，已经包含桌面应用、独立 AI Worker 和本地 IPC 健康检查。
+AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 编辑器。当前版本已建立可复现的 Windows 构建、测试与打包环境：主程序、独立 AI Worker、本地 IPC 健康检查、自动化测试和可独立运行的开发包。
 
 ## 当前能力
 
@@ -10,43 +10,44 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
 - IPC 协议单元测试与 Worker 集成测试
-- 可重复执行的启动验收脚本
+- 固定工具链、CI、可重复的打包与自动化验收
 
 PDF 渲染、索引和真实模型 Provider 将在后续里程碑接入。
 
 ## 构建环境
 
-- CMake 3.25+
-- Ninja
-- C++20 编译器（当前固定 MinGW-w64 GCC 13.1.0）
-- Qt 6.8.3（官方二进制套件 `mingw_64`）
+固定组合：
 
-Qt 与 MinGW 工具链不需要管理员权限，用 `aqtinstall` 直接装到本地目录：
+| 组件 | 版本 | 说明 |
+|---|---|---|
+| Qt | 6.8.3 `mingw_64` | 官方二进制套件，仅 qtbase |
+| MinGW-w64 | GCC 13.1.0 | Qt 官方工具包 |
+| CMake | 3.25+ | 系统安装 |
+| Ninja | 1.10+ | 系统安装 |
+
+一条命令装好 Qt 与 MinGW（免管理员权限）：
 
 ```powershell
-pip install aqtinstall
-aqt install-qt windows desktop 6.8.3 win64_mingw --outputdir C:\Qt --archives qtbase
-aqt install-tool windows desktop tools_mingw1310 qt.tools.win64_mingw1310 --outputdir C:\Qt
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap-toolchain.ps1
 ```
 
-工具链路径写在 `cmake/toolchains/qt-mingw.cmake`，也可用环境变量覆盖：
+脚本会打印实际路径。按需设置环境变量覆盖默认位置：
 
 ```powershell
 $env:AIPDF_QT_ROOT = 'C:\Qt\6.8.3\mingw_64'
 $env:AIPDF_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64'
 ```
 
-## Windows 构建
+工具链文件在 `cmake/toolchains/qt-mingw.cmake`。vcpkg 以 `builtin-baseline` 固定版本，
+当前不引入源码构建的第三方依赖。
+
+## 构建与测试
 
 ```powershell
 cmake --preset windows-debug
 cmake --build --preset windows-debug
 ctest --preset windows-debug
-```
 
-Release 构建与测试：
-
-```powershell
 cmake --preset windows-release
 cmake --build --preset windows-release
 ctest --preset windows-release
@@ -66,8 +67,33 @@ ctest --preset windows-release
 powershell -ExecutionPolicy Bypass -File scripts\verify-m0.ps1
 ```
 
-脚本会启动主程序，检查 Worker 拉起、就绪状态、版本显示、健康检查返回值与退出清理，
-可额外用 `-ScreenshotPath` 保存窗口截图。
+启动主程序，检查 Worker 拉起、就绪状态、版本显示、健康检查返回值与退出清理，
+可用 `-ScreenshotPath` 保存窗口截图。
+
+## 打包
+
+```powershell
+cmake --build --preset windows-release --target package
+```
+
+产出 `dist/ai-pdf-editor-<版本>-win64.zip`，内含主程序、Worker、Qt 运行库与平台插件、
+MinGW 运行库、`LICENSE`、`NOTICE.txt`、第三方许可证清单和 CycloneDX SBOM，
+同时写出 ZIP 的 SHA-256。
+
+## 打包验收（无 Qt SDK 环境）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
+    -PackagePath dist\ai-pdf-editor-0.2.0-win64.zip -Version 0.2.0
+```
+
+脚本把安装包解压到临时目录、把 `PATH` 限制为系统目录（找不到任何 Qt SDK 与工具链），
+再启动其中的主程序，验证包确实可以脱离开发环境运行。
+
+## 持续集成
+
+`.github/workflows/windows.yml` 在 `windows-2022` 上执行与上面完全相同的命令：
+安装固定工具链 → Debug/Release 构建与测试 → 启动验收 → 打包 → 无 SDK 打包验收 → 上传安装包。
 
 ## 文档
 
@@ -79,7 +105,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-m0.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.1.0`](docs/versions/v0.1.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.2.0`](docs/versions/v0.2.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发原则
 
