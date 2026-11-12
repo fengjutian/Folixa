@@ -16,6 +16,28 @@ namespace aipdf::pdf {
 
 namespace detail {
 
+// PDFium 的接口**不是线程安全的**（见 fpdfview.h 顶部的说明）：
+// 即使每个线程各自持有独立句柄，也必须保证同一时刻只有一个 PDFium 调用在执行，
+// 否则会踩坏 PDFium 内部的共享状态——本项目踩到过：三个线程各持一份文档时，
+// 表现为随机堆损坏，崩在 RtlAllocateHeap 上，堆损坏点却早得多。
+//
+// 因此所有 PDFium 调用都串到这一把进程级锁上。
+inline std::recursive_mutex& pdfiumMutex() {
+    static std::recursive_mutex mutex;
+    return mutex;
+}
+
+// 递归锁：render() 内部还会调用 widthPoints() 等同样要上锁的函数，
+// 用非递归锁会自锁死。
+class PdfiumGuard {
+public:
+    PdfiumGuard() { pdfiumMutex().lock(); }
+    ~PdfiumGuard() { pdfiumMutex().unlock(); }
+
+    PdfiumGuard(const PdfiumGuard&) = delete;
+    PdfiumGuard& operator=(const PdfiumGuard&) = delete;
+};
+
 struct DocumentImpl {
     QByteArray fileData;
     QString path;
@@ -26,6 +48,8 @@ struct DocumentImpl {
 
     ~DocumentImpl() {
         if (handle != nullptr) {
+            // 关闭句柄也要上锁：PDFium 的全局状态是共享的。
+            const PdfiumGuard guard;
             FPDF_CloseDocument(handle);
         }
     }
@@ -56,6 +80,8 @@ struct PageImpl {
 
     ~PageImpl() {
         if (page != nullptr) {
+            // 关闭页面同样要上锁。
+            const PdfiumGuard guard;
             FPDF_ClosePage(page);
         }
     }
@@ -111,6 +137,7 @@ double PdfPage::widthPoints() const {
     if (!isValid()) {
         return 0.0;
     }
+    const detail::PdfiumGuard guard;
     return FPDF_GetPageWidthF(impl_->page);
 }
 
@@ -118,6 +145,7 @@ double PdfPage::heightPoints() const {
     if (!isValid()) {
         return 0.0;
     }
+    const detail::PdfiumGuard guard;
     return FPDF_GetPageHeightF(impl_->page);
 }
 
@@ -125,6 +153,7 @@ int PdfPage::rotationDegrees() const {
     if (!isValid()) {
         return 0;
     }
+    const detail::PdfiumGuard guard;
     // PDFium 返回的是四分之一圈：0=0°，1=90°，2=180°，3=270°。
     return FPDFPage_GetRotation(impl_->page) * 90;
 }
@@ -144,6 +173,9 @@ QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
     if (!isValid() || zoom <= 0.0) {
         return {};
     }
+
+    // 整段渲染都在锁内：PDFium 的渲染过程会读写全局共享状态。
+    const detail::PdfiumGuard guard;
 
     const double width = widthPoints();
     const double height = heightPoints();
@@ -204,6 +236,7 @@ MediaBox PdfPage::mediaBox() const {
     if (!isValid()) {
         return {};
     }
+    const detail::PdfiumGuard guard;
     float left = 0.0F;
     float bottom = 0.0F;
     float right = 0.0F;
@@ -214,10 +247,33 @@ MediaBox PdfPage::mediaBox() const {
     return MediaBox{left, bottom, right, top};
 }
 
+MediaBox PdfPage::contentBox() const {
+    if (!isValid()) {
+        return {};
+    }
+    const detail::PdfiumGuard guard;
+    float left = 0.0F;
+    float bottom = 0.0F;
+    float right = 0.0F;
+    float top = 0.0F;
+    // PDFium 渲染的是 CropBox（没有 CropBox 时内部退回 MediaBox），
+    // 字符框必须相对同一个盒子，否则会和页面图像错位。
+    if (FPDFPage_GetCropBox(impl_->page, &left, &bottom, &right, &top)) {
+        return MediaBox{left, bottom, right, top};
+    }
+    if (FPDFPage_GetMediaBox(impl_->page, &left, &bottom, &right, &top)) {
+        return MediaBox{left, bottom, right, top};
+    }
+    return MediaBox{0.0, 0.0, widthPoints(), heightPoints()};
+}
+
 std::optional<TextPage> PdfPage::extractText() const {
     if (!isValid()) {
         return std::nullopt;
     }
+
+    // 文本解析全程在锁内：PDFium 解析字体与页面时会动全局缓存。
+    const detail::PdfiumGuard guard;
 
     FPDF_TEXTPAGE textPage = FPDFText_LoadPage(impl_->page);
     if (textPage == nullptr) {
@@ -226,6 +282,10 @@ std::optional<TextPage> PdfPage::extractText() const {
 
     TextPage result;
     result.pageIndex = impl_->index;
+    // 页面几何一起带回去：上层要靠它把字符框变换到显示空间，
+    // 而页面的 /Rotate 与有效盒子不必再回到 PDFium 去问一次。
+    result.contentBox = contentBox();
+    result.rotationDegrees = rotationDegrees();
 
     const int count = FPDFText_CountChars(textPage);
     result.chars.reserve(count);
@@ -301,6 +361,7 @@ int PdfDocument::pageCount() const {
     if (!isValid()) {
         return 0;
     }
+    const detail::PdfiumGuard guard;
     return FPDF_GetPageCount(impl_->handle);
 }
 
@@ -312,7 +373,11 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
     if (!isValid() || index < 0 || index >= pageCount()) {
         return std::nullopt;
     }
-    FPDF_PAGE page = FPDF_LoadPage(impl_->handle, index);
+    FPDF_PAGE page = nullptr;
+    {
+        const detail::PdfiumGuard guard;
+        page = FPDF_LoadPage(impl_->handle, index);
+    }
     if (page == nullptr) {
         return std::nullopt;
     }
@@ -365,7 +430,10 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
     const QByteArray passwordBytes = password.toUtf8();
     const char* passwordPointer = passwordBytes.isEmpty() ? nullptr : passwordBytes.constData();
 
-    impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    {
+        const detail::PdfiumGuard guard;
+        impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    }
     if (impl->handle == nullptr) {
         const unsigned long error = FPDF_GetLastError();
         result.errorMessage = describePdfiumError(error);
@@ -397,7 +465,10 @@ PdfDocument PdfDocument::isolatedCopy() const {
     const char* passwordPointer =
         passwordBytes.isEmpty() ? nullptr : passwordBytes.constData();
 
-    impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    {
+        const detail::PdfiumGuard guard;
+        impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    }
     if (impl->handle == nullptr) {
         return PdfDocument();
     }

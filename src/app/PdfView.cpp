@@ -5,6 +5,8 @@
 #include "app/TextController.h"
 
 #include <QClipboard>
+#include <QDateTime>
+#include <QFile>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -25,6 +27,18 @@ constexpr double kMaxZoom = 8.0;
 constexpr double kZoomStep = 1.25;
 // 缓存上限 128 MiB，按像素字节计。
 constexpr qint64 kCacheBytes = 128LL * 1024 * 1024;
+
+// 验收探针用的轨迹文件：复制动作要能被脚本看到。
+void trace(const QString& message) {
+    const QString path = qEnvironmentVariable("AIPDF_TRACE_FILE");
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+    }
+}
 }  // namespace
 
 PdfView::PdfView(QWidget* parent) : QWidget(parent), cache_(kCacheBytes) {
@@ -333,6 +347,7 @@ void PdfView::copySelection() {
         return;
     }
     QGuiApplication::clipboard()->setText(text);
+    trace(QStringLiteral("copy chars=%1 text=%2").arg(text.size()).arg(text));
     emit textCopied(text.size());
 }
 

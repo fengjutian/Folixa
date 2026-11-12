@@ -105,9 +105,9 @@ private:
     // 页面的显示空间变换（页面 /Rotate + 用户旋转）。
     bool transformFor(int pageIndex, PageTransform* transform) const;
 
-    pdf::PdfDocument source_;
+    // 后台线程用的文档副本：worker 线程自己 isolatedCopy 一份句柄。
+    // 主线程这边不保留任何 PDFium 句柄，页面几何随文本层回传。
     std::unique_ptr<Worker> worker_;
-
     QHash<int, pdf::TextPage> textPages_;
     // 用 shared_ptr 存排版结果：QHash 扩容会搬动元素，
     // 裸指针在插入新页时会失效。

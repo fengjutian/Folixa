@@ -51,6 +51,14 @@ public:
     // 纵坐标落在哪一页上；超出范围返回 -1。
     int pageAt(double y) const;
 
+    // 视口里占面积最大的那一页（视口纵向区间 [scrollTop, scrollTop+viewportHeight]）。
+    //
+    // 为什么不用 pageAt(scrollTop)：最后一页往往没法滚到视口顶部
+    // （内容高度不够，滚动会被夹住），这时「顶部那一页」并不是用户正在看的那页。
+    // 界面上的页码指示按可见面积最大的页来报，跟用户眼睛看到的一致。
+    // 视口里一页都没露出（整段空白）时退回 pageAt 的结果。
+    int dominantPage(double scrollTop, double viewportHeight) const;
+
     // 落在这一页上的纵向区间下边缘（逻辑像素）。
     double pageBottom(int index) const;
 

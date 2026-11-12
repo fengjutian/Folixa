@@ -409,6 +409,7 @@ void MainWindow::buildUi() {
     aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
     navigationPages_->hide();
     QTimer::singleShot(0, this, [this] {
+        navigationDock_->show();
         resizeDocks({navigationDock_}, {52}, Qt::Horizontal);
         positionFloatingUi();
     });

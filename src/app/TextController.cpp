@@ -1,5 +1,7 @@
 #include "app/TextController.h"
 
+#include <QDateTime>
+#include <QFile>
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
@@ -10,6 +12,20 @@
 #include <optional>
 
 namespace aipdf::app {
+
+namespace {
+// 验收探针用的轨迹文件：文本层与选区的过程要能被脚本看到。
+void trace(const QString& message) {
+    const QString path = qEnvironmentVariable("AIPDF_TRACE_FILE");
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+    }
+}
+}  // namespace
 
 // 后台线程：提取页面文本 + 执行全文搜索。
 //
@@ -357,6 +373,10 @@ int TextController::userRotation() const {
 }
 
 void TextController::requestTextPage(int pageIndex) {
+    trace(QStringLiteral("request page=%1 hasText=%2 hasLayout=%3")
+              .arg(pageIndex)
+              .arg(textPages_.contains(pageIndex) ? 1 : 0)
+              .arg(layouts_.contains(pageIndex) ? 1 : 0));
     if (textPages_.contains(pageIndex)) {
         // 文本层已经在手边，直接补排版。
         if (!layouts_.contains(pageIndex)) {
@@ -505,9 +525,14 @@ QVector<QRectF> TextController::searchHighlightRects(int pageIndex) const {
 
 void TextController::handlePageExtracted(int pageIndex, const pdf::TextPage& text) {
     textPages_.insert(pageIndex, text);
-    if (pendingLayoutPages_.remove(pageIndex)) {
+    const bool needsLayout = pendingLayoutPages_.remove(pageIndex);
+    if (needsLayout) {
         buildLayout(pageIndex);
     }
+    trace(QStringLiteral("text page=%1 chars=%2 layout=%3")
+              .arg(pageIndex)
+              .arg(text.charCount())
+              .arg(needsLayout ? 1 : 0));
     emit textPageReady(pageIndex);
 }
 
@@ -525,12 +550,14 @@ void TextController::handleSearchFinished(bool cancelled) {
 void TextController::buildLayout(int pageIndex) {
     const auto it = textPages_.constFind(pageIndex);
     if (it == textPages_.constEnd()) {
+        trace(QStringLiteral("build layout page=%1 no text page").arg(pageIndex));
         return;
     }
     const pdf::TextPage& page = it.value();
 
     PageTransform transform;
     if (!transformFor(pageIndex, &transform)) {
+        trace(QStringLiteral("build layout page=%1 transform failed").arg(pageIndex));
         return;
     }
 
@@ -556,24 +583,28 @@ void TextController::buildLayout(int pageIndex) {
     auto textLayout = std::make_shared<TextLayout>();
     textLayout->setChars(chars);
     layouts_.insert(pageIndex, std::move(textLayout));
+    trace(QStringLiteral("build layout page=%1 chars=%2").arg(pageIndex).arg(chars.size()));
 }
 
 bool TextController::transformFor(int pageIndex, PageTransform* transform) const {
     if (transform == nullptr) {
         return false;
     }
-    const auto page = source_.page(pageIndex);
-    if (!page.has_value()) {
+    // 页面盒子与旋转随文本层一起取回：主线程不必再碰 PDFium，
+    // 也就不会和渲染线程/后台线程抢 PDFium 的全局锁。
+    const auto it = textPages_.constFind(pageIndex);
+    if (it == textPages_.constEnd()) {
         return false;
     }
-    const pdf::MediaBox box = page->mediaBox();
+    const pdf::TextPage& page = it.value();
+    const pdf::MediaBox box = page.contentBox;
     const double left = qMin(box.left, box.right);
     const double right = qMax(box.left, box.right);
     const double bottom = qMin(box.bottom, box.top);
     const double top = qMax(box.bottom, box.top);
     transform->setPage(left, bottom, right - left, top - bottom);
     // 总旋转 = 页面自带的 /Rotate + 用户额外旋转（都是顺时针）。
-    transform->setRotationDegrees(page->rotationDegrees() + userRotation_);
+    transform->setRotationDegrees(page.rotationDegrees + userRotation_);
     return true;
 }
 

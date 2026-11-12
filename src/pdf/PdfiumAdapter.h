@@ -17,21 +17,6 @@ struct PageImpl;
 
 struct PdfOpenResult;
 
-// 页面的 MediaBox，单位是点。
-//
-// 刻意不用 QRectF 表示：QRectF 的 top/bottom 是「左上原点」的上下边缘，
-// 而 PDF 的 MediaBox 是「左下原点」的上下边缘，两者的 bottom 含义相反，
-// 混用会让所有 y 坐标整体偏移一个页高。这里直接给四个值，没有歧义。
-struct MediaBox {
-    double left = 0.0;
-    double bottom = 0.0;
-    double right = 0.0;
-    double top = 0.0;
-
-    double width() const { return right - left; }
-    double height() const { return top - bottom; }
-};
-
 // 单页句柄。页面生命周期依附于所属文档，文档关闭后页面自动失效。
 class PdfPage {
 public:
@@ -73,6 +58,9 @@ public:
 
     // 页面的 MediaBox（PDF user space，左下原点）。
     MediaBox mediaBox() const;
+    // 页面的有效盒子：优先 CropBox，没有 CropBox 时退回 MediaBox。
+    // PDFium 渲染的就是这个区域，字符框相对它才能和页面图像对齐。
+    MediaBox contentBox() const;
 
 private:
     std::shared_ptr<detail::PageImpl> impl_;

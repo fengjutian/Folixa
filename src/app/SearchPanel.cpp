@@ -60,8 +60,9 @@ void SearchPanel::buildUi() {
 
     statusLabel_ = new QLabel(QStringLiteral("输入关键词开始搜索"), this);
     // objectName 沿用 secondaryText：主题里用它定义次要文字的颜色。
+    // 不设 accessibleName：设了之后 UI Automation 的 Name 就是它，
+    // 真正的状态文本只能走 TextPattern 读，验收脚本取不到。
     statusLabel_->setObjectName(QStringLiteral("secondaryText"));
-    statusLabel_->setAccessibleName(QStringLiteral("搜索状态"));
     layout->addWidget(statusLabel_);
 
     results_ = new QListWidget(this);
@@ -140,8 +141,7 @@ void SearchPanel::setController(TextController* controller) {
             statusLabel_->setText(QStringLiteral("搜索已取消（共 %1 处结果）")
                                       .arg(results_->count()));
         }
-    });
-}
+    });}
 
 void SearchPanel::focusSearch() {
     queryEdit_->setFocus();
@@ -190,10 +190,21 @@ void SearchPanel::refreshResults() {
     }
     suppressNavigation_ = false;
 
-    if (hits.isEmpty()) {
+    updateStatus();
+}
+
+void SearchPanel::updateStatus() {
+    const int count = results_->count();
+    // 搜索还在跑的时候，状态要一直显示「正在搜索」，
+    // 否则长文档搜索刚开始就被「共 N 处」盖掉，用户以为已经搜完了。
+    if (controller_ != nullptr && controller_->isSearching()) {
+        statusLabel_->setText(QStringLiteral("正在搜索…（已找到 %1 处）").arg(count));
+        return;
+    }
+    if (count == 0) {
         statusLabel_->setText(QStringLiteral("未找到匹配结果"));
     } else {
-        statusLabel_->setText(QStringLiteral("共 %1 处结果").arg(hits.size()));
+        statusLabel_->setText(QStringLiteral("共 %1 处结果").arg(count));
     }
 }
 

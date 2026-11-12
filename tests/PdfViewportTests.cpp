@@ -12,6 +12,7 @@ private slots:
     void layoutPlacesPagesInOrder();
     void layoutHonoursRotation();
     void layoutHitTestFindsPage();
+    void layoutDominantPageFollowsVisibleArea();
     void layoutHandlesEmptyDocument();
     void cacheEvictsLeastRecentlyUsed();
     void cacheRespectsMemoryLimit();
@@ -76,6 +77,25 @@ void PdfViewportTests::layoutHitTestFindsPage() {
     QCOMPARE(layout.pageAt(400.0), 1);
     QCOMPARE(layout.pageAt(420.0), 2);
     QCOMPARE(layout.pageAt(10000.0), 2);
+}
+
+void PdfViewportTests::layoutDominantPageFollowsVisibleArea() {
+    PageLayout layout;
+    layout.setPages({makePage(200, 400), makePage(200, 400)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(12.0);
+
+    // 初始位置：第 1 页露出 400，第 2 页露出 181 → 报第 1 页。
+    QCOMPARE(layout.dominantPage(0.0, 593.0), 0);
+    // 滚到底（内容 812、视口 593，最大滚动量 231）：
+    // 第 1 页只剩 169，第 2 页露出 400 → 报第 2 页。
+    // （这正是「跳到第 2 页」的实际场景：最后一页没法滚到视口顶部。）
+    QCOMPARE(layout.dominantPage(231.0, 593.0), 1);
+    // 视口正好落在页间距里：一页都没露出，退回顶部那一页。
+    QCOMPARE(layout.dominantPage(405.0, 5.0), 0);
+    // 空文档没有主导页。
+    PageLayout empty;
+    QCOMPARE(empty.dominantPage(0.0, 500.0), -1);
 }
 
 void PdfViewportTests::layoutHandlesEmptyDocument() {

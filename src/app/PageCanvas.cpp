@@ -4,6 +4,8 @@
 #include "app/TextController.h"
 #include "app/TextLayout.h"
 
+#include <QDateTime>
+#include <QFile>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
@@ -18,6 +20,18 @@ namespace {
 constexpr double kPageSpacing = 20.0;
 constexpr double kPageMargin = 24.0;
 constexpr int kPrefetchPages = 1;
+
+// 验收探针用的轨迹文件：选择与复制的过程要能被脚本看到。
+void trace(const QString& message) {
+    const QString path = qEnvironmentVariable("AIPDF_TRACE_FILE");
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+    }
+}
 }  // namespace
 
 PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
@@ -222,7 +236,7 @@ void PageCanvas::updateScrollRange() {
         bar->setSingleStep(std::max(1, viewportHeight / 20));
     }
 
-    const int page = layout_.isEmpty() ? 0 : std::max(0, layout_.pageAt(bar->value()));
+    const int page = layout_.isEmpty() ? 0 : std::max(0, layout_.dominantPage(bar->value(), viewportHeight));
     if (page != currentPage_) {
         currentPage_ = page;
         emit currentPageChanged(currentPage_);
@@ -282,9 +296,15 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
     int pageIndex = -1;
     QPointF displayPoint;
     if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
+        trace(QStringLiteral("press ignored pos=%1,%2").arg(event->pos().x()).arg(event->pos().y()));
         return;
     }
     const int order = textController_->hitAt(pageIndex, displayPoint);
+    trace(QStringLiteral("press page=%1 point=%2,%3 order=%4")
+              .arg(pageIndex)
+              .arg(displayPoint.x())
+              .arg(displayPoint.y())
+              .arg(order));
     if (order < 0) {
         // 点的不是文字：清掉旧选区，不开始拖选。
         selecting_ = false;
@@ -297,6 +317,7 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
     anchorPage_ = pageIndex;
     anchorOrder_ = order;
     textController_->setSelection(pageIndex, order, order + 1);
+    trace(QStringLiteral("select start page=%1 order=%2").arg(pageIndex).arg(order));
     viewport()->update();
 }
 
@@ -328,6 +349,13 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
 void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseReleaseEvent(event);
     if (event->button() == Qt::LeftButton) {
+        if (selecting_ && textController_ != nullptr) {
+            const QString text = textController_->selectedText();
+            trace(QStringLiteral("selection page=%1 chars=%2 text=%3")
+                      .arg(textController_->selectionPage())
+                      .arg(text.size())
+                      .arg(text));
+        }
         selecting_ = false;
     }
 }

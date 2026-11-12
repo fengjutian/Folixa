@@ -82,6 +82,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/scroll-long.png'
     )
+    Invoke-Script '文本选择与搜索验收' (Join-Path $PSScriptRoot 'verify-text.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/text-search.png'
+    )
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
     Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release')

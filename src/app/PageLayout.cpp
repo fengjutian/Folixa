@@ -2,6 +2,8 @@
 
 #include <QtGlobal>
 
+#include <algorithm>
+
 namespace aipdf::app {
 
 void PageLayout::setPages(const QVector<PageInfo>& pages) {
@@ -98,6 +100,34 @@ int PageLayout::pageAt(double y) const {
         }
     }
     return result;
+}
+
+int PageLayout::dominantPage(double scrollTop, double viewportHeight) const {
+    if (tops_.isEmpty()) {
+        return -1;
+    }
+    if (viewportHeight <= 0.0) {
+        return std::max(0, pageAt(scrollTop));
+    }
+    const double viewTop = scrollTop;
+    const double viewBottom = scrollTop + viewportHeight;
+
+    int best = -1;
+    double bestHeight = 0.0;
+    for (int index = 0; index < tops_.size(); ++index) {
+        const double top = std::max(tops_.at(index), viewTop);
+        const double bottom = std::min(pageBottom(index), viewBottom);
+        const double visible = bottom - top;
+        if (visible > bestHeight) {
+            bestHeight = visible;
+            best = index;
+        }
+    }
+    if (best < 0) {
+        // 视口正好落在页间距里：一页都没露出，退回顶部那一页。
+        return std::max(0, pageAt(scrollTop));
+    }
+    return best;
 }
 
 double PageLayout::pageBottom(int index) const {

@@ -39,6 +39,7 @@ private:
     void buildUi();
     void runSearch();
     void refreshResults();
+    void updateStatus();
     void goToResult(int index);
     void stepResult(int delta);
     void clearResults();

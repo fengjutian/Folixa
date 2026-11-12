@@ -679,6 +679,83 @@ public static class AiPdfMouse {
     Start-Sleep -Milliseconds 300
 }
 
+function Wait-AiPdfElementById {
+    <#
+    .SYNOPSIS
+        轮询等待某个 AutomationId 元素出现（面板展开、标签切换都需要等）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$IdPattern,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            return $null
+        }
+        $element = Get-AiPdfElementById -Process $Process -IdPattern $IdPattern
+        if ($element) {
+            return $element
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    return $null
+}
+
+function Get-AiPdfTraceText {
+    <#
+    .SYNOPSIS
+        读取应用写出的轨迹文件（AIPDF_TRACE_FILE）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return ''
+    }
+    try {
+        return [System.IO.File]::ReadAllText($Path)
+    } catch {
+        return ''
+    }
+}
+
+function Enable-AiPdfDpiAwareness {
+    <#
+    .SYNOPSIS
+        让脚本进程自己变成 per-monitor DPI aware。
+    .DESCRIPTION
+        默认情况下 PowerShell 是 DPI unaware 的：Win32 的窗口坐标会被
+        「虚拟化」成逻辑像素，而 UI Automation 给的 BoundingRectangle 是物理像素。
+        两者混用会把鼠标事件打到别的地方（表现为拖选永远选不中）。
+        在做任何窗口/鼠标操作之前调用一次即可。
+    #>
+    if (-not ('AiPdfDpi' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfDpi {
+    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    public static bool Enable() {
+        // PER_MONITOR_AWARE_V2 = -4
+        if (SetProcessDpiAwarenessContext(new IntPtr(-4))) {
+            return true;
+        }
+        return SetProcessDPIAware();
+    }
+}
+'@
+    }
+    return [AiPdfDpi]::Enable()
+}
+
 function Set-AiPdfForeground {
     <#
     .SYNOPSIS
@@ -714,6 +791,44 @@ public static class AiPdfForeground {
         $dpi = 96
     }
     return ($dpi / 96.0)
+}
+
+function Set-AiPdfWindowGeometry {
+    <#
+    .SYNOPSIS
+        把主窗口挪到屏幕左上角并设成确定尺寸（物理像素）。
+    .DESCRIPTION
+        拖选要按屏幕坐标算，窗口位置必须确定：窗口管理器可能把它放在
+        任意位置，甚至屏幕外。调用方要保证脚本已经 DPI 感知。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [int]$Width = 1600,
+        [int]$Height = 1000
+    )
+
+    if (-not ('AiPdfGeometry' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfGeometry {
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    public const uint NOZORDER = 0x0004;
+    public const uint NOACTIVATE = 0x0010;
+}
+'@
+    }
+
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) {
+        return $false
+    }
+    $ok = [AiPdfGeometry]::SetWindowPos(
+        $handle, [IntPtr]::Zero, 0, 0, $Width, $Height,
+        [AiPdfGeometry]::NOZORDER -bor [AiPdfGeometry]::NOACTIVATE)
+    Start-Sleep -Milliseconds 400
+    return $ok
 }
 
 function Stop-AiPdfOrphanWorker {
