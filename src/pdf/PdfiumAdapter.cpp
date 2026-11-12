@@ -130,18 +130,14 @@ int PdfPage::rotationDegrees() const {
 }
 
 double PdfPage::displayWidthPoints() const {
-    const double width = widthPoints();
-    const double height = heightPoints();
-    // /Rotate 为 90°/270° 时，显示尺寸的宽高互换。
-    const int turns = (rotationDegrees() / 90) % 4;
-    return (turns == 1 || turns == 3) ? height : width;
+    // PDFium 的 FPDF_GetPageWidthF 返回的**已经**是应用过页面 /Rotate 的尺寸
+    // （/Rotate 90、MediaBox 200x100 的页面返回 100x200），
+    // 所以显示尺寸直接用它，不要再手工互换宽高。
+    return widthPoints();
 }
 
 double PdfPage::displayHeightPoints() const {
-    const double width = widthPoints();
-    const double height = heightPoints();
-    const int turns = (rotationDegrees() / 90) % 4;
-    return (turns == 1 || turns == 3) ? width : height;
+    return heightPoints();
 }
 
 QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
@@ -155,11 +151,12 @@ QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
         return {};
     }
 
-    // PDFium 渲染时不会自动应用页面的 /Rotate，
-    // 所以要把「页面自带旋转 + 用户额外旋转」一起传进去。
-    const int pageTurns = (rotationDegrees() / 90) % 4;
+    // PDFium 渲染时**自己会应用**页面的 /Rotate（实测：/Rotate 90 的页面用
+    // rotate=0 渲染，内容已经按 90° 顺时针转过），rotate 参数是在此基础上
+    // 叠加的顺时针旋转。
+    // 所以这里只传用户额外旋转；页面自带的旋转已经体现在输出尺寸上了。
     const int userTurns = ((rotateQuarterTurns % 4) + 4) % 4;
-    const int totalTurns = (pageTurns + userTurns) % 4;
+    const int totalTurns = userTurns;
 
     // 输出尺寸：显示尺寸再叠加用户旋转。
     double outputWidth = displayWidthPoints();

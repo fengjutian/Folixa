@@ -14,6 +14,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/PageTransform.cpp
     app/TextLayout.h
     app/TextLayout.cpp
+    app/TextController.h
+    app/TextController.cpp
+    app/SearchPanel.h
+    app/SearchPanel.cpp
     app/RenderThread.h
     app/RenderThread.cpp
     app/TileCache.h

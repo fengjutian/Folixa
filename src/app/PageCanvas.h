@@ -1,14 +1,20 @@
 #pragma once
 
 #include <QAbstractScrollArea>
+#include <QPointF>
+#include <QRectF>
 #include <QVector>
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
 
+class QMouseEvent;
+class QPainter;
+
 namespace aipdf::app {
 
 class RenderThread;
+class TextController;
 
 // 连续页面画布：把所有页面画在一张虚拟的长文档上，按视口裁剪。
 //
@@ -26,6 +32,11 @@ public:
 
     void setTileCache(TileCache* cache);
     void setRenderThread(RenderThread* thread);
+
+    // 绑定文本控制器：鼠标选择与高亮绘制都靠它。
+    // 没有文本层时（扫描件）鼠标拖选不会有任何反应。
+    void setTextController(TextController* controller);
+    TextController* textController() const;
 
     // 当前视口顶页（从 1 开始，供界面显示）。
     int currentPage() const;
@@ -45,19 +56,34 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void scrollContentsBy(int dx, int dy) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
     PageLayout layout_;
     TileCache* cache_ = nullptr;
     RenderThread* renderThread_ = nullptr;
+    TextController* textController_ = nullptr;
     int currentPage_ = 0;
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;
     int lastViewportHeight_ = -1;
+    // 正在拖选：记录锚点页与锚点字符（阅读顺序下标）。
+    bool selecting_ = false;
+    int anchorPage_ = -1;
+    int anchorOrder_ = -1;
 
     void updateScrollRange();
     void requestVisiblePages();
     double pageLeft(int index) const;
+    // 视口坐标 → 页面序号 + 页面显示空间坐标（点）。
+    bool pagePointAt(const QPoint& viewportPos, int* pageIndex, QPointF* displayPoint) const;
+    // 页面显示空间矩形 → 视口矩形。
+    QRectF toViewportRect(const QRectF& displayRect, const QRectF& pageRect, double zoom) const;
+    // 画搜索高亮与选区高亮。
+    void paintHighlights(QPainter& painter, int pageIndex, const QRectF& pageRect, double zoom) const;
 };
 
 }  // namespace aipdf::app

@@ -1,7 +1,10 @@
 #include "app/PageCanvas.h"
 
 #include "app/RenderThread.h"
+#include "app/TextController.h"
+#include "app/TextLayout.h"
 
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QScrollBar>
@@ -18,6 +21,9 @@ constexpr int kPrefetchPages = 1;
 }  // namespace
 
 PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
+    // objectName 会进 UI Automation 的 AutomationId，
+    // 验收脚本靠它定位画布视口、换算屏幕坐标做拖选。
+    setObjectName(QStringLiteral("pdfCanvas"));
     QPalette canvasPalette = palette();
     canvasPalette.setColor(QPalette::Mid, QColor(QStringLiteral("#D9DEE7")));
     canvasPalette.setColor(QPalette::Text, QColor(QStringLiteral("#465267")));
@@ -26,6 +32,8 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     setFrameShape(QFrame::NoFrame);
     viewport()->setAutoFillBackground(true);
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
+    // 画布要能拿到焦点：点一下之后 Ctrl+C 才能复制选中的文字。
+    viewport()->setFocusPolicy(Qt::StrongFocus);
 }
 
 void PageCanvas::setLayout(const PageLayout& layout) {
@@ -44,6 +52,14 @@ void PageCanvas::setTileCache(TileCache* cache) {
 
 void PageCanvas::setRenderThread(RenderThread* thread) {
     renderThread_ = thread;
+}
+
+void PageCanvas::setTextController(TextController* controller) {
+    textController_ = controller;
+}
+
+TextController* PageCanvas::textController() const {
+    return textController_;
 }
 
 int PageCanvas::currentPage() const {
@@ -121,24 +137,62 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         painter.setPen(QPen(QColor(QStringLiteral("#CBD2DE")), 1.0));
         painter.drawRect(pageRect.adjusted(0.0, 0.0, -1.0, -1.0));
 
-        if (cache_ == nullptr) {
-            continue;
+        if (cache_ != nullptr) {
+            // 缓存键用的是渲染倍率（缩放 × 设备像素比）和用户旋转，
+            // 和渲染线程保持一致。
+            const qint64 zoomKey =
+                TileCache::zoomToKey(layout_.zoom() * devicePixelRatio);
+            const TileCache::Key key{index, zoomKey, layout_.userRotation() / 90};
+            QImage tile = cache_->lookup(key);
+            if (tile.isNull()) {
+                // 还没渲染出来：画页码占位，别让用户以为是空白页。
+                painter.setPen(palette().color(QPalette::Mid));
+                painter.drawText(pageRect, Qt::AlignCenter, QStringLiteral("%1").arg(index + 1));
+            } else {
+                tile.setDevicePixelRatio(devicePixelRatio);
+                painter.drawImage(QPointF(left, top), tile);
+            }
         }
-        // 缓存键用的是渲染倍率（缩放 × 设备像素比）和用户旋转，
-        // 和渲染线程保持一致。
-        const qint64 zoomKey =
-            TileCache::zoomToKey(layout_.zoom() * devicePixelRatio);
-        const TileCache::Key key{index, zoomKey, layout_.userRotation() / 90};
-        QImage tile = cache_->lookup(key);
-        if (tile.isNull()) {
-            // 还没渲染出来：画页码占位，别让用户以为是空白页。
-            painter.setPen(palette().color(QPalette::Mid));
-            painter.drawText(pageRect, Qt::AlignCenter, QStringLiteral("%1").arg(index + 1));
-            continue;
-        }
-        tile.setDevicePixelRatio(devicePixelRatio);
-        painter.drawImage(QPointF(left, top), tile);
+
+        // 文本高亮画在页面图像之上。
+        paintHighlights(painter, index, pageRect, layout_.zoom());
     }
+}
+
+void PageCanvas::paintHighlights(QPainter& painter,
+                                 int pageIndex,
+                                 const QRectF& pageRect,
+                                 double zoom) const {
+    if (textController_ == nullptr) {
+        return;
+    }
+
+    const QVector<QRectF> searchRects = textController_->searchHighlightRects(pageIndex);
+    if (!searchRects.isEmpty()) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 198, 51, 120));
+        for (const QRectF& rect : searchRects) {
+            painter.drawRect(toViewportRect(rect, pageRect, zoom));
+        }
+    }
+
+    if (textController_->selectionPage() == pageIndex) {
+        const QVector<QRectF> selection = textController_->selectionRects();
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(64, 124, 235, 90));
+        for (const QRectF& rect : selection) {
+            painter.drawRect(toViewportRect(rect, pageRect, zoom));
+        }
+    }
+}
+
+QRectF PageCanvas::toViewportRect(const QRectF& displayRect,
+                                   const QRectF& pageRect,
+                                   double zoom) const {
+    return QRectF(pageRect.left() + displayRect.left() * zoom,
+                  pageRect.top() + displayRect.top() * zoom,
+                  displayRect.width() * zoom,
+                  displayRect.height() * zoom);
 }
 
 void PageCanvas::resizeEvent(QResizeEvent* event) {
@@ -182,7 +236,127 @@ void PageCanvas::requestVisiblePages() {
     if (last < first) {
         return;
     }
+    // 可见页要文本层：选中文字与搜索高亮都靠它。
+    if (textController_ != nullptr) {
+        for (int index = first; index <= last; ++index) {
+            textController_->requestTextPage(index);
+        }
+    }
     emit renderRequested(first, last);
+}
+
+bool PageCanvas::pagePointAt(const QPoint& viewportPos,
+                             int* pageIndex,
+                             QPointF* displayPoint) const {
+    if (layout_.isEmpty()) {
+        return false;
+    }
+    const double zoom = layout_.zoom();
+    if (zoom <= 0.0) {
+        return false;
+    }
+    const double scrollTop = verticalScrollBar()->value();
+    const int index = layout_.pageAt(scrollTop + viewportPos.y());
+    if (index < 0 || index >= layout_.pageCount()) {
+        return false;
+    }
+    if (pageIndex != nullptr) {
+        *pageIndex = index;
+    }
+    if (displayPoint != nullptr) {
+        const double left = pageLeft(index);
+        const double top = layout_.pageTop(index) - scrollTop;
+        *displayPoint = QPointF((viewportPos.x() - left) / zoom,
+                                (viewportPos.y() - top) / zoom);
+    }
+    return true;
+}
+
+void PageCanvas::mousePressEvent(QMouseEvent* event) {
+    QAbstractScrollArea::mousePressEvent(event);
+    if (event->button() != Qt::LeftButton || textController_ == nullptr) {
+        return;
+    }
+    viewport()->setFocus();
+
+    int pageIndex = -1;
+    QPointF displayPoint;
+    if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
+        return;
+    }
+    const int order = textController_->hitAt(pageIndex, displayPoint);
+    if (order < 0) {
+        // 点的不是文字：清掉旧选区，不开始拖选。
+        selecting_ = false;
+        textController_->clearSelection();
+        viewport()->update();
+        return;
+    }
+
+    selecting_ = true;
+    anchorPage_ = pageIndex;
+    anchorOrder_ = order;
+    textController_->setSelection(pageIndex, order, order + 1);
+    viewport()->update();
+}
+
+void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
+    QAbstractScrollArea::mouseMoveEvent(event);
+    if (!selecting_ || textController_ == nullptr) {
+        return;
+    }
+    int pageIndex = -1;
+    QPointF displayPoint;
+    if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
+        return;
+    }
+    if (pageIndex != anchorPage_) {
+        // 拖到别的页上：选区不跨页，到此为止。
+        selecting_ = false;
+        return;
+    }
+    const int order = textController_->hitAt(pageIndex, displayPoint);
+    if (order < 0) {
+        return;
+    }
+    const int start = std::min(anchorOrder_, order);
+    const int end = std::max(anchorOrder_, order) + 1;
+    textController_->setSelection(pageIndex, start, end);
+    viewport()->update();
+}
+
+void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
+    QAbstractScrollArea::mouseReleaseEvent(event);
+    if (event->button() == Qt::LeftButton) {
+        selecting_ = false;
+    }
+}
+
+void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
+    QAbstractScrollArea::mouseDoubleClickEvent(event);
+    if (event->button() != Qt::LeftButton || textController_ == nullptr) {
+        return;
+    }
+    int pageIndex = -1;
+    QPointF displayPoint;
+    if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
+        return;
+    }
+    const int order = textController_->hitAt(pageIndex, displayPoint);
+    if (order < 0) {
+        return;
+    }
+    const TextLayout* textLayout = textController_->layout(pageIndex);
+    if (textLayout == nullptr) {
+        return;
+    }
+    int start = 0;
+    int end = 0;
+    if (!textLayout->wordRangeAt(order, &start, &end)) {
+        return;
+    }
+    textController_->setSelection(pageIndex, start, end);
+    viewport()->update();
 }
 
 double PageCanvas::pageLeft(int index) const {

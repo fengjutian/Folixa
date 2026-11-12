@@ -9,6 +9,8 @@ class QTabWidget;
 class QTextBrowser;
 class QDockWidget;
 class QListWidget;
+class QStackedWidget;
+class QButtonGroup;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -17,6 +19,7 @@ class WorkerClient;
 namespace aipdf::app {
 
 class PdfView;
+class SearchPanel;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -47,6 +50,10 @@ private:
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
     QListWidget* pagesList_ = nullptr;
+    // 导航栏的四个视图（页面 / 目录 / 书签 / 搜索）。
+    QStackedWidget* navigationPages_ = nullptr;
+    QButtonGroup* navigationRail_ = nullptr;
+    SearchPanel* searchPanel_ = nullptr;
     bool navigationWasVisible_ = true;
     bool aiWasVisible_ = false;
 };

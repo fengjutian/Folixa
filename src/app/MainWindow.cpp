@@ -1,6 +1,7 @@
 #include "app/MainWindow.h"
 
 #include "app/PdfView.h"
+#include "app/SearchPanel.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/PdfiumAdapter.h"
 
@@ -143,11 +144,26 @@ void MainWindow::buildUi() {
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
+    auto* findAction = appMenu->addAction(tr("查找…"));
+    findAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
+    appMenu->addSeparator();
     appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
     appMenu->addSeparator();
     appMenu->addAction(tr("退出"), this, &QWidget::close);
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
+    connect(findAction, &QAction::triggered, this, [this]() {
+        navigationDock_->setVisible(true);
+        if (navigationRail_ != nullptr) {
+            // 切到导航栏的搜索页（第四个按钮）。
+            if (auto* button = navigationRail_->button(3)) {
+                button->click();
+            }
+        }
+        if (searchPanel_ != nullptr) {
+            searchPanel_->focusSearch();
+        }
+    });
     commandBar->addSeparator();
     auto* homeAction = commandBar->addAction(tr("阅读"));
     homeAction->setCheckable(true);
@@ -180,6 +196,7 @@ void MainWindow::buildUi() {
     railLayout->setContentsMargins(6, 10, 6, 10);
     railLayout->setSpacing(8);
     auto* navigationPages = new QStackedWidget(navigation);
+    navigationPages_ = navigationPages;
     pagesList_ = new QListWidget(navigationPages);
     pagesList_->setObjectName(QStringLiteral("thumbnailList"));
     pagesList_->setViewMode(QListView::IconMode);
@@ -193,9 +210,11 @@ void MainWindow::buildUi() {
         tr("暂无文档目录"), tr("文档目录将在这里显示。")));
     navigationPages->addWidget(createNavigationEmptyState(
         tr("暂无书签"), tr("当前文档没有可显示的书签。")));
-    navigationPages->addWidget(createNavigationEmptyState(
-        tr("搜索文档"), tr("全文搜索将在 v0.5.0 中提供。")));
+    // 搜索页：全文搜索（v0.5.0）。
+    searchPanel_ = new SearchPanel(navigationPages);
+    navigationPages->addWidget(searchPanel_);
     auto* railGroup = new QButtonGroup(rail);
+    navigationRail_ = railGroup;
     railGroup->setExclusive(true);
     const QStringList railIcons = {QStringLiteral(":/icons/pages.svg"),
                                    QStringLiteral(":/icons/outline.svg"),
@@ -222,19 +241,29 @@ void MainWindow::buildUi() {
             view->goToPage(item->data(Qt::UserRole).toInt());
         }
     });
+    connect(searchPanel_, &SearchPanel::navigateToPage, this, [this](int pageIndex) {
+        auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+        if (view != nullptr) {
+            view->goToPage(pageIndex);
+        }
+    });
     navigationLayout->addWidget(rail);
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
     // 菜单在导航面板创建后补齐切换动作。
+    // 按文本找而不是按下标：菜单里增删条目会挪动下标。
     const QList<QAction*> appMenuActions = appMenu->actions();
-    if (appMenuActions.size() >= 3) {
-        QAction* navigationAction = appMenuActions.at(2);
-        navigationAction->setText(tr("显示导航面板"));
-        navigationAction->setCheckable(true);
-        navigationAction->setChecked(true);
-        connect(navigationAction, &QAction::toggled, navigationDock_, &QDockWidget::setVisible);
-        connect(navigationDock_, &QDockWidget::visibilityChanged, navigationAction, &QAction::setChecked);
+    for (QAction* action : appMenuActions) {
+        if (action->text() != tr("导航面板")) {
+            continue;
+        }
+        action->setText(tr("显示导航面板"));
+        action->setCheckable(true);
+        action->setChecked(true);
+        connect(action, &QAction::toggled, navigationDock_, &QDockWidget::setVisible);
+        connect(navigationDock_, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
+        break;
     }
     viewMenu->addAction(navigationDock_->toggleViewAction());
 
@@ -344,7 +373,12 @@ void MainWindow::buildUi() {
     connect(sendButton_, &QPushButton::clicked, this, &MainWindow::sendEcho);
     connect(prompt_, &QLineEdit::returnPressed, this, &MainWindow::sendEcho);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
-        refreshThumbnails(qobject_cast<PdfView*>(tabs_->currentWidget()));
+        auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+        refreshThumbnails(view);
+        // 搜索面板跟着当前文档走：换标签页就换控制器。
+        if (searchPanel_ != nullptr) {
+            searchPanel_->setController(view != nullptr ? view->textController() : nullptr);
+        }
     });
 
     statusBar()->showMessage(tr("就绪"));
@@ -507,6 +541,12 @@ void MainWindow::openPdfFile(const QString& filePath) {
     tabs_->setCurrentWidget(view);
     refreshThumbnails(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
+    connect(view, &PdfView::textCopied, this, [this](int characters) {
+        statusBar()->showMessage(tr("已复制 %1 个字符到剪贴板").arg(characters), 3000);
+    });
+    if (searchPanel_ != nullptr) {
+        searchPanel_->setController(view->textController());
+    }
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
 

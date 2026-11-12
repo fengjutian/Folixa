@@ -10,6 +10,7 @@ import hashlib
 import os
 import struct
 import sys
+import zlib
 
 
 def _build_pdf(objects, root_id, extra_trailer=b""):
@@ -39,6 +40,58 @@ def _build_pdf(objects, root_id, extra_trailer=b""):
 def _content_stream(text, size=28):
     stream = b"BT /F1 %d Tf 24 60 Td (%s) Tj ET" % (size, text.encode("ascii"))
     return b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream)
+
+
+def _escape_pdf_text(text):
+    """把文本里的 ( ) \\ 转义掉，供 PDF 字面量字符串使用。"""
+    return text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+
+
+def _page_content_stream(lines):
+    """lines: [(text, size, x, y)]，y 是 PDF user space 的基线位置。"""
+    parts = []
+    for (text, size, x, y) in lines:
+        parts.append(
+            b"BT /F1 %d Tf %d %d Td (%s) Tj ET"
+            % (size, x, y, _escape_pdf_text(text).encode("latin-1"))
+        )
+    return b"\n".join(parts)
+
+
+def text_pdf():
+    """带文本层的多页文档：用于选择、复制与全文搜索验收。
+
+    第 1 页用大号字写 "Folixa"（拖选好命中），第 2 页再出现一次
+    （搜索结果跨页，可以验证跳转）。
+    """
+    page_one = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"
+    )
+    page_two = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>"
+    )
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+        (3, page_one),
+        (4, page_two),
+        (5, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]
+
+    first = _page_content_stream([
+        ("Folixa", 32, 60, 320),
+        ("Full text search and selection demo document.", 14, 60, 270),
+        ("The quick brown fox jumps over the lazy dog.", 14, 60, 240),
+    ])
+    second = _page_content_stream([
+        ("Folixa appears on the second page too.", 18, 60, 320),
+        ("Search hits are listed with a page snippet.", 14, 60, 280),
+    ])
+    objects.append((6, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(first), first)))
+    objects.append((7, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(second), second)))
+    return _build_pdf(objects, 1)
 
 
 def normal_pdf():
@@ -115,6 +168,233 @@ def multipage_pdf(page_count=12, width=300, height=400):
 def long_pdf(page_count=500, width=300, height=400):
     """长文档：用于压力测试连续浏览与缓存上限。"""
     return multipage_pdf(page_count=page_count, width=width, height=height)
+
+
+# --------------------------------------------------------------------------
+# 中文夹具：Type0 / Identity-H 编码 + 内嵌 TrueType + ToUnicode CMap。
+# --------------------------------------------------------------------------
+
+_CJK_FONT_CANDIDATES = [
+    r"C:\Windows\Fonts\simhei.ttf",
+    r"C:\Windows\Fonts\Deng.ttf",
+    r"C:\Windows\Fonts\simsun.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/System/Library/Fonts/PingFang.ttc",
+]
+
+
+def _find_cjk_font():
+    for path in _CJK_FONT_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _parse_cmap_format4(data, offset):
+    """TrueType cmap 格式 4（BMP）：返回 {Unicode: GID}。"""
+    seg_count = struct.unpack(">H", data[offset + 6:offset + 8])[0] // 2
+    ends_at = offset + 14
+    starts_at = ends_at + seg_count * 2 + 2
+    deltas_at = starts_at + seg_count * 2
+    ranges_at = deltas_at + seg_count * 2
+    ends = struct.unpack(">%dH" % seg_count, data[ends_at:ends_at + seg_count * 2])
+    starts = struct.unpack(">%dH" % seg_count, data[starts_at:starts_at + seg_count * 2])
+    deltas = struct.unpack(">%dh" % seg_count, data[deltas_at:deltas_at + seg_count * 2])
+    range_offsets = struct.unpack(">%dH" % seg_count, data[ranges_at:ranges_at + seg_count * 2])
+
+    mapping = {}
+    for index in range(seg_count):
+        start, end = starts[index], ends[index]
+        if start > end or start == 0xFFFF:
+            continue
+        for code in range(start, end + 1):
+            if range_offsets[index] == 0:
+                gid = (code + deltas[index]) & 0xFFFF
+            else:
+                position = ranges_at + index * 2 + range_offsets[index] + (code - start) * 2
+                if position + 2 > len(data):
+                    continue
+                gid = struct.unpack(">H", data[position:position + 2])[0]
+                if gid:
+                    gid = (gid + deltas[index]) & 0xFFFF
+            if gid:
+                mapping[code] = gid
+    return mapping
+
+
+def _parse_cmap_format12(data, offset):
+    """TrueType cmap 格式 12（完整 Unicode）：返回 {Unicode: GID}。"""
+    groups = struct.unpack(">I", data[offset + 12:offset + 16])[0]
+    mapping = {}
+    position = offset + 16
+    for _ in range(groups):
+        start, end, gid = struct.unpack(">III", data[position:position + 12])
+        position += 12
+        if end - start > 0x10000:
+            end = start + 0x10000
+        for code in range(start, end + 1):
+            mapping[code] = gid + (code - start)
+    return mapping
+
+
+def _ttf_unicode_to_gid(data):
+    """解析 TrueType 的 cmap 表，返回 {Unicode 码点: 字形编号}。"""
+    if len(data) < 12:
+        return {}
+    num_tables = struct.unpack(">H", data[4:6])[0]
+    tables = {}
+    for index in range(num_tables):
+        entry = 12 + index * 16
+        if entry + 16 > len(data):
+            break
+        tag = data[entry:entry + 4].decode("latin-1")
+        table_offset, table_length = struct.unpack(">II", data[entry + 8:entry + 16])
+        tables[tag] = (table_offset, table_length)
+    if "cmap" not in tables:
+        return {}
+
+    cmap_offset = tables["cmap"][0]
+    num_subtables = struct.unpack(">H", data[cmap_offset + 2:cmap_offset + 4])[0]
+    best = None
+    for index in range(num_subtables):
+        record = cmap_offset + 4 + index * 8
+        platform, encoding, sub_offset = struct.unpack(">HHI", data[record:record + 8])
+        sub = cmap_offset + sub_offset
+        if sub + 4 > len(data):
+            continue
+        fmt = struct.unpack(">H", data[sub:sub + 2])[0]
+        score = {(3, 10): 5, (0, 4): 5, (0, 6): 5, (3, 1): 4, (0, 3): 3}.get((platform, encoding), 0)
+        if score and (best is None or score > best[0]):
+            best = (score, sub, fmt)
+    if best is None:
+        return {}
+    _, sub, fmt = best
+    if fmt == 4:
+        return _parse_cmap_format4(data, sub)
+    if fmt == 12:
+        return _parse_cmap_format12(data, sub)
+    return {}
+
+
+def _cjk_content_stream(text, size, x, y, gids):
+    codes = "".join("%04X" % gid for gid in gids)
+    return ("BT /F1 %d Tf %d %d Td <%s> Tj ET" % (size, x, y, codes)).encode("ascii")
+
+
+def cjk_pdf(font_path=None):
+    """中文文档：Type0/Identity-H + 内嵌 TrueType + ToUnicode。
+
+    没有中文字体时退化成「不内嵌字体」的版本：文本提取照样正确
+    （提取只看 ToUnicode），只是页面渲染不出汉字。
+    """
+    if font_path is None:
+        font_path = _find_cjk_font()
+    font_data = None
+    if font_path:
+        with open(font_path, "rb") as handle:
+            font_data = handle.read()
+
+    lines_one = [
+        ("中文选择测试", 28, 60, 320),
+        ("全文搜索可以找到中文关键词", 16, 60, 270),
+    ]
+    lines_two = [
+        ("第二页也包含中文内容", 20, 60, 320),
+        ("关键词：中文", 16, 60, 270),
+    ]
+
+    gid_map = {}
+    if font_data:
+        gid_map = _ttf_unicode_to_gid(font_data)
+
+    def codes_for(text):
+        result = []
+        for char in text:
+            code = ord(char)
+            gid = gid_map.get(code)
+            if gid is None:
+                # 字体里没有这个字：退回一个不会撞车的占位编号。
+                gid = 0xF000 + (code & 0xFF)
+            result.append(gid)
+        return result
+
+    all_codes = []
+    for (text, _, _, _) in lines_one + lines_two:
+        all_codes.extend(codes_for(text))
+
+    # ToUnicode：GID → Unicode（同一个字只写一次）。
+    bf_chars = []
+    seen = set()
+    for (text, _, _, _) in lines_one + lines_two:
+        gids = codes_for(text)
+        for index, char in enumerate(text):
+            gid = gids[index]
+            if gid in seen:
+                continue
+            seen.add(gid)
+            bf_chars.append("<%04X> <%04X>" % (gid, ord(char)))
+    bf_chars.sort()
+
+    cmap = (
+        "/CIDInit /ProcSet findresource begin\n"
+        "12 dict begin\n"
+        "begincmap\n"
+        "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> def\n"
+        "/CMapName /Adobe-Identity-UCS def\n"
+        "/CMapType 2 def\n"
+        "1 begincodespacerange\n"
+        "<0000> <FFFF>\n"
+        "endcodespacerange\n"
+        "%d beginbfchar\n"
+        "%s\n"
+        "endbfchar\n"
+        "endcmap\n"
+        "CMapName currentdict /CMap defineresource pop\n"
+        "end\n"
+        "end\n"
+    ) % (len(bf_chars), "\n".join(bf_chars))
+
+    content_one = b"\n".join(
+        _cjk_content_stream(text, size, x, y, codes_for(text))
+        for (text, size, x, y) in lines_one
+    )
+    content_two = b"\n".join(
+        _cjk_content_stream(text, size, x, y, codes_for(text))
+        for (text, size, x, y) in lines_two
+    )
+
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+        (3, b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+           b"/Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>"),
+        (4, b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+           b"/Resources << /Font << /F1 5 0 R >> >> /Contents 8 0 R >>"),
+        (5, b"<< /Type /Font /Subtype /Type0 /BaseFont /SimHei /Encoding /Identity-H "
+           b"/DescendantFonts [6 0 R] /ToUnicode 9 0 R >>"),
+        (6, b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SimHei "
+           b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+           b"/FontDescriptor 10 0 R /DW 1000 >>"),
+        (7, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content_one), content_one)),
+        (8, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content_two), content_two)),
+        (9, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(cmap), cmap.encode("ascii"))),
+        (10, b"<< /Type /FontDescriptor /FontName /SimHei /Flags 4 "
+            b"/FontBBox [-200 -300 1200 900] /ItalicAngle 0 /Ascent 880 "
+            b"/Descent -120 /CapHeight 880 /StemV 80 >>"),
+    ]
+    if font_data:
+        compressed = zlib.compress(font_data, 6)
+        objects.append(
+            (11, b"<< /Length %d /Filter /FlateDecode >>\nstream\n%s\nendstream"
+                % (len(compressed), compressed))
+        )
+        # 内嵌字体后，CIDFont 要指向 FontFile2。
+        objects[5] = (
+            6, b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SimHei "
+               b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+               b"/FontDescriptor 10 0 R /DW 1000 /FontFile2 11 0 R >>"
+        )
+    return _build_pdf(objects, 1)
 
 
 def corrupt_pdf():
@@ -222,6 +502,8 @@ FIXTURES = {
     "encrypted.pdf": encrypted_pdf,
     "multipage.pdf": multipage_pdf,
     "long.pdf": long_pdf,
+    "text.pdf": text_pdf,
+    "cjk.pdf": cjk_pdf,
 }
 
 

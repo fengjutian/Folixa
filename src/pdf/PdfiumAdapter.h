@@ -45,20 +45,21 @@ public:
     bool isValid() const;
 
     // 页面尺寸，单位为点（1/72 英寸）。
-    // 这是 MediaBox 的原始尺寸，**不含**页面自带的 /Rotate 旋转。
+    // 注意：PDFium 返回的尺寸**已经包含**页面自带的 /Rotate 旋转
+    // （/Rotate 90、MediaBox 200x100 的页面返回 100x200）。
     double widthPoints() const;
     double heightPoints() const;
     // 页面自带旋转角度：0、90、180 或 270。
     int rotationDegrees() const;
 
-    // 应用页面自带旋转后的显示尺寸（不含用户额外旋转）。
-    // PDFium 渲染时不会自动应用 /Rotate，显示尺寸要自己算。
+    // 显示尺寸（不含用户额外旋转）：与 widthPoints()/heightPoints() 相同，
+    // 因为那已经是应用过 /Rotate 的尺寸。
     double displayWidthPoints() const;
     double displayHeightPoints() const;
 
     // 渲染页面。zoom=1 表示 72 DPI；返回值格式为 ARGB32。
-    // 页面自带的 /Rotate 会被应用，rotateQuarterTurns 是在其之上再叠加的
-    // 用户旋转（0/1/2/3，即 0°/90°/180°/270°）。
+    // 页面自带的 /Rotate 由 PDFium 自己应用；rotateQuarterTurns 是在其之上
+    // 再叠加的用户旋转（0/1/2/3，即 0°/90°/180°/270°）。
     // 超出安全上限时返回空图。
     QImage render(double zoom = 1.0, int rotateQuarterTurns = 0) const;
 

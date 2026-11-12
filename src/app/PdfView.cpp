@@ -2,7 +2,10 @@
 
 #include "app/PageCanvas.h"
 #include "app/RenderThread.h"
+#include "app/TextController.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QShortcut>
@@ -104,6 +107,11 @@ void PdfView::buildUi() {
     auto* zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
     connect(zoomOutShortcut, &QShortcut::activated, this, &PdfView::zoomOut);
 
+    // 复制只在本视图内生效：焦点在搜索框时 Ctrl+C 仍然复制输入框内容。
+    auto* copyShortcut = new QShortcut(QKeySequence::Copy, this);
+    copyShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(copyShortcut, &QShortcut::activated, this, &PdfView::copySelection);
+
     canvas_ = new PageCanvas(this);
     canvas_->setTileCache(&cache_);
     connect(canvas_, &PageCanvas::renderRequested, this, &PdfView::requestVisiblePages);
@@ -148,6 +156,23 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     fitToPage_ = false;
     cache_.clear();
 
+    // 文本控制器自己持有一份独立句柄，在后台线程做提取与搜索。
+    textController_ = std::make_unique<TextController>(document_);
+    canvas_->setTextController(textController_.get());
+    // 选区、搜索命中与新到的文本层都要让画布重画。
+    connect(textController_.get(), &TextController::selectionChanged, this, [this]() {
+        canvas_->viewport()->update();
+    });
+    connect(textController_.get(), &TextController::searchHitsFound, this, [this](int) {
+        canvas_->viewport()->update();
+    });
+    connect(textController_.get(), &TextController::searchFinished, this, [this](bool) {
+        canvas_->viewport()->update();
+    });
+    connect(textController_.get(), &TextController::textPageReady, this, [this](int) {
+        canvas_->viewport()->update();
+    });
+
     // 采集每页的显示尺寸（页面自带 /Rotate 已经应用），布局服务据此排版。
     QVector<PageLayout::PageInfo> pages;
     pages.reserve(pageCount_);
@@ -189,6 +214,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
 
 void PdfView::clear() {
     stopRenderThread();
+    canvas_->setTextController(nullptr);
+    textController_.reset();
     document_ = pdf::PdfDocument();
     filePath_.clear();
     pageCount_ = 0;
@@ -233,6 +260,10 @@ int PdfView::pendingRenders() const {
     return renderThread_ != nullptr ? renderThread_->pendingCount() : 0;
 }
 
+TextController* PdfView::textController() const {
+    return textController_.get();
+}
+
 void PdfView::setZoom(double factor) {
     const double clamped = std::clamp(factor, kMinZoom, kMaxZoom);
     if (qFuzzyCompare(clamped, zoom_)) {
@@ -272,6 +303,9 @@ void PdfView::zoomToFitPage() {
 void PdfView::rotateRight() {
     userRotation_ = (userRotation_ + 90) % 360;
     layout_.setUserRotation(userRotation_);
+    if (textController_) {
+        textController_->setUserRotation(userRotation_);
+    }
     cache_.clear();
     canvas_->setLayout(layout_);
     updateZoomLabel();
@@ -281,10 +315,25 @@ void PdfView::rotateRight() {
 void PdfView::rotateLeft() {
     userRotation_ = (userRotation_ + 270) % 360;
     layout_.setUserRotation(userRotation_);
+    if (textController_) {
+        textController_->setUserRotation(userRotation_);
+    }
     cache_.clear();
     canvas_->setLayout(layout_);
     updateZoomLabel();
     requestVisiblePages();
+}
+
+void PdfView::copySelection() {
+    if (!textController_) {
+        return;
+    }
+    const QString text = textController_->selectedText();
+    if (text.isEmpty()) {
+        return;
+    }
+    QGuiApplication::clipboard()->setText(text);
+    emit textCopied(text.size());
 }
 
 void PdfView::goToPage(int index) {
