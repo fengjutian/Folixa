@@ -5,9 +5,9 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QPushButton>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -40,35 +40,43 @@ void PdfView::buildUi() {
     auto* toolBar = new QToolBar(this);
     toolBar->setMovable(false);
 
-    auto* zoomOut = new QPushButton(QStringLiteral("−"), this);
-    zoomOut->setToolTip(QStringLiteral("缩小"));
-    connect(zoomOut, &QPushButton::clicked, this, &PdfView::zoomOut);
+    auto* zoomOut = new QToolButton(this);
+    zoomOut->setText(QStringLiteral("−"));
+    zoomOut->setToolTip(QStringLiteral("缩小 (Ctrl+-)"));
+    connect(zoomOut, &QToolButton::clicked, this, &PdfView::zoomOut);
 
-    auto* zoomIn = new QPushButton(QStringLiteral("+"), this);
-    zoomIn->setToolTip(QStringLiteral("放大"));
-    connect(zoomIn, &QPushButton::clicked, this, &PdfView::zoomIn);
+    auto* zoomIn = new QToolButton(this);
+    zoomIn->setText(QStringLiteral("+"));
+    zoomIn->setToolTip(QStringLiteral("放大 (Ctrl++)"));
+    connect(zoomIn, &QToolButton::clicked, this, &PdfView::zoomIn);
 
-    auto* fitWidthButton = new QPushButton(QStringLiteral("适应宽度"), this);
+    auto* fitWidthButton = new QToolButton(this);
+    fitWidthButton->setText(QStringLiteral("适宽"));
     fitWidthButton->setToolTip(QStringLiteral("缩放到适应窗口宽度"));
-    connect(fitWidthButton, &QPushButton::clicked, this, &PdfView::zoomToFitWidth);
+    connect(fitWidthButton, &QToolButton::clicked, this, &PdfView::zoomToFitWidth);
 
-    auto* fitPageButton = new QPushButton(QStringLiteral("适应页面"), this);
+    auto* fitPageButton = new QToolButton(this);
+    fitPageButton->setText(QStringLiteral("整页"));
     fitPageButton->setToolTip(QStringLiteral("缩放到整页可见"));
-    connect(fitPageButton, &QPushButton::clicked, this, &PdfView::zoomToFitPage);
+    connect(fitPageButton, &QToolButton::clicked, this, &PdfView::zoomToFitPage);
 
-    auto* rotateLeftButton = new QPushButton(QStringLiteral("↺"), this);
+    auto* rotateLeftButton = new QToolButton(this);
+    rotateLeftButton->setText(QStringLiteral("↺"));
     rotateLeftButton->setToolTip(QStringLiteral("向左旋转"));
-    connect(rotateLeftButton, &QPushButton::clicked, this, &PdfView::rotateLeft);
+    connect(rotateLeftButton, &QToolButton::clicked, this, &PdfView::rotateLeft);
 
-    auto* rotateRightButton = new QPushButton(QStringLiteral("↻"), this);
+    auto* rotateRightButton = new QToolButton(this);
+    rotateRightButton->setText(QStringLiteral("↻"));
     rotateRightButton->setToolTip(QStringLiteral("向右旋转"));
-    connect(rotateRightButton, &QPushButton::clicked, this, &PdfView::rotateRight);
+    connect(rotateRightButton, &QToolButton::clicked, this, &PdfView::rotateRight);
 
     zoomLabel_ = new QLabel(QStringLiteral("100%"), this);
+    zoomLabel_->setObjectName(QStringLiteral("secondaryText"));
     zoomLabel_->setMinimumWidth(56);
     zoomLabel_->setAlignment(Qt::AlignCenter);
 
     pageInfoLabel_ = new QLabel(QStringLiteral("未打开文档"), this);
+    pageInfoLabel_->setObjectName(QStringLiteral("secondaryText"));
     pageInfoLabel_->setAlignment(Qt::AlignCenter);
 
     toolBar->addWidget(zoomOut);

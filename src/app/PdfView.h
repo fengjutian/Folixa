@@ -7,7 +7,6 @@
 #include "pdf/PdfiumAdapter.h"
 
 class QLabel;
-class QPushButton;
 class QTimer;
 
 namespace aipdf::app {

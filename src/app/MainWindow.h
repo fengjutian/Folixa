@@ -7,6 +7,7 @@ class QLineEdit;
 class QPushButton;
 class QTabWidget;
 class QTextBrowser;
+class QDockWidget;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -25,6 +26,9 @@ public:
 
 private:
     void buildUi();
+    QWidget* createWelcomePage();
+    QWidget* createNavigationEmptyState(const QString& title, const QString& description);
+    void openPdfDialog();
     void sendHealthCheck();
     void sendEcho();
 
@@ -36,6 +40,8 @@ private:
     QLineEdit* prompt_ = nullptr;
     QPushButton* sendButton_ = nullptr;
     QTabWidget* tabs_ = nullptr;
+    QDockWidget* navigationDock_ = nullptr;
+    QDockWidget* aiDock_ = nullptr;
 };
 
 }  // namespace aipdf::app

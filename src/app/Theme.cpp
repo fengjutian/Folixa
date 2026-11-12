@@ -58,7 +58,6 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 
 void apply(QApplication& application) {
     QFont font(QStringLiteral("Segoe UI Variable"));
-    font.setFallbackFamilies({QStringLiteral("Microsoft YaHei UI"), QStringLiteral("Segoe UI")});
     font.setPointSize(10);
     application.setFont(font);
     application.setStyleSheet(lightStyleSheet());
