@@ -50,6 +50,7 @@ private slots:
     void missingFileIsReported();
     void encryptedDocumentNeedsPassword();
     void oversizedRenderIsRejected();
+    void renderScalesWithZoom();
     void goldenImageMatches();
 
 private:
@@ -194,6 +195,34 @@ void PdfiumAdapterTests::goldenImageMatches() {
     // 逐像素比较：PDFium 版本变化时需要用 AIPDF_UPDATE_GOLDEN=1 重新生成。
     QCOMPARE(countInkedPixels(golden), countInkedPixels(rendered));
     QVERIFY2(golden == rendered, "渲染结果与黄金图不一致");
+}
+
+void PdfiumAdapterTests::renderScalesWithZoom() {
+    const auto result = aipdf::pdf::openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(result.document.isValid());
+    const auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+
+    // 页面是 200×100 点，zoom=1 表示 72 DPI。
+    struct Case {
+        double zoom;
+        int width;
+        int height;
+    };
+    const Case cases[] = {{1.0, 200, 100}, {1.5, 300, 150}, {2.0, 400, 200}};
+
+    for (const auto& item : cases) {
+        const QImage image = page->render(item.zoom);
+        QVERIFY2(!image.isNull(), qPrintable(QStringLiteral("zoom=%1 渲染失败").arg(item.zoom)));
+        QCOMPARE(image.width(), item.width);
+        QCOMPARE(image.height(), item.height);
+        // 放大后内容不能丢：墨迹像素应当随尺寸一起变多，而不是被裁掉。
+        QVERIFY2(countInkedPixels(image) > 0,
+                 qPrintable(QStringLiteral("zoom=%1 没有渲染出内容").arg(item.zoom)));
+    }
+
+    // 放大不能绕过安全上限。
+    QVERIFY(page->render(200.0).isNull());
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

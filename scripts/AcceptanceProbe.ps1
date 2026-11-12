@@ -3,11 +3,18 @@
     AI PDF Editor 验收共用探针：读取主窗口文本与截图。
 
 .DESCRIPTION
-    被 scripts\verify-m0.ps1 与 scripts\verify-package.ps1 点源引用，
-    避免两处验收脚本各写一份 UI Automation 逻辑。
+    被 scripts\verify-m0.ps1、scripts\verify-package.ps1 与 scripts\verify-pdf.ps1 点源引用，
+    避免几处验收脚本各写一份 UI Automation 逻辑。
+
+    除主窗口读取外，还提供按标题查找顶层窗口、填写输入框、触发按钮的能力，
+    用于自动化模态对话框（例如 PDF 密码输入框）。
 #>
 
-function Get-AiPdfWindowProbe {
+function Get-AiPdfProcessWindows {
+    <#
+    .SYNOPSIS
+        返回属于该进程的全部顶层窗口（模态对话框也是顶层窗口）。
+    #>
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process
@@ -19,9 +26,262 @@ function Get-AiPdfWindowProbe {
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Process.Id)
+    # 用 , 包裹，避免集合在返回时被展开成一个个元素。
+    return , $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)
+}
+
+function Get-AiPdfWindowByTitle {
+    <#
+    .SYNOPSIS
+        按标题正则查找窗口，找不到返回 $null。
+    .DESCRIPTION
+        先看进程的顶层窗口；Qt 把带父窗口的模态对话框暴露成主窗口的后代
+        （ControlType=Window，class=QInputDialog），而不是独立的顶层窗口，
+        因此再补一次后代查找。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$TitlePattern
+    )
+
+    foreach ($window in (Get-AiPdfProcessWindows -Process $Process)) {
+        if ($window.Current.Name -match $TitlePattern) {
+            return $window
+        }
+    }
+
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Process.Id)
+    $top = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
+    if (-not $top) {
+        return $null
+    }
+
+    $windowCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Window)
+    foreach ($element in $top.FindAll(
+            [System.Windows.Automation.TreeScope]::Descendants, $windowCondition)) {
+        if ($element.Current.Name -match $TitlePattern) {
+            return $element
+        }
+    }
+    return $null
+}
+
+function Set-AiPdfElementText {
+    <#
+    .SYNOPSIS
+        用 ValuePattern 设置控件文本（如密码输入框）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Element,
+        [Parameter(Mandatory = $true)][string]$Text
+    )
+
+    $pattern = $null
+    if ($Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+        $pattern.SetValue($Text)
+        return $true
+    }
+    return $false
+}
+
+function Invoke-AiPdfElement {
+    <#
+    .SYNOPSIS
+        用 InvokePattern 触发控件（如对话框的确定按钮）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Element
+    )
+
+    $pattern = $null
+    if ($Element.TryGetCurrentPattern(
+            [System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+        $pattern.Invoke()
+        return $true
+    }
+    return $false
+}
+
+function Wait-AiPdfDialog {
+    <#
+    .SYNOPSIS
+        等待标题匹配的模态对话框出现，返回窗口元素；超时返回 $null。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [string]$TitlePattern = '需要密码',
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            return $null
+        }
+        $dialog = Get-AiPdfWindowByTitle -Process $Process -TitlePattern $TitlePattern
+        if ($dialog) {
+            return $dialog
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    return $null
+}
+
+function Invoke-AiPdfDialogButton {
+    <#
+    .SYNOPSIS
+        在模态对话框里点击名字匹配的按钮（如确定 / 取消）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$ButtonPattern,
+        [string]$TitlePattern = '需要密码',
+        [int]$TimeoutSeconds = 15
+    )
+
+    $dialog = Wait-AiPdfDialog -Process $Process -TitlePattern $TitlePattern -TimeoutSeconds $TimeoutSeconds
+    if (-not $dialog) {
+        return $false
+    }
+
+    $buttonCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Button)
+    foreach ($button in $dialog.FindAll(
+            [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
+        if ($button.Current.Name -match $ButtonPattern) {
+            return (Invoke-AiPdfElement -Element $button)
+        }
+    }
+    return $false
+}
+
+function Enter-AiPdfDialogPassword {
+    <#
+    .SYNOPSIS
+        等待标题匹配的对话框出现，填写密码并确定。成功返回 $true。
+    .DESCRIPTION
+        找不到确定按钮时回退到键盘回车（先把对话框置前）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Password,
+        [string]$TitlePattern = '需要密码',
+        [int]$TimeoutSeconds = 15
+    )
+
+    $dialog = Wait-AiPdfDialog -Process $Process -TitlePattern $TitlePattern -TimeoutSeconds $TimeoutSeconds
+    if (-not $dialog) {
+        return $false
+    }
+
+    $editCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Edit)
+    $edit = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
+    if (-not $edit) {
+        return $false
+    }
+    if (-not (Set-AiPdfElementText -Element $edit -Text $Password)) {
+        return $false
+    }
+
+    $buttonCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Button)
+    foreach ($button in $dialog.FindAll(
+            [System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) {
+        if ($button.Current.Name -match '^(OK|确定|好|Yes)$') {
+            if (Invoke-AiPdfElement -Element $button) {
+                return $true
+            }
+        }
+    }
+
+    # 回退：把对话框置前后按回车。
+    Add-Type -AssemblyName System.Windows.Forms
+    $handle = [IntPtr]$dialog.Current.NativeWindowHandle
+    if ($handle -ne [IntPtr]::Zero) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfFocus {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+'@
+        [AiPdfFocus]::SetForegroundWindow($handle) | Out-Null
+        Start-Sleep -Milliseconds 300
+        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        return $true
+    }
+    return $false
+}
+
+function Wait-AiPdfTextMatch {
+    <#
+    .SYNOPSIS
+        轮询主窗口文本直到匹配给定正则，返回 $true。用于状态栏这类短暂提示。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$Pattern,
+        [int]$TimeoutSeconds = 6,
+        [string]$TitlePattern = ''
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            return $false
+        }
+        $probe = Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern
+        if ($probe -and $probe.Text -match $Pattern) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    return $false
+}
+
+function Get-AiPdfWindowProbe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [string]$TitlePattern = ''
+    )
+
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Process.Id)
     $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
     if (-not $window) {
         return $null
+    }
+    if ($TitlePattern -and $window.Current.Name -notmatch $TitlePattern) {
+        # 模态对话框弹出时，第一个顶层窗口可能是对话框而不是主窗口，
+        # 这时按标题精确取主窗口。
+        $window = Get-AiPdfWindowByTitle -Process $Process -TitlePattern $TitlePattern
+        if (-not $window) {
+            return $null
+        }
     }
 
     $texts = New-Object System.Collections.Generic.List[string]
@@ -53,7 +313,8 @@ function Save-AiPdfWindowScreenshot {
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process,
         [Parameter(Mandatory = $true)]
-        [string]$Path
+        [string]$Path,
+        [string]$WindowTitlePattern = ''
     )
 
     Add-Type -AssemblyName System.Drawing
@@ -71,6 +332,13 @@ public static class NativeWindow {
 '@
 
     $handle = $Process.MainWindowHandle
+    if ($WindowTitlePattern) {
+        # 模态对话框弹出时 MainWindowHandle 可能指向对话框，按标题取更准。
+        $window = Get-AiPdfWindowByTitle -Process $Process -TitlePattern $WindowTitlePattern
+        if ($window) {
+            $handle = [IntPtr]$window.Current.NativeWindowHandle
+        }
+    }
     if ($handle -eq [IntPtr]::Zero) {
         return $false
     }
@@ -114,7 +382,8 @@ function Wait-AiPdfWindowProbe {
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process,
-        [int]$TimeoutSeconds = 15
+        [int]$TimeoutSeconds = 15,
+        [string]$TitlePattern = ''
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -122,11 +391,11 @@ function Wait-AiPdfWindowProbe {
         if ($Process.HasExited) {
             return $null
         }
-        $probe = Get-AiPdfWindowProbe -Process $Process
+        $probe = Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern
         if ($probe -and $probe.Text -match 'ready') {
             return $probe
         }
         Start-Sleep -Milliseconds 400
     }
-    return (Get-AiPdfWindowProbe -Process $Process)
+    return (Get-AiPdfWindowProbe -Process $Process -TitlePattern $TitlePattern)
 }
