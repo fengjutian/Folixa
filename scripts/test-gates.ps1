@@ -112,6 +112,22 @@ Test-Check 'D 版本号不符时必须失败' ($exit -ne 0) "exit=$exit"
 # 还原，避免影响后续用例
 [System.IO.File]::WriteAllText($sbomPath, $original, (New-Object System.Text.UTF8Encoding($false)))
 
+Write-Host '=== 许可证门 ===' -ForegroundColor Cyan
+$licenseGate = Join-Path $PSScriptRoot 'verify-licenses.ps1'
+
+$exit = Invoke-Gate '许可证完整' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H1 许可证齐全时通过' ($exit -eq 0) "exit=$exit"
+
+$licenseFile = Join-Path $appDir 'licenses\LGPL-3.0.txt'
+$licenseBackup = [System.IO.File]::ReadAllBytes($licenseFile)
+[System.IO.File]::AppendAllText($licenseFile, "`n<!-- tampered -->`n")
+$exit = Invoke-Gate '篡改许可证' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H2 许可证被篡改时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllBytes($licenseFile, $licenseBackup)
+
+$exit = Invoke-Gate '许可证还原后' $licenseGate @('-PackageDir', $appDir)
+Test-Check 'H3 还原后恢复通过' ($exit -eq 0) "exit=$exit"
+
 Write-Host '=== 版本门 ===' -ForegroundColor Cyan
 $versionGate = Join-Path $PSScriptRoot 'check-version.ps1'
 

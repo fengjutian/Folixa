@@ -68,12 +68,23 @@ foreach ($required in @(
     'LICENSE',
     'NOTICE.txt',
     'licenses/THIRD_PARTY_LICENSES.md',
+    'licenses/LGPL-3.0.txt',
+    'licenses/GPL-3.0.txt',
+    'licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
     "sbom/ai-pdf-editor-$Version.cdx.json"
 )) {
     Test-Check "包含 $required" (Test-Path -LiteralPath (Join-Path $appDir $required))
 }
 if ($script:Failures -gt 0) {
     exit 1
+}
+
+Write-Host '==> 校验第三方许可证全文' -ForegroundColor Cyan
+$licenseScript = Join-Path $PSScriptRoot 'verify-licenses.ps1'
+& powershell -NoProfile -ExecutionPolicy Bypass -File $licenseScript -PackageDir $appDir
+if ($LASTEXITCODE -ne 0) {
+    $script:Failures++
+    Write-Host 'FAIL  许可证校验未通过' -ForegroundColor Red
 }
 
 Write-Host '==> 校验 SBOM 与包内文件一致' -ForegroundColor Cyan

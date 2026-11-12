@@ -60,6 +60,9 @@ try {
         Invoke-Script '安装固定工具链' (Join-Path $PSScriptRoot 'bootstrap-toolchain.ps1')
     }
 
+    Write-Host '=== 许可证全文 ===' -ForegroundColor Cyan
+    Invoke-Script '校验许可证全文' (Join-Path $PSScriptRoot 'fetch-licenses.ps1') @('-VerifyOnly')
+
     Write-Host '=== Debug ===' -ForegroundColor Cyan
     Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')

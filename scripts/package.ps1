@@ -89,6 +89,16 @@ New-Item -ItemType Directory -Path $licenseDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\THIRD_PARTY_LICENSES.md') -Destination $licenseDir
 
+# 第三方许可证全文（LGPL-3.0 / GPL-3.0 / GCC 运行时例外）
+$licenseSources = Join-Path $PSScriptRoot '..\licenses'
+foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt')) {
+    $source = Join-Path $licenseSources $licenseFile
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "缺少许可证全文 $source（可运行 scripts\fetch-licenses.ps1 补齐）"
+    }
+    Copy-Item -LiteralPath $source -Destination $licenseDir
+}
+
 $qtSbom = Join-Path $QtRoot 'sbom\qtbase-6.8.3.spdx.json'
 if (Test-Path -LiteralPath $qtSbom) {
     Copy-Item -LiteralPath $qtSbom -Destination $licenseDir
