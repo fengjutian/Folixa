@@ -78,6 +78,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/pdf-open.png'
     )
+    Invoke-Script '连续滚动验收' (Join-Path $PSScriptRoot 'verify-scroll.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/scroll-long.png'
+    )
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
     Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release')
