@@ -1,0 +1,20 @@
+# 统一的行尾策略，保证不同机器 checkout 出来的内容一致。
+# 仓库内容一律以 LF 存进对象库，检出时按下面的规则转换。
+
+* text=auto eol=lf
+
+# Windows 脚本与资源文件按原生 CRLF 检出。
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.rc  text eol=crlf
+
+# 二进制产物不做任何转换。
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.zip binary
+*.7z binary
+*.pdf binary
