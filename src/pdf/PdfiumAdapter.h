@@ -44,6 +44,11 @@ private:
 };
 
 // PDF 文档句柄。
+//
+// 注意：PDFium 的 FPDF_DOCUMENT 句柄只能在创建它的线程里使用，
+// 不能跨线程共享。本类因此提供 isolatedCopy()：在调用线程里新建一份
+// 独立句柄（文件字节用 QByteArray 隐式共享，不复制内存），
+// 供渲染线程之类的其它线程各自持有。
 class PdfDocument {
 public:
     PdfDocument() = default;
@@ -59,9 +64,14 @@ public:
 
     std::optional<PdfPage> page(int index) const;
 
+    // 在当前线程创建一份独立的文档句柄。
+    // 返回的文档只能在这个线程里使用；文件数据与原文档共享，不额外占内存。
+    PdfDocument isolatedCopy() const;
+
 private:
     std::shared_ptr<detail::DocumentImpl> impl_;
     explicit PdfDocument(std::shared_ptr<detail::DocumentImpl> impl);
+    friend class PdfPage;
     friend PdfOpenResult openDocument(const QString& filePath, const QString& password);
 };
 

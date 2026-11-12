@@ -17,6 +17,8 @@ namespace detail {
 struct DocumentImpl {
     QByteArray fileData;
     QString path;
+    // 重新打开文档时要用（isolatedCopy），PDFium 不提供查询口令的接口。
+    QString password;
     FPDF_FILEACCESS access{};
     FPDF_DOCUMENT handle = nullptr;
 
@@ -238,6 +240,7 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
     auto impl = std::make_shared<detail::DocumentImpl>();
     impl->fileData = data;
     impl->path = filePath;
+    impl->password = password;
     impl->access.m_FileLen = static_cast<unsigned long>(data.size());
     impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
     impl->access.m_Param = impl.get();
@@ -255,6 +258,33 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
 
     result.document = PdfDocument(impl);
     return result;
+}
+
+PdfDocument PdfDocument::isolatedCopy() const {
+    if (!isValid()) {
+        return PdfDocument();
+    }
+
+    initializePdfium();
+
+    // 新建独立的实现：文件字节用 QByteArray 隐式共享，不复制内存。
+    auto impl = std::make_shared<detail::DocumentImpl>();
+    impl->fileData = impl_->fileData;
+    impl->path = impl_->path;
+    impl->password = impl_->password;
+    impl->access.m_FileLen = static_cast<unsigned long>(impl->fileData.size());
+    impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
+    impl->access.m_Param = impl.get();
+
+    const QByteArray passwordBytes = impl->password.toUtf8();
+    const char* passwordPointer =
+        passwordBytes.isEmpty() ? nullptr : passwordBytes.constData();
+
+    impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    if (impl->handle == nullptr) {
+        return PdfDocument();
+    }
+    return PdfDocument(impl);
 }
 
 }  // namespace aipdf::pdf
