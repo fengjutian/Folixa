@@ -1,0 +1,167 @@
+# Third-party reference binaries and extracted applications
+/Foxit PDF Editor/
+/fox/
+
+# CMake build directories and generated files
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+compile_commands.json
+install_manifest.txt
+Testing/
+_deps/
+
+# C/C++ build artifacts
+*.obj
+*.o
+*.lo
+*.a
+*.lib
+*.dll
+*.so
+*.so.*
+*.dylib
+*.exe
+*.pdb
+*.exp
+*.ilk
+*.idb
+*.ipdb
+*.iobj
+*.pch
+*.res
+*.tlog
+*.lastbuildstate
+*.manifest
+
+# Qt generated files
+*_autogen/
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+.qmake.stash
+Makefile.Debug
+Makefile.Release
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+.qtcreator/
+
+# Visual Studio and VS Code
+.vs/
+.vscode/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+ipch/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM/
+ARM64/
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# vcpkg local state
+/vcpkg_installed/
+/.vcpkg-root
+
+# Test, coverage and profiling output
+/test-results/
+/coverage/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+*.coverage
+
+# Runtime state, logs and crash dumps
+*.log
+*.dmp
+*.core
+*.stackdump
+/logs/
+/crash-reports/
+/recovery/
+
+# Local AI data and model artifacts
+/workspace/
+/ai-data/
+/embeddings/
+/models/
+*.gguf
+*.safetensors
+*.onnx
+*.bin
+*.index
+*.faiss
+
+# Local databases and sidecar files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+secrets.json
+credentials.json
+/config/local.*
+
+# Generated packages and archives
+/dist/
+/packages/
+*.msi
+*.msix
+*.appx
+*.zip
+*.7z
+*.tar
+*.tar.gz
+
+# Temporary and operating-system files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
