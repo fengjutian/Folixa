@@ -5,6 +5,7 @@
 #include "pdf/PdfiumAdapter.h"
 
 #include <QAction>
+#include <QButtonGroup>
 #include <QCoreApplication>
 #include <QDockWidget>
 #include <QDateTime>
@@ -13,12 +14,14 @@
 #include <QFileInfo>
 #include <QInputDialog>
 #include <QJsonDocument>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenuBar>
 #include <QSettings>
 #include <QPushButton>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
@@ -119,17 +122,75 @@ void MainWindow::buildUi() {
 
     auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
 
+    // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
+    auto* commandBar = addToolBar(tr("功能导航"));
+    commandBar->setObjectName(QStringLiteral("commandBar"));
+    commandBar->setMovable(false);
+    commandBar->setFloatable(false);
+    auto* brand = new QLabel(QStringLiteral("  F  "), commandBar);
+    brand->setObjectName(QStringLiteral("brandMark"));
+    brand->setToolTip(tr("Folixa 文档工作区"));
+    commandBar->addWidget(brand);
+    commandBar->addSeparator();
+    auto* homeAction = commandBar->addAction(tr("阅读"));
+    homeAction->setCheckable(true);
+    homeAction->setChecked(true);
+    const QStringList futureCommands = {tr("批注"), tr("编辑"), tr("转换"),
+                                        tr("页面"), tr("保护"), tr("表单"), tr("工具")};
+    for (const QString& label : futureCommands) {
+        QAction* action = commandBar->addAction(label);
+        action->setEnabled(false);
+        action->setToolTip(tr("将在后续版本中提供"));
+    }
+    auto* commandSpacer = new QWidget(commandBar);
+    commandSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    commandBar->addWidget(commandSpacer);
+    auto* aiAction = commandBar->addAction(tr("✦ AI 助手"));
+    aiAction->setObjectName(QStringLiteral("aiCommand"));
+
     navigationDock_ = new QDockWidget(tr("导航"), this);
     navigationDock_->setObjectName(QStringLiteral("navigationDock"));
     navigationDock_->setMinimumWidth(180);
     navigationDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
-    auto* navigation = new QTabWidget(navigationDock_);
-    navigation->addTab(createNavigationEmptyState(
-                           tr("暂无页面缩略图"), tr("缩略图与页面跳转将在导航功能中提供。")),
-                       tr("页面"));
-    navigation->addTab(createNavigationEmptyState(
-                           tr("暂无书签"), tr("当前文档没有可显示的书签。")),
-                       tr("书签"));
+    auto* navigation = new QWidget(navigationDock_);
+    auto* navigationLayout = new QHBoxLayout(navigation);
+    navigationLayout->setContentsMargins(0, 0, 0, 0);
+    navigationLayout->setSpacing(0);
+    auto* rail = new QFrame(navigation);
+    rail->setObjectName(QStringLiteral("navigationRail"));
+    rail->setFixedWidth(52);
+    auto* railLayout = new QVBoxLayout(rail);
+    railLayout->setContentsMargins(6, 10, 6, 10);
+    railLayout->setSpacing(8);
+    auto* navigationPages = new QStackedWidget(navigation);
+    navigationPages->addWidget(createNavigationEmptyState(
+        tr("暂无页面缩略图"), tr("缩略图将在导航版本中提供。")));
+    navigationPages->addWidget(createNavigationEmptyState(
+        tr("暂无文档目录"), tr("文档目录将在这里显示。")));
+    navigationPages->addWidget(createNavigationEmptyState(
+        tr("暂无书签"), tr("当前文档没有可显示的书签。")));
+    navigationPages->addWidget(createNavigationEmptyState(
+        tr("搜索文档"), tr("全文搜索将在 v0.5.0 中提供。")));
+    auto* railGroup = new QButtonGroup(rail);
+    railGroup->setExclusive(true);
+    const QStringList railLabels = {QStringLiteral("▦"), QStringLiteral("≡"),
+                                    QStringLiteral("☆"), QStringLiteral("⌕")};
+    const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索")};
+    for (int index = 0; index < railLabels.size(); ++index) {
+        auto* button = new QToolButton(rail);
+        button->setObjectName(QStringLiteral("railButton"));
+        button->setText(railLabels.at(index));
+        button->setToolTip(railTips.at(index));
+        button->setCheckable(true);
+        button->setAutoExclusive(true);
+        button->setChecked(index == 0);
+        railGroup->addButton(button, index);
+        railLayout->addWidget(button);
+    }
+    railLayout->addStretch();
+    connect(railGroup, &QButtonGroup::idClicked, navigationPages, &QStackedWidget::setCurrentIndex);
+    navigationLayout->addWidget(rail);
+    navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
     viewMenu->addAction(navigationDock_->toggleViewAction());
@@ -138,10 +199,26 @@ void MainWindow::buildUi() {
     aiDock_->setObjectName(QStringLiteral("aiDock"));
     aiDock_->setMinimumWidth(280);
     aiDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
-    auto* aiPanel = new QWidget(aiDock_);
+    auto* aiPanel = new QFrame(aiDock_);
+    aiPanel->setObjectName(QStringLiteral("aiPanel"));
     auto* aiLayout = new QVBoxLayout(aiPanel);
+    aiLayout->setContentsMargins(16, 16, 16, 16);
+    aiLayout->setSpacing(12);
+    auto* aiTitle = new QLabel(tr("✦  Folixa AI"), aiPanel);
+    aiTitle->setObjectName(QStringLiteral("aiTitle"));
+    auto* aiSubtitle = new QLabel(tr("阅读、理解并定位当前文档内容"), aiPanel);
+    aiSubtitle->setObjectName(QStringLiteral("aiSubtitle"));
     workerStatus_ = new QLabel(tr("AI 服务：正在启动"), aiPanel);
     workerStatus_->setObjectName(QStringLiteral("secondaryText"));
+    auto* quickActions = new QHBoxLayout();
+    quickActions->setSpacing(6);
+    for (const QString& text : {tr("总结"), tr("解释"), tr("提取要点")}) {
+        auto* chip = new QPushButton(text, aiPanel);
+        chip->setObjectName(QStringLiteral("aiChip"));
+        chip->setEnabled(false);
+        chip->setToolTip(tr("接入模型后可用"));
+        quickActions->addWidget(chip);
+    }
     conversation_ = new QTextBrowser(aiPanel);
     conversation_->setPlaceholderText(tr("打开文档后，可以在这里提问。\n\n真实模型与引用功能将在后续版本接入。"));
     prompt_ = new QLineEdit(aiPanel);
@@ -149,6 +226,9 @@ void MainWindow::buildUi() {
     sendButton_ = new QPushButton(tr("发送"), aiPanel);
     sendButton_->setObjectName(QStringLiteral("aiButton"));
     sendButton_->setEnabled(false);
+    aiLayout->addWidget(aiTitle);
+    aiLayout->addWidget(aiSubtitle);
+    aiLayout->addLayout(quickActions);
     aiLayout->addWidget(workerStatus_);
     aiLayout->addWidget(conversation_, 1);
     aiLayout->addWidget(prompt_);
@@ -157,6 +237,12 @@ void MainWindow::buildUi() {
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
     resizeDocks({navigationDock_, aiDock_}, {220, 340}, Qt::Horizontal);
     viewMenu->addAction(aiDock_->toggleViewAction());
+    connect(aiAction, &QAction::triggered, aiDock_, [this] {
+        aiDock_->setVisible(!aiDock_->isVisible());
+        if (aiDock_->isVisible()) {
+            aiDock_->raise();
+        }
+    });
 
     auto* focusAction = viewMenu->addAction(tr("专注模式"));
     focusAction->setCheckable(true);

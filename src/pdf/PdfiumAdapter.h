@@ -3,6 +3,8 @@
 #include <QImage>
 #include <QString>
 
+#include "pdf/TextPage.h"
+
 #include <memory>
 #include <optional>
 
@@ -44,6 +46,17 @@ public:
     // 用户旋转（0/1/2/3，即 0°/90°/180°/270°）。
     // 超出安全上限时返回空图。
     QImage render(double zoom = 1.0, int rotateQuarterTurns = 0) const;
+
+    // 提取本页文本层。页面没有文本层时返回空值。
+    //
+    // 字符框是 **PDF user space**（左下原点），不含页面 /Rotate，
+    // 也不含用户旋转；要和渲染图像对齐必须由上层做旋转变换。
+    // 缺 ToUnicode 的字体会导致 unicodeMapError 为真，
+    // 此时仍然会给出能映射到 Unicode 的那些字符。
+    std::optional<TextPage> extractText() const;
+
+    // 页面的 MediaBox（PDF user space，左下原点）。
+    QRectF mediaBox() const;
 
 private:
     std::shared_ptr<detail::PageImpl> impl_;
