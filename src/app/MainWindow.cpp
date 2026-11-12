@@ -6,6 +6,7 @@
 
 #include <QAction>
 #include <QDockWidget>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -22,6 +23,19 @@
 #include <QVBoxLayout>
 
 namespace aipdf::app {
+
+namespace {
+void trace(const QString& message) {
+    const QString path = qEnvironmentVariable("AIPDF_TRACE_FILE");
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + " " + message + "\n").toUtf8());
+    }
+}
+}  // namespace
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), workerClient_(new ipc::WorkerClient(this)) {
@@ -138,6 +152,10 @@ void MainWindow::sendEcho() {
 
 void MainWindow::openPdfFile(const QString& filePath) {
     pdf::PdfOpenResult result = pdf::openDocument(filePath);
+    trace(QStringLiteral("open file=%1 required=%2 msg=%3")
+              .arg(QFileInfo(filePath).fileName())
+              .arg(result.passwordRequired ? 1 : 0)
+              .arg(result.errorMessage));
     if (result.passwordRequired) {
         bool accepted = false;
         const QString password = QInputDialog::getText(
@@ -147,11 +165,18 @@ void MainWindow::openPdfFile(const QString& filePath) {
             QLineEdit::Password,
             QString(),
             &accepted);
+        trace(QStringLiteral("dialog returned accepted=%1 passwordLen=%2")
+                  .arg(accepted ? 1 : 0)
+                  .arg(password.size()));
         if (!accepted) {
             statusBar()->showMessage(tr("已取消打开 %1").arg(QFileInfo(filePath).fileName()), 5000);
             return;
         }
         result = pdf::openDocument(filePath, password);
+        trace(QStringLiteral("reopen valid=%1 required=%2 msg=%3")
+                  .arg(result.document.isValid() ? 1 : 0)
+                  .arg(result.passwordRequired ? 1 : 0)
+                  .arg(result.errorMessage));
     }
 
     if (!result.document.isValid()) {

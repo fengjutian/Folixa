@@ -13,31 +13,57 @@
 function Get-AiPdfProcessWindows {
     <#
     .SYNOPSIS
-        返回属于该进程的全部顶层窗口（模态对话框也是顶层窗口）。
+        用 Win32 枚举返回属于该进程的窗口句柄（含被拥有的模态对话框）。
+    .DESCRIPTION
+        不用 UI Automation 的窗口树：模态对话框在 UIA 树里是主窗口的后代，
+        而且主窗口的子树在应用被模态框卡住时可能还没建好，查找会时灵时不灵。
+        Win32 的 EnumWindows 直接给出 HWND，稳定得多。
     #>
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process
     )
 
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type -AssemblyName UIAutomationTypes
+    Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class AiPdfWindows {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+    public static List<IntPtr> ForProcess(int processId) {
+        var handles = new List<IntPtr>();
+        EnumWindows((hWnd, lParam) => {
+            uint pid;
+            GetWindowThreadProcessId(hWnd, out pid);
+            if (pid == (uint)processId) {
+                handles.Add(hWnd);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return handles;
+    }
+    public static string Title(IntPtr hWnd) {
+        var text = new StringBuilder(512);
+        GetWindowTextW(hWnd, text, text.Capacity);
+        return text.ToString();
+    }
+}
+'@
 
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Process.Id)
-    # 用 , 包裹，避免集合在返回时被展开成一个个元素。
-    return , $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)
+    return [AiPdfWindows]::ForProcess($Process.Id)
 }
 
 function Get-AiPdfWindowByTitle {
     <#
     .SYNOPSIS
-        按标题正则查找窗口，找不到返回 $null。
+        按窗口标题查找窗口，返回 UI Automation 元素；找不到返回 $null。
     .DESCRIPTION
-        先看进程的顶层窗口；Qt 把带父窗口的模态对话框暴露成主窗口的后代
-        （ControlType=Window，class=QInputDialog），而不是独立的顶层窗口，
-        因此再补一次后代查找。
+        先按标题枚举 Win32 窗口，再用 AutomationElement.FromHandle 取元素，
+        这样拿到的是真实 HWND 对应的元素，而不是 UIA 树里可能未就绪的后代。
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -46,31 +72,30 @@ function Get-AiPdfWindowByTitle {
         [string]$TitlePattern
     )
 
-    foreach ($window in (Get-AiPdfProcessWindows -Process $Process)) {
-        if ($window.Current.Name -match $TitlePattern) {
-            return $window
-        }
-    }
-
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
 
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $pidCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Process.Id)
-    $top = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
-    if (-not $top) {
-        return $null
-    }
-
-    $windowCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-        [System.Windows.Automation.ControlType]::Window)
-    foreach ($element in $top.FindAll(
-            [System.Windows.Automation.TreeScope]::Descendants, $windowCondition)) {
-        if ($element.Current.Name -match $TitlePattern) {
-            return $element
+    foreach ($handle in (Get-AiPdfProcessWindows -Process $Process)) {
+        if ([AiPdfWindows]::Title($handle) -match $TitlePattern) {
+            return [System.Windows.Automation.AutomationElement]::FromHandle($handle)
         }
+    }
+    return $null
+}
+
+function Get-AiPdfElementValue {
+    <#
+    .SYNOPSIS
+        读取控件当前值（密码框读回来是掩码，长度仍然可比）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Element
+    )
+
+    $pattern = $null
+    if ($Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+        return $pattern.Current.Value
     }
     return $null
 }
@@ -79,17 +104,32 @@ function Set-AiPdfElementText {
     <#
     .SYNOPSIS
         用 ValuePattern 设置控件文本（如密码输入框）。
+    .DESCRIPTION
+        写入后回读校验长度；Qt 的 ValueProvider 在密码框上并不可靠，
+        偶尔会只写进去一部分，必须确认写满了再点确定。
     #>
     param(
         [Parameter(Mandatory = $true)]$Element,
-        [Parameter(Mandatory = $true)][string]$Text
+        [Parameter(Mandatory = $true)][string]$Text,
+        [int]$MaxAttempts = 3
     )
 
     $pattern = $null
-    if ($Element.TryGetCurrentPattern(
+    if (-not $Element.TryGetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+        return $false
+    }
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $pattern.SetValue($Text)
-        return $true
+        Start-Sleep -Milliseconds 200
+        $current = $pattern.Current.Value
+        if ($null -ne $current -and $current.Length -eq $Text.Length) {
+            return $true
+        }
+        # 没写满就清空重来。
+        $pattern.SetValue('')
+        Start-Sleep -Milliseconds 100
     }
     return $false
 }
