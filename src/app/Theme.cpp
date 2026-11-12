@@ -60,6 +60,15 @@ QLabel#aiSubtitle { color: #6C7890; font-size: 12px; }
 QPushButton#aiChip { min-height: 28px; padding: 0 10px; color: #634CB4; background: rgba(255,255,255,190); border: 1px solid #D9CEF7; border-radius: 14px; }
 QPushButton#aiChip:disabled { color: #8C80B0; background: rgba(255,255,255,150); }
 QFrame#aiPanel QTextBrowser { background: rgba(255,255,255,210); border: 1px solid #E2DDF2; border-radius: 12px; padding: 8px; }
+QListWidget#thumbnailList { background: #F7F8FB; border: 0; padding: 10px 4px; outline: 0; }
+QListWidget#thumbnailList::item { color: #465267; background: transparent; border: 2px solid transparent; border-radius: 10px; padding: 8px; }
+QListWidget#thumbnailList::item:hover { background: #F1F4FF; }
+QListWidget#thumbnailList::item:selected { color: #3555B7; background: #EEF2FF; border-color: #5277E8; }
+QFrame#aiComposer { background: rgba(255,255,255,220); border: 1px solid #D9CEF7; border-radius: 12px; }
+QFrame#aiComposer QLineEdit { min-height: 34px; padding: 0 6px; border: 0; background: transparent; }
+QFrame#aiComposer QLineEdit:focus { border: 0; }
+QFrame#aiComposer QPushButton#aiButton { min-width: 38px; max-width: 38px; min-height: 38px; max-height: 38px; padding: 0; border-radius: 9px; color: white; background: #765ECC; border: 0; }
+QFrame#aiComposer QPushButton#aiButton:hover { background: #634CB4; }
 QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
 QStatusBar { background: #FFFFFF; color: #465267; border-top: 1px solid #E3E7EE; }
 QStatusBar::item { border: 0; }

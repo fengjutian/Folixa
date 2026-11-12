@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QListWidgetItem>
 #include <QMenuBar>
 #include <QMenu>
 #include <QSettings>
@@ -27,6 +28,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -178,8 +180,15 @@ void MainWindow::buildUi() {
     railLayout->setContentsMargins(6, 10, 6, 10);
     railLayout->setSpacing(8);
     auto* navigationPages = new QStackedWidget(navigation);
-    navigationPages->addWidget(createNavigationEmptyState(
-        tr("暂无页面缩略图"), tr("缩略图将在导航版本中提供。")));
+    pagesList_ = new QListWidget(navigationPages);
+    pagesList_->setObjectName(QStringLiteral("thumbnailList"));
+    pagesList_->setViewMode(QListView::IconMode);
+    pagesList_->setResizeMode(QListView::Adjust);
+    pagesList_->setMovement(QListView::Static);
+    pagesList_->setIconSize(QSize(132, 172));
+    pagesList_->setGridSize(QSize(166, 206));
+    pagesList_->setSpacing(6);
+    navigationPages->addWidget(pagesList_);
     navigationPages->addWidget(createNavigationEmptyState(
         tr("暂无文档目录"), tr("文档目录将在这里显示。")));
     navigationPages->addWidget(createNavigationEmptyState(
@@ -188,13 +197,16 @@ void MainWindow::buildUi() {
         tr("搜索文档"), tr("全文搜索将在 v0.5.0 中提供。")));
     auto* railGroup = new QButtonGroup(rail);
     railGroup->setExclusive(true);
-    const QStringList railLabels = {QStringLiteral("▦"), QStringLiteral("≡"),
-                                    QStringLiteral("☆"), QStringLiteral("⌕")};
+    const QStringList railIcons = {QStringLiteral(":/icons/pages.svg"),
+                                   QStringLiteral(":/icons/outline.svg"),
+                                   QStringLiteral(":/icons/bookmark.svg"),
+                                   QStringLiteral(":/icons/search.svg")};
     const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索")};
     for (int index = 0; index < railLabels.size(); ++index) {
         auto* button = new QToolButton(rail);
         button->setObjectName(QStringLiteral("railButton"));
-        button->setText(railLabels.at(index));
+        button->setIcon(QIcon(railIcons.at(index)));
+        button->setIconSize(QSize(20, 20));
         button->setToolTip(railTips.at(index));
         button->setCheckable(true);
         button->setAutoExclusive(true);
@@ -204,6 +216,12 @@ void MainWindow::buildUi() {
     }
     railLayout->addStretch();
     connect(railGroup, &QButtonGroup::idClicked, navigationPages, &QStackedWidget::setCurrentIndex);
+    connect(pagesList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+        auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+        if (view != nullptr) {
+            view->goToPage(item->data(Qt::UserRole).toInt());
+        }
+    });
     navigationLayout->addWidget(rail);
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
@@ -245,19 +263,40 @@ void MainWindow::buildUi() {
         quickActions->addWidget(chip);
     }
     conversation_ = new QTextBrowser(aiPanel);
-    conversation_->setPlaceholderText(tr("打开文档后，可以在这里提问。\n\n真实模型与引用功能将在后续版本接入。"));
+    conversation_->document()->setDefaultStyleSheet(QStringLiteral(
+        "body{font-family:'Segoe UI','Microsoft YaHei UI';color:#202A3A;}"
+        ".welcome{background:#FFFFFF;border:1px solid #E2DDF2;padding:14px;margin:4px;}"
+        ".eyebrow{color:#765ECC;font-size:11px;font-weight:600;}"
+        ".message{background:#FFFFFF;padding:10px;margin:8px 2px;}"
+        ".user{background:#EAF0FF;padding:10px;margin:8px 2px;}"
+        ".muted{color:#8792A3;font-size:11px;}"));
+    conversation_->setHtml(tr(
+        "<div class='welcome'><div class='eyebrow'>FOLIXA AI</div>"
+        "<h3>从当前文档开始</h3>"
+        "<p>我可以帮你总结内容、解释段落，并在接入引用索引后定位原文。</p>"
+        "<p class='muted'>选择上方建议，或在下方输入问题。</p></div>"));
     prompt_ = new QLineEdit(aiPanel);
     prompt_->setPlaceholderText(tr("询问当前文档…"));
-    sendButton_ = new QPushButton(tr("发送"), aiPanel);
+    sendButton_ = new QPushButton(aiPanel);
     sendButton_->setObjectName(QStringLiteral("aiButton"));
+    sendButton_->setIcon(QIcon(QStringLiteral(":/icons/send.svg")));
+    sendButton_->setIconSize(QSize(18, 18));
+    sendButton_->setToolTip(tr("发送"));
+    sendButton_->setFixedSize(38, 38);
     sendButton_->setEnabled(false);
     aiLayout->addWidget(aiTitle);
     aiLayout->addWidget(aiSubtitle);
     aiLayout->addLayout(quickActions);
     aiLayout->addWidget(workerStatus_);
     aiLayout->addWidget(conversation_, 1);
-    aiLayout->addWidget(prompt_);
-    aiLayout->addWidget(sendButton_);
+    auto* composer = new QFrame(aiPanel);
+    composer->setObjectName(QStringLiteral("aiComposer"));
+    auto* composerLayout = new QHBoxLayout(composer);
+    composerLayout->setContentsMargins(8, 6, 6, 6);
+    composerLayout->setSpacing(6);
+    composerLayout->addWidget(prompt_, 1);
+    composerLayout->addWidget(sendButton_);
+    aiLayout->addWidget(composer);
     aiDock_->setWidget(aiPanel);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
     resizeDocks({navigationDock_, aiDock_}, {220, 340}, Qt::Horizontal);
@@ -304,6 +343,9 @@ void MainWindow::buildUi() {
 
     connect(sendButton_, &QPushButton::clicked, this, &MainWindow::sendEcho);
     connect(prompt_, &QLineEdit::returnPressed, this, &MainWindow::sendEcho);
+    connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
+        refreshThumbnails(qobject_cast<PdfView*>(tabs_->currentWidget()));
+    });
 
     statusBar()->showMessage(tr("就绪"));
     // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
@@ -388,9 +430,33 @@ void MainWindow::sendEcho() {
     if (text.isEmpty()) {
         return;
     }
-    conversation_->append(tr("<b>你：</b>") + text.toHtmlEscaped());
+    conversation_->append(tr("<div class='user'><b>你</b><br>%1</div>").arg(text.toHtmlEscaped()));
     prompt_->clear();
     workerClient_->sendRequest("ai.echo", {{"text", text}});
+}
+
+void MainWindow::refreshThumbnails(PdfView* view) {
+    if (pagesList_ == nullptr) {
+        return;
+    }
+    pagesList_->clear();
+    if (view == nullptr) {
+        return;
+    }
+
+    // 首批按需生成，避免打开 500 页文档时一次性阻塞 UI。
+    const int visibleBatch = std::min(view->pageCount(), 24);
+    for (int index = 0; index < visibleBatch; ++index) {
+        const QImage image = view->renderThumbnail(index, 124);
+        auto* item = new QListWidgetItem();
+        item->setData(Qt::UserRole, index);
+        item->setText(QString::number(index + 1));
+        item->setTextAlignment(Qt::AlignHCenter);
+        if (!image.isNull()) {
+            item->setIcon(QIcon(QPixmap::fromImage(image)));
+        }
+        pagesList_->addItem(item);
+    }
 }
 
 void MainWindow::openPdfFile(const QString& filePath) {
@@ -439,6 +505,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     }
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
+    refreshThumbnails(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }

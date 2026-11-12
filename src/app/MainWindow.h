@@ -8,12 +8,15 @@ class QPushButton;
 class QTabWidget;
 class QTextBrowser;
 class QDockWidget;
+class QListWidget;
 
 namespace aipdf::ipc {
 class WorkerClient;
 }
 
 namespace aipdf::app {
+
+class PdfView;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -31,6 +34,7 @@ private:
     void openPdfDialog();
     void sendHealthCheck();
     void sendEcho();
+    void refreshThumbnails(PdfView* view);
 
     ipc::WorkerClient* workerClient_ = nullptr;
     QLabel* workerStatus_ = nullptr;
@@ -42,6 +46,7 @@ private:
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
+    QListWidget* pagesList_ = nullptr;
     bool navigationWasVisible_ = true;
     bool aiWasVisible_ = false;
 };

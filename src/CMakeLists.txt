@@ -11,6 +11,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/PageCanvas.cpp
     app/PageLayout.h
     app/PageLayout.cpp
+    app/PageTransform.h
+    app/PageTransform.cpp
+    app/TextLayout.h
+    app/TextLayout.cpp
     app/RenderThread.h
     app/RenderThread.cpp
     app/TileCache.h
@@ -21,6 +25,8 @@ qt_add_executable(AiPdfEditor WIN32
     ipc/IpcProtocol.h
     pdf/PdfiumAdapter.cpp
     pdf/PdfiumAdapter.h
+    pdf/TextPage.cpp
+    pdf/TextPage.h
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
