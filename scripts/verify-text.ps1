@@ -285,14 +285,40 @@ try {
         Invoke-AiPdfMouseDrag -X1 $x1 -Y1 $y1 -X2 $x2 -Y2 $y2
 
         Start-Sleep -Milliseconds 500
-        [System.Windows.Forms.SendKeys]::SendWait('^c')
-        Start-Sleep -Milliseconds 800
 
-        $clipboard = ''
+        # 清空剪贴板：上一轮残留的 'Folixa' 会让断言在根本没复制时也显示通过。
         try {
-            $clipboard = Get-Clipboard -Raw
+            Set-Clipboard -Value ''
         } catch {
-            $clipboard = ''
+        }
+
+        # Ctrl+C 走 SendKeys，事件落在**前台窗口**上；机器上别的程序随时可能抢走前台，
+        # 按键就丢在别处了（实测偶发：剪贴板空、轨迹里也没有 copy）。
+        # 判定复制是否真的发生，看应用自己的轨迹而不是只看剪贴板：
+        # 轨迹有 copy 记录才算复制动作发生过，剪贴板只是复核内容。
+        # 丢一次就重发，重发三次都没有才算失败。
+        $copied = $false
+        for ($attempt = 1; $attempt -le 3 -and -not $copied; $attempt++) {
+            Set-AiPdfWindowTopmost -Process $app -Enable $true | Out-Null
+            Set-AiPdfForeground -Process $app | Out-Null
+            [System.Windows.Forms.SendKeys]::SendWait('^c')
+            $copied = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'copy chars=6 text=Folixa' -TimeoutSeconds 3
+            if (-not $copied) {
+                Write-Host "    第 $attempt 次 Ctrl+C 没有生效，重试"
+            }
+        }
+
+        # 剪贴板可能被别的进程短暂占用，读不到就等一下再读。
+        $clipboard = ''
+        for ($i = 0; $i -lt 10 -and $clipboard -ne 'Folixa'; $i++) {
+            try {
+                $clipboard = Get-Clipboard -Raw
+            } catch {
+                $clipboard = ''
+            }
+            if ($clipboard -ne 'Folixa') {
+                Start-Sleep -Milliseconds 200
+            }
         }
         Test-Check 'Ctrl+C 复制到剪贴板的文本正确' ($clipboard -eq 'Folixa') "clipboard='$clipboard'"
 

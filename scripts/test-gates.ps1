@@ -7,6 +7,7 @@
 
       SBOM 门（scripts\verify-sbom.ps1）
         A. 正常状态必须通过；
+        A0. 篡改必须真的落到文件条目上（否则「门没红」只是因为没改坏）；
         B. 篡改某个文件的 SHA-256 必须失败；
         C. 从 SBOM 里删掉某个文件条目必须失败；
         D. 改掉 SBOM 声明的版本号必须失败。
@@ -100,8 +101,25 @@ Test-Check 'A 正常 SBOM 通过' ($exit -eq 0) "exit=$exit"
 $original = Get-Content -LiteralPath $sbomPath -Raw -Encoding UTF8
 
 # B. 篡改一个文件的 SHA-256
-$tampered = $original -replace '("alg"\s*:\s*"SHA-256"\s*,\s*"content"\s*:\s*")[0-9a-f]{64}', '${1}0000000000000000000000000000000000000000000000000000000000000000'
-[System.IO.File]::WriteAllText($sbomPath, $tampered, (New-Object System.Text.UTF8Encoding($false)))
+# 直接改 JSON 结构，不靠正则去匹配文本：SBOM 里 hashes 的键序来自哈希表枚举顺序，
+# 而 .NET Core（PowerShell 7）的字符串哈希按进程随机化、Windows PowerShell 5.1 却不随机化，
+# 同一份包在两种 shell 下的键序不同 —— 靠 '"alg" 在前 "content" 在后' 的正则去匹配，
+# 在某些机器上一处都匹配不上，篡改等于没做，门不会红，守卫反而成了假绿。
+$document = $original | ConvertFrom-Json
+$fileComponent = @($document.components | Where-Object { $_.type -eq 'file' })[0]
+$fileComponent.hashes = @([ordered]@{ alg = 'SHA-256'; content = ('0' * 64) })
+[System.IO.File]::WriteAllText(
+    $sbomPath,
+    ($document | ConvertTo-Json -Depth 12),
+    (New-Object System.Text.UTF8Encoding($false)))
+
+# 守卫自己也要被看着：先确认篡改真的落到了某个文件条目上。
+# 「门没红」只有在「确实改坏了」的前提下才算数。
+$checkDocument = Get-Content -LiteralPath $sbomPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$checkFile = @($checkDocument.components | Where-Object { $_.type -eq 'file' })[0]
+$checkHash = ($checkFile.hashes | Where-Object { $_.alg -eq 'SHA-256' } | Select-Object -First 1).content
+Test-Check 'B0 篡改确实落到了文件条目上' ($checkHash -match '^0{64}$') "hash=$checkHash"
+
 $exit = Invoke-Gate '篡改哈希' $sbomGate @('-PackageDir', $appDir, '-SbomPath', $sbomPath, '-Version', $Version)
 Test-Check 'B 哈希被篡改时必须失败' ($exit -ne 0) "exit=$exit"
 

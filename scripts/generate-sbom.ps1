@@ -6,6 +6,12 @@
     逐个文件计算 SHA-256、读取文件版本号，并按文件名判定许可证，
     同时登记 Qt 与 MinGW-w64 两个组件本身（带 purl）。
     Qt 官方随包提供的 SPDX SBOM 作为外部引用挂到 Qt 组件上。
+
+    所有会写进 SBOM 的键值对一律用 [ordered]@{}：
+    普通哈希表的枚举顺序取决于字符串哈希，而 .NET Core（PowerShell 7）
+    的字符串哈希按进程随机化，Windows PowerShell 5.1 却不随机化 ——
+    同一份包在两种 shell 下会生成键序不同、字节不同的 SBOM，
+    任何按文本布局处理它的工具（包括发布门负例守卫）都会随之失效。
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -50,8 +56,8 @@ $components.Add([pscustomobject]@{
     licenses = @(@{ license = @{ id = 'LGPL-3.0-only' } })
     description = 'Qt Base (QtCore, QtGui, QtWidgets, QtNetwork), official binary kit for win64_mingw'
     externalReferences = @(
-        @{ type = 'website'; url = 'https://www.qt.io/licensing/open-source-lgpl-obligations' },
-        @{ type = 'distribution'; url = 'https://download.qt.io/official_releases/qt/6.8/6.8.3/submodules/' }
+        [ordered]@{ type = 'website'; url = 'https://www.qt.io/licensing/open-source-lgpl-obligations' },
+        [ordered]@{ type = 'distribution'; url = 'https://download.qt.io/official_releases/qt/6.8/6.8.3/submodules/' }
     )
 })
 $dependencies.Add([pscustomobject]@{
@@ -85,8 +91,8 @@ if ($PdfiumVersion) {
         licenses = @(@{ license = @{ id = 'BSD-3-Clause' } })
         description = 'Chromium PDFium (PDFium API ' + $PdfiumVersion + '), BSD-3-Clause'
         externalReferences = @(
-            @{ type = 'website'; url = 'https://pdfium.googlesource.com/pdfium/' },
-            @{ type = 'vcs'; url = 'https://github.com/bblanchon/pdfium-binaries' }
+            [ordered]@{ type = 'website'; url = 'https://pdfium.googlesource.com/pdfium/' },
+            [ordered]@{ type = 'vcs'; url = 'https://github.com/bblanchon/pdfium-binaries' }
         )
     })
     $dependencies.Add([pscustomobject]@{
@@ -112,11 +118,11 @@ foreach ($file in $files) {
         'bom-ref' = $ref
         name    = $file.Name
         version = $fileVersion
-        hashes = @(@{ alg = 'SHA-256'; content = (Get-FileHashHex -Path $file.FullName) })
+        hashes = @([ordered]@{ alg = 'SHA-256'; content = (Get-FileHashHex -Path $file.FullName) })
         licenses = @(@{ license = @{ id = $license.id } })
         properties = @(
-            @{ name = 'aipdf:packagePath'; value = ($relative -replace '\\', '/') },
-            @{ name = 'aipdf:sizeBytes'; value = "$($file.Length)" }
+            [ordered]@{ name = 'aipdf:packagePath'; value = ($relative -replace '\\', '/') },
+            [ordered]@{ name = 'aipdf:sizeBytes'; value = "$($file.Length)" }
         )
     })
     $dependencies.Add([pscustomobject]@{
@@ -127,7 +133,7 @@ foreach ($file in $files) {
 
 if ($QtSbomPath -and (Test-Path -LiteralPath $QtSbomPath)) {
     $components | Where-Object { $_.'bom-ref' -eq $qtRef } | ForEach-Object {
-        $_.externalReferences += @{
+        $_.externalReferences += [ordered]@{
             type = 'other'
             url  = "file://sbom/$(Split-Path -Leaf $QtSbomPath)"
             comment = "Qt 官方随包提供的 SPDX SBOM：$(Split-Path -Leaf $QtSbomPath)"
