@@ -24,6 +24,7 @@
 #include <QMenu>
 #include <QSettings>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabBar>
@@ -32,7 +33,10 @@
 #include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace aipdf::app {
 
@@ -183,8 +187,9 @@ void MainWindow::buildUi() {
 
     navigationDock_ = new QDockWidget(tr("导航"), this);
     navigationDock_->setObjectName(QStringLiteral("navigationDock"));
-    navigationDock_->setMinimumWidth(180);
+    navigationDock_->setMinimumWidth(52);
     navigationDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+    navigationDock_->setTitleBarWidget(new QWidget(navigationDock_));
     auto* navigation = new QWidget(navigationDock_);
     auto* navigationLayout = new QHBoxLayout(navigation);
     navigationLayout->setContentsMargins(0, 0, 0, 0);
@@ -234,7 +239,14 @@ void MainWindow::buildUi() {
         railLayout->addWidget(button);
     }
     railLayout->addStretch();
-    connect(railGroup, &QButtonGroup::idClicked, navigationPages, &QStackedWidget::setCurrentIndex);
+    connect(railGroup, &QButtonGroup::idClicked, this, [this, navigationPages](int index) {
+        const bool wasVisible = navigationPages->isVisible();
+        const bool samePage = navigationPages->currentIndex() == index;
+        navigationPages->setCurrentIndex(index);
+        const bool shouldShow = !wasVisible || !samePage;
+        navigationPages->setVisible(shouldShow);
+        resizeDocks({navigationDock_}, {shouldShow ? 224 : 52}, Qt::Horizontal);
+    });
     connect(pagesList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
         if (view != nullptr) {
@@ -328,14 +340,46 @@ void MainWindow::buildUi() {
     aiLayout->addWidget(composer);
     aiDock_->setWidget(aiPanel);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
-    resizeDocks({navigationDock_, aiDock_}, {220, 340}, Qt::Horizontal);
+    resizeDocks({navigationDock_, aiDock_}, {52, 340}, Qt::Horizontal);
     viewMenu->addAction(aiDock_->toggleViewAction());
-    connect(aiAction, &QAction::triggered, aiDock_, [this] {
-        aiDock_->setVisible(!aiDock_->isVisible());
-        if (aiDock_->isVisible()) {
-            aiDock_->raise();
+
+    aiQuickCard_ = new QFrame(tabs_);
+    aiQuickCard_->setObjectName(QStringLiteral("aiQuickCard"));
+    aiQuickCard_->setFixedWidth(230);
+    auto* quickCardLayout = new QVBoxLayout(aiQuickCard_);
+    quickCardLayout->setContentsMargins(14, 14, 14, 14);
+    quickCardLayout->setSpacing(8);
+    auto* quickCardTitle = new QLabel(tr("✦ Folixa AI"), aiQuickCard_);
+    quickCardTitle->setObjectName(QStringLiteral("aiQuickTitle"));
+    quickCardLayout->addWidget(quickCardTitle);
+    const QStringList quickLabels = {tr("开始聊天"), tr("改写"), tr("校对"), tr("解释"), tr("总结")};
+    for (int index = 0; index < quickLabels.size(); ++index) {
+        auto* button = new QPushButton(quickLabels.at(index), aiQuickCard_);
+        button->setObjectName(QStringLiteral("aiQuickAction"));
+        if (index == 0) {
+            connect(button, &QPushButton::clicked, this, [this] {
+                aiQuickCard_->hide();
+                aiDock_->show();
+                aiDock_->raise();
+                prompt_->setFocus();
+            });
+        } else {
+            button->setEnabled(false);
+            button->setToolTip(tr("接入模型后可用"));
         }
+        quickCardLayout->addWidget(button);
+    }
+    aiQuickCard_->hide();
+
+    aiFloatingButton_ = new QPushButton(QStringLiteral("✦"), tabs_);
+    aiFloatingButton_->setObjectName(QStringLiteral("aiFloatingButton"));
+    aiFloatingButton_->setFixedSize(44, 44);
+    aiFloatingButton_->setToolTip(tr("AI 快捷操作"));
+    connect(aiFloatingButton_, &QPushButton::clicked, this, [this] {
+        aiQuickCard_->setVisible(!aiQuickCard_->isVisible());
+        positionFloatingUi();
     });
+    connect(aiAction, &QAction::triggered, aiFloatingButton_, &QPushButton::click);
 
     auto* focusAction = viewMenu->addAction(tr("专注模式"));
     focusAction->setCheckable(true);
@@ -353,16 +397,21 @@ void MainWindow::buildUi() {
     });
 
     QSettings settings;
-    constexpr int kWorkspaceLayoutVersion = 3;
+    constexpr int kWorkspaceLayoutVersion = 4;
     const bool isNewWorkspaceLayout =
         settings.value(QStringLiteral("workspace/layoutVersion"), 0).toInt() < kWorkspaceLayoutVersion;
     if (isNewWorkspaceLayout) {
         settings.setValue(QStringLiteral("workspace/layoutVersion"), kWorkspaceLayoutVersion);
         settings.setValue(QStringLiteral("workspace/navigationVisible"), true);
-        settings.setValue(QStringLiteral("workspace/aiVisible"), true);
+        settings.setValue(QStringLiteral("workspace/aiVisible"), false);
     }
     navigationDock_->setVisible(settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool());
-    aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), true).toBool());
+    aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
+    navigationPages_->hide();
+    QTimer::singleShot(0, this, [this] {
+        resizeDocks({navigationDock_}, {52}, Qt::Horizontal);
+        positionFloatingUi();
+    });
     connect(navigationDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
         QSettings().setValue(QStringLiteral("workspace/navigationVisible"), visible);
     });
@@ -490,6 +539,28 @@ void MainWindow::refreshThumbnails(PdfView* view) {
             item->setIcon(QIcon(QPixmap::fromImage(image)));
         }
         pagesList_->addItem(item);
+    }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    positionFloatingUi();
+}
+
+void MainWindow::positionFloatingUi() {
+    if (tabs_ == nullptr || aiFloatingButton_ == nullptr || aiQuickCard_ == nullptr) {
+        return;
+    }
+    constexpr int margin = 18;
+    aiFloatingButton_->move(tabs_->width() - aiFloatingButton_->width() - margin,
+                            tabs_->height() - aiFloatingButton_->height() - margin);
+    aiFloatingButton_->raise();
+    aiQuickCard_->adjustSize();
+    aiQuickCard_->move(tabs_->width() - aiQuickCard_->width() - margin,
+                       std::max(margin, tabs_->height() - aiQuickCard_->height() -
+                                           aiFloatingButton_->height() - margin * 2));
+    if (aiQuickCard_->isVisible()) {
+        aiQuickCard_->raise();
     }
 }
 

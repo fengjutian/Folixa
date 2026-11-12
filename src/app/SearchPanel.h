@@ -50,6 +50,7 @@ private:
     QPushButton* previousButton_ = nullptr;
     QPushButton* nextButton_ = nullptr;
     QPushButton* clearButton_ = nullptr;
+    QPushButton* stopButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
     QListWidget* results_ = nullptr;
     // 输入停顿后再搜索，避免每敲一个字就全扫一遍。

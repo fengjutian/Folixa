@@ -47,9 +47,14 @@ void SearchPanel::buildUi() {
     clearButton_ = new QPushButton(QStringLiteral("清除"), this);
     clearButton_->setObjectName(QStringLiteral("searchClearButton"));
     clearButton_->setAccessibleName(QStringLiteral("清除搜索"));
+    stopButton_ = new QPushButton(QStringLiteral("停止"), this);
+    stopButton_->setObjectName(QStringLiteral("searchStopButton"));
+    stopButton_->setAccessibleName(QStringLiteral("停止搜索"));
+    stopButton_->setEnabled(false);
     buttons->addWidget(previousButton_);
     buttons->addWidget(nextButton_);
     buttons->addWidget(clearButton_);
+    buttons->addWidget(stopButton_);
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
@@ -81,6 +86,7 @@ void SearchPanel::buildUi() {
             if (controller_ != nullptr) {
                 controller_->cancelSearch();
             }
+            stopButton_->setEnabled(false);
             statusLabel_->setText(QStringLiteral("输入关键词开始搜索"));
             return;
         }
@@ -91,6 +97,11 @@ void SearchPanel::buildUi() {
     connect(clearButton_, &QPushButton::clicked, this, [this]() {
         queryEdit_->clear();
         queryEdit_->setFocus();
+    });
+    connect(stopButton_, &QPushButton::clicked, this, [this]() {
+        if (controller_ != nullptr) {
+            controller_->cancelSearch();
+        }
     });
     connect(results_, &QListWidget::currentRowChanged, this, [this](int row) {
         if (row >= 0 && !suppressNavigation_) {
@@ -115,6 +126,7 @@ void SearchPanel::setController(TextController* controller) {
         return;
     }
     connect(controller_, &TextController::searchStarted, this, [this]() {
+        stopButton_->setEnabled(true);
         statusLabel_->setText(QStringLiteral("正在搜索…"));
     });
     connect(controller_, &TextController::searchHitsFound, this, [this](int count) {
@@ -122,6 +134,7 @@ void SearchPanel::setController(TextController* controller) {
         refreshResults();
     });
     connect(controller_, &TextController::searchFinished, this, [this](bool cancelled) {
+        stopButton_->setEnabled(false);
         refreshResults();
         if (cancelled) {
             statusLabel_->setText(QStringLiteral("搜索已取消（共 %1 处结果）")

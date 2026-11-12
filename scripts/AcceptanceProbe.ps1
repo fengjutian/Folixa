@@ -487,6 +487,235 @@ function Wait-AiPdfWindowProbe {
     return $last
 }
 
+function Get-AiPdfWindowElements {
+    <#
+    .SYNOPSIS
+        收集进程**所有**顶层窗口里的 UIA 元素。
+    .DESCRIPTION
+        停靠面板（导航栏、AI 助手）在 UIA 树里是独立的顶层窗口，
+        只查主窗口会漏掉它们（例如搜索面板的输入框与结果列表）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+
+    $elements = New-Object System.Collections.Generic.List[object]
+    foreach ($handle in (Get-AiPdfProcessWindows -Process $Process)) {
+        try {
+            $window = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+            if (-not $window) {
+                continue
+            }
+            $children = $window.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.Condition]::TrueCondition)
+            foreach ($element in $children) {
+                $elements.Add($element)
+            }
+        } catch {
+            # 窗口正在关闭：跳过。
+        }
+    }
+    return $elements.ToArray()
+}
+
+function Get-AiPdfElementById {
+    <#
+    .SYNOPSIS
+        按 AutomationId 片段找元素（Qt 把 objectName 放进 AutomationId）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$IdPattern
+    )
+
+    foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+        try {
+            if ($element.Current.AutomationId -like $IdPattern) {
+                return $element
+            }
+        } catch {
+            # 元素可能刚好失效：继续找下一个。
+        }
+    }
+    return $null
+}
+
+function Get-AiPdfProcessText {
+    <#
+    .SYNOPSIS
+        汇总进程所有顶层窗口的可访问文本（含停靠面板）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process
+    )
+
+    $texts = New-Object System.Collections.Generic.List[string]
+    foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+        try {
+            $texts.Add($element.Current.Name)
+            $textPattern = $null
+            if ($element.TryGetCurrentPattern(
+                    [System.Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)) {
+                $document = $textPattern.DocumentRange.GetText(-1)
+                if ($document) {
+                    $texts.Add($document)
+                }
+            }
+        } catch {
+            # 元素可能在读取瞬间失效，跳过这一个。
+        }
+    }
+    return ($texts -join "`n")
+}
+
+function Wait-AiPdfProcessTextMatch {
+    <#
+    .SYNOPSIS
+        轮询进程所有窗口的文本，直到匹配给定正则。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$Pattern,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            return $false
+        }
+        $text = Get-AiPdfProcessText -Process $Process
+        if ($text -match $Pattern) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    return $false
+}
+
+function Invoke-AiPdfMouseDrag {
+    <#
+    .SYNOPSIS
+        在屏幕上做一次左键拖动（选择文本用）。
+    .DESCRIPTION
+        用 SetCursorPos + mouse_event 合成真实鼠标事件：
+        UI Automation 的 InvokePattern 点不到画布上的字。
+        调用方要保证目标窗口已经在前台。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$X1,
+        [Parameter(Mandatory = $true)][int]$Y1,
+        [Parameter(Mandatory = $true)][int]$X2,
+        [Parameter(Mandatory = $true)][int]$Y2,
+        [int]$Steps = 12
+    )
+
+    if (-not ('AiPdfMouse' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfMouse {
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+    public const uint LEFTDOWN = 0x0002;
+    public const uint LEFTUP = 0x0004;
+}
+'@
+    }
+
+    [AiPdfMouse]::SetCursorPos($X1, $Y1) | Out-Null
+    Start-Sleep -Milliseconds 200
+    [AiPdfMouse]::mouse_event([AiPdfMouse]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 200
+    for ($step = 1; $step -le $Steps; $step++) {
+        $x = [int]($X1 + ($X2 - $X1) * $step / $Steps)
+        $y = [int]($Y1 + ($Y2 - $Y1) * $step / $Steps)
+        [AiPdfMouse]::SetCursorPos($x, $y) | Out-Null
+        Start-Sleep -Milliseconds 40
+    }
+    Start-Sleep -Milliseconds 200
+    [AiPdfMouse]::mouse_event([AiPdfMouse]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+}
+
+function Invoke-AiPdfMouseClick {
+    <#
+    .SYNOPSIS
+        在屏幕上点一下（左键）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$X,
+        [Parameter(Mandatory = $true)][int]$Y
+    )
+
+    if (-not ('AiPdfMouse' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfMouse {
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+    public const uint LEFTDOWN = 0x0002;
+    public const uint LEFTUP = 0x0004;
+}
+'@
+    }
+
+    [AiPdfMouse]::SetCursorPos($X, $Y) | Out-Null
+    Start-Sleep -Milliseconds 150
+    [AiPdfMouse]::mouse_event([AiPdfMouse]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [AiPdfMouse]::mouse_event([AiPdfMouse]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+}
+
+function Set-AiPdfForeground {
+    <#
+    .SYNOPSIS
+        把主窗口切到前台（键盘与鼠标事件要送到前台窗口）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [string]$TitlePattern = ''
+    )
+
+    if (-not ('AiPdfForeground' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfForeground {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int command);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
+}
+'@
+    }
+
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) {
+        return 1.0
+    }
+    [AiPdfForeground]::ShowWindow($handle, 9) | Out-Null
+    [AiPdfForeground]::SetForegroundWindow($handle) | Out-Null
+    Start-Sleep -Milliseconds 400
+    $dpi = [AiPdfForeground]::GetDpiForWindow($handle)
+    if ($dpi -le 0) {
+        $dpi = 96
+    }
+    return ($dpi / 96.0)
+}
+
 function Stop-AiPdfOrphanWorker {
     <#
     .SYNOPSIS

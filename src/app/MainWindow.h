@@ -11,6 +11,8 @@ class QDockWidget;
 class QListWidget;
 class QStackedWidget;
 class QButtonGroup;
+class QFrame;
+class QResizeEvent;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -30,6 +32,9 @@ public:
     // 打开 PDF 文件；失败时在状态栏显示原因，不弹模态框。
     void openPdfFile(const QString& filePath);
 
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+
 private:
     void buildUi();
     QWidget* createWelcomePage();
@@ -38,6 +43,7 @@ private:
     void sendHealthCheck();
     void sendEcho();
     void refreshThumbnails(PdfView* view);
+    void positionFloatingUi();
 
     ipc::WorkerClient* workerClient_ = nullptr;
     QLabel* workerStatus_ = nullptr;
@@ -54,6 +60,8 @@ private:
     QStackedWidget* navigationPages_ = nullptr;
     QButtonGroup* navigationRail_ = nullptr;
     SearchPanel* searchPanel_ = nullptr;
+    QFrame* aiQuickCard_ = nullptr;
+    QPushButton* aiFloatingButton_ = nullptr;
     bool navigationWasVisible_ = true;
     bool aiWasVisible_ = false;
 };
