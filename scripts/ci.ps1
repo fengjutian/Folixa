@@ -87,11 +87,19 @@ try {
     if (-not $SkipPackage) {
         Write-Host '=== 打包 ===' -ForegroundColor Cyan
         Invoke-Native '打包' 'cmake' @('--build', '--preset', 'windows-release', '--target', 'package')
+        $packageScreenshot = 'build/acceptance/package-{0}.png' -f $version
         Invoke-Script '打包验收（无 Qt SDK 环境）' (Join-Path $PSScriptRoot 'verify-package.ps1') @(
             '-PackagePath', "dist/ai-pdf-editor-$version-win64.zip",
             '-Version', $version,
-            '-ScreenshotPath', 'build/acceptance/package-' + $version + '.png'
+            # 注意：数组字面量里逗号比 + 结合更紧，字符串拼接必须加括号，
+            # 否则会被拆成 'build/acceptance/package-'、版本号、'.png' 三个参数。
+            '-ScreenshotPath', $packageScreenshot
         )
+        # 验收截图必须以预期文件名落盘：参数拼错会静默写出一个别的文件名。
+        if (-not (Test-Path -LiteralPath $packageScreenshot)) {
+            throw "打包验收截图缺失: $packageScreenshot"
+        }
+        Write-Host "    打包验收截图: $packageScreenshot" -ForegroundColor DarkGray
     }
 
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
