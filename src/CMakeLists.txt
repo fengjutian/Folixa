@@ -4,7 +4,6 @@ qt_add_executable(AiPdfEditor WIN32
     app/MainWindow.h
     app/Theme.cpp
     app/Theme.h
-    app/icons.qrc
     app/PdfView.h
     app/PdfView.cpp
     app/PageCanvas.h
@@ -27,6 +26,17 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/PdfiumAdapter.h
     pdf/TextPage.cpp
     pdf/TextPage.h
+)
+
+qt_add_resources(AiPdfEditor "app_icons"
+    PREFIX "/icons"
+    BASE "app/icons"
+    FILES
+        app/icons/pages.svg
+        app/icons/outline.svg
+        app/icons/bookmark.svg
+        app/icons/search.svg
+        app/icons/send.svg
 )
 
 target_link_libraries(AiPdfEditor PRIVATE

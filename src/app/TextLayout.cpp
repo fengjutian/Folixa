@@ -144,17 +144,17 @@ void TextLayout::rebuild() {
     QVector<int> positionOf(chars_.size(), -1);
     for (const Cluster& group : groups) {
         QVector<int> members = group.members;
-        std::sort(members.begin(), members.end(), [&chars, vertical](int a, int b) {
+        std::sort(members.begin(), members.end(), [this](int a, int b) {
             if (vertical_) {
-                const double ta = chars[a].box.top();
-                const double tb = chars[b].box.top();
+                const double ta = chars_[a].box.top();
+                const double tb = chars_[b].box.top();
                 if (ta != tb) {
                     return ta < tb;
                 }
                 return a < b;
             }
-            const double la = chars[a].box.left();
-            const double lb = chars[b].box.left();
+            const double la = chars_[a].box.left();
+            const double lb = chars_[b].box.left();
             if (la != lb) {
                 return la < lb;
             }

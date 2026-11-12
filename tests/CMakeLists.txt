@@ -133,3 +133,27 @@ aipdf_deploy_qt_runtime(TextExtractionTests)
 aipdf_deploy_pdfium(TextExtractionTests)
 
 add_test(NAME TextExtractionTests COMMAND TextExtractionTests)
+
+# 临时探针：打印 PDFium 字符框的真实坐标系（诊断用，诊断完即删）。
+qt_add_executable(TextProbe
+    TextProbe.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+target_link_libraries(TextProbe PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(TextProbe PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(TextProbe PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(TextProbe PROPERTIES WIN32_EXECUTABLE FALSE)
+add_dependencies(TextProbe pdf-fixtures)
+aipdf_deploy_qt_runtime(TextProbe)
+aipdf_deploy_pdfium(TextProbe)

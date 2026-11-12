@@ -202,7 +202,7 @@ void MainWindow::buildUi() {
                                    QStringLiteral(":/icons/bookmark.svg"),
                                    QStringLiteral(":/icons/search.svg")};
     const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索")};
-    for (int index = 0; index < railLabels.size(); ++index) {
+    for (int index = 0; index < railIcons.size(); ++index) {
         auto* button = new QToolButton(rail);
         button->setObjectName(QStringLiteral("railButton"));
         button->setIcon(QIcon(railIcons.at(index)));
@@ -324,7 +324,7 @@ void MainWindow::buildUi() {
     });
 
     QSettings settings;
-    constexpr int kWorkspaceLayoutVersion = 2;
+    constexpr int kWorkspaceLayoutVersion = 3;
     const bool isNewWorkspaceLayout =
         settings.value(QStringLiteral("workspace/layoutVersion"), 0).toInt() < kWorkspaceLayoutVersion;
     if (isNewWorkspaceLayout) {

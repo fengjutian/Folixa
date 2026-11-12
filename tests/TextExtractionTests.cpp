@@ -66,7 +66,7 @@ void TextExtractionTests::extractsPlainText() {
     QVERIFY(text.has_value());
     QCOMPARE(text->pageIndex, 0);
     QCOMPARE(text->plainText(), QStringLiteral("Hello PDFium"));
-    QCOMPARE(text->charCount(), 11);
+    QCOMPARE(text->charCount(), 12);
     QVERIFY(!text->unicodeMapError);
 }
 
@@ -100,7 +100,7 @@ void TextExtractionTests::charBoxesAlignWithRenderedImage() {
     const std::optional<TextPage> text = page->extractText();
     QVERIFY(text.has_value());
 
-    const QRectF media = page->mediaBox();
+    const aipdf::pdf::MediaBox media = page->mediaBox();
     QCOMPARE(media.width(), 200.0);
     QCOMPARE(media.height(), 100.0);
 
@@ -109,7 +109,7 @@ void TextExtractionTests::charBoxesAlignWithRenderedImage() {
         QVERIFY(!image.isNull());
 
         PageTransform transform;
-        transform.setPage(media.left(), media.bottom(), media.width(), media.height());
+        transform.setPage(media.left, media.bottom, media.width(), media.height());
         transform.setRotationDegrees(turns * 90);
 
         QRectF unionBox;
@@ -150,9 +150,9 @@ void TextExtractionTests::rotatedPageTextStaysAligned() {
     QVERIFY(text.has_value());
     QCOMPARE(text->plainText(), QStringLiteral("Rotated"));
 
-    const QRectF media = page->mediaBox();
+    const aipdf::pdf::MediaBox media = page->mediaBox();
     PageTransform transform;
-    transform.setPage(media.left(), media.bottom(), media.width(), media.height());
+    transform.setPage(media.left, media.bottom, media.width(), media.height());
     // 页面自带旋转 + 用户旋转 0。
     transform.setRotationDegrees(page->rotationDegrees());
 

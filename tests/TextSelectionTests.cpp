@@ -108,8 +108,9 @@ void TextSelectionTests::layoutGroupsRowsIntoReadingOrder() {
     for (int index : layout.readingOrder()) {
         ordered += QString::number(index);
     }
-    // 阅读顺序：先第一行（从左到右），再第二行。
-    QCOMPARE(ordered, QStringLiteral("124035"));
+    // 阅读顺序：先第一行（从左到右：A、B、C），再第二行（E、F、D）。
+    // 下标分别是 A=1、B=3、C=0、E=4、F=2、D=5。
+    QCOMPARE(ordered, QStringLiteral("130425"));
     QCOMPARE(layout.lines().at(0).start, 0);
     QCOMPARE(layout.lines().at(0).end, 3);
     QCOMPARE(layout.lines().at(1).start, 3);
@@ -207,9 +208,9 @@ void TextSelectionTests::layoutHandlesVerticalCjk() {
     QVERIFY(layout.isVertical());
     // 行数（4）多于列数（2）→ 判定为竖排。
     QCOMPARE(layout.lines().size(), 2);
-    // 右列先读：上、下、中；再左列：左、右、文。
+    // 右列先读：上、下、中；再左列：左、右、文（列与列之间是换行）。
     QCOMPARE(layout.textForRange(0, layout.charCount()),
-             QStringLiteral("上下中左右文"));
+             QStringLiteral("上下中\n左右文"));
 }
 
 void TextSelectionTests::layoutHighlightRectsSplitByLine() {

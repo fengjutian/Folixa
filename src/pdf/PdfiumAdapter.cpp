@@ -203,7 +203,7 @@ QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
     return image;
 }
 
-QRectF PdfPage::mediaBox() const {
+MediaBox PdfPage::mediaBox() const {
     if (!isValid()) {
         return {};
     }
@@ -212,9 +212,9 @@ QRectF PdfPage::mediaBox() const {
     float right = 0.0F;
     float top = 0.0F;
     if (!FPDFPage_GetMediaBox(impl_->page, &left, &bottom, &right, &top)) {
-        return QRectF(0.0, 0.0, widthPoints(), heightPoints());
+        return MediaBox{0.0, 0.0, widthPoints(), heightPoints()};
     }
-    return QRectF(left, bottom, right - left, top - bottom);
+    return MediaBox{left, bottom, right, top};
 }
 
 std::optional<TextPage> PdfPage::extractText() const {
@@ -248,7 +248,13 @@ std::optional<TextPage> PdfPage::extractText() const {
         double bottom = 0.0;
         double top = 0.0;
         FPDFText_GetCharBox(textPage, i, &left, &right, &bottom, &top);
-        const QRectF box(left, bottom, right - left, top - bottom);
+        // 注意：PDFium 的 bottom/top 命名与直觉相反——
+        // 它给出的 bottom 是**较高**的那个 y，top 是**较低**的那个 y
+        // （例如基线 y=60、字高 20 的 'H'，会得到 bottom=80.05、top=60）。
+        // 这里统一取小值作纵坐标、大值作高度，避免依赖这个命名。
+        const double boxBottom = qMin(top, bottom);
+        const double boxHeight = qAbs(top - bottom);
+        const QRectF box(left, boxBottom, right - left, boxHeight);
 
         if (unit >= 0xD800 && unit <= 0xDBFF) {
             pendingHighSurrogate = QString(QChar(static_cast<char16_t>(unit)));
