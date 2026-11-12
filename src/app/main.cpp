@@ -1,4 +1,5 @@
 #include "app/MainWindow.h"
+#include "app/Theme.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -8,6 +9,7 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName("AI PDF Editor");
     QCoreApplication::setOrganizationName("AI PDF Editor Project");
     QCoreApplication::setApplicationVersion(AIPDF_VERSION);
+    aipdf::app::theme::apply(application);
 
     aipdf::app::MainWindow window;
     window.show();
