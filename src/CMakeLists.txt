@@ -16,6 +16,7 @@ target_link_libraries(AiPdfEditor PRIVATE
 )
 
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(AiPdfEditor PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
 
 set_target_properties(AiPdfEditor PROPERTIES
     OUTPUT_NAME "AiPdfEditor"

@@ -2,6 +2,7 @@
 
 #include "ipc/IpcProtocol.h"
 
+#include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
@@ -80,7 +81,9 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
     const QString operation = request.value("operation").toString();
     if (operation == "system.health") {
         socket->write(ipc::encodeFrame(ipc::makeResult(
-            requestId, {{"status", "ready"}, {"worker_version", "0.1.0"}})));
+            requestId,
+            {{"status", "ready"},
+             {"worker_version", QCoreApplication::applicationVersion()}})));
         return;
     }
     if (operation == "ai.echo") {

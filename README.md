@@ -50,9 +50,14 @@ ctest --preset windows-debug
 ## 文档
 
 - [技术设计](docs/AI_PDF_EDITOR_TECHNICAL_DESIGN.md)
+- [版本与任务管理规范](docs/VERSIONING.md)
+- [版本任务索引](docs/versions/README.md)
 - [依赖与许可证政策](docs/DEPENDENCY_POLICY.md)
 - [IPC 协议](docs/IPC_PROTOCOL.md)
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
+
+本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
+[`0.1.0`](docs/versions/v0.1.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发原则
 

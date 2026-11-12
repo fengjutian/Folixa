@@ -8,4 +8,5 @@ qt_add_executable(PdfAiWorker
 
 target_link_libraries(PdfAiWorker PRIVATE Qt6::Core Qt6::Network)
 target_include_directories(PdfAiWorker PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(PdfAiWorker PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
 

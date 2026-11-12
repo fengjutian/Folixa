@@ -7,7 +7,7 @@
 int main(int argc, char* argv[]) {
     QCoreApplication application(argc, argv);
     QCoreApplication::setApplicationName("PdfAiWorker");
-    QCoreApplication::setApplicationVersion("0.1.0");
+    QCoreApplication::setApplicationVersion(AIPDF_VERSION);
 
     QCommandLineParser parser;
     parser.setApplicationDescription("AI PDF Editor isolated AI Worker");
