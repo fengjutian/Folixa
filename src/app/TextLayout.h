@@ -63,9 +63,13 @@ private:
     QVector<LayoutChar> chars_;
     QVector<int> order_;
     QVector<Line> lines_;
+    // 每个字符在阅读顺序中的位置（与 chars_ 平行）。
+    QVector<int> orderPositions_;
     bool vertical_ = false;
 
     void rebuild();
+    // 阅读顺序下标 → 所属行的下标；没有对应行时返回 -1。
+    int lineOfPosition(int orderPosition) const;
 };
 
 }  // namespace aipdf::app

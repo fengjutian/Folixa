@@ -259,8 +259,7 @@ QString TextLayout::textForRange(int start, int end) const {
         const LayoutChar& character = chars_[order_[position]];
         if (previousPosition >= 0) {
             const LayoutChar& previous = chars_[order_[previousPosition]];
-            const bool sameLine = orderPositions_.value(order_[previousPosition], -1) >= 0 &&
-                                  lineOfPosition(previousPosition) == lineOfPosition(position);
+            const bool sameLine = lineOfPosition(previousPosition) == lineOfPosition(position);
             if (!sameLine) {
                 result += QLatin1Char('\n');
             } else {
