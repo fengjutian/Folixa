@@ -170,5 +170,66 @@ void PdfAnnotationTests::invalidDocumentIsRejected() {
     QVERIFY(!result.document.page(0).has_value());
 }
 
+void PdfAnnotationTests::invalidDocumentIsRejected() {
+    const auto result = openDocument(fixturePath(QStringLiteral("corrupt.pdf")));
+    QVERIFY(!result.document.isValid());
+    QCOMPARE(result.document.pageCount(), 0);
+    QVERIFY(!result.document.page(0).has_value());
+}
+
+// 控制器层面的关键保证：批注要真的进文档，撤销要真的把它从文档里拿掉。
+void PdfAnnotationTests::controllerSyncsAnnotationsIntoDocument() {
+    const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(result.document.isValid());
+
+    AnnotationController controller(result.document);
+    QCOMPARE(controller.annotationCount(), 0);
+
+    const quint64 id = controller.addMarkAnnotation(AnnotationType::Highlight,
+                                                     0,
+                                                     {QRectF(60.0, 250.0, 200.0, 14.0)});
+    QVERIFY(id != 0);
+    QCOMPARE(controller.annotationCount(), 1);
+
+    // 文档里应当也有一条。
+    const auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->annotations().size(), 1);
+}
+
+void PdfAnnotationTests::controllerUndoRemovesAnnotationFromDocument() {
+    const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(result.document.isValid());
+
+    AnnotationController controller(result.document);
+    QVERIFY(controller.addMarkAnnotation(AnnotationType::Highlight,
+                                         0,
+                                         {QRectF(60.0, 250.0, 200.0, 14.0)}) != 0);
+
+    QVERIFY(controller.undo());
+    QCOMPARE(controller.annotationCount(), 0);
+
+    // 撤销后文档里也要没有：模型与文档必须同步。
+    const auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->annotations().size(), 0);
+}
+
+void PdfAnnotationTests::controllerUndoThenRedoRestoresAnnotation() {
+    const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(result.document.isValid());
+
+    AnnotationController controller(result.document);
+    QVERIFY(controller.addSquare(0, QRectF(100.0, 100.0, 50.0, 50.0)) != 0);
+    QVERIFY(controller.undo());
+    QVERIFY(controller.redo());
+
+    QCOMPARE(controller.annotationCount(), 1);
+    const auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->annotations().size(), 1);
+    QCOMPARE(page->annotations().first().type, AnnotationType::Square);
+}
+
 QTEST_MAIN(PdfAnnotationTests)
 #include "PdfAnnotationTests.moc"

@@ -217,6 +217,16 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
 )
 
 target_link_libraries(PdfAnnotationTests PRIVATE
