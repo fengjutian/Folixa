@@ -738,8 +738,9 @@ void MainWindow::syncTabBar() {
         return;
     }
     if (onlyWelcome) {
-        // 只在「本来就可见」时记一笔：用户自己关掉的面板不该被我们重新打开。
-        if (navigationDock_->isVisible()) {
+        // 用 isHidden() 而不是 isVisible()：窗口还没 show 的时候 dock 已经是
+        // 「请求显示但实际不可见」，isVisible() 会给 false，收起就漏掉了。
+        if (!navigationDock_->isHidden()) {
             navHiddenForWelcome_ = true;
             navigationDock_->hide();
         }
