@@ -765,6 +765,77 @@ public static class AiPdfMouse {
     Start-Sleep -Milliseconds 300
 }
 
+function Invoke-AiPdfMouseMove {
+    <#
+    .SYNOPSIS
+        只把指针移到某个位置，不点击（测悬停效果用）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$X,
+        [Parameter(Mandatory = $true)][int]$Y
+    )
+
+    if (-not ('AiPdfMouse' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfMouse {
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+    public const uint LEFTDOWN = 0x0002;
+    public const uint LEFTUP = 0x0004;
+}
+'@
+    }
+
+    [AiPdfMouse]::SetCursorPos($X, $Y) | Out-Null
+    Start-Sleep -Milliseconds 300
+}
+
+function Get-AiPdfCursorPosition {
+    <#
+    .SYNOPSIS
+        记下当前鼠标位置。
+    .DESCRIPTION
+        验收脚本要用合成鼠标事件点屏幕坐标，会把**用户真实的指针**挪走。
+        跑之前先记下位置，跑完放回去，别把开发者正在做的事搅乱。
+    #>
+    if (-not ('AiPdfCursor' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfCursor {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X; public int Y; }
+    [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+}
+'@
+    }
+    $point = [AiPdfCursor+POINT]::new()
+    if ([AiPdfCursor]::GetCursorPos([ref]$point)) {
+        return [pscustomobject]@{ X = $point.X; Y = $point.Y }
+    }
+    return $null
+}
+
+function Restore-AiPdfCursorPosition {
+    <#
+    .SYNOPSIS
+        把鼠标指针放回之前的位置。
+    #>
+    param(
+        $Position
+    )
+    if ($null -eq $Position) {
+        return
+    }
+    if (-not ('AiPdfCursor' -as [type])) {
+        return
+    }
+    [AiPdfCursor]::SetCursorPos($Position.X, $Position.Y) | Out-Null
+}
+
 function Wait-AiPdfElementById {
     <#
     .SYNOPSIS

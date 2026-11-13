@@ -16,6 +16,12 @@
 param(
     [switch]$SkipToolchain,
     [switch]$SkipPackage,
+    # 跳过界面验收（M0/PDF/滚动/文本/导航）。
+    #
+    # 界面验收会抢占前台窗口、置顶、并用合成鼠标事件点屏幕坐标：
+    # 在开发机上跑会打断正在写代码的人。CI 上有独立的会话，照跑不误；
+    # 本地要跑完整流水线时，请先确认此刻没有人正在用这台机器的桌面。
+    [switch]$SkipAcceptance,
     [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..')
 )
 
@@ -70,6 +76,10 @@ try {
     Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')
     Invoke-Native '测试 Debug' 'ctest' @('--preset', 'windows-debug', '--output-on-failure')
+
+    if ($SkipAcceptance) {
+        Write-Host '    （按要求跳过界面验收）' -ForegroundColor DarkGray
+    } else {
     Invoke-Script '启动验收 Debug' (Join-Path $PSScriptRoot 'verify-m0.ps1') @(
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/m0-debug.png'
@@ -86,6 +96,11 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/text-search.png'
     )
+    Invoke-Script '目录、书签与链接验收' (Join-Path $PSScriptRoot 'verify-navigation.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/navigation-outline.png'
+    )
+    }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
     Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release')
@@ -95,19 +110,23 @@ try {
     if (-not $SkipPackage) {
         Write-Host '=== 打包 ===' -ForegroundColor Cyan
         Invoke-Native '打包' 'cmake' @('--build', '--preset', 'windows-release', '--target', 'package')
-        $packageScreenshot = 'build/acceptance/package-{0}.png' -f $version
-        Invoke-Script '打包验收（无 Qt SDK 环境）' (Join-Path $PSScriptRoot 'verify-package.ps1') @(
-            '-PackagePath', "dist/ai-pdf-editor-$version-win64.zip",
-            '-Version', $version,
-            # 注意：数组字面量里逗号比 + 结合更紧，字符串拼接必须加括号，
-            # 否则会被拆成 'build/acceptance/package-'、版本号、'.png' 三个参数。
-            '-ScreenshotPath', $packageScreenshot
-        )
-        # 验收截图必须以预期文件名落盘：参数拼错会静默写出一个别的文件名。
-        if (-not (Test-Path -LiteralPath $packageScreenshot)) {
-            throw "打包验收截图缺失: $packageScreenshot"
+        if ($SkipAcceptance) {
+            Write-Host '    （按要求跳过打包验收的界面部分）' -ForegroundColor DarkGray
+        } else {
+            $packageScreenshot = 'build/acceptance/package-{0}.png' -f $version
+            Invoke-Script '打包验收（无 Qt SDK 环境）' (Join-Path $PSScriptRoot 'verify-package.ps1') @(
+                '-PackagePath', "dist/ai-pdf-editor-$version-win64.zip",
+                '-Version', $version,
+                # 注意：数组字面量里逗号比 + 结合更紧，字符串拼接必须加括号，
+                # 否则会被拆成 'build/acceptance/package-'、版本号、'.png' 三个参数。
+                '-ScreenshotPath', $packageScreenshot
+            )
+            # 验收截图必须以预期文件名落盘：参数拼错会静默写出一个别的文件名。
+            if (-not (Test-Path -LiteralPath $packageScreenshot)) {
+                throw "打包验收截图缺失: $packageScreenshot"
+            }
+            Write-Host "    打包验收截图: $packageScreenshot" -ForegroundColor DarkGray
         }
-        Write-Host "    打包验收截图: $packageScreenshot" -ForegroundColor DarkGray
     }
 
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan

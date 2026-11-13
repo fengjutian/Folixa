@@ -49,6 +49,8 @@ private:
     void sendHealthCheck();
     void sendEcho();
     void refreshThumbnails(PdfView* view);
+    // 在缩略图列表里高亮当前页。
+    void highlightThumbnail(int pageIndex);
     // 把导航面板绑到当前文档的导航控制器上，并刷新目录与书签。
     void bindNavigation(PdfView* view);
     void refreshOutline(PdfView* view);

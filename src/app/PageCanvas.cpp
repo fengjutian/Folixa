@@ -49,6 +49,9 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
     // 画布要能拿到焦点：点一下之后 Ctrl+C 才能复制选中的文字。
     viewport()->setFocusPolicy(Qt::StrongFocus);
+    // 鼠标跟踪：没有它就收不到「只是移过去」的移动事件，
+    // 悬停在链接上时手型光标就不会出现。
+    viewport()->setMouseTracking(true);
 }
 
 void PageCanvas::setLayout(const PageLayout& layout) {
@@ -396,7 +399,13 @@ void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
         return;
     }
     const int hit = navigationController_->hitLink(pageIndex, displayPoint);
-    viewport()->setCursor(hit >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    const bool overLink = hit >= 0;
+    // 只在状态翻转时记一笔：鼠标移动事件很密集，每次都记会把轨迹刷爆。
+    if (overLink != overLink_) {
+        overLink_ = overLink;
+        trace(overLink ? QStringLiteral("cursor link") : QStringLiteral("cursor default"));
+    }
+    viewport()->setCursor(overLink ? Qt::PointingHandCursor : Qt::ArrowCursor);
 }
 
 void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {

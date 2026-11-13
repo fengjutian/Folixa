@@ -616,11 +616,23 @@ void MainWindow::refreshOutline(PdfView* view) {
         bookmarkStack_->setCurrentIndex(hasOutline ? 1 : 0);
     }
     if (!hasOutline) {
-        trace(QStringLiteral("outline empty"));
+        // 只有**真的取回过**（且是空的）才算「这个文档没有大纲」。
+        // 还没取回来时也写「空」会让断言失去意义：有大纲的文档在取回之前
+        // 同样会先显示一次空状态。
+        if (controller != nullptr && controller->outlineLoaded()) {
+            trace(QStringLiteral("outline empty"));
+        } else {
+            trace(QStringLiteral("outline pending"));
+        }
         return;
     }
 
     addOutlineItems(outlineTree_->invisibleRootItem(), controller->outline());
+    // 顶层条目默认展开：用户一眼能看到层级，而不是一排收起来的箭头。
+    // （收起的子条目在无障碍树里根本不出现，验收脚本也点不到。）
+    for (int index = 0; index < outlineTree_->topLevelItemCount(); ++index) {
+        outlineTree_->expandItem(outlineTree_->topLevelItem(index));
+    }
 
     // 书签页签：同一份大纲的扁平列表，用缩进表示层级。
     const std::vector<pdf::OutlineEntry> entries = controller->flatOutline();
@@ -713,6 +725,23 @@ void MainWindow::refreshThumbnails(PdfView* view) {
         }
         pagesList_->addItem(item);
     }
+    // 打开文档时可能已经停在某一页（恢复上次位置），先把高亮对上。
+    highlightThumbnail(view->currentPage());
+}
+
+void MainWindow::highlightThumbnail(int pageIndex) {
+    if (pagesList_ == nullptr || pagesList_->count() == 0) {
+        return;
+    }
+    // 缩略图只渲染了前若干页，后面的页没有条目可高亮。
+    if (pageIndex < 0 || pageIndex >= pagesList_->count()) {
+        return;
+    }
+    if (pagesList_->currentRow() != pageIndex) {
+        pagesList_->setCurrentRow(pageIndex);
+        pagesList_->scrollToItem(pagesList_->item(pageIndex));
+    }
+    trace(QStringLiteral("thumbnail current page=%1").arg(pageIndex));
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -788,6 +817,9 @@ void MainWindow::openPdfFile(const QString& filePath) {
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
     connect(view, &PdfView::textCopied, this, [this](int characters) {
         statusBar()->showMessage(tr("已复制 %1 个字符到剪贴板").arg(characters), 3000);
+    });
+    connect(view, &PdfView::currentPageChanged, this, [this](int index) {
+        highlightThumbnail(index);
     });
     connect(view, &PdfView::linkFollowed, this, [this](int targetPage, const QString& uri) {
         if (targetPage >= 0) {

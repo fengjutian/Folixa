@@ -5,7 +5,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 ## 当前能力
 
 - Qt Widgets 主窗口和多文档标签框架
-- 文档视图、缩略图、书签和 AI 助手面板占位
+- 文档视图、缩略图导航面板与 AI 助手面板
 - **用 PDFium 打开 PDF 并渲染首页**（支持密码保护文件、旋转页、缩放与高 DPI）
 - **连续页面视口与瓦片渲染**：按视口渲染、邻页预取、LRU 缓存（按像素字节计量上限）、
   渲染任务按代取消，500 页文档可连续浏览
@@ -13,6 +13,9 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - **文本提取、选择、复制与全文搜索**：后台提取文本层、
   鼠标拖选与双击选词、Ctrl+C 复制、Ctrl+F 搜索面板（结果列表、上一处/下一处、停止）、
   命中高亮与跳转；长文档搜索可随时取消
+- **目录、书签与页面链接**：后台取回文档大纲（分层树）与页面链接注释，
+  目录树/书签列表可点击跳转，内部链接跳页、外部链接交给系统浏览器，
+  悬停在链接上显示手型光标
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
@@ -20,7 +23,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试与视口/缓存单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
-PDF 索引、文本提取和真实模型 Provider 将在后续里程碑接入。
+PDF 索引与真实模型 Provider 将在后续里程碑接入。
 
 ## 构建环境
 
@@ -88,6 +91,13 @@ powershell -ExecutionPolicy Bypass -File scripts\ci.ps1
 依次执行：安装固定工具链 → Debug 构建/测试/启动验收 → Release 构建/测试 →
 打包 → 无 SDK 打包验收 → 版本一致性 → 发布门负例守卫。
 本地和 CI 跑的是同一个脚本。
+
+界面验收会抢占前台窗口并用合成鼠标事件操作桌面，**在别人正在用这台机器时不要跑**：
+那种情况下加 `-SkipAcceptance` 跳过界面验收，其余步骤照跑。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\ci.ps1 -SkipAcceptance
+```
 
 ## 启动验收
 
@@ -183,7 +193,51 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.2.0`](docs/versions/v0.2.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.6.0`](docs/versions/v0.6.0.md)，只有当前版本通过验收后才进入下一版本。
+
+## 开发规范
+
+### 一次改动的工作方式
+
+1. **先写代码**：把功能从头到尾写完再动测试。
+   写一块就跑一遍全量验收，会把「代码还没写完」和「功能真的坏了」混在一起，
+   既分不清是谁的问题，也把跑验收的时间摊到了每个小改动上。
+2. **最后统一测试**：代码写完后一次性跑完整流水线
+   （`scripts/ci.ps1`：Debug/Release 构建与测试 → 界面验收 → 打包 → 发布门）。
+   写代码过程中只做**编译级**自检（改完能编过、逻辑自洽），验收留到最后。
+3. **测试与实现一起提交**：验收脚本、测试夹具和单元测试属于本次功能的一部分，
+   不允许「先合功能、测试以后补」。
+4. **验收项必须有负例守卫**，且守卫要自带「我确实破坏了输入吗」的自检——
+   否则守卫自己坏掉时，门会一直绿着，把产品缺陷伪装成通过。
+
+### 界面验收会抢桌面
+
+`verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation`
+这五个脚本要驱动真实界面：把窗口抢到前台、置顶、挪到屏幕左上角，
+并用合成的鼠标事件点屏幕坐标。**在开发机上跑会打断正在用这台机器的人**
+（真实指针会被挪走，窗口会突然跳出来）。
+
+因此：
+
+- 共享的开发机上跑流水线时加 `-SkipAcceptance`，只跑构建、测试与发布门：
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\ci.ps1 -SkipAcceptance
+  ```
+
+- 完整的界面验收交给 CI（runner 是独立会话，照跑不误）。
+- 验收用的应用实例把设置写到临时目录（`AIPDF_TRACE_FILE` 存在时），
+  不会覆盖使用者自己的窗口布局与面板可见性；
+  脚本跑完还会把鼠标指针放回原位。
+
+### 写代码时的硬约束
+
+- UI 不直接调用 PDFium，所有引擎调用通过 `src/pdf` 适配层。
+- 引擎调用（大纲、链接、文本层、渲染）都在后台线程做，主线程不碰 PDFium 句柄；
+  跨线程只回传纯数据，句柄由各自的工作线程自己 `isolatedCopy`。
+- 新增或修改的 `.ps1` 必须是 UTF-8 BOM（PowerShell 5.1 没有 BOM 会按 GBK 解析中文脚本），
+  行尾按 `.gitattributes` 用 CRLF 检出。
+- 提交信息用 `git commit -F <文件>`：消息里带 ASCII 双引号会被参数解析拆开。
 
 ## 开发原则
 

@@ -81,6 +81,8 @@ private:
     int lastViewportHeight_ = -1;
     // 正在拖选：记录锚点页与锚点字符（阅读顺序下标）。
     bool selecting_ = false;
+    // 指针当前是否停在链接上：用来在状态翻转时记一笔轨迹。
+    bool overLink_ = false;
     int anchorPage_ = -1;
     int anchorOrder_ = -1;
 
