@@ -73,6 +73,8 @@ QFrame#aiQuickCard { background: rgba(255,255,255,252); border: 1px solid #E2DCF
 QLabel#aiQuickTitle { color: #3555B7; font-size: 15px; font-weight: 700; padding: 1px 2px 0 2px; }
 QLabel#aiQuickSubtitle { color: #6C7890; font-size: 11px; padding: 2px 2px 6px 2px; }
 QPushButton#aiQuickAction { min-height: 34px; text-align: left; padding: 0 12px; background: #FFFFFF; border: 1px solid #E6E1F5; border-radius: 10px; color: #344156; }
+QPushButton#aiQuickAction[primary="true"] { color: #4B3A8F; background: #F6F2FF; border-color: #D5C8F6; font-weight: 600; }
+QPushButton#aiQuickAction[primary="true"]:hover { background: #EFE9FF; border-color: #C6B6F4; }
 QPushButton#aiQuickAction:hover { color: #634CB4; background: #F8F5FF; border-color: #C6B6F4; }
 QPushButton#aiQuickAction:disabled { color: #9AA3B4; background: #FAFAFD; border-color: #EEECF6; }
 QPushButton#aiFloatingButton { color: white; background: #5277E8; border: 0; border-radius: 22px; font-size: 19px; font-weight: 700; }

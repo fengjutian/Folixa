@@ -43,6 +43,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
@@ -476,6 +477,8 @@ void MainWindow::buildUi() {
         button->setToolTip(action.tip);
         button->setCursor(Qt::PointingHandCursor);
         if (index == 0) {
+            // 主操作：整张卡里只有它现在就能用，给一点 AI 辅助色把它拎出来。
+            button->setProperty("primary", true);
             connect(button, &QPushButton::clicked, this, [this] {
                 aiQuickCard_->hide();
                 aiDock_->show();
@@ -1239,7 +1242,9 @@ void MainWindow::highlightThumbnail(int pageIndex) {
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
-    positionFloatingUi();
+    // 这里布局还没重排完，tabs_->width() 还是旧值：直接摆会把浮层留在旧位置，
+    // 窗口缩小时卡片就被挤到窗口外面。挪到下一轮事件循环再摆。
+    QTimer::singleShot(0, this, [this] { positionFloatingUi(); });
 }
 
 void MainWindow::updateAiQuickActions() {
@@ -1286,13 +1291,16 @@ void MainWindow::positionFloatingUi() {
         return;
     }
     constexpr int margin = 18;
-    aiFloatingButton_->move(tabs_->width() - aiFloatingButton_->width() - margin,
-                            tabs_->height() - aiFloatingButton_->height() - margin);
+    // 兜底钳制：窗口被拖得很小时，卡片不能跑到窗口外面去。
+    const int buttonX = std::max(margin, tabs_->width() - aiFloatingButton_->width() - margin);
+    const int buttonY = std::max(margin, tabs_->height() - aiFloatingButton_->height() - margin);
+    aiFloatingButton_->move(buttonX, buttonY);
     aiFloatingButton_->raise();
     aiQuickCard_->adjustSize();
-    aiQuickCard_->move(tabs_->width() - aiQuickCard_->width() - margin,
-                       std::max(margin, tabs_->height() - aiQuickCard_->height() -
-                                           aiFloatingButton_->height() - margin * 2));
+    const int cardX = std::max(margin, tabs_->width() - aiQuickCard_->width() - margin);
+    const int cardY =
+        std::max(margin, aiFloatingButton_->y() - aiQuickCard_->height() - margin);
+    aiQuickCard_->move(cardX, cardY);
     if (aiQuickCard_->isVisible()) {
         aiQuickCard_->raise();
     }
