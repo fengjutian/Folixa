@@ -800,7 +800,9 @@ void PdfView::stopRenderThread() {
     if (renderThread_ == nullptr) {
         return;
     }
-    renderThread_->cancel();
+    // 先叫醒线程让它收工，再等它退出。
+    // 顺序反了会死等：线程正睡在条件变量上，只有 stop 叫得醒它。
+    renderThread_->stop();
     renderThread_->wait();
     delete renderThread_;
     renderThread_ = nullptr;

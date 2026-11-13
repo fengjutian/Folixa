@@ -316,3 +316,36 @@ set_target_properties(RecoveryLogTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(RecoveryLogTests)
 
 add_test(NAME RecoveryLogTests COMMAND RecoveryLogTests)
+
+# ---------------------------------------------------------- 渲染线程收工 ----
+
+qt_add_executable(RenderThreadTests
+    RenderThreadTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/RenderThread.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/RenderThread.h
+    ${CMAKE_SOURCE_DIR}/src/app/TileCache.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TileCache.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(RenderThreadTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(RenderThreadTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(RenderThreadTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(RenderThreadTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(RenderThreadTests pdf-fixtures)
+aipdf_deploy_qt_runtime(RenderThreadTests)
+aipdf_deploy_pdfium(RenderThreadTests)
+
+add_test(NAME RenderThreadTests COMMAND RenderThreadTests)

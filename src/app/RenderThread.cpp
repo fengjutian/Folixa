@@ -10,12 +10,7 @@ RenderThread::RenderThread(pdf::PdfDocument source, QObject* parent)
     : QThread(parent), source_(std::move(source)) {}
 
 RenderThread::~RenderThread() {
-    {
-        QMutexLocker locker(&mutex_);
-        stop_ = true;
-        dirty_ = false;
-    }
-    condition_.wakeAll();
+    stop();
     wait();
 }
 
@@ -41,6 +36,15 @@ void RenderThread::cancel() {
         ++generation_;
         dirty_ = false;
     }
+}
+
+void RenderThread::stop() {
+    {
+        QMutexLocker locker(&mutex_);
+        stop_ = true;
+        dirty_ = false;
+    }
+    condition_.wakeAll();
 }
 
 int RenderThread::pendingCount() const {
