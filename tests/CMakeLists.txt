@@ -465,3 +465,67 @@ set_target_properties(DocumentQaTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(DocumentQaTests)
 
 add_test(NAME DocumentQaTests COMMAND DocumentQaTests)
+
+# ------------------------------------------------- AI 面板的交互守卫 ----
+
+qt_add_executable(AiPanelTests
+    AiPanelTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AiPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AiPanel.h
+    ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.h
+    ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/app/TextController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TextController.h
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.h
+    ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
+    ${CMAKE_SOURCE_DIR}/src/ipc/WorkerClient.cpp
+    ${CMAKE_SOURCE_DIR}/src/ipc/WorkerClient.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(AiPanelTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(AiPanelTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(AiPanelTests PRIVATE ${AIPDF_PDFIUM_INCLUDE_DIR})
+set_target_properties(AiPanelTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AiPanelTests)
+aipdf_deploy_pdfium(AiPanelTests)
+
+add_test(NAME AiPanelTests COMMAND AiPanelTests)

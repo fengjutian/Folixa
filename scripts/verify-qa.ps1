@@ -199,20 +199,21 @@ function Wait-AiPdfEnabled {
     return $null
 }
 
-# 切换一个可勾选按钮（范围切换）。
+# 把范围切到「整篇文档」，并**确认真的切过去了**。
 #
 # 可勾选的 QPushButton 在 UI Automation 里暴露的是 TogglePattern，
 # 不是 InvokePattern——用 Invoke 调它会静默什么也不做。
-# 先试 Toggle，没有就退回真实鼠标点击。
-function Toggle-AiPdfCheckable {
+# 而且 TogglePattern 只保证「勾选状态变了」，不保证应用收到了通知，
+# 所以这里以界面上的可见状态为准：范围标签必须写明「整篇文档」。
+function Set-AiPdfDocumentScope {
     param(
         [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
-        [Parameter(Mandatory = $true)][string]$IdPattern,
         [int]$TimeoutSeconds = 10
     )
-    $element = Wait-AiPdfEnabled -Process $Process -IdPattern $IdPattern -TimeoutSeconds $TimeoutSeconds
+    $element = Wait-AiPdfEnabled -Process $Process -IdPattern '*aiScopeDocumentButton*' `
+        -TimeoutSeconds $TimeoutSeconds
     if (-not $element) {
-        Write-Host "    没找到可用的 AutomationId：$IdPattern" -ForegroundColor DarkGray
+        Write-Host '    没找到「整篇文档」范围按钮' -ForegroundColor DarkGray
         return $false
     }
     try {
@@ -221,18 +222,23 @@ function Toggle-AiPdfCheckable {
                 [System.Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
             $pattern.Toggle()
             Start-Sleep -Milliseconds 400
-            return $true
         }
     } catch {
         # 元素可能刚好失效：退回鼠标点击。
     }
+    $label = Get-AiPdfLabelText -Process $Process -IdPattern '*aiScopeLabel*'
+    if ($label -match '整篇文档') {
+        return $true
+    }
+    # 没生效：退回真实鼠标点击（真实点击会同时发 clicked 与 toggled）。
     Set-AiPdfWindowTopmost -Process $Process -Enable $true | Out-Null
     Set-AiPdfForeground -Process $Process | Out-Null
     $bounds = $element.Current.BoundingRectangle
     Invoke-AiPdfMouseClick -X ([int]($bounds.Left + $bounds.Width / 2)) `
         -Y ([int]($bounds.Top + $bounds.Height / 2))
     Start-Sleep -Milliseconds 400
-    return $true
+    $label = Get-AiPdfLabelText -Process $Process -IdPattern '*aiScopeLabel*'
+    return ($label -match '整篇文档')
 }
 
 # 按控件名字点按钮（AutomationId 找不到时用）。
@@ -485,7 +491,7 @@ try {
     Test-Check 'AI 面板已打开' $opened ''
 
     # 切到「整篇文档」范围。
-    $switched = Toggle-AiPdfCheckable -Process $app -IdPattern '*aiScopeDocumentButton*'
+    $switched = Set-AiPdfDocumentScope -Process $app
     Test-Check '切到「整篇文档」范围' $switched ''
     # 范围切换要真的生效：范围标签会写明这一次问的是整篇文档。
     $scopeText = Get-AiPdfLabelText -Process $app -IdPattern '*aiScopeLabel*'
@@ -584,7 +590,7 @@ try {
     $opened = Open-AiPanel -Process $app
     Test-Check 'AI 面板已打开' $opened ''
 
-    $null = Toggle-AiPdfCheckable -Process $app -IdPattern '*aiScopeDocumentButton*'
+    $null = Set-AiPdfDocumentScope -Process $app
     $input = Wait-AiPdfElementById -Process $app -IdPattern '*aiPromptInput*' -TimeoutSeconds 5
     if ($input) {
         $null = Set-AiPdfElementText -Element $input -Text 'Folixa 出现在哪些地方'

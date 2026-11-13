@@ -214,13 +214,23 @@ void AiPanel::buildUi() {
     connect(prompt_, &QLineEdit::returnPressed, this, [this]() {
         requestAsk(prompt_->text());
     });
-    connect(scopeGroup_, &QButtonGroup::buttonClicked, this, [this](QAbstractButton* button) {
-        if (button == scopeDocumentButton_) {
-            setScope(Scope::WholeDocument);
-        } else {
-            setScope(Scope::CurrentPage);
-        }
-    });
+    // 范围切换：听 **toggled**，不听 clicked。
+    //
+    // QButtonGroup::buttonClicked 只在真实点击时发出；
+    // 程序化 toggle（界面自动化的 TogglePattern 走的就是这条路）
+    // 只发 toggled —— 听 clicked 的话，范围就切不过去，
+    // 提问还是按当前页走。
+    connect(scopeGroup_, &QButtonGroup::buttonToggled, this,
+            [this](QAbstractButton* button, bool checked) {
+                if (!checked) {
+                    return;
+                }
+                if (button == scopeDocumentButton_) {
+                    setScope(Scope::WholeDocument);
+                } else {
+                    setScope(Scope::CurrentPage);
+                }
+            });
     // 引用链接：点了跳到原文并高亮那一块。
     connect(conversation_, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
         if (url.scheme() != QLatin1String("citation")) {
