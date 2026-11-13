@@ -14,9 +14,9 @@
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#E7EDFA"/>
     </linearGradient>
-    <linearGradient id="fold" x1="566" y1="170" x2="716" y2="320" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#B7A0F7"/>
-      <stop offset="1" stop-color="#7556DB"/>
+    <linearGradient id="fold" x1="551" y1="170" x2="716" y2="335" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C9B7FB"/>
+      <stop offset="1" stop-color="#7B5CE0"/>
     </linearGradient>
     <filter id="pageShadow" x="150" y="80" width="740" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#0A1230" flood-opacity="0.34"/>
@@ -30,10 +30,10 @@
   </g>
 
   <g filter="url(#pageShadow)">
-    <path d="M294 170 H566 L716 320 V808 A46 46 0 0 1 670 854 H294 A46 46 0 0 1 248 808 V216 A46 46 0 0 1 294 170 Z" fill="url(#page)"/>
+    <path d="M294 170 H551 L716 335 V808 A46 46 0 0 1 670 854 H294 A46 46 0 0 1 248 808 V216 A46 46 0 0 1 294 170 Z" fill="url(#page)"/>
   </g>
 
-  <path d="M566 170 L716 320 H566 Z" fill="url(#fold)"/>
+  <path d="M551 170 L716 335 H551 Z" fill="url(#fold)"/>
 
   <g stroke="#C9D5EE" stroke-width="34" stroke-linecap="round">
     <path d="M310 470 H610"/>
