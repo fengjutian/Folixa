@@ -59,9 +59,10 @@ QPushButton:hover, QToolButton:hover { background: #F5F8FD; border-color: #C3D0F
 QPushButton:pressed, QToolButton:pressed { background: #E9F0FB; border-color: #9FB4EF; }
 QPushButton:focus, QToolButton:focus, QLineEdit:focus { border-color: #5277E8; }
 QPushButton:disabled { color: #AAB2C0; background: #F7F8FA; }
-/* 纯图标按钮（搜索面板的上一条 / 下一条）：去掉文字内边距，压成 32px 见方。 */
+/* 纯图标按钮（搜索面板的上一条 / 下一条）：去掉文字内边距，压成 32px 见方。
+   30 + 左右各 1px 边框 = 32，比邻的文字按钮一样高，行里不会一高一低。 */
 QPushButton[iconOnly="true"] {
-    padding: 0; min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+    padding: 0; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px;
 }
 QPushButton[iconOnly="true"]:disabled { background: #F7F8FA; }
 QPushButton#primaryButton {
