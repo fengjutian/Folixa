@@ -4,9 +4,12 @@
 #include "app/DocumentQaController.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
+#include "app/UploadPreviewDialog.h"
+#include "ai/AuditLog.h"
 #include "ai/ChatTypes.h"
 #include "ai/CredentialStore.h"
 #include "ai/ProviderConfig.h"
+#include "ai/UploadPreview.h"
 #include "ipc/WorkerClient.h"
 
 #include <QButtonGroup>
@@ -561,6 +564,19 @@ void AiPanel::sendDocumentQa(const QString& question) {
     appendMessage(tr("<div class='scope'>▸ 本次发送：%1</div>").arg(scope.toHtmlEscaped()));
     trace(QStringLiteral("ai qa scope blocks=%1 chars=%2").arg(context.size()).arg(characters));
 
+    // 云端请求前的隐私确认：本地模式在这里就被拒，片段/页面模式弹预览。
+    ai::DataScope policyScope;
+    policyScope.chunkCount = context.size();
+    policyScope.charCount = characters;
+    policyScope.hasExplicitPageSelection = true;
+    QVector<int> pages;
+    for (const ai::ContextBlock& block : context) {
+        pages.append(block.pageNumber);
+    }
+    if (!confirmCloudUpload(policyScope, pages, QStringLiteral("qa"))) {
+        return;
+    }
+
     appendMessage(tr("<div class='user'>%1</div>").arg(question.toHtmlEscaped()));
     prompt_->clear();
 
@@ -612,6 +628,49 @@ void AiPanel::sendDocumentQa(const QString& question) {
     setBusy(true);
 }
 
+bool AiPanel::confirmCloudUpload(const ai::DataScope& scope,
+                                 const QVector<int>& pages,
+                                 const QString& task) {
+    const ai::ProviderConfig config = ai::ProviderConfig::load();
+    const ai::DataMode mode = config.effectiveDataMode();
+
+    // 演示 Provider 根本不联网：不需要预览，也不该写一条「云端请求」的审计。
+    const bool cloud = ai::mayUseCloud(mode) &&
+                       config.providerId == QLatin1String("openai") && config.hasCredential();
+    if (!cloud) {
+        return true;
+    }
+
+    const ai::UploadPreview preview = ai::buildUploadPreview(config, scope, pages);
+    bool allowed = preview.decision.allowed;
+    if (!allowed) {
+        appendMessage(tr("<b>没有发送：</b>%1").arg(preview.decision.reason.toHtmlEscaped()));
+        trace(QStringLiteral("ai upload blocked mode=%1 reason=%2")
+                  .arg(ai::dataModeId(mode), preview.decision.reason));
+    } else {
+        UploadPreviewDialog dialog(preview, this);
+        allowed = dialog.exec() == QDialog::Accepted;
+        trace(QStringLiteral("ai upload %1 mode=%2 host=%3 chunks=%4 chars=%5")
+                  .arg(allowed ? QStringLiteral("confirmed") : QStringLiteral("cancelled"),
+                       ai::dataModeId(mode),
+                       preview.host)
+                  .arg(scope.chunkCount)
+                  .arg(scope.charCount));
+    }
+
+    // 审计只记元数据：谁在什么模式下、发了多少、发到哪、允不允许。
+    ai::AuditEntry entry;
+    entry.time = QDateTime::currentDateTimeUtc();
+    entry.mode = ai::dataModeId(mode);
+    entry.task = task;
+    entry.chunkCount = scope.chunkCount;
+    entry.charCount = scope.charCount;
+    entry.host = preview.host;
+    entry.allowed = allowed;
+    ai::appendAudit(entry);
+    return allowed;
+}
+
 void AiPanel::ensureTextThenRun(const QString& task, const QString& question) {
     if (workerClient_ == nullptr) {
         appendMessage(tr("<b>错误：</b>AI 服务还没连上。"));
@@ -656,7 +715,6 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     if (workerClient_ == nullptr) {
         return;
     }
-
     // 材料：摘要与提问用当前页，解释与翻译用当前选区。
     QString material;
     if (task == QLatin1String("explain") || task == QLatin1String("translate")) {
@@ -689,6 +747,15 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
               .arg(currentPage_ + 1)
               .arg(material.size())
               .arg(task));
+
+    // 云端请求前的隐私确认：本地模式在这里就被拒，片段/页面模式弹预览。
+    ai::DataScope policyScope;
+    policyScope.chunkCount = 1;  // 一次发送一个文本块（当前页或当前选区）
+    policyScope.charCount = material.size();
+    policyScope.hasExplicitPageSelection = true;
+    if (!confirmCloudUpload(policyScope, QVector<int>{currentPage_ + 1}, task)) {
+        return;
+    }
 
     // 提示词由共享的构造器生成（app 与 Worker 用同一套）。
     QJsonArray messages;
@@ -746,7 +813,8 @@ void AiPanel::openSettings() {
                        current.hasCredential(),
                        current.inputPricePerMillion,
                        current.outputPricePerMillion,
-                       current.timeoutMs);
+                       current.timeoutMs,
+                       current.dataMode);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
@@ -758,6 +826,8 @@ void AiPanel::openSettings() {
     updated.inputPricePerMillion = dialog.inputPricePerMillion();
     updated.outputPricePerMillion = dialog.outputPricePerMillion();
     updated.timeoutMs = dialog.timeoutMs();
+    // 数据策略：未知值在这里就被归一成 local（dataModeFromId 的兜底）。
+    updated.dataMode = ai::dataModeId(ai::dataModeFromId(dialog.dataMode()));
 
     // 密钥单独处理：只进凭据管理器，不进配置文件、不进日志。
     const QString target =

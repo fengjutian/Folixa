@@ -34,6 +34,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/AiPanel.cpp
     app/AiSettingsDialog.h
     app/AiSettingsDialog.cpp
+    app/UploadPreviewDialog.h
+    app/UploadPreviewDialog.cpp
     app/IndexController.h
     app/IndexController.cpp
     app/IndexPanel.h
@@ -62,6 +64,8 @@ qt_add_executable(AiPdfEditor WIN32
     ai/CredentialStore.h
     ai/ProviderConfig.cpp
     ai/ProviderConfig.h
+    ai/UploadPreview.cpp
+    ai/UploadPreview.h
     ai/DataPolicy.cpp
     ai/DataPolicy.h
     ai/AuditLog.cpp

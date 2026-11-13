@@ -45,6 +45,16 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     providerCombo_->addItem(tr("OpenAI 兼容（云端模型）"),
                             QString::fromLatin1(kProviderOpenAi));
 
+    // 数据策略（v0.12.0）：决定文档内容能不能离开本机、离开多少。
+    dataModeCombo_ = new QComboBox(this);
+    dataModeCombo_->setObjectName(QStringLiteral("aiSettingsDataMode"));
+    dataModeCombo_->addItem(tr("本地（文档内容不出本机）"), QStringLiteral("local"));
+    dataModeCombo_->addItem(tr("片段云端（只送当前页/选区或检索块）"), QStringLiteral("chunks"));
+    dataModeCombo_->addItem(tr("选定页面（只送勾选的页）"), QStringLiteral("pages"));
+    dataModeHint_ = new QLabel(this);
+    dataModeHint_->setObjectName(QStringLiteral("aiSettingsDataModeHint"));
+    dataModeHint_->setWordWrap(true);
+
     baseUrlEdit_ = new QLineEdit(this);
     baseUrlEdit_->setObjectName(QStringLiteral("aiSettingsBaseUrl"));
     baseUrlEdit_->setPlaceholderText(QStringLiteral("https://api.openai.com/v1"));
@@ -86,6 +96,8 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
 
     auto* form = new QFormLayout;
     form->addRow(tr("服务商"), providerCombo_);
+    form->addRow(tr("数据模式"), dataModeCombo_);
+    form->addRow(QString(), dataModeHint_);
     form->addRow(tr("服务地址"), baseUrlEdit_);
     form->addRow(tr("模型"), modelEdit_);
     form->addRow(tr("API 密钥"), apiKeyEdit_);
@@ -123,6 +135,9 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(providerCombo_, &QComboBox::currentIndexChanged, this,
             [this](int) { updateEnabledState(); });
+    connect(dataModeCombo_, &QComboBox::currentIndexChanged, this,
+            [this](int) { updateDataModeHint(); });
+    updateDataModeHint();
 }
 
 void AiSettingsDialog::applyConfig(const QString& providerId,
@@ -131,10 +146,13 @@ void AiSettingsDialog::applyConfig(const QString& providerId,
                                    bool hasKey,
                                    double inputPricePerMillion,
                                    double outputPricePerMillion,
-                                   int timeoutMs) {
+                                   int timeoutMs,
+                                   const QString& dataMode) {
     hasKey_ = hasKey;
     const int index = providerCombo_->findData(providerId);
     providerCombo_->setCurrentIndex(index >= 0 ? index : 0);
+    const int modeIndex = dataModeCombo_->findData(dataMode);
+    dataModeCombo_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 1);
     baseUrlEdit_->setText(baseUrl);
     modelEdit_->setText(model);
     inputPrice_->setValue(inputPricePerMillion);
@@ -144,6 +162,21 @@ void AiSettingsDialog::applyConfig(const QString& providerId,
     apiKeyEdit_->clear();
     clearKeyBox_->setChecked(false);
     updateEnabledState();
+    updateDataModeHint();
+}
+
+void AiSettingsDialog::updateDataModeHint() {
+    if (dataModeHint_ == nullptr) {
+        return;
+    }
+    const QString mode = dataModeCombo_->currentData().toString();
+    if (mode == QLatin1String("local")) {
+        dataModeHint_->setText(tr("文档内容一律不出本机；即使配了密钥也只用本地演示模型。"));
+    } else if (mode == QLatin1String("pages")) {
+        dataModeHint_->setText(tr("只发送你在预览里确认过的页；发送前会显示页码与字数。"));
+    } else {
+        dataModeHint_->setText(tr("只发送当前页、选区或检索到的几块；发送前会显示范围。"));
+    }
 }
 
 void AiSettingsDialog::updateEnabledState() {
@@ -168,6 +201,10 @@ void AiSettingsDialog::updateEnabledState() {
 
 QString AiSettingsDialog::providerId() const {
     return providerCombo_->currentData().toString();
+}
+
+QString AiSettingsDialog::dataMode() const {
+    return dataModeCombo_->currentData().toString();
 }
 
 QString AiSettingsDialog::baseUrl() const {

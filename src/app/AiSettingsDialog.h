@@ -32,9 +32,12 @@ public:
                      bool hasKey,
                      double inputPricePerMillion,
                      double outputPricePerMillion,
-                     int timeoutMs);
+                     int timeoutMs,
+                     const QString& dataMode = QStringLiteral("chunks"));
 
     QString providerId() const;
+    // 数据策略：local / chunks / pages。
+    QString dataMode() const;
     QString baseUrl() const;
     QString model() const;
     // 用户这次新填的密钥。留空表示「不修改已存的密钥」。
@@ -48,8 +51,13 @@ public:
 private:
     // 演示模式时把联网相关字段灰掉：填了也没用，容易误导。
     void updateEnabledState();
+    // 数据模式下方的说明：每种模式会把什么送出去。
+    void updateDataModeHint();
 
     QComboBox* providerCombo_ = nullptr;
+    // 数据策略：本地 / 片段云端 / 选定页面。
+    QComboBox* dataModeCombo_ = nullptr;
+    QLabel* dataModeHint_ = nullptr;
     QLineEdit* baseUrlEdit_ = nullptr;
     QLineEdit* modelEdit_ = nullptr;
     QLineEdit* apiKeyEdit_ = nullptr;

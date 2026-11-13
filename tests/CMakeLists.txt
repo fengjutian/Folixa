@@ -477,6 +477,10 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.h
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.h
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.h
