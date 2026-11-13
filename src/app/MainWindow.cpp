@@ -407,37 +407,6 @@ void MainWindow::buildUi() {
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
-    // TEMP diagnostics
-    auto traceNavGeometry = [this, navigation, rail, navigationPages]() {
-        trace(QStringLiteral("navgeo dock=%1,%2 %3x%4 content=%5,%6 %7x%8 rail=%9,%10 %11x%12 pages=%13,%14 %15x%16 pagesVisible=%17 index=%18 list=%19,%20 %21x%22 listVisible=%23 dir=%24")
-                  .arg(navigationDock_->mapTo(this, QPoint(0, 0)).x())
-                  .arg(navigationDock_->mapTo(this, QPoint(0, 0)).y())
-                  .arg(navigationDock_->width())
-                  .arg(navigationDock_->height())
-                  .arg(navigation->mapTo(this, QPoint(0, 0)).x())
-                  .arg(navigation->mapTo(this, QPoint(0, 0)).y())
-                  .arg(navigation->width())
-                  .arg(navigation->height())
-                  .arg(rail->mapTo(this, QPoint(0, 0)).x())
-                  .arg(rail->mapTo(this, QPoint(0, 0)).y())
-                  .arg(rail->width())
-                  .arg(rail->height())
-                  .arg(navigationPages->mapTo(this, QPoint(0, 0)).x())
-                  .arg(navigationPages->mapTo(this, QPoint(0, 0)).y())
-                  .arg(navigationPages->width())
-                  .arg(navigationPages->height())
-                  .arg(navigationPages->isVisible() ? 1 : 0)
-                  .arg(navigationPages->currentIndex())
-                  .arg(pagesList_->mapTo(this, QPoint(0, 0)).x())
-                  .arg(pagesList_->mapTo(this, QPoint(0, 0)).y())
-                  .arg(pagesList_->width())
-                  .arg(pagesList_->height())
-                  .arg(pagesList_->isVisible() ? 1 : 0)
-                  .arg(static_cast<int>(navigationPages->layoutDirection())));
-    };
-    auto* navDiag = new QTimer(this);
-    connect(navDiag, &QTimer::timeout, this, traceNavGeometry);
-    navDiag->start(500);
     // 菜单在导航面板创建后补齐切换动作。
     // 按文本找而不是按下标：菜单里增删条目会挪动下标。
     const QList<QAction*> appMenuActions = appMenu->actions();
@@ -1337,13 +1306,14 @@ void MainWindow::setNavigationExpanded(bool expanded) {
     // QMainWindow 在窗口尺寸变化/布局重算时会重新分配，空面板又会被撑开，
     // rail 就飘在一条 300 多像素的空条中间。
     if (expanded) {
-        navigationDock_->setMinimumWidth(52);
-        navigationDock_->setMaximumWidth(QWIDGETSIZE_MAX);
         if (QWidget* content = navigationDock_->widget()) {
             content->setMinimumWidth(0);
             content->setMaximumWidth(QWIDGETSIZE_MAX);
         }
         resizeDocks({navigationDock_}, {224}, Qt::Horizontal);
+        // 宽度钉死：只给 resizeDocks 的话，QMainWindow 会把「页签内容的最小宽度」
+        // 一起算进去（实测留下 400px 的框、却只用了 320px），页面整体被推右。
+        navigationDock_->setFixedWidth(280);
     } else {
         resizeDocks({navigationDock_}, {52}, Qt::Horizontal);
         navigationDock_->setFixedWidth(52);
@@ -1351,10 +1321,6 @@ void MainWindow::setNavigationExpanded(bool expanded) {
             content->setFixedWidth(52);
         }
     }
-    trace(QStringLiteral("nav expand=%1 maxW=%2 width=%3")
-              .arg(expanded ? 1 : 0)
-              .arg(navigationDock_->maximumWidth())
-              .arg(navigationDock_->width()));
 }
 
 void MainWindow::positionFloatingUi() {

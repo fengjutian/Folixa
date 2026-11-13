@@ -70,12 +70,19 @@ void AiPanelTests::programmaticToggleAlsoSwitchesScope() {
     AiPanel panel;
     QAbstractButton* document = findWidget<QAbstractButton>(&panel,
                                                            QStringLiteral("aiScopeDocumentButton"));
+    QAbstractButton* page = findWidget<QAbstractButton>(&panel,
+                                                        QStringLiteral("aiScopePageButton"));
     QVERIFY(document != nullptr);
+    QVERIFY(page != nullptr);
 
     document->setChecked(true);
     QCOMPARE(panel.scope(), AiPanel::Scope::WholeDocument);
 
-    document->setChecked(false);
+    // 切回「当前页」要去选另一个按钮，而不是取消勾选 document：
+    // 两个按钮在同一个互斥 QButtonGroup 里，唯一被选中的那个
+    // setChecked(false) 会被 Qt 直接忽略（单选按钮本来就不允许取消选中）。
+    // 界面自动化的 TogglePattern 也是这个语义：切范围 = 选中另一个。
+    page->setChecked(true);
     QCOMPARE(panel.scope(), AiPanel::Scope::CurrentPage);
 }
 
