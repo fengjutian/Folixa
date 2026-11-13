@@ -135,6 +135,11 @@ public:
     // 当前历史的序列化命令（恢复日志用）：按执行顺序。
     QVector<QByteArray> serializedHistory() const;
 
+    // 执行一条命令并入撤销栈（恢复日志重放用）。
+    //
+    // 与用户操作走同一条路：命令进栈、能撤销、也重新记一次恢复日志。
+    bool applyCommand(std::unique_ptr<doc::EditCommand> command);
+
 signals:
     // 某页的批注有变化。
     void annotationsChanged(int pageIndex);

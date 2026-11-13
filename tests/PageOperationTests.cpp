@@ -87,6 +87,7 @@ private slots:
     void rewriteDoesNotDuplicateAnnotations();
     void safeSaveWritesValidFile();
     void safeSaveKeepsOriginalOnBadPayload();
+    void safeSaveKeepsOriginalOnReadOnlyTarget();
     void safeSaveCreatesBackup();
 };
 
@@ -317,6 +318,48 @@ void PageOperationTests::safeSaveKeepsOriginalOnBadPayload() {
     QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
     QCOMPARE(reopened.document.pageCount(), 3);
     QVERIFY(!QFile::exists(aipdf::doc::SafeSave::temporaryPathFor(target)));
+}
+
+void PageOperationTests::safeSaveKeepsOriginalOnReadOnlyTarget() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString target = directory.filePath(QStringLiteral("out.pdf"));
+
+    const auto result = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(result.document.isValid());
+    const QByteArray bytes = result.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+
+    // 先放一个能用的原文件。
+    QVERIFY(aipdf::doc::SafeSave::writeAtomically(target, bytes, 3, false).ok);
+    const QByteArray original = [&target]() {
+        QFile file(target);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QByteArray();
+        }
+        return file.readAll();
+    }();
+    QVERIFY(!original.isEmpty());
+
+    // 把原文件设成只读：替换它会被系统拒绝。
+    QFile::setPermissions(target, QFile::ReadOwner | QFile::ReadUser);
+
+    const aipdf::doc::SaveResult saved =
+        aipdf::doc::SafeSave::writeAtomically(target, bytes, 3, false);
+    // 只读目标要么写不进去，要么写进去的内容与原来一致——
+    // 无论如何，原文件不能变成半截坏文件。
+    if (!saved.ok) {
+        QVERIFY2(!saved.errorMessage.isEmpty(), "保存失败必须给出原因");
+    }
+    QFile file(target);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray after = file.readAll();
+    file.close();
+    QCOMPARE(after, original);
+    QVERIFY(!QFile::exists(aipdf::doc::SafeSave::temporaryPathFor(target)));
+
+    // 恢复权限，免得临时目录删不掉。
+    QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner);
 }
 
 void PageOperationTests::safeSaveCreatesBackup() {

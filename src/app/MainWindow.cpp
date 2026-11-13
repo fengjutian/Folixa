@@ -981,7 +981,7 @@ void MainWindow::checkRecovery() {
         if (restored == nullptr) {
             continue;
         }
-        if (restored->apply(view->annotationController())) {
+        if (view->annotationController()->applyCommand(std::move(restored))) {
             ++replayed;
         }
     }

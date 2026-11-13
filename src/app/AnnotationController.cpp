@@ -475,4 +475,15 @@ QVector<QByteArray> AnnotationController::serializedHistory() const {
     return undoStack_.serializedHistory();
 }
 
+bool AnnotationController::applyCommand(std::unique_ptr<doc::EditCommand> command) {
+    if (command == nullptr) {
+        return false;
+    }
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    emit undoStateChanged();
+    return true;
+}
+
 }  // namespace aipdf::app
