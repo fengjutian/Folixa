@@ -13,6 +13,9 @@ class QListWidgetItem;
 class QStackedWidget;
 class QButtonGroup;
 class QFrame;
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDropEvent;
 class QResizeEvent;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -41,10 +44,18 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    // 拖放打开：窗口任意位置松手都能收下 PDF，不必先找准落点。
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private:
     void buildUi();
+    // 只有欢迎页时把标签条整条收起来：一个标签的标签条只是浪费一行高度。
+    void syncTabBar();
     QWidget* createWelcomePage();
+    // 把刚打开的文件记到最近文档的最前面（去重、限量）。
+    void rememberRecentFile(const QString& filePath);
     QWidget* createNavigationEmptyState(const QString& title, const QString& description);
     QWidget* createPagesTab();
     QStackedWidget* createOutlineTab();

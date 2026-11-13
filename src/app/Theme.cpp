@@ -91,9 +91,17 @@ QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
 QStatusBar { background: #FFFFFF; color: #465267; border-top: 1px solid #E3E7EE; }
 QStatusBar::item { border: 0; }
 QLabel#emptyTitle { font-size: 22px; font-weight: 600; color: #202A3A; }
+QLabel#welcomeGreeting { color: #8792A3; font-size: 13px; }
 QLabel#emptyDescription { color: #8792A3; font-size: 13px; }
 QLabel#secondaryText { color: #8792A3; }
 QFrame#emptyCard { background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 14px; }
+QLabel#sectionLabel { color: #8792A3; font-size: 12px; font-weight: 600; padding-left: 2px; }
+QFrame#recentEmpty { background: #FBFCFE; border: 1px dashed #D7DDE8; border-radius: 12px; }
+QLabel#recentEmptyTitle { color: #465267; font-size: 13px; }
+QLabel#recentEmptyHint { color: #9AA3B4; font-size: 12px; }
+QPushButton#recentFileButton { text-align: left; padding: 9px 12px; background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 10px; color: #344156; }
+QPushButton#recentFileButton:hover { background: #F6F8FF; border-color: #C6D2F6; }
+QPushButton#recentFileButton:pressed { background: #EEF2FF; border-color: #9FB4EF; }
 QScrollBar:vertical { width: 10px; background: transparent; margin: 2px; }
 QScrollBar::handle:vertical { min-height: 30px; background: #CBD2DE; border-radius: 4px; }
 QScrollBar::handle:vertical:hover { background: #8792A3; }

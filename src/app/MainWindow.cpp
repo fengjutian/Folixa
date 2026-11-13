@@ -7,6 +7,8 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
+#include "app/BrandMark.h"
+#include "app/WelcomePage.h"
 #include "ipc/WorkerClient.h"
 #include "doc/EditCommand.h"
 #include "doc/RecoveryLog.h"
@@ -19,6 +21,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDropEvent>
 #include <QDateTime>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
@@ -35,6 +40,7 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -43,6 +49,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTime>
 #include <QTimer>
 #include <QTextDocument>
 #include <QToolBar>
@@ -51,6 +58,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -84,10 +92,47 @@ void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem
         addOutlineItems(node, item.children);
     }
 }
+
+// 欢迎页「最近文档」的上限：再多就把欢迎页撑成文件管理器的样子。
+constexpr int kMaxRecentFiles = 6;
+
+// 读最近文档。存的是绝对路径，但文件可能被删、被改名或被移走——
+// 列出来的每一项都要点得开，所以这里顺手把已经不存在的过滤掉。
+QStringList recentFilesFromSettings() {
+    const QStringList stored =
+        QSettings().value(QStringLiteral("startup/recentFiles")).toStringList();
+    QStringList available;
+    for (const QString& path : stored) {
+        if (!path.isEmpty() && QFileInfo::exists(path)) {
+            available.append(path);
+        }
+    }
+    return available;
+}
+
+// 从拖放数据里挑出 PDF 路径（其他类型一律不接）。
+QStringList droppedPdfPaths(const QMimeData* mimeData) {
+    QStringList paths;
+    if (mimeData == nullptr || !mimeData->hasUrls()) {
+        return paths;
+    }
+    for (const QUrl& url : mimeData->urls()) {
+        if (!url.isLocalFile()) {
+            continue;
+        }
+        const QString path = url.toLocalFile();
+        if (QFileInfo(path).suffix().compare(QStringLiteral("pdf"), Qt::CaseInsensitive) == 0) {
+            paths.append(path);
+        }
+    }
+    return paths;
+}
 }  // namespace
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), workerClient_(new ipc::WorkerClient(this)) {
+    // 欢迎页写着「把 PDF 拖到窗口里」，那窗口就得真的收得下。
+    setAcceptDrops(true);
     buildUi();
 
     connect(workerClient_, &ipc::WorkerClient::stateChanged,
@@ -126,8 +171,9 @@ void MainWindow::buildUi() {
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
     welcome->setProperty("welcomePage", true);
-    tabs->addTab(welcome, tr("欢迎"));
+    tabs->addTab(welcome, tr("欢迎页"));
     tabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+    syncTabBar();
     connect(tabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
         QWidget* page = tabs_->widget(index);
         if (page == nullptr || page->property("welcomePage").toBool()) {
@@ -138,9 +184,10 @@ void MainWindow::buildUi() {
         if (tabs_->count() == 0) {
             auto* welcomePage = createWelcomePage();
             welcomePage->setProperty("welcomePage", true);
-            tabs_->addTab(welcomePage, tr("欢迎"));
+            tabs_->addTab(welcomePage, tr("欢迎页"));
             tabs_->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
         }
+        syncTabBar();
     });
     setCentralWidget(tabs);
     tabs_ = tabs;
@@ -170,18 +217,15 @@ void MainWindow::buildUi() {
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
-    auto* brand = new QLabel(QStringLiteral("  F  "), commandBar);
-    brand->setObjectName(QStringLiteral("brandMark"));
-    brand->setToolTip(tr("Folixa 文档工作区"));
-    commandBar->addWidget(brand);
+    commandBar->setIconSize(QSize(20, 20));
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setText(QStringLiteral("☰"));
     appMenuButton->setToolTip(tr("主菜单"));
     // 不挂 setMenu：带菜单的 QToolButton 会为右侧的菜单箭头预留宽度，
     // 样式表里的 max-width 压不住它（实测被撑到 60 多像素，看着像 ☰ 和 ▾
-    // 两个控件并排）。这里自己弹菜单，按钮就老老实实是 34px。
-    appMenuButton->setFixedSize(34, 34);
+    // 两个控件并排）。这里自己弹菜单，按钮就老老实实是 32px。
+    appMenuButton->setFixedSize(32, 32);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
@@ -198,6 +242,13 @@ void MainWindow::buildUi() {
         appMenu->popup(appMenuButton->mapToGlobal(QPoint(0, appMenuButton->height())));
     });
     commandBar->addWidget(appMenuButton);
+    // 品牌标记：图标 + 文字，让窗口第一眼有名字，而不是一个孤零零的色块。
+    auto* brandMark = new BrandMark(24, commandBar);
+    brandMark->setToolTip(tr("Folixa 文档工作区"));
+    commandBar->addWidget(brandMark);
+    auto* brandWordmark = new QLabel(QStringLiteral("Folixa"), commandBar);
+    brandWordmark->setObjectName(QStringLiteral("brandWordmark"));
+    commandBar->addWidget(brandWordmark);
     connect(findAction, &QAction::triggered, this, [this]() {
         trace(QStringLiteral("open search panel"));
         navigationDock_->setVisible(true);
@@ -268,6 +319,9 @@ void MainWindow::buildUi() {
     commandBar->addWidget(commandSpacer);
     auto* aiAction = commandBar->addAction(tr("✦ AI 助手"));
     aiAction->setObjectName(QStringLiteral("aiCommand"));
+    if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
+        aiButton->setObjectName(QStringLiteral("aiCommandButton"));
+    }
 
     navigationDock_ = new QDockWidget(tr("导航"), this);
     navigationDock_->setObjectName(QStringLiteral("navigationDock"));
@@ -620,44 +674,27 @@ void MainWindow::buildUi() {
 }
 
 QWidget* MainWindow::createWelcomePage() {
-    auto* page = new QWidget(this);
-    auto* outer = new QVBoxLayout(page);
-    outer->setContentsMargins(48, 48, 48, 48);
-    outer->addStretch();
-
-    auto* card = new QFrame(page);
-    card->setObjectName(QStringLiteral("emptyCard"));
-    // 固定卡片宽度，别让外层布局在“按 sizeHint 还是按 heightForWidth”之间摇摆：
-    // QLabel 开了 wordWrap 时 sizeHint 给的是「一行高、很长」，卡片又只给了
-    // 居中对齐，结果标签拿到的高度不够，三行字被裁成上下各半个字。
-    card->setFixedWidth(520);
-    auto* layout = new QVBoxLayout(card);
-    layout->setContentsMargins(48, 44, 48, 44);
-    layout->setSpacing(14);
-
-    auto* title = new QLabel(tr("Folixa"), card);
-    title->setObjectName(QStringLiteral("emptyTitle"));
-    title->setAlignment(Qt::AlignCenter);
-    auto* description = new QLabel(
-        tr("专注阅读，也为文档智能留出恰到好处的空间。\n打开 PDF 开始浏览。"), card);
-    description->setObjectName(QStringLiteral("emptyDescription"));
-    description->setAlignment(Qt::AlignCenter);
-    description->setWordWrap(true);
-    // 再兜一层：按三行留高度。中文与英文混排时换行位置不稳定，
-    // 宁可多留一点空白，也不要让文字被裁掉半行。
-    description->setMinimumHeight(description->fontMetrics().lineSpacing() * 3);
-    auto* openButton = new QPushButton(tr("打开 PDF"), card);
-    openButton->setObjectName(QStringLiteral("primaryButton"));
-    openButton->setMinimumHeight(40);
-    connect(openButton, &QPushButton::clicked, this, &MainWindow::openPdfDialog);
-
-    layout->addWidget(title);
-    layout->addWidget(description);
-    layout->addSpacing(8);
-    layout->addWidget(openButton, 0, Qt::AlignCenter);
-    outer->addWidget(card, 0, Qt::AlignCenter);
-    outer->addStretch();
+    // 视觉全部在 WelcomePage 里，主窗口只负责给数据和接动作：
+    // 打开对话框走 openPdfDialog，最近文档直接交给 openPdfFile。
+    auto* page = new WelcomePage(recentFilesFromSettings(), this);
+    page->setProperty("welcomePage", true);
+    connect(page, &WelcomePage::openPdfRequested, this, &MainWindow::openPdfDialog);
+    connect(page, &WelcomePage::recentFileRequested, this, &MainWindow::openPdfFile);
     return page;
+}
+
+void MainWindow::rememberRecentFile(const QString& filePath) {
+    const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
+    if (absolutePath.isEmpty()) {
+        return;
+    }
+    QStringList files = recentFilesFromSettings();
+    files.removeAll(absolutePath);
+    files.prepend(absolutePath);
+    while (files.size() > kMaxRecentFiles) {
+        files.removeLast();
+    }
+    QSettings().setValue(QStringLiteral("startup/recentFiles"), files);
 }
 
 QWidget* MainWindow::createNavigationEmptyState(const QString& titleText,
@@ -1251,6 +1288,36 @@ void MainWindow::highlightThumbnail(int pageIndex) {
     trace(QStringLiteral("thumbnail current page=%1").arg(pageIndex));
 }
 
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (droppedPdfPaths(event->mimeData()).isEmpty()) {
+        return;
+    }
+    event->acceptProposedAction();
+    // 只在状态栏给一句提示：拖动过程中弹出遮罩或对话框都会打断手势。
+    statusBar()->showMessage(tr("松开即可打开 PDF"));
+}
+
+void MainWindow::dragLeaveEvent(QDragLeaveEvent* event) {
+    QMainWindow::dragLeaveEvent(event);
+    // 只在等一次拖放时清提示，别把「第 3 页」这类常驻消息也抹掉。
+    if (statusBar()->currentMessage() == tr("松开即可打开 PDF")) {
+        statusBar()->clearMessage();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+    const QStringList paths = droppedPdfPaths(event->mimeData());
+    if (paths.isEmpty()) {
+        return;
+    }
+    event->acceptProposedAction();
+    statusBar()->clearMessage();
+    trace(QStringLiteral("drop files=%1").arg(paths.size()));
+    for (const QString& path : paths) {
+        openPdfFile(path);
+    }
+}
+
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     // 这里布局还没重排完，tabs_->width() 还是旧值：直接摆会把浮层留在旧位置，
@@ -1381,6 +1448,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
 
     auto* view = new PdfView(this);
     view->setDocument(result.document, filePath);
+    // 打开成功才记：密码错、文件损坏的不该出现在「最近文档」里。
+    rememberRecentFile(filePath);
     const QString title = QFileInfo(filePath).fileName();
     if (tabs_->count() == 1 && tabs_->widget(0)->property("welcomePage").toBool()) {
         QWidget* welcome = tabs_->widget(0);
