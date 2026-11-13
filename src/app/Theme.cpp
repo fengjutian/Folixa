@@ -49,7 +49,9 @@ QToolBar#commandBar QToolButton#aiCommandButton:hover { background: #EFE8FF; bor
 QLabel#brandWordmark { font-size: 13px; font-weight: 700; color: #1B2432; padding: 0 4px 0 9px; }
 
 /* -------------------------------------------------------------- 按钮 -- */
-QPushButton, QToolButton {
+/* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
+   留着它还会在 32px 的按钮里挤出一块空白。 */
+QToolBar#commandBar QToolButton#appMenuButton::menu-indicator { image: none; width: 0; height: 0; }QPushButton, QToolButton {
     min-height: 30px; padding: 0 12px; border: 1px solid #E3E7EE;
     border-radius: 8px; background: #FFFFFF;
 }

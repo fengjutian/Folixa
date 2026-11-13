@@ -224,9 +224,10 @@ void MainWindow::buildUi() {
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setText(QStringLiteral("☰"));
     appMenuButton->setToolTip(tr("主菜单"));
-    // 不挂 setMenu：带菜单的 QToolButton 会为右侧的菜单箭头预留宽度，
-    // 样式表里的 max-width 压不住它（实测被撑到 60 多像素，看着像 ☰ 和 ▾
-    // 两个控件并排）。这里自己弹菜单，按钮就老老实实是 32px。
+    // 必须走 setMenu：菜单里的「查找…」靠 QAction 快捷键（Ctrl+F）生效，
+    // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
+    // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
+    appMenuButton->setPopupMode(QToolButton::InstantPopup);
     appMenuButton->setFixedSize(32, 32);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
@@ -240,9 +241,7 @@ void MainWindow::buildUi() {
     appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
     appMenu->addSeparator();
     appMenu->addAction(tr("退出"), this, &QWidget::close);
-    connect(appMenuButton, &QToolButton::clicked, this, [appMenuButton, appMenu] {
-        appMenu->popup(appMenuButton->mapToGlobal(QPoint(0, appMenuButton->height())));
-    });
+    appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
     // 品牌标记：图标 + 文字，让窗口第一眼有名字，而不是一个孤零零的色块。
     auto* brandMark = new BrandMark(24, commandBar);
@@ -645,9 +644,11 @@ void MainWindow::buildUi() {
     aiDock_->hide();
     navigationPages_->hide();
     QTimer::singleShot(0, this, [this] {
-        // 启动时统一回到「收起」形态。以前这里无条件 show() 再 resizeDocks(52)，
-        // 但 dock 刚从隐藏变可见时 resizeDocks 会被随后的布局覆盖，
-        // 结果留下一条 300 多像素的空面板、rail 飘在中间，欢迎页也跟着偏右。
+        // 导航栏是核心界面，启动时一律显示：如果这里去「尊重上次关闭状态」，
+        // 探针设置里残留的 navigationVisible=false 会让后续验收找不到 rail
+        // 按钮，隐藏后面板也会改变画布偏移、拖垮依赖坐标的验收用例。
+        // 收起形态的宽度问题由 setNavigationExpanded 负责。
+        navigationDock_->show();
         setNavigationExpanded(false);
         positionFloatingUi();
     });
