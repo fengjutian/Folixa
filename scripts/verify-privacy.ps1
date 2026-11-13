@@ -31,6 +31,15 @@ function Test-Check {
 }
 
 $exe = Join-Path $BuildDir 'AiPdfEditor.exe'
+$fixtureDir = Join-Path $PSScriptRoot '..\build\pdf-fixtures'
+$PdfFixture = Join-Path $fixtureDir 'text.pdf'
+if (-not (Test-Path -LiteralPath $PdfFixture)) {
+    $generator = Join-Path $PSScriptRoot 'generate-test-pdfs.py'
+    if (Test-Path -LiteralPath $generator) {
+        $python = (Get-Command python -ErrorAction SilentlyContinue).Source
+        if ($python) { & $python $generator $fixtureDir --quiet | Out-Null }
+    }
+}
 Test-Check '主程序可执行文件存在' (Test-Path -LiteralPath $exe) $exe
 
 $dataDir = Join-Path ([System.IO.Path]::GetTempPath()) ('aipdf-privacy-' + [guid]::NewGuid().ToString('N'))
@@ -61,7 +70,9 @@ function Write-AiConfig {
 }
 
 function Start-AcceptanceApp {
-    $app = Start-Process -FilePath $exe -PassThru
+    param([string]$PdfFixture)
+    # 必须带一份文档启动：没有文档就没有「当前页文本」，提问会停在「没有文本层」。
+    $app = Start-Process -FilePath $exe -ArgumentList "`"$PdfFixture`"" -PassThru
     $window = $null
     $deadline = (Get-Date).AddSeconds(20)
     while ((Get-Date) -lt $deadline) {
@@ -75,9 +86,14 @@ function Start-AcceptanceApp {
 
 function Open-AiPanel {
     param([System.Diagnostics.Process]$App)
-    $floating = Wait-AiPdfElementById -Process $App -IdPattern '*aiFloatingButton*' -TimeoutSeconds 10
-    if (-not $floating) { return $false }
-    Invoke-AiPdfElement -Element $floating | Out-Null
+    # 入口有两个：工具栏的「✦ AI 助手」常驻；右下角悬浮 ✦ 可能被隐藏。
+    # 先试工具栏，再退回悬浮按钮。
+    $entry = Wait-AiPdfElementById -Process $App -IdPattern '*aiCommandButton*' -TimeoutSeconds 5
+    if (-not $entry) {
+        $entry = Wait-AiPdfElementById -Process $App -IdPattern '*aiFloatingButton*' -TimeoutSeconds 5
+    }
+    if (-not $entry) { return $false }
+    Invoke-AiPdfElement -Element $entry | Out-Null
     Start-Sleep -Milliseconds 600
     foreach ($element in (Get-AiPdfWindowElements -Process $App)) {
         try {
@@ -122,7 +138,7 @@ try {
     # ---------------- 场景 1：本地模式 ----------------
     Write-AiConfig -Mode 'local'
     Reset-AiPdfTrace -Path $env:AIPDF_TRACE_FILE
-    $app = Start-AcceptanceApp
+    $app = Start-AcceptanceApp -PdfFixture $PdfFixture
     Test-Check '主程序已启动' (-not $app.HasExited)
     Test-Check 'AI 面板已打开' (Open-AiPanel -App $app)
 
@@ -144,7 +160,7 @@ try {
     # ---------------- 场景 2：片段云端 + 取消 ----------------
     Write-AiConfig -Mode 'chunks'
     Reset-AiPdfTrace -Path $env:AIPDF_TRACE_FILE
-    $app = Start-AcceptanceApp
+    $app = Start-AcceptanceApp -PdfFixture $PdfFixture
     Test-Check '第二次启动成功' (-not $app.HasExited)
     Test-Check 'AI 面板已打开（云端模式）' (Open-AiPanel -App $app)
 

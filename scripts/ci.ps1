@@ -120,6 +120,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/qa.png'
     )
+    Invoke-Script '隐私策略验收' (Join-Path $PSScriptRoot 'verify-privacy.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/privacy.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
