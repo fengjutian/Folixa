@@ -80,43 +80,72 @@ void PdfView::buildUi() {
     auto* toolBar = new QToolBar(this);
     toolBar->setObjectName(QStringLiteral("documentToolBar"));
     toolBar->setMovable(false);
-    toolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    toolBar->setIconSize(QSize(kToolBarIconPixels, kToolBarIconPixels));
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-    auto* zoomOut = new QToolButton(this);
-    zoomOut->setText(QStringLiteral("−"));
-    zoomOut->setToolTip(QStringLiteral("缩小 (Ctrl+-)"));
+    // 缩放与旋转是纯图标按钮：文字只留在 Tooltip 和可访问名称里，
+    // 键盘与读屏用户靠这两处仍能知道按钮是干什么的。
+    auto makeIconButton = [this](const char* iconName,
+                                 const QString& tip,
+                                 const QString& accessibleName,
+                                 const QString& objectName) {
+        auto* button = new QToolButton(this);
+        button->setIcon(toolbarIcon(iconName));
+        button->setToolTip(tip);
+        button->setAccessibleName(accessibleName);
+        button->setObjectName(objectName);
+        button->setProperty("iconOnly", true);
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        return button;
+    };
+
+    auto* zoomOut = makeIconButton("zoom-out",
+                                   QStringLiteral("缩小 (Ctrl+-)"),
+                                   QStringLiteral("缩小"),
+                                   QStringLiteral("document.zoomOut"));
     connect(zoomOut, &QToolButton::clicked, this, &PdfView::zoomOut);
 
-    auto* zoomIn = new QToolButton(this);
-    zoomIn->setText(QStringLiteral("+"));
-    zoomIn->setToolTip(QStringLiteral("放大 (Ctrl++)"));
+    auto* zoomIn = makeIconButton("zoom-in",
+                                  QStringLiteral("放大 (Ctrl++)"),
+                                  QStringLiteral("放大"),
+                                  QStringLiteral("document.zoomIn"));
     connect(zoomIn, &QToolButton::clicked, this, &PdfView::zoomIn);
 
     auto* fitWidthButton = new QToolButton(this);
     fitWidthButton->setText(QStringLiteral("适宽"));
+    fitWidthButton->setIcon(toolbarIcon("fit-width"));
     fitWidthButton->setToolTip(QStringLiteral("缩放到适应窗口宽度"));
+    fitWidthButton->setObjectName(QStringLiteral("document.fitWidth"));
+    fitWidthButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     connect(fitWidthButton, &QToolButton::clicked, this, &PdfView::zoomToFitWidth);
 
     auto* fitPageButton = new QToolButton(this);
     fitPageButton->setText(QStringLiteral("整页"));
+    fitPageButton->setIcon(toolbarIcon("fit-page"));
     fitPageButton->setToolTip(QStringLiteral("缩放到整页可见"));
+    fitPageButton->setObjectName(QStringLiteral("document.fitPage"));
+    fitPageButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     connect(fitPageButton, &QToolButton::clicked, this, &PdfView::zoomToFitPage);
 
-    auto* rotateLeftButton = new QToolButton(this);
-    rotateLeftButton->setText(QStringLiteral("↺"));
-    rotateLeftButton->setToolTip(QStringLiteral("向左旋转"));
+    auto* rotateLeftButton = makeIconButton("rotate-left",
+                                            QStringLiteral("向左旋转"),
+                                            QStringLiteral("向左旋转"),
+                                            QStringLiteral("document.rotateLeft"));
     connect(rotateLeftButton, &QToolButton::clicked, this, &PdfView::rotateLeft);
 
-    auto* rotateRightButton = new QToolButton(this);
-    rotateRightButton->setText(QStringLiteral("↻"));
-    rotateRightButton->setToolTip(QStringLiteral("向右旋转"));
+    auto* rotateRightButton = makeIconButton("rotate-right",
+                                             QStringLiteral("向右旋转"),
+                                             QStringLiteral("向右旋转"),
+                                             QStringLiteral("document.rotateRight"));
     connect(rotateRightButton, &QToolButton::clicked, this, &PdfView::rotateRight);
 
     // 保存按钮（v0.8.0）：菜单栏是收起的，文档工具栏上留一个入口。
     auto* saveButton = new QToolButton(this);
     saveButton->setText(QStringLiteral("保存"));
+    saveButton->setIcon(toolbarIcon("save"));
     saveButton->setToolTip(QStringLiteral("保存文档 (Ctrl+S)"));
     saveButton->setObjectName(QStringLiteral("document.save"));
+    saveButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     connect(saveButton, &QToolButton::clicked, this, &PdfView::saveRequested);
 
     zoomLabel_ = new QLabel(QStringLiteral("100%"), this);
@@ -185,42 +214,57 @@ void PdfView::buildAnnotationToolBar() {
     auto* toolBar = new QToolBar(this);
     toolBar->setObjectName(QStringLiteral("annotationToolBar"));
     toolBar->setMovable(false);
-    toolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    toolBar->setIconSize(QSize(kToolBarIconPixels, kToolBarIconPixels));
+    // 批注工具是低频功能，按设计规范用「图标 + 文字」，不让人对着图标猜。
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
     auto makeButton = [toolBar](const QString& text,
                                 const QString& tip,
-                                const QString& objectName) {
+                                const QString& objectName,
+                                const char* iconName) {
         auto* button = new QToolButton(toolBar);
         button->setText(text);
         button->setToolTip(tip);
         button->setObjectName(objectName);
+        button->setIcon(toolbarIcon(iconName));
+        // 工具栏的 toolButtonStyle 只作用在 QToolBar 自己按 QAction 建的按钮上，
+        // addWidget 加进来的独立 QToolButton 默认还是纯图标，得逐个设置。
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         return button;
     };
 
     highlightButton_ = makeButton(QStringLiteral("高亮"),
                                    QStringLiteral("给选中的文字加高亮 (Ctrl+H)"),
-                                   QStringLiteral("annotation.highlight"));
+                                   QStringLiteral("annotation.highlight"),
+                                   "highlight");
     underlineButton_ = makeButton(QStringLiteral("下划线"),
                                    QStringLiteral("给选中的文字加下划线 (Ctrl+U)"),
-                                   QStringLiteral("annotation.underline"));
+                                   QStringLiteral("annotation.underline"),
+                                   "underline");
     strikeOutButton_ = makeButton(QStringLiteral("删除线"),
                                   QStringLiteral("给选中的文字加删除线"),
-                                  QStringLiteral("annotation.strikethrough"));
+                                  QStringLiteral("annotation.strikethrough"),
+                                  "strikethrough");
     noteButton_ = makeButton(QStringLiteral("便签"),
                               QStringLiteral("在页面上放一个便签"),
-                              QStringLiteral("annotation.note"));
+                              QStringLiteral("annotation.note"),
+                              "note");
     squareButton_ = makeButton(QStringLiteral("矩形"),
                                 QStringLiteral("在页面上画一个矩形"),
-                                QStringLiteral("annotation.square"));
+                                QStringLiteral("annotation.square"),
+                                "square");
     inkButton_ = makeButton(QStringLiteral("墨迹"),
                              QStringLiteral("在页面上画一笔"),
-                             QStringLiteral("annotation.ink"));
+                             QStringLiteral("annotation.ink"),
+                             "ink");
     undoButton_ = makeButton(QStringLiteral("撤销"),
                               QStringLiteral("撤销上一步批注操作 (Ctrl+Z)"),
-                              QStringLiteral("annotation.undo"));
+                              QStringLiteral("annotation.undo"),
+                              "undo");
     redoButton_ = makeButton(QStringLiteral("重做"),
                               QStringLiteral("重做上一步批注操作 (Ctrl+Shift+Z)"),
-                              QStringLiteral("annotation.redo"));
+                              QStringLiteral("annotation.redo"),
+                              "redo");
 
     toolBar->addWidget(highlightButton_);
     toolBar->addWidget(underlineButton_);

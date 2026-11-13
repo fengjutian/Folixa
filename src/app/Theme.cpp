@@ -71,6 +71,21 @@ QLineEdit {
 }
 QLineEdit:focus { border-color: #5277E8; }
 
+/* ---------------------------------------------- 文档工具栏 / 批注工具栏 -- */
+QToolBar#documentToolBar, QToolBar#annotationToolBar {
+    background: #FFFFFF; border: 0; border-bottom: 1px solid #E8ECF3;
+    spacing: 6px; padding: 6px 12px;
+}
+QToolBar#documentToolBar QToolButton, QToolBar#annotationToolBar QToolButton { padding: 0 10px; }
+/* 缩放与旋转是纯图标按钮：压成 32px 见方，不占多余横向空间。 */
+QToolBar#documentToolBar QToolButton[iconOnly="true"] { padding: 0; min-width: 32px; max-width: 32px; }
+QToolBar#documentToolBar QToolButton:checked, QToolBar#annotationToolBar QToolButton:checked {
+    color: #3555B7; background: #EEF3FF; border-color: #D9E3FA;
+}
+QToolBar#documentToolBar QToolButton:disabled, QToolBar#annotationToolBar QToolButton:disabled {
+    color: #B4BDCB; background: #FAFBFD; border-color: #EEF1F6;
+}
+
 /* -------------------------------------------------------------- 标签页 -- */
 QTabWidget::pane { border: 0; background: #F5F7FA; }
 QTabBar { background: #FFFFFF; }

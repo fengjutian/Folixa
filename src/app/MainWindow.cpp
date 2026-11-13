@@ -166,16 +166,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::buildUi() {
     setWindowTitle(QString("Folixa · AI PDF Editor %1").arg(QStringLiteral(AIPDF_VERSION)));
-    // 1440×900 是设计基准，但 1080p + 125% 缩放的机器上工作区只有 1440×768 左右：
-    // 直接按基准开窗会把状态栏和页面底边推到屏幕外面。先按工作区收一次。
     resize(1440, 900);
-    if (const QScreen* screen = QGuiApplication::primaryScreen()) {
-        const QRect available = screen->availableGeometry();
-        const QSize fitted(std::min(1440, available.width() - 40),
-                           std::min(900, available.height() - 40));
-        resize(fitted);
-        move(available.center() - QPoint(fitted.width() / 2, fitted.height() / 2));
-    }
 
     auto* tabs = new QTabWidget(this);
     tabs_ = tabs;
@@ -633,7 +624,9 @@ void MainWindow::buildUi() {
         settings.setValue(QStringLiteral("workspace/navigationVisible"), true);
         settings.setValue(QStringLiteral("workspace/aiVisible"), false);
     }
-    navigationDock_->setVisible(settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool());
+    navigationUserVisible_ =
+        settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool();
+    navigationDock_->setVisible(navigationUserVisible_);
     aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
     navigationPages_->hide();
     QTimer::singleShot(0, this, [this] {
@@ -643,7 +636,11 @@ void MainWindow::buildUi() {
         setNavigationExpanded(false);
         positionFloatingUi();
     });
-    connect(navigationDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
+    connect(navigationDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (suppressLayoutPersistence_) {
+            return;
+        }
+        navigationUserVisible_ = visible;
         QSettings().setValue(QStringLiteral("workspace/navigationVisible"), visible);
     });
     connect(aiDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
@@ -682,6 +679,18 @@ void MainWindow::buildUi() {
     metricsLabel_->setVisible(qEnvironmentVariableIsSet("AIPDF_DIAGNOSTICS") ||
                               qEnvironmentVariableIsSet("AIPDF_TRACE_FILE") ||
                               QCoreApplication::arguments().contains(QStringLiteral("--diagnostics")));
+
+    // 窗口尺寸放到最后定：布局建好之后才知道自身的尺寸诉求，
+    // 在构造开头 resize() 会被后续布局覆盖（窗口比内容还矮，底边直接被裁掉）。
+    // 1080p + 125% 缩放的机器上工作区放不下 1440×900，按工作区收一次。
+    if (const QScreen* screen = QGuiApplication::primaryScreen()) {
+        const QRect available = screen->availableGeometry();
+        const QSize fitted(std::min(1440, available.width() - 40),
+                           std::min(900, available.height() - 40));
+        resize(fitted);
+        move(available.center() - QPoint(fitted.width() / 2, fitted.height() / 2));
+    }
+    syncTabBar();
 }
 
 void MainWindow::syncTabBar() {
@@ -692,6 +701,24 @@ void MainWindow::syncTabBar() {
     const bool onlyWelcome = tabs_->count() == 1 && page != nullptr &&
                              page->property("welcomePage").toBool();
     tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWelcome);
+
+    // 欢迎页上没有文档：左侧导航栏与 AI 浮动入口都没有操作对象，
+    // 留着只是一排点不出结果的图标。打开第一份文档时再按用户原意恢复。
+    if (aiFloatingButton_ != nullptr) {
+        aiFloatingButton_->setVisible(!onlyWelcome);
+        if (onlyWelcome && aiQuickCard_ != nullptr) {
+            aiQuickCard_->hide();
+        }
+    }
+    if (navigationDock_ != nullptr && navigationDock_->isVisible() == onlyWelcome) {
+        suppressLayoutPersistence_ = true;
+        if (onlyWelcome) {
+            navigationDock_->hide();
+        } else {
+            navigationDock_->setVisible(navigationUserVisible_);
+        }
+        suppressLayoutPersistence_ = false;
+    }
 }
 
 QWidget* MainWindow::createWelcomePage() {
