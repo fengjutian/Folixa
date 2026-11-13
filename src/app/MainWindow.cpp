@@ -2,8 +2,10 @@
 
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
+#include "app/NavigationController.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/Navigation.h"
 
 #include <QAction>
 #include <QButtonGroup>
@@ -33,6 +35,8 @@
 #include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -49,6 +53,22 @@ void trace(const QString& message) {
     QFile file(path);
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
+    }
+}
+
+// 把大纲树灌进目录树控件。目标页解析不出来的条目照样显示，只是不能点。
+void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem>& items) {
+    for (const pdf::OutlineItem& item : items) {
+        auto* node = new QTreeWidgetItem(parent);
+        node->setText(0, item.title);
+        node->setData(0, Qt::UserRole, item.pageIndex);
+        if (item.pageIndex < 0) {
+            node->setToolTip(0, QCoreApplication::translate("MainWindow", "该条目没有可跳转的目标"));
+        } else {
+            node->setToolTip(0, QCoreApplication::translate("MainWindow", "跳转到第 %1 页")
+                                       .arg(item.pageIndex + 1));
+        }
+        addOutlineItems(node, item.children);
     }
 }
 }  // namespace
@@ -219,10 +239,9 @@ void MainWindow::buildUi() {
     pagesList_->setGridSize(QSize(166, 206));
     pagesList_->setSpacing(6);
     navigationPages->addWidget(pagesList_);
-    navigationPages->addWidget(createNavigationEmptyState(
-        tr("暂无文档目录"), tr("文档目录将在这里显示。")));
-    navigationPages->addWidget(createNavigationEmptyState(
-        tr("暂无书签"), tr("当前文档没有可显示的书签。")));
+    // 目录页与书签页：同一份大纲的两种看法（树 / 扁平列表）。
+    navigationPages->addWidget(createOutlineTab());
+    navigationPages->addWidget(createBookmarkTab());
     // 搜索页：全文搜索（v0.5.0）。
     searchPanel_ = new SearchPanel(navigationPages);
     navigationPages->addWidget(searchPanel_);
@@ -266,6 +285,19 @@ void MainWindow::buildUi() {
         if (view != nullptr) {
             view->goToPage(pageIndex);
         }
+    });
+    connect(outlineTree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
+        if (item == nullptr) {
+            return;
+        }
+        navigateToOutlineTarget(item->data(0, Qt::UserRole).toInt(), item->text(0));
+    });
+    connect(bookmarkList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+        if (item == nullptr) {
+            return;
+        }
+        navigateToOutlineTarget(item->data(Qt::UserRole).toInt(),
+                               item->data(Qt::UserRole + 1).toString());
     });
     navigationLayout->addWidget(rail);
     navigationLayout->addWidget(navigationPages, 1);
@@ -433,6 +465,8 @@ void MainWindow::buildUi() {
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
         refreshThumbnails(view);
+        // 目录与书签跟着当前文档走。
+        bindNavigation(view);
         // 搜索面板跟着当前文档走：换标签页就换控制器。
         if (searchPanel_ != nullptr) {
             searchPanel_->setController(view != nullptr ? view->textController() : nullptr);
@@ -503,6 +537,112 @@ QWidget* MainWindow::createNavigationEmptyState(const QString& titleText,
     layout->addWidget(description);
     layout->addStretch();
     return page;
+}
+
+QStackedWidget* MainWindow::createOutlineTab() {
+    auto* stack = new QStackedWidget(navigationPages_);
+    stack->addWidget(createNavigationEmptyState(
+        tr("暂无文档目录"), tr("当前文档没有大纲（书签）。")));
+    outlineTree_ = new QTreeWidget(stack);
+    outlineTree_->setObjectName(QStringLiteral("outlineTree"));
+    outlineTree_->setHeaderHidden(true);
+    outlineTree_->setIndentation(14);
+    outlineTree_->setUniformRowHeights(true);
+    outlineTree_->setRootIsDecorated(true);
+    stack->addWidget(outlineTree_);
+    outlineStack_ = stack;
+    return stack;
+}
+
+QStackedWidget* MainWindow::createBookmarkTab() {
+    auto* stack = new QStackedWidget(navigationPages_);
+    stack->addWidget(createNavigationEmptyState(
+        tr("暂无书签"), tr("当前文档没有可显示的书签。")));
+    bookmarkList_ = new QListWidget(stack);
+    bookmarkList_->setObjectName(QStringLiteral("bookmarkList"));
+    stack->addWidget(bookmarkList_);
+    bookmarkStack_ = stack;
+    return stack;
+}
+
+PdfView* MainWindow::currentView() const {
+    return qobject_cast<PdfView*>(tabs_->currentWidget());
+}
+
+void MainWindow::bindNavigation(PdfView* view) {
+    NavigationController* controller =
+        view != nullptr ? view->navigationController() : nullptr;
+    if (controller == boundNavigation_) {
+        return;
+    }
+    // 换文档时把上一个控制器的连接断掉，否则刷新会打到别的文档上。
+    if (navigationConnection_) {
+        QObject::disconnect(navigationConnection_);
+        navigationConnection_ = QMetaObject::Connection();
+    }
+    boundNavigation_ = controller;
+    if (controller != nullptr) {
+        navigationConnection_ = connect(controller, &NavigationController::outlineReady,
+                                        this, [this]() {
+                                            refreshOutline(currentView());
+                                        });
+    }
+    refreshOutline(view);
+}
+
+void MainWindow::refreshOutline(PdfView* view) {
+    if (outlineTree_ == nullptr || bookmarkList_ == nullptr) {
+        return;
+    }
+    outlineTree_->clear();
+    bookmarkList_->clear();
+
+    NavigationController* controller =
+        view != nullptr ? view->navigationController() : nullptr;
+    const bool hasOutline = controller != nullptr && controller->outlineLoaded() &&
+                            !controller->outline().empty();
+
+    if (outlineStack_ != nullptr) {
+        outlineStack_->setCurrentIndex(hasOutline ? 1 : 0);
+    }
+    if (bookmarkStack_ != nullptr) {
+        bookmarkStack_->setCurrentIndex(hasOutline ? 1 : 0);
+    }
+    if (!hasOutline) {
+        trace(QStringLiteral("outline empty"));
+        return;
+    }
+
+    addOutlineItems(outlineTree_->invisibleRootItem(), controller->outline());
+
+    // 书签页签：同一份大纲的扁平列表，用缩进表示层级。
+    const std::vector<pdf::OutlineEntry> entries = controller->flatOutline();
+    for (const pdf::OutlineEntry& entry : entries) {
+        auto* item = new QListWidgetItem(bookmarkList_);
+        item->setText(QString(entry.depth * 2, QLatin1Char(' ')) + entry.title);
+        item->setData(Qt::UserRole, entry.pageIndex);
+        item->setData(Qt::UserRole + 1, entry.title);
+        if (entry.pageIndex < 0) {
+            item->setToolTip(tr("该条目没有可跳转的目标"));
+        } else {
+            item->setToolTip(tr("跳转到第 %1 页").arg(entry.pageIndex + 1));
+        }
+    }
+    trace(QStringLiteral("outline shown items=%1").arg(entries.size()));
+}
+
+void MainWindow::navigateToOutlineTarget(int pageIndex, const QString& title) {
+    if (pageIndex < 0) {
+        statusBar()->showMessage(tr("「%1」没有可跳转的目标").arg(title), 3000);
+        trace(QStringLiteral("navigate skipped title=%1").arg(title));
+        return;
+    }
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->goToPage(pageIndex);
+    trace(QStringLiteral("navigate page=%1 title=%2").arg(pageIndex).arg(title));
 }
 
 void MainWindow::openPdfDialog() {
@@ -620,9 +760,17 @@ void MainWindow::openPdfFile(const QString& filePath) {
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
     refreshThumbnails(view);
+    bindNavigation(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
     connect(view, &PdfView::textCopied, this, [this](int characters) {
         statusBar()->showMessage(tr("已复制 %1 个字符到剪贴板").arg(characters), 3000);
+    });
+    connect(view, &PdfView::linkFollowed, this, [this](int targetPage, const QString& uri) {
+        if (targetPage >= 0) {
+            statusBar()->showMessage(tr("已跳转到第 %1 页").arg(targetPage + 1), 3000);
+        } else if (!uri.isEmpty()) {
+            statusBar()->showMessage(tr("已打开外部链接：%1").arg(uri), 3000);
+        }
     });
     if (searchPanel_ != nullptr) {
         searchPanel_->setController(view->textController());

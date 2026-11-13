@@ -9,10 +9,13 @@ class QTabWidget;
 class QTextBrowser;
 class QDockWidget;
 class QListWidget;
+class QListWidgetItem;
 class QStackedWidget;
 class QButtonGroup;
 class QFrame;
 class QResizeEvent;
+class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -22,6 +25,7 @@ namespace aipdf::app {
 
 class PdfView;
 class SearchPanel;
+class NavigationController;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -39,10 +43,19 @@ private:
     void buildUi();
     QWidget* createWelcomePage();
     QWidget* createNavigationEmptyState(const QString& title, const QString& description);
+    QStackedWidget* createOutlineTab();
+    QStackedWidget* createBookmarkTab();
     void openPdfDialog();
     void sendHealthCheck();
     void sendEcho();
     void refreshThumbnails(PdfView* view);
+    // 把导航面板绑到当前文档的导航控制器上，并刷新目录与书签。
+    void bindNavigation(PdfView* view);
+    void refreshOutline(PdfView* view);
+    // 当前标签页的文档视图；不是文档页时返回 nullptr。
+    PdfView* currentView() const;
+    // 目录树里点到某个条目：跳到它的目标页。
+    void navigateToOutlineTarget(int pageIndex, const QString& title);
     void positionFloatingUi();
 
     ipc::WorkerClient* workerClient_ = nullptr;
@@ -58,6 +71,15 @@ private:
     QListWidget* pagesList_ = nullptr;
     // 导航栏的四个视图（页面 / 目录 / 书签 / 搜索）。
     QStackedWidget* navigationPages_ = nullptr;
+    // 目录页：大纲树（v0.6.0）。索引 0 是空状态，索引 1 是树。
+    QStackedWidget* outlineStack_ = nullptr;
+    QTreeWidget* outlineTree_ = nullptr;
+    // 书签页：同一份大纲的扁平列表（v0.6.0）。
+    QStackedWidget* bookmarkStack_ = nullptr;
+    QListWidget* bookmarkList_ = nullptr;
+    // 当前绑定的导航控制器；换文档时要把上一个的连接断掉。
+    NavigationController* boundNavigation_ = nullptr;
+    QMetaObject::Connection navigationConnection_;
     QButtonGroup* navigationRail_ = nullptr;
     SearchPanel* searchPanel_ = nullptr;
     QFrame* aiQuickCard_ = nullptr;

@@ -133,3 +133,51 @@ aipdf_deploy_qt_runtime(TextExtractionTests)
 aipdf_deploy_pdfium(TextExtractionTests)
 
 add_test(NAME TextExtractionTests COMMAND TextExtractionTests)
+
+# ------------------------------------------------------------ 导航与链接 ----
+
+qt_add_executable(NavigationTests
+    NavigationTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/LinkHitTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/LinkHitTest.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+)
+
+target_link_libraries(NavigationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(NavigationTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(NavigationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(NavigationTests)
+
+add_test(NAME NavigationTests COMMAND NavigationTests)
+
+qt_add_executable(PdfNavigationTests
+    PdfNavigationTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(PdfNavigationTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PdfNavigationTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(PdfNavigationTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PdfNavigationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(PdfNavigationTests pdf-fixtures)
+aipdf_deploy_qt_runtime(PdfNavigationTests)
+aipdf_deploy_pdfium(PdfNavigationTests)
+
+add_test(NAME PdfNavigationTests COMMAND PdfNavigationTests)

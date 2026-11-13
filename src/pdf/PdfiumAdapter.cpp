@@ -189,6 +189,15 @@ QString actionUri(FPDF_DOCUMENT document, FPDF_ACTION action) {
         return {};
     }
     buffer.truncate(int(written));
+    // PDFium 的文档写明：返回的字节数**含结尾的 NUL**。
+    // 不去掉它，URI 末尾会挂一个不可见的空字符——
+    // 界面上看不出来，但拼出来的地址是错的，外部链接会打不开。
+    while (buffer.endsWith('\0')) {
+        buffer.chop(1);
+    }
+    if (buffer.isEmpty()) {
+        return {};
+    }
     QStringDecoder decoder(QStringDecoder::Utf8);
     const QString text = decoder.decode(buffer);
     if (decoder.hasError()) {
@@ -217,6 +226,15 @@ void readOutlineLevel(FPDF_DOCUMENT document,
         FPDF_ACTION action = FPDFBookmark_GetAction(bookmark);
         item.pageIndex = actionTargetPage(document, action);
         item.uri = actionUri(document, action);
+        if (action == nullptr) {
+            // 没有 /A 动作时，目标写在 /Dest 里。
+            // PDFium 的文档明确要求这样兜底：GetAction 返回 NULL 时
+            // 应当改调 GetDest，只看动作会漏掉一大半书签。
+            FPDF_DEST dest = FPDFBookmark_GetDest(document, bookmark);
+            if (dest != nullptr) {
+                item.pageIndex = FPDFDest_GetDestPageIndex(document, dest);
+            }
+        }
         readOutlineLevel(document, bookmark, &item.children, depth + 1, itemCount);
         out->push_back(std::move(item));
         bookmark = FPDFBookmark_GetNextSibling(document, bookmark);

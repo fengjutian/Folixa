@@ -542,6 +542,97 @@ def encrypted_pdf(user_password="secret", owner_password="owner", file_id=b"0123
     return _build_pdf(objects, 1, extra_trailer)
 
 
+def _utf16_hex(text):
+    """中文标题用 UTF-16BE 十六进制串（带 BOM）。
+
+    PDF 字面量字符串默认是 PDFDocEncoding，直接写 UTF-8 字节会被
+    当成乱码；带 BOM 的 UTF-16BE 十六进制串才是中文的正确写法。
+    """
+    return b"<" + (b"\xfe\xff" + text.encode("utf-16-be")).hex().upper().encode("ascii") + b">"
+
+
+def navigation_pdf():
+    """带大纲与链接注释的文档：用于目录、书签与链接跳转验收。
+
+    结构刻意覆盖几种真实写法：
+
+      - 三个顶层/子级大纲条目：顶层用 /Dest 指向目标页，
+        子级用 /A 动作（GoTo）——两种写法都要能解析出目标页。
+      - 第 1 页：一个内部链接（GoTo 到第 2 页）。
+      - 第 2 页：一个外部链接（URI）。
+      - 第 3 页：两个**完全重叠**的链接，后枚举的那个（URI）必须胜出
+        （PDFium 按 Z 序枚举，越靠后越在上层）。
+
+    标题用中文（UTF-16BE），顺带验证解码路径。
+    """
+    page_one = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R /Annots [10 0 R] >>"
+    )
+    page_two = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 8 0 R /Annots [11 0 R] >>"
+    )
+    page_three = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 9 0 R /Annots [12 0 R 13 0 R] >>"
+    )
+
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R /Outlines 14 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>"),
+        (3, page_one),
+        (4, page_two),
+        (5, page_three),
+        (6, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]
+
+    first = _page_content_stream([
+        ("Navigation demo", 28, 60, 330),
+        ("The blue link below jumps to page two.", 14, 60, 260),
+        ("Jump to page two", 16, 60, 212),
+    ])
+    second = _page_content_stream([
+        ("Page two", 28, 60, 330),
+        ("The link below opens a website.", 14, 60, 260),
+        ("External link target", 16, 60, 160),
+    ])
+    third = _page_content_stream([
+        ("Page three", 28, 60, 330),
+        ("Two links overlap here, the topmost one wins.", 14, 60, 260),
+        ("Overlapping links", 16, 60, 112),
+    ])
+    objects.append((7, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(first), first)))
+    objects.append((8, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(second), second)))
+    objects.append((9, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(third), third)))
+
+    # 链接注释：/Rect 是 PDF user space（左下原点）。
+    objects.append((10, b"<< /Type /Annot /Subtype /Link /Rect [60 200 220 235] "
+                      b"/Border [0 0 0] /A << /S /GoTo /D [4 0 R /XYZ null null null] >> >>"))
+    objects.append((11, b"<< /Type /Annot /Subtype /Link /Rect [60 150 300 180] "
+                      b"/Border [0 0 0] /A << /S /URI /URI (https://example.com/folixa) >> >>"))
+    objects.append((12, b"<< /Type /Annot /Subtype /Link /Rect [60 100 300 140] "
+                      b"/Border [0 0 0] /A << /S /GoTo /D [3 0 R /XYZ null null null] >> >>"))
+    objects.append((13, b"<< /Type /Annot /Subtype /Link /Rect [60 100 300 140] "
+                      b"/Border [0 0 0] /A << /S /URI /URI (https://example.com/overlay) >> >>"))
+
+    # 大纲：两个顶层条目，其中一个带两个子条目。
+    objects.append((14, b"<< /Type /Outlines /First 15 0 R /Last 18 0 R /Count 3 >>"))
+    objects.append((15, b"<< /Title " + _utf16_hex("第一章 概述") +
+                      b" /Parent 14 0 R /Next 18 0 R /First 16 0 R /Last 17 0 R /Count 2 "
+                      b"/Dest [3 0 R /XYZ null null null] >>"))
+    objects.append((16, b"<< /Title " + _utf16_hex("第一节 背景") +
+                      b" /Parent 15 0 R /Next 17 0 R "
+                      b"/A << /S /GoTo /D [4 0 R /XYZ null null null] >> >>"))
+    objects.append((17, b"<< /Title " + _utf16_hex("第二节 方法") +
+                      b" /Parent 15 0 R /Prev 16 0 R "
+                      b"/A << /S /GoTo /D [5 0 R /XYZ null null null] >> >>"))
+    objects.append((18, b"<< /Title " + _utf16_hex("第二章 结果") +
+                      b" /Parent 14 0 R /Prev 15 0 R "
+                      b"/A << /S /GoTo /D [5 0 R /XYZ null null null] >> >>"))
+    return _build_pdf(objects, 1)
+
+
 FIXTURES = {
     "normal.pdf": normal_pdf,
     "empty.pdf": empty_pdf,
@@ -553,6 +644,7 @@ FIXTURES = {
     "long.pdf": long_pdf,
     "text.pdf": text_pdf,
     "cjk.pdf": cjk_pdf,
+    "navigation.pdf": navigation_pdf,
 }
 
 

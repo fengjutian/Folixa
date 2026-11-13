@@ -3,6 +3,7 @@
 #include <QAbstractScrollArea>
 #include <QPointF>
 #include <QRectF>
+#include <QString>
 #include <QVector>
 
 #include "app/PageLayout.h"
@@ -15,6 +16,7 @@ namespace aipdf::app {
 
 class RenderThread;
 class TextController;
+class NavigationController;
 
 // 连续页面画布：把所有页面画在一张虚拟的长文档上，按视口裁剪。
 //
@@ -38,6 +40,10 @@ public:
     void setTextController(TextController* controller);
     TextController* textController() const;
 
+    // 绑定导航控制器：链接热区判定与点击跳转都靠它。
+    void setNavigationController(NavigationController* controller);
+    NavigationController* navigationController() const;
+
     // 当前视口顶页（从 1 开始，供界面显示）。
     int currentPage() const;
 
@@ -51,6 +57,8 @@ public slots:
 signals:
     void currentPageChanged(int index);
     void renderRequested(int firstPage, int lastPage);
+    // 链接被点击：内部跳转给出目标页（从 0 开始），外部链接给出地址。
+    void linkActivated(int pageIndex, int targetPage, const QString& uri);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -66,6 +74,7 @@ private:
     TileCache* cache_ = nullptr;
     RenderThread* renderThread_ = nullptr;
     TextController* textController_ = nullptr;
+    NavigationController* navigationController_ = nullptr;
     int currentPage_ = 0;
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;
@@ -84,6 +93,8 @@ private:
     QRectF toViewportRect(const QRectF& displayRect, const QRectF& pageRect, double zoom) const;
     // 画搜索高亮与选区高亮。
     void paintHighlights(QPainter& painter, int pageIndex, const QRectF& pageRect, double zoom) const;
+    // 按指针位置更新光标：悬在链接上时给手型。
+    void updateLinkCursor(const QPoint& viewportPos);
 };
 
 }  // namespace aipdf::app

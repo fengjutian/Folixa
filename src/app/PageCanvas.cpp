@@ -3,6 +3,7 @@
 #include "app/RenderThread.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
+#include "app/NavigationController.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -74,6 +75,15 @@ void PageCanvas::setTextController(TextController* controller) {
 
 TextController* PageCanvas::textController() const {
     return textController_;
+}
+
+void PageCanvas::setNavigationController(NavigationController* controller) {
+    navigationController_ = controller;
+    viewport()->setCursor(Qt::ArrowCursor);
+}
+
+NavigationController* PageCanvas::navigationController() const {
+    return navigationController_;
 }
 
 int PageCanvas::currentPage() const {
@@ -256,6 +266,12 @@ void PageCanvas::requestVisiblePages() {
             textController_->requestTextPage(index);
         }
     }
+    // 可见页也要链接注释：悬停判定与点击跳转都靠它。
+    if (navigationController_ != nullptr) {
+        for (int index = first; index <= last; ++index) {
+            navigationController_->requestPageLinks(index);
+        }
+    }
     emit renderRequested(first, last);
 }
 
@@ -288,7 +304,7 @@ bool PageCanvas::pagePointAt(const QPoint& viewportPos,
 
 void PageCanvas::mousePressEvent(QMouseEvent* event) {
     QAbstractScrollArea::mousePressEvent(event);
-    if (event->button() != Qt::LeftButton || textController_ == nullptr) {
+    if (event->button() != Qt::LeftButton) {
         return;
     }
     viewport()->setFocus();
@@ -297,6 +313,27 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
     QPointF displayPoint;
     if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
         trace(QStringLiteral("press ignored pos=%1,%2").arg(event->pos().x()).arg(event->pos().y()));
+        return;
+    }
+
+    // 链接优先：点在链接热区上就激活链接，不进入文字拖选。
+    if (navigationController_ != nullptr) {
+        const int hit = navigationController_->hitLink(pageIndex, displayPoint);
+        if (hit >= 0) {
+            const QVector<pdf::PageLink>& links = navigationController_->linksForPage(pageIndex);
+            const pdf::PageLink& link = links.at(hit);
+            trace(QStringLiteral("link click page=%1 target=%2 uri=%3")
+                      .arg(pageIndex)
+                      .arg(link.pageIndex)
+                      .arg(link.uri));
+            selecting_ = false;
+            emit linkActivated(pageIndex, link.pageIndex, link.uri);
+            viewport()->update();
+            return;
+        }
+    }
+
+    if (textController_ == nullptr) {
         return;
     }
     const int order = textController_->hitAt(pageIndex, displayPoint);
@@ -323,6 +360,7 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
 
 void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseMoveEvent(event);
+    updateLinkCursor(event->pos());
     if (!selecting_ || textController_ == nullptr) {
         return;
     }
@@ -344,6 +382,21 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     const int end = std::max(anchorOrder_, order) + 1;
     textController_->setSelection(pageIndex, start, end);
     viewport()->update();
+}
+
+void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
+    if (navigationController_ == nullptr) {
+        viewport()->setCursor(Qt::ArrowCursor);
+        return;
+    }
+    int pageIndex = -1;
+    QPointF displayPoint;
+    if (!pagePointAt(viewportPos, &pageIndex, &displayPoint)) {
+        viewport()->setCursor(Qt::ArrowCursor);
+        return;
+    }
+    const int hit = navigationController_->hitLink(pageIndex, displayPoint);
+    viewport()->setCursor(hit >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
 }
 
 void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {

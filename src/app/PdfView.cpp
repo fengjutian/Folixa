@@ -3,9 +3,11 @@
 #include "app/PageCanvas.h"
 #include "app/RenderThread.h"
 #include "app/TextController.h"
+#include "app/NavigationController.h"
 
 #include <QClipboard>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QFile>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -15,6 +17,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -187,6 +190,34 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
         canvas_->viewport()->update();
     });
 
+    // 导航控制器同样自己持有一份独立句柄，在后台线程取大纲与链接。
+    navigationController_ = std::make_unique<NavigationController>(document_);
+    canvas_->setNavigationController(navigationController_.get());
+    connect(canvas_, &PageCanvas::linkActivated, this,
+            [this](int pageIndex, int targetPage, const QString& uri) {
+                if (targetPage >= 0) {
+                    // 内部跳转：滚到目标页。
+                    trace(QStringLiteral("link goto from=%1 to=%2").arg(pageIndex).arg(targetPage));
+                    goToPage(targetPage);
+                    emit linkFollowed(targetPage, QString());
+                    return;
+                }
+                if (uri.isEmpty()) {
+                    return;
+                }
+                // 外部链接交给系统浏览器：用户点了就是授权。
+                // 验收探针可以要求不真的拉起浏览器（会打断脚本），
+                // 但动作本身必须留在轨迹里。
+                const bool suppressed = qEnvironmentVariableIsSet("AIPDF_SUPPRESS_EXTERNAL_LINKS");
+                trace(QStringLiteral("link external uri=%1 suppressed=%2")
+                          .arg(uri)
+                          .arg(suppressed ? 1 : 0));
+                if (!suppressed) {
+                    QDesktopServices::openUrl(QUrl(uri));
+                }
+                emit linkFollowed(-1, uri);
+            });
+
     // 采集每页的显示尺寸（页面自带 /Rotate 已经应用），布局服务据此排版。
     QVector<PageLayout::PageInfo> pages;
     pages.reserve(pageCount_);
@@ -229,7 +260,9 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
 void PdfView::clear() {
     stopRenderThread();
     canvas_->setTextController(nullptr);
+    canvas_->setNavigationController(nullptr);
     textController_.reset();
+    navigationController_.reset();
     document_ = pdf::PdfDocument();
     filePath_.clear();
     pageCount_ = 0;
@@ -278,6 +311,10 @@ TextController* PdfView::textController() const {
     return textController_.get();
 }
 
+NavigationController* PdfView::navigationController() const {
+    return navigationController_.get();
+}
+
 void PdfView::setZoom(double factor) {
     const double clamped = std::clamp(factor, kMinZoom, kMaxZoom);
     if (qFuzzyCompare(clamped, zoom_)) {
@@ -320,6 +357,9 @@ void PdfView::rotateRight() {
     if (textController_) {
         textController_->setUserRotation(userRotation_);
     }
+    if (navigationController_) {
+        navigationController_->setUserRotation(userRotation_);
+    }
     cache_.clear();
     canvas_->setLayout(layout_);
     updateZoomLabel();
@@ -331,6 +371,9 @@ void PdfView::rotateLeft() {
     layout_.setUserRotation(userRotation_);
     if (textController_) {
         textController_->setUserRotation(userRotation_);
+    }
+    if (navigationController_) {
+        navigationController_->setUserRotation(userRotation_);
     }
     cache_.clear();
     canvas_->setLayout(layout_);
@@ -412,6 +455,12 @@ void PdfView::requestVisiblePages() {
     canvas_->visiblePageRange(&first, &last);
     if (last < first) {
         return;
+    }
+    // 可见页的链接注释要提前取回：鼠标停在页面上时才能立刻判定热区。
+    if (navigationController_) {
+        for (int index = first; index <= last; ++index) {
+            navigationController_->requestPageLinks(index);
+        }
     }
     const double devicePixelRatio = canvas_->devicePixelRatioF();
     renderThread_->requestRange(

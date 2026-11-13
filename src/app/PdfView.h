@@ -17,6 +17,7 @@ namespace aipdf::app {
 class PageCanvas;
 class RenderThread;
 class TextController;
+class NavigationController;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -50,6 +51,10 @@ public:
     // 没有打开文档时返回 nullptr。
     TextController* textController() const;
 
+    // 当前文档的导航控制器（大纲与链接注释）。
+    // 没有打开文档时返回 nullptr。
+    NavigationController* navigationController() const;
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -70,6 +75,8 @@ signals:
     void metricsChanged(const QString& text);
     // 选中的文字已复制（字符数）。
     void textCopied(int characters);
+    // 链接被激活：内部跳转给出目标页（从 0 开始），外部链接给出地址。
+    void linkFollowed(int targetPage, const QString& uri);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -93,6 +100,9 @@ private:
     // 文本控制器：提取文本层、选区与全文搜索。
     // 声明在 document_ 之后，析构时先于文档句柄释放。
     std::unique_ptr<TextController> textController_;
+    // 导航控制器：取文档大纲与页面链接。
+    // 同样声明在 document_ 之后：它内部也持有一份文档句柄。
+    std::unique_ptr<NavigationController> navigationController_;
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;
