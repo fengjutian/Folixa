@@ -3,6 +3,7 @@
 #include "app/TextController.h"
 
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -14,7 +15,21 @@ namespace aipdf::app {
 
 namespace {
 constexpr int kDebounceMs = 250;
+
+// 搜索面板的翻页按钮只留图标。
+//
+// 侧栏展开也就 230px 左右，四个「图标 + 文字」按钮横着放不下：
+// v0.11.0 截图上「上一处 / 下一处」被压成两团认不出的残字。
+// chevron 是「上一条 / 下一条命中」的通用写法，文字挪进 tooltip 与
+// accessibleName，既腾出宽度也不丢可读性。
+void makeIconButton(QPushButton* button, const QString& iconPath, const QString& tooltip) {
+    button->setIcon(QIcon(iconPath));
+    button->setIconSize(QSize(18, 18));
+    // 图标按钮不留文字内边距：Theme 里按 iconOnly 压成 32px 见方。
+    button->setProperty("iconOnly", true);
+    button->setToolTip(tooltip);
 }
+}  // namespace
 
 SearchPanel::SearchPanel(QWidget* parent) : QWidget(parent) {
     buildUi();
@@ -38,12 +53,17 @@ void SearchPanel::buildUi() {
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
-    previousButton_ = new QPushButton(QStringLiteral("上一处"), this);
+    previousButton_ = new QPushButton(this);
     previousButton_->setObjectName(QStringLiteral("searchPreviousButton"));
     previousButton_->setAccessibleName(QStringLiteral("上一处结果"));
-    nextButton_ = new QPushButton(QStringLiteral("下一处"), this);
+    makeIconButton(previousButton_, QStringLiteral(":/icons/chevron-up.svg"),
+                   QStringLiteral("上一处"));
+    nextButton_ = new QPushButton(this);
     nextButton_->setObjectName(QStringLiteral("searchNextButton"));
     nextButton_->setAccessibleName(QStringLiteral("下一处结果"));
+    makeIconButton(nextButton_, QStringLiteral(":/icons/chevron-down.svg"),
+                   QStringLiteral("下一处"));
+    // 清除与停止是动词，图标猜不准：它们短，留着文字反而更好认。
     clearButton_ = new QPushButton(QStringLiteral("清除"), this);
     clearButton_->setObjectName(QStringLiteral("searchClearButton"));
     clearButton_->setAccessibleName(QStringLiteral("清除搜索"));

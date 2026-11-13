@@ -59,6 +59,11 @@ QPushButton:hover, QToolButton:hover { background: #F5F8FD; border-color: #C3D0F
 QPushButton:pressed, QToolButton:pressed { background: #E9F0FB; border-color: #9FB4EF; }
 QPushButton:focus, QToolButton:focus, QLineEdit:focus { border-color: #5277E8; }
 QPushButton:disabled { color: #AAB2C0; background: #F7F8FA; }
+/* 纯图标按钮（搜索面板的上一条 / 下一条）：去掉文字内边距，压成 32px 见方。 */
+QPushButton[iconOnly="true"] {
+    padding: 0; min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+}
+QPushButton[iconOnly="true"]:disabled { background: #F7F8FA; }
 QPushButton#primaryButton {
     color: #FFFFFF; background: #5277E8; border: 1px solid #4A6DDE;
     border-radius: 10px; font-weight: 600; font-size: 14px;

@@ -555,47 +555,12 @@ qt_add_executable(IconResourceTests
 )
 
 # 图标资源只打包进主程序，测试要自己再打一份，才能验证「资源在」这一半。
+# 图标资源按目录收集：与主程序保持同一份集合，新增图标不用改测试清单。
+file(GLOB AIPDF_TEST_ICON_SVGS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/app/icons/*.svg")
 qt_add_resources(IconResourceTests "icon_test_resources"
     PREFIX "/icons"
     BASE "${CMAKE_SOURCE_DIR}/src/app/icons"
-    FILES
-        ${CMAKE_SOURCE_DIR}/src/app/icons/pages.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/outline.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/bookmark.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/search.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/annotation.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/index.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/send.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/chat.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/rewrite.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/proofread.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/explain.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/summarize.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/zoom-out.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/zoom-in.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/fit-width.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/fit-page.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/rotate-left.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/rotate-right.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/save.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/highlight.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/underline.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/strikethrough.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/note.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/square.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/ink.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/undo.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/redo.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/page-insert.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/page-delete.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/move-up.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/move-down.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/edit.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/convert.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/protect.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/form.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/tools.svg
-        ${CMAKE_SOURCE_DIR}/src/app/icons/app.svg
+    FILES ${AIPDF_TEST_ICON_SVGS}
 )
 
 # Qt6::Svg 必须链上：windeployqt 靠它判断要部署 imageformats/qsvg.dll，

@@ -148,7 +148,8 @@ try {
                 -Pattern 'ai request id=.+' -TimeoutSeconds 20)
     Start-Sleep -Seconds 3
     $trace = Get-AiPdfTraceText -Path $env:AIPDF_TRACE_FILE
-    Test-Check '本地模式没有走云端（无 upload 记录）' (-not ($trace -match 'ai upload')) $trace
+    # 本地模式会写一条「ai upload skipped mode=local」；真正要防的是 confirmed/cancelled。
+    Test-Check '本地模式没有把内容发出去' (-not ($trace -match 'ai upload (confirmed|cancelled)')) $trace
     Test-Check '本地模式不写云端审计' (-not (Test-Path -LiteralPath $auditPath))
 
     if ($ScreenshotPath) {

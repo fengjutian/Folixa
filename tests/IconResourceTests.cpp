@@ -32,6 +32,8 @@ void IconResourceTests::iconHasInk_data() {
     QTest::addColumn<QString>("path");
     const QStringList names{QStringLiteral("pages"),   QStringLiteral("outline"),
                             QStringLiteral("bookmark"), QStringLiteral("search"),
+                            // 搜索面板的上一处 / 下一处（v0.12.0）。
+                            QStringLiteral("chevron-up"), QStringLiteral("chevron-down"),
                             QStringLiteral("annotation"), QStringLiteral("index"),
                             QStringLiteral("send"),     QStringLiteral("chat"),
                             QStringLiteral("rewrite"),  QStringLiteral("proofread"),

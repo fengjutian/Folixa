@@ -101,49 +101,12 @@ qt_add_executable(AiPdfEditor WIN32
     doc/VectorIndex.h
 )
 
+# 图标资源按目录收集：新增一个图标只要放文件，不用同时改应用和测试两份清单。
+file(GLOB AIPDF_ICON_SVGS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/icons/*.svg")
 qt_add_resources(AiPdfEditor "app_icons"
     PREFIX "/icons"
     BASE "app/icons"
-    FILES
-        app/icons/pages.svg
-        app/icons/outline.svg
-        app/icons/bookmark.svg
-        app/icons/search.svg
-        app/icons/annotation.svg
-        app/icons/index.svg
-        app/icons/send.svg
-        app/icons/chat.svg
-        app/icons/rewrite.svg
-        app/icons/proofread.svg
-        app/icons/explain.svg
-        app/icons/summarize.svg
-        app/icons/zoom-out.svg
-        app/icons/zoom-in.svg
-        app/icons/fit-width.svg
-        app/icons/fit-page.svg
-        app/icons/rotate-left.svg
-        app/icons/rotate-right.svg
-        app/icons/save.svg
-        app/icons/highlight.svg
-        app/icons/underline.svg
-        app/icons/strikethrough.svg
-        app/icons/note.svg
-        app/icons/square.svg
-        app/icons/ink.svg
-        app/icons/undo.svg
-        app/icons/redo.svg
-        app/icons/app.svg
-        app/icons/close.svg
-        app/icons/book.svg
-        app/icons/page-insert.svg
-        app/icons/page-delete.svg
-        app/icons/move-up.svg
-        app/icons/move-down.svg
-        app/icons/edit.svg
-        app/icons/convert.svg
-        app/icons/protect.svg
-        app/icons/form.svg
-        app/icons/tools.svg
+    FILES ${AIPDF_ICON_SVGS}
 )
 
 target_link_libraries(AiPdfEditor PRIVATE

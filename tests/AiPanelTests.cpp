@@ -20,6 +20,7 @@
 #include <QTextBrowser>
 #include <QtTest>
 
+using namespace aipdf;
 using namespace aipdf::app;
 
 namespace {
@@ -29,7 +30,7 @@ namespace {
 // 不叫 findChild：QObject 自带一个同名成员函数，
 // 类里的非限定调用会先找到它，命名空间作用域的同名模板就被遮蔽了。
 template <typename T>
-T* findWidget(AiPanel* panel, const QString& objectName) {
+T* findWidget(QWidget* panel, const QString& objectName) {
     return panel->findChild<T*>(objectName);
 }
 
