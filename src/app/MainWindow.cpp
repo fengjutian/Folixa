@@ -952,6 +952,17 @@ void MainWindow::checkRecovery() {
               .arg(entry.documentPath)
               .arg(entry.commands.size()));
 
+    // 探针模式：不要问，直接跳过。
+    //
+    // 恢复问询是模态弹窗，会挡住验收脚本要点的界面；
+    // 而且验收每个场景都要重启应用，上一轮留下的记录会让每一轮启动都弹框。
+    // 设了 AIPDF_SKIP_RECOVERY_PROMPT 就当用户点了「丢弃」：记录照旧留着，
+    // 只是这一轮不问。
+    if (qEnvironmentVariableIsSet("AIPDF_SKIP_RECOVERY_PROMPT")) {
+        trace(QStringLiteral("recovery prompt skipped path=%1").arg(entry.documentPath));
+        return;
+    }
+
     QMessageBox box(this);
     box.setWindowTitle(tr("发现未保存的工作"));
     box.setIcon(QMessageBox::Question);

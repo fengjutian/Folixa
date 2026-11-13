@@ -110,7 +110,7 @@ function Invoke-AppWithPdf {
     Stop-LeftoverApp
 
     # 恢复日志单独放一份：验收改过文档之后，启动时的恢复问询会挡住界面。
-    $env:AIPDF_RECOVERY_DIR = Join-Path (Split-Path -Parent $buildPath) 'acceptance-recovery'
+    $env:AIPDF_RECOVERY_DIR = Join-Path (Split-Path -Parent $buildPath) 'pdf-recovery'
 
     $app = Start-Process -FilePath $appExe -WorkingDirectory $buildPath `
         -ArgumentList $PdfPath -PassThru

@@ -79,7 +79,8 @@ $workersBefore = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue
 $tracePath = Join-Path (Split-Path -Parent $buildPath) 'worker-trace.log'
 $env:AIPDF_TRACE_FILE = $tracePath
 # 恢复日志单独放一份：验收改过文档之后，启动时的恢复问询会挡住界面。
-$env:AIPDF_RECOVERY_DIR = Join-Path $WorkDir 'recovery'
+# 这个脚本没有 $WorkDir，用构建目录的父目录拼一个专属路径。
+$env:AIPDF_RECOVERY_DIR = Join-Path (Split-Path -Parent $buildPath) 'm0-recovery'
 Reset-AiPdfTrace -Path $tracePath
 $app = Start-Process -FilePath $appExe -WorkingDirectory $buildPath -PassThru
 try {

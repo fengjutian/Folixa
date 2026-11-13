@@ -241,10 +241,10 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 
 ### 界面验收会抢桌面
 
-`verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation`
-这五个脚本要驱动真实界面：把窗口抢到前台、置顶、挪到屏幕左上角，
-并用合成的鼠标事件点屏幕坐标。**在开发机上跑会打断正在用这台机器的人**
-（真实指针会被挪走，窗口会突然跳出来）。
+`verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation` /
+`verify-annotations` / `verify-pages` 这七个脚本要驱动真实界面：把窗口抢到前台、
+置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
+**在开发机上跑会打断正在用这台机器的人**（真实指针会被挪走，窗口会突然跳出来）。
 
 因此：
 
@@ -258,6 +258,10 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - 验收用的应用实例把设置写到临时目录（`AIPDF_TRACE_FILE` 存在时），
   不会覆盖使用者自己的窗口布局与面板可见性；
   脚本跑完还会把鼠标指针放回原位。
+- 验收环境变量（由 `scripts/AcceptanceProbe.ps1` 统一设置）：
+  `AIPDF_RECOVERY_DIR` 把恢复日志放到临时目录，各脚本互不干扰；
+  `AIPDF_SKIP_RECOVERY_PROMPT` 跳过启动时的恢复问询——
+  那个问询是模态弹窗，会挡住验收要点的界面。
 
 ### 写代码时的硬约束
 
