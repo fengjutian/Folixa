@@ -558,28 +558,32 @@ def navigation_pdf():
 
       - 三个顶层/子级大纲条目：顶层用 /Dest 指向目标页，
         子级用 /A 动作（GoTo）——两种写法都要能解析出目标页。
-      - 第 1 页：一个内部链接（GoTo 到第 2 页）。
-      - 第 2 页：一个外部链接（URI）。
-      - 第 3 页：两个**完全重叠**的链接，后枚举的那个（URI）必须胜出
-        （PDFium 按 Z 序枚举，越靠后越在上层）。
+      - 第 1 页放三种链接（都在首屏内，验收脚本不用算滚动位置）：
+          1) 内部链接，GoTo 到第 2 页；
+          2) 外部链接，URI；
+          3) 两个**完全重叠**的链接，后枚举的那个（URI）必须胜出
+             （PDFium 按 Z 序枚举，越靠后越在上层）。
+      - 第 2 页一个外部链接：验证链接是**按页**取的，不是全局混在一起。
+      - 第 3 页没有链接：空白页不该凭空冒出热区。
 
     标题用中文（UTF-16BE），顺带验证解码路径。
     """
     page_one = (
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
-        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R /Annots [10 0 R] >>"
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R "
+        b"/Annots [10 0 R 11 0 R 12 0 R 13 0 R] >>"
     )
     page_two = (
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
-        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 8 0 R /Annots [11 0 R] >>"
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 8 0 R /Annots [14 0 R] >>"
     )
     page_three = (
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
-        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 9 0 R /Annots [12 0 R 13 0 R] >>"
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 9 0 R >>"
     )
 
     objects = [
-        (1, b"<< /Type /Catalog /Pages 2 0 R /Outlines 14 0 R >>"),
+        (1, b"<< /Type /Catalog /Pages 2 0 R /Outlines 15 0 R >>"),
         (2, b"<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>"),
         (3, page_one),
         (4, page_two),
@@ -589,18 +593,21 @@ def navigation_pdf():
 
     first = _page_content_stream([
         ("Navigation demo", 28, 60, 330),
-        ("The blue link below jumps to page two.", 14, 60, 260),
+        ("Internal link below jumps to page two.", 14, 60, 260),
         ("Jump to page two", 16, 60, 212),
+        ("External link below opens a website.", 14, 60, 190),
+        ("External link target", 16, 60, 160),
+        ("Overlapping links, the topmost one wins", 14, 60, 140),
+        ("Overlapping links", 16, 60, 112),
     ])
     second = _page_content_stream([
         ("Page two", 28, 60, 330),
-        ("The link below opens a website.", 14, 60, 260),
-        ("External link target", 16, 60, 160),
+        ("This page has its own external link.", 14, 60, 260),
+        ("Page two link target", 16, 60, 112),
     ])
     third = _page_content_stream([
         ("Page three", 28, 60, 330),
-        ("Two links overlap here, the topmost one wins.", 14, 60, 260),
-        ("Overlapping links", 16, 60, 112),
+        ("This page has no links at all.", 14, 60, 260),
     ])
     objects.append((7, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(first), first)))
     objects.append((8, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(second), second)))
@@ -612,23 +619,25 @@ def navigation_pdf():
     objects.append((11, b"<< /Type /Annot /Subtype /Link /Rect [60 150 300 180] "
                       b"/Border [0 0 0] /A << /S /URI /URI (https://example.com/folixa) >> >>"))
     objects.append((12, b"<< /Type /Annot /Subtype /Link /Rect [60 100 300 140] "
-                      b"/Border [0 0 0] /A << /S /GoTo /D [3 0 R /XYZ null null null] >> >>"))
+                      b"/Border [0 0 0] /A << /S /GoTo /D [5 0 R /XYZ null null null] >> >>"))
     objects.append((13, b"<< /Type /Annot /Subtype /Link /Rect [60 100 300 140] "
                       b"/Border [0 0 0] /A << /S /URI /URI (https://example.com/overlay) >> >>"))
+    objects.append((14, b"<< /Type /Annot /Subtype /Link /Rect [60 100 300 140] "
+                      b"/Border [0 0 0] /A << /S /URI /URI (https://example.com/page2) >> >>"))
 
     # 大纲：两个顶层条目，其中一个带两个子条目。
-    objects.append((14, b"<< /Type /Outlines /First 15 0 R /Last 18 0 R /Count 3 >>"))
-    objects.append((15, b"<< /Title " + _utf16_hex("第一章 概述") +
-                      b" /Parent 14 0 R /Next 18 0 R /First 16 0 R /Last 17 0 R /Count 2 "
+    objects.append((15, b"<< /Type /Outlines /First 16 0 R /Last 19 0 R /Count 3 >>"))
+    objects.append((16, b"<< /Title " + _utf16_hex("第一章 概述") +
+                      b" /Parent 15 0 R /Next 19 0 R /First 17 0 R /Last 18 0 R /Count 2 "
                       b"/Dest [3 0 R /XYZ null null null] >>"))
-    objects.append((16, b"<< /Title " + _utf16_hex("第一节 背景") +
-                      b" /Parent 15 0 R /Next 17 0 R "
+    objects.append((17, b"<< /Title " + _utf16_hex("第一节 背景") +
+                      b" /Parent 16 0 R /Next 18 0 R "
                       b"/A << /S /GoTo /D [4 0 R /XYZ null null null] >> >>"))
-    objects.append((17, b"<< /Title " + _utf16_hex("第二节 方法") +
-                      b" /Parent 15 0 R /Prev 16 0 R "
+    objects.append((18, b"<< /Title " + _utf16_hex("第二节 方法") +
+                      b" /Parent 16 0 R /Prev 17 0 R "
                       b"/A << /S /GoTo /D [5 0 R /XYZ null null null] >> >>"))
-    objects.append((18, b"<< /Title " + _utf16_hex("第二章 结果") +
-                      b" /Parent 14 0 R /Prev 15 0 R "
+    objects.append((19, b"<< /Title " + _utf16_hex("第二章 结果") +
+                      b" /Parent 15 0 R /Prev 16 0 R "
                       b"/A << /S /GoTo /D [5 0 R /XYZ null null null] >> >>"))
     return _build_pdf(objects, 1)
 

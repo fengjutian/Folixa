@@ -28,6 +28,14 @@ QRectF expectedInternalRect() {
     return QRectF(QPointF(60.0, 200.0), QPointF(220.0, 235.0));
 }
 
+QRectF expectedExternalRect() {
+    return QRectF(QPointF(60.0, 150.0), QPointF(300.0, 180.0));
+}
+
+QRectF expectedOverlapRect() {
+    return QRectF(QPointF(60.0, 100.0), QPointF(300.0, 140.0));
+}
+
 }  // namespace
 
 class PdfNavigationTests : public QObject {
@@ -40,6 +48,7 @@ private slots:
     void outlineDecodesUtf16Titles();
     void pageOneHasInternalLink();
     void pageTwoHasExternalLink();
+    void linksAreReadPerPage();
     void overlappingLinksFollowZOrder();
     void documentWithoutOutlineIsEmpty();
     void invalidDocumentHasNoLinks();
@@ -96,7 +105,7 @@ void PdfNavigationTests::pageOneHasInternalLink() {
     const auto page = document.page(0);
     QVERIFY(page.has_value());
     const QVector<PageLink> links = page->links();
-    QCOMPARE(links.size(), 1);
+    QCOMPARE(links.size(), 4);
     QCOMPARE(links.at(0).pageIndex, 1);
     QVERIFY(links.at(0).uri.isEmpty());
     QVERIFY(links.at(0).isInternal());
@@ -112,23 +121,41 @@ void PdfNavigationTests::pageTwoHasExternalLink() {
     QVERIFY(page.has_value());
     const QVector<PageLink> links = page->links();
     QCOMPARE(links.size(), 1);
-    QCOMPARE(links.at(0).uri, QStringLiteral("https://example.com/folixa"));
+    QCOMPARE(links.at(0).uri, QStringLiteral("https://example.com/page2"));
     QVERIFY(links.at(0).isExternal());
     QVERIFY(links.at(0).isUsable());
+    QCOMPARE(links.at(0).rect, expectedOverlapRect());
+}
+
+void PdfNavigationTests::linksAreReadPerPage() {
+    const PdfDocument document = openFixture("navigation.pdf");
+    QVERIFY(document.isValid());
+
+    // 第 1 页上的外部链接只属于第 1 页。
+    const auto first = document.page(0);
+    QVERIFY(first.has_value());
+    QCOMPARE(first->links().at(1).uri, QStringLiteral("https://example.com/folixa"));
+    QCOMPARE(first->links().at(1).rect, expectedExternalRect());
+
+    // 第 3 页没有链接：空白页不该凭空冒出热区。
+    const auto third = document.page(2);
+    QVERIFY(third.has_value());
+    QVERIFY(third->links().isEmpty());
 }
 
 void PdfNavigationTests::overlappingLinksFollowZOrder() {
     const PdfDocument document = openFixture("navigation.pdf");
     QVERIFY(document.isValid());
 
-    const auto page = document.page(2);
+    const auto page = document.page(0);
     QVERIFY(page.has_value());
     const QVector<PageLink> links = page->links();
-    QCOMPARE(links.size(), 2);
-    // 两个矩形完全重叠：先枚举的在下面，后枚举的（URI）在上层。
-    QCOMPARE(links.at(0).pageIndex, 0);
-    QCOMPARE(links.at(1).uri, QStringLiteral("https://example.com/overlay"));
-    QCOMPARE(links.at(0).rect, links.at(1).rect);
+    QCOMPARE(links.size(), 4);
+    // 最后两个矩形完全重叠：先枚举的在下面，后枚举的（URI）在上层。
+    QCOMPARE(links.at(2).pageIndex, 2);
+    QCOMPARE(links.at(3).uri, QStringLiteral("https://example.com/overlay"));
+    QCOMPARE(links.at(2).rect, links.at(3).rect);
+    QCOMPARE(links.at(2).rect, expectedOverlapRect());
 }
 
 void PdfNavigationTests::documentWithoutOutlineIsEmpty() {

@@ -56,6 +56,8 @@ private:
     PdfView* currentView() const;
     // 目录树里点到某个条目：跳到它的目标页。
     void navigateToOutlineTarget(int pageIndex, const QString& title);
+    // 切换导航页签时把该页签的条目数记进轨迹（验收脚本据此断言面板真的有内容）。
+    void traceNavigationPanel(int index);
     void positionFloatingUi();
 
     ipc::WorkerClient* workerClient_ = nullptr;

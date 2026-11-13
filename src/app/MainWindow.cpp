@@ -253,9 +253,15 @@ void MainWindow::buildUi() {
                                    QStringLiteral(":/icons/bookmark.svg"),
                                    QStringLiteral(":/icons/search.svg")};
     const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索")};
+    // 每个按钮给一个独立的对象名：验收脚本靠它定位「目录」「书签」页签，
+    // 靠按钮文字（图标按钮没有文字）会随主题改版一起失效。
+    const QStringList railIds = {QStringLiteral("railButton.pages"),
+                                 QStringLiteral("railButton.outline"),
+                                 QStringLiteral("railButton.bookmarks"),
+                                 QStringLiteral("railButton.search")};
     for (int index = 0; index < railIcons.size(); ++index) {
         auto* button = new QToolButton(rail);
-        button->setObjectName(QStringLiteral("railButton"));
+        button->setObjectName(railIds.at(index));
         button->setIcon(QIcon(railIcons.at(index)));
         button->setIconSize(QSize(20, 20));
         button->setToolTip(railTips.at(index));
@@ -273,6 +279,7 @@ void MainWindow::buildUi() {
         const bool shouldShow = !wasVisible || !samePage;
         navigationPages->setVisible(shouldShow);
         resizeDocks({navigationDock_}, {shouldShow ? 224 : 52}, Qt::Horizontal);
+        traceNavigationPanel(index);
     });
     connect(pagesList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
@@ -629,6 +636,23 @@ void MainWindow::refreshOutline(PdfView* view) {
         }
     }
     trace(QStringLiteral("outline shown items=%1").arg(entries.size()));
+}
+
+void MainWindow::traceNavigationPanel(int index) {
+    // 页签内容不进 UIA 文本（QStackedWidget 只暴露当前页），
+    // 条目数记进轨迹，验收脚本才能断言面板里真的有内容。
+    switch (index) {
+        case 1:
+            trace(QStringLiteral("panel outline items=%1")
+                      .arg(outlineTree_ != nullptr ? outlineTree_->topLevelItemCount() : 0));
+            break;
+        case 2:
+            trace(QStringLiteral("panel bookmarks items=%1")
+                      .arg(bookmarkList_ != nullptr ? bookmarkList_->count() : 0));
+            break;
+        default:
+            break;
+    }
 }
 
 void MainWindow::navigateToOutlineTarget(int pageIndex, const QString& title) {
