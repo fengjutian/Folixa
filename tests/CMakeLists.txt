@@ -553,6 +553,21 @@ qt_add_resources(IconResourceTests "icon_test_resources"
         ${CMAKE_SOURCE_DIR}/src/app/icons/proofread.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/explain.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/summarize.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/zoom-out.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/zoom-in.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/fit-width.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/fit-page.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/rotate-left.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/rotate-right.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/save.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/highlight.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/underline.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/strikethrough.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/note.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/square.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/ink.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/undo.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/redo.svg
 )
 
 # Qt6::Svg 必须链上：windeployqt 靠它判断要部署 imageformats/qsvg.dll，

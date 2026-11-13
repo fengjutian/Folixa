@@ -162,7 +162,7 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     auto* content = new QWidget(scroll);
     content->setObjectName(QStringLiteral("welcomeContent"));
     auto* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(48, 40, 48, 30);
+    contentLayout->setContentsMargins(48, 28, 48, 22);
     contentLayout->addStretch(1);
 
     // 内容列：最大 720px，窗口变窄时自动收缩，横向居中。
@@ -181,15 +181,15 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     contentLayout->addLayout(row);
     contentLayout->addStretch(1);
 
-    auto* mark = new BrandMark(60, column);
+    auto* mark = new BrandMark(56, column);
     columnLayout->addWidget(mark, 0, Qt::AlignHCenter);
-    columnLayout->addSpacing(18);
+    columnLayout->addSpacing(14);
 
     auto* wordmark = new QLabel(QStringLiteral("Folixa"), column);
     wordmark->setObjectName(QStringLiteral("welcomeWordmark"));
     wordmark->setAlignment(Qt::AlignCenter);
     columnLayout->addWidget(wordmark);
-    columnLayout->addSpacing(6);
+    columnLayout->addSpacing(4);
 
     auto* eyebrow = new QLabel(QStringLiteral("AI PDF EDITOR"), column);
     eyebrow->setObjectName(QStringLiteral("welcomeEyebrow"));
@@ -198,23 +198,23 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.6);
     eyebrow->setFont(eyebrowFont);
     columnLayout->addWidget(eyebrow);
-    columnLayout->addSpacing(26);
+    columnLayout->addSpacing(22);
 
     auto* tagline = new QLabel(tr("专注阅读，也为文档智能留出恰到好处的空间"), column);
     tagline->setObjectName(QStringLiteral("welcomeTagline"));
     tagline->setAlignment(Qt::AlignCenter);
     tagline->setWordWrap(true);
     columnLayout->addWidget(tagline);
-    columnLayout->addSpacing(30);
+    columnLayout->addSpacing(26);
 
     auto* dropZone = new DropZone(column);
     dropZone->setObjectName(QStringLiteral("dropZone"));
-    dropZone->setFixedHeight(196);
+    dropZone->setFixedHeight(172);
     dropZone->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     dropZone->onClick = [this] { emit openPdfRequested(); };
     {
         auto* zoneLayout = new QVBoxLayout(dropZone);
-        zoneLayout->setContentsMargins(24, 92, 24, 26);
+        zoneLayout->setContentsMargins(24, 82, 24, 22);
         zoneLayout->setSpacing(0);
         auto* title = new QLabel(tr("把 PDF 拖到这里"), dropZone);
         title->setObjectName(QStringLiteral("dropZoneTitle"));
@@ -234,7 +234,7 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
         zoneLayout->addWidget(openButton, 0, Qt::AlignHCenter);
     }
     columnLayout->addWidget(dropZone);
-    columnLayout->addSpacing(34);
+    columnLayout->addSpacing(28);
 
     auto* recentHeader = new QHBoxLayout();
     recentHeader->setContentsMargins(4, 0, 4, 0);
@@ -248,9 +248,9 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
         recentHeader->addWidget(recentCount);
     }
     columnLayout->addLayout(recentHeader);
-    columnLayout->addSpacing(10);
+    columnLayout->addSpacing(8);
     columnLayout->addWidget(createRecentCard(recentFiles));
-    columnLayout->addSpacing(24);
+    columnLayout->addSpacing(20);
 
     auto* footnote = new QLabel(tr("Ctrl+O 打开  ·  Ctrl+F 查找  ·  支持多选与拖放"), column);
     footnote->setObjectName(QStringLiteral("welcomeFootnote"));

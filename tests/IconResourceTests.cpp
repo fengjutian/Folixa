@@ -35,7 +35,16 @@ void IconResourceTests::iconHasInk_data() {
                             QStringLiteral("annotation"), QStringLiteral("index"),
                             QStringLiteral("send"),     QStringLiteral("chat"),
                             QStringLiteral("rewrite"),  QStringLiteral("proofread"),
-                            QStringLiteral("explain"),  QStringLiteral("summarize")};
+                            QStringLiteral("explain"),  QStringLiteral("summarize"),
+                            // 文档工具栏与批注工具栏的图标（v0.11.0）。
+                            QStringLiteral("zoom-out"), QStringLiteral("zoom-in"),
+                            QStringLiteral("fit-width"), QStringLiteral("fit-page"),
+                            QStringLiteral("rotate-left"), QStringLiteral("rotate-right"),
+                            QStringLiteral("save"),     QStringLiteral("highlight"),
+                            QStringLiteral("underline"), QStringLiteral("strikethrough"),
+                            QStringLiteral("note"),     QStringLiteral("square"),
+                            QStringLiteral("ink"),      QStringLiteral("undo"),
+                            QStringLiteral("redo")};
     for (const QString& name : names) {
         QTest::newRow(qPrintable(name))
             << QStringLiteral(":/icons/%1.svg").arg(name);
