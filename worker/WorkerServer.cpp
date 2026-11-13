@@ -1,8 +1,12 @@
 #include "WorkerServer.h"
 
+#include "ai/ChatTypes.h"
+#include "ai/ProviderConfig.h"
+#include "ai/ProviderFactory.h"
 #include "ipc/IpcProtocol.h"
 
 #include <QCoreApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
@@ -16,6 +20,8 @@ WorkerServer::WorkerServer(QString serverName, QObject* parent)
     : QObject(parent), serverName_(std::move(serverName)) {
     connect(&server_, &QLocalServer::newConnection, this, &WorkerServer::acceptConnection);
 }
+
+WorkerServer::~WorkerServer() = default;
 
 bool WorkerServer::start() {
     QLocalServer::removeServer(serverName_);
@@ -33,6 +39,12 @@ void WorkerServer::acceptConnection() {
         client_ = candidate;
         connect(client_, &QLocalSocket::readyRead, this, &WorkerServer::readFrames);
         connect(client_, &QLocalSocket::disconnected, this, [this] {
+            // 客户端没了，正在跑的流也要停：不然会一直挂着等一个不会来的回复。
+            if (provider_ != nullptr && provider_->isRunning()) {
+                provider_->cancel();
+            }
+            provider_.reset();
+            activeStreamId_.clear();
             client_->deleteLater();
             client_ = nullptr;
             receiveBuffer_.clear();
@@ -71,6 +83,13 @@ void WorkerServer::readFrames() {
     }
 }
 
+void WorkerServer::writeFrame(const QJsonObject& frame) {
+    if (client_ == nullptr) {
+        return;
+    }
+    client_->write(ipc::encodeFrame(frame));
+}
+
 void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& request) {
     const QString requestId = request.value("request_id").toString();
     if (request.value("protocol_version").toInt(-1) != ipc::kProtocolVersion) {
@@ -79,6 +98,7 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
         return;
     }
 
+    const QJsonObject payload = request.value("payload").toObject();
     const QString operation = request.value("operation").toString();
     if (operation == "system.health") {
         socket->write(ipc::encodeFrame(ipc::makeResult(
@@ -89,9 +109,36 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
         return;
     }
     if (operation == "ai.echo") {
-        const QString text = request.value("payload").toObject().value("text").toString();
+        const QString text = payload.value("text").toString();
         socket->write(ipc::encodeFrame(ipc::makeResult(
             requestId, {{"text", text}, {"placeholder", true}})));
+        return;
+    }
+    if (operation == "ai.chat.stream") {
+        startChat(requestId, payload);
+        return;
+    }
+    if (operation == "ai.chat.cancel") {
+        const QString target = payload.value("target").toString();
+        if (provider_ != nullptr && provider_->isRunning() && target == activeStreamId_) {
+            provider_->cancel();
+        }
+        socket->write(ipc::encodeFrame(ipc::makeResult(
+            requestId, {{"status", "cancelling"}, {"target", target}})));
+        return;
+    }
+    if (operation == "ai.provider.status") {
+        // 报给界面用：现在用的是哪个 Provider、是不是演示模式、单价多少。
+        const aipdf::ai::ProviderConfig config = aipdf::ai::ProviderConfig::load();
+        const bool demo = config.providerId != QLatin1String("openai") ||
+                          !config.hasCredential();
+        socket->write(ipc::encodeFrame(ipc::makeResult(
+            requestId,
+            {{"provider", config.providerId},
+             {"model", config.model},
+             {"demo", demo},
+             {"input_price_per_million", config.inputPricePerMillion},
+             {"output_price_per_million", config.outputPricePerMillion}})));
         return;
     }
     if (operation == "system.shutdown") {
@@ -106,5 +153,90 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
         requestId, "operation_not_supported", "The requested operation is not available")));
 }
 
-}  // namespace aipdf::worker
+void WorkerServer::startChat(const QString& requestId, const QJsonObject& payload) {
+    if (provider_ != nullptr && provider_->isRunning()) {
+        // 消息是给用户看的：Worker 的错误帧会直接显示在 AI 面板里。
+        writeFrame(ipc::makeError(requestId, "busy",
+                                  "上一次生成还没结束，请等它结束或点「停止」。"));
+        return;
+    }
 
+    aipdf::ai::ChatRequest chat;
+    chat.task = payload.value("task").toString();
+    chat.dataScope = payload.value("data_scope").toString();
+    chat.model = payload.value("model").toString();
+    chat.temperature = payload.value("temperature").toDouble(0.2);
+    chat.maxTokens = payload.value("max_tokens").toInt(800);
+
+    const QJsonArray messages = payload.value("messages").toArray();
+    for (const QJsonValue& value : messages) {
+        const QJsonObject object = value.toObject();
+        aipdf::ai::ChatMessage message;
+        const QString role = object.value("role").toString();
+        if (role == QLatin1String("system")) {
+            message.role = aipdf::ai::ChatMessage::Role::System;
+        } else if (role == QLatin1String("assistant")) {
+            message.role = aipdf::ai::ChatMessage::Role::Assistant;
+        } else {
+            message.role = aipdf::ai::ChatMessage::Role::User;
+        }
+        message.content = object.value("content").toString();
+        chat.messages.append(message);
+    }
+
+    const aipdf::ai::ProviderConfig config = aipdf::ai::ProviderConfig::load();
+    provider_ = aipdf::ai::createProvider(config);
+    activeStreamId_ = requestId;
+
+    connect(provider_.get(), &aipdf::ai::ModelProvider::streamDelta, this,
+            [this, requestId](const QString& text) {
+                writeFrame(ipc::makeEvent(requestId, "ai.stream.delta",
+                                           {{"text", text}}));
+            });
+    connect(provider_.get(), &aipdf::ai::ModelProvider::streamFinished, this,
+            [this, requestId](const QString& reason, int inputTokens, int outputTokens) {
+                const aipdf::ai::ProviderConfig current = aipdf::ai::ProviderConfig::load();
+                aipdf::ai::TokenUsage usage;
+                usage.inputTokens = inputTokens;
+                usage.outputTokens = outputTokens;
+                finishStream(requestId, "ai.stream.done",
+                             {{"finish_reason", reason},
+                              {"input_tokens", usage.inputTokens},
+                              {"output_tokens", usage.outputTokens},
+                              {"estimated_cost",
+                               usage.estimatedCost(current.inputPricePerMillion,
+                                                   current.outputPricePerMillion)}});
+            });
+    connect(provider_.get(), &aipdf::ai::ModelProvider::streamFailed, this,
+            [this, requestId](const QString& code, const QString& message) {
+                finishStream(requestId, "ai.stream.error",
+                             {{"code", code}, {"message", message}});
+            });
+    connect(provider_.get(), &aipdf::ai::ModelProvider::streamCancelled, this,
+            [this, requestId]() {
+                finishStream(requestId, "ai.stream.cancelled", {{"cancelled", true}});
+            });
+
+    // 先回一个「开始了」：客户端据此把界面切到「生成中」。
+    writeFrame(ipc::makeResult(requestId,
+                               {{"status", "streaming"},
+                                {"provider", provider_->id()},
+                                {"model", config.model},
+                                {"demo", provider_->isDemo()}}));
+    provider_->startChat(chat);
+}
+
+void WorkerServer::finishStream(const QString& requestId,
+                                 const QString& event,
+                                 const QJsonObject& payload) {
+    writeFrame(ipc::makeEvent(requestId, event, payload));
+    // 每个请求都要以**一个最终结果帧**收尾。
+    // 客户端靠它清掉流式状态（activeStreams_）；只发事件不发结果，
+    // 客户端那边就会一直以为这次流还活着。
+    writeFrame(ipc::makeResult(requestId, {{"status", "finished"}}));
+    if (activeStreamId_ == requestId) {
+        activeStreamId_.clear();
+    }
+}
+
+}  // namespace aipdf::worker

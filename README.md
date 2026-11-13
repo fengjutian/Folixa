@@ -28,15 +28,19 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   每块带页码、PDF 用户空间坐标、章节路径与标题层级；索引落在本地，
   内容没变的页直接复用（前面插了页也不用重建），按关键词检索后
   点结果即可跳到原文并高亮对应区域
+- **流式 AI 对话**：AI 面板提供总结当前页、解释选区、翻译选区与就当前页提问，
+  回答逐段流出、可随时停止，并报出 token 用量与估算费用；
+  接入 OpenAI 兼容的云端模型，API 密钥存 Windows 凭据管理器（不进配置文件与日志）；
+  没配密钥时走演示模式，界面上显式标注「演示模式」
+- **发送范围先展示再上传**：只有当前页文本或当前选区会被送出（上限 4000 字），
+  发送前界面先显示「本次发送：第 N 页 · M 字」
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
 - Worker 跟随主程序退出：主程序被强制结束时 Worker 自行退出，不留孤儿进程
 - IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试、
-  批注/撤销栈单元测试、页面管理/安全保存单元测试与文档索引单元测试
+  批注/撤销栈单元测试、页面管理/安全保存单元测试、文档索引单元测试与模型接入单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
-
-PDF 真实模型 Provider 将在后续里程碑接入。
 
 ## 构建环境
 
@@ -157,6 +161,16 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-pages.ps1
 最后模拟崩溃再重启，验恢复问询弹得出来、点「恢复」之后命令被重放。
 同样会抢前台，**只应在 CI 或空闲机器上运行**。
 
+## AI 面板验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-ai.ps1
+```
+
+用真实界面路径验证 AI 面板：演示模式标注、流式总结与用量、就当前页提问、
+取消正在进行的生成、设置对话框的打开与取消。
+同样会抢前台，**只应在 CI 或空闲机器上运行**。
+
 ## 打包
 
 ```powershell
@@ -227,7 +241,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.9.0`](docs/versions/v0.9.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.10.0`](docs/versions/v0.10.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发规范
 
@@ -247,7 +261,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ### 界面验收会抢桌面
 
 `verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation` /
-`verify-annotations` / `verify-pages` / `verify-index` 这八个脚本要驱动真实界面：
+`verify-annotations` / `verify-pages` / `verify-index` / `verify-ai` 这九个脚本要驱动真实界面：
 把窗口抢到前台、置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
 **在开发机上跑会打断正在用这台机器的人**（真实指针会被挪走，窗口会突然跳出来）。
 
@@ -268,7 +282,9 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
   跳过启动时的恢复问询——那个问询是模态弹窗，会挡住验收要点的界面；
   `AIPDF_RECOVERY_DIR` 把恢复日志放到临时目录，各脚本互不干扰；
   `AIPDF_INDEX_DIR` 把本地索引放到临时目录，索引验收脚本之间互不干扰，
-  也不会写进使用者自己的索引目录。
+  也不会写进使用者自己的索引目录；
+  `AIPDF_AI_MOCK_DELAY_MS` 把演示模式的吐字速度调慢，
+  取消功能的验收才有确定的时序（默认 30ms 一段，答案 1 秒内就吐完了）。
 
 ### 写代码时的硬约束
 

@@ -408,3 +408,30 @@ aipdf_deploy_qt_runtime(RenderThreadTests)
 aipdf_deploy_pdfium(RenderThreadTests)
 
 add_test(NAME RenderThreadTests COMMAND RenderThreadTests)
+
+# ------------------------------------------------------- 模型接入与流式 ----
+
+qt_add_executable(AiProviderTests
+    AiProviderTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.h
+)
+
+target_link_libraries(AiProviderTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(AiProviderTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AiProviderTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+# 凭据管理器在 advapi32 上。
+if (WIN32)
+    target_link_libraries(AiProviderTests PRIVATE advapi32)
+endif()
+
+aipdf_deploy_qt_runtime(AiProviderTests)
+
+add_test(NAME AiProviderTests COMMAND AiProviderTests)

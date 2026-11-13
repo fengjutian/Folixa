@@ -37,6 +37,20 @@ QJsonObject makeError(const QString& requestId,
     };
 }
 
+QJsonObject makeEvent(const QString& requestId,
+                      const QString& event,
+                      const QJsonObject& payload) {
+    // 事件帧刻意**不带** ok 字段：ok 只属于最终结果。
+    // 谁要是把中间事件当成「请求成功了」，一眼就能看出来。
+    return {
+        {"protocol_version", kProtocolVersion},
+        {"request_id", requestId},
+        {"type", "event"},
+        {"event", event},
+        {"payload", payload},
+    };
+}
+
 QByteArray encodeFrame(const QJsonObject& message) {
     QByteArray frame = QJsonDocument(message).toJson(QJsonDocument::Compact);
     frame.append('\n');

@@ -3,12 +3,14 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QUuid>
 #include <QtTest>
 
@@ -73,6 +75,9 @@ private slots:
     void missingWorkerExecutableIsReported();
     void requestTimeoutIsReported();
     void workerExitIsReported();
+    void streamedChatEmitsEventsThenFinalResult();
+    void streamedChatCanBeCancelled();
+    void busyStreamIsReportedAsFailure();
 };
 
 void WorkerIntegrationTests::workerAnswersHealthCheck() {
@@ -210,6 +215,169 @@ void WorkerIntegrationTests::workerExitIsReported() {
     QTRY_VERIFY_WITH_TIMEOUT(
         states.size() >= 2 && states.last().at(0).toString() == "unavailable", 5000);
     QVERIFY(failures.size() <= 1);
+}
+
+// 流式对话的端到端路径：Worker 真的把增量一段段发回来。
+//
+// 两个前置条件不能省：
+//   1. LOCALAPPDATA 指向临时目录——Worker 从这里读模型配置，
+//      不指的话会读到用户自己配好的云端 Provider，测试就变成真联网了；
+//   2. 演示模式的吐字速度调慢一点——取消要发生在流还没结束的时候。
+namespace {
+
+// 把 Worker 固定在演示模式（不联网）。
+bool forceDemoMode(QTemporaryDir& sandbox, const char* delayMs) {
+    if (!sandbox.isValid()) {
+        return false;
+    }
+    QDir(sandbox.path()).mkpath(QStringLiteral("localappdata"));
+    qputenv("LOCALAPPDATA",
+            QDir(sandbox.path())
+                .filePath(QStringLiteral("localappdata"))
+                .toUtf8());
+    qputenv("AIPDF_AI_MOCK_DELAY_MS", delayMs);
+    return true;
+}
+
+QJsonObject summaryPayload() {
+    QJsonArray messages;
+    messages.append(QJsonObject{
+        {"role", "system"},
+        {"content", "你是一个 PDF 阅读助手。只依据给出的文本回答。"}});
+    messages.append(QJsonObject{
+        {"role", "user"},
+        {"content", "以下是这一页的文本，请总结：\n\nFolixa 是一个 PDF 编辑器。"}});
+    return QJsonObject{
+        {"task", "summary"},
+        {"data_scope", "第 1 页 · 20 字"},
+        {"messages", messages}};
+}
+
+// 从 QSignalSpy 里找出最后一个指定名字的事件。
+QJsonObject lastEvent(const QSignalSpy& events, const QString& name) {
+    QJsonObject found;
+    for (const QList<QVariant>& call : events) {
+        if (call.size() < 3) {
+            continue;
+        }
+        if (call.at(1).toString() == name) {
+            found = call.at(2).toJsonObject();
+        }
+    }
+    return found;
+}
+
+}  // namespace
+
+void WorkerIntegrationTests::streamedChatEmitsEventsThenFinalResult() {
+    QTemporaryDir sandbox;
+    QVERIFY(forceDemoMode(sandbox, "10"));
+
+    aipdf::ipc::WorkerClient client;
+    QSignalSpy responses(&client, &aipdf::ipc::WorkerClient::responseReceived);
+    QSignalSpy events(&client, &aipdf::ipc::WorkerClient::eventReceived);
+    QSignalSpy states(&client, &aipdf::ipc::WorkerClient::stateChanged);
+
+    client.setWorkerExecutable(workerExecutablePath());
+    client.start();
+    QTRY_COMPARE_WITH_TIMEOUT(states.last().at(0).toString(), QString("ready"), 5000);
+
+    const QString requestId = client.sendStreamRequest("ai.chat.stream", summaryPayload());
+    QVERIFY(!requestId.isEmpty());
+    QVERIFY(client.isStreamActive(requestId));
+
+    // 「开始了」的回执：先来一个 result（status=streaming）。
+    QTRY_VERIFY_WITH_TIMEOUT(responses.size() >= 1, 5000);
+    const QJsonObject started = responses.first().at(1).value<QJsonObject>();
+    QCOMPARE(started.value("payload").toObject().value("status").toString(),
+             QString("streaming"));
+    QCOMPARE(started.value("payload").toObject().value("demo").toBool(), true);
+
+    // 增量事件：一段一段地来。
+    // 先等结束事件：到这时候所有增量都到齐了，
+    // 只等到第一个增量的话，拼出来的文本还断在词中间。
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !lastEvent(events, QStringLiteral("ai.stream.done")).isEmpty(), 8000);
+
+    QString text;
+    for (const QList<QVariant>& call : events) {
+        if (call.size() < 3 || call.at(1).toString() != QLatin1String("ai.stream.delta")) {
+            continue;
+        }
+        text += call.at(2).toJsonObject().value("text").toString();
+    }
+    QVERIFY2(text.contains(QStringLiteral("演示模式")), qPrintable(text));
+
+    // 结束事件的载荷带 token 用量。
+    // lastEvent 拿到的是事件帧的 payload 本身。
+    const QJsonObject done = lastEvent(events, QStringLiteral("ai.stream.done"));
+    QVERIFY(done.contains("input_tokens"));
+    QVERIFY(done.contains("output_tokens"));
+
+    // 客户端要能在最终结果帧之后把这次流清掉：
+    // 只发事件不发结果的话，activeStreams_ 会一直留着这个 id。
+    QTRY_VERIFY_WITH_TIMEOUT(!client.isStreamActive(requestId), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(responses.size() >= 2, 5000);
+    const QJsonObject finished = responses.last().at(1).value<QJsonObject>();
+    QCOMPARE(finished.value("type").toString(), QString("result"));
+    QCOMPARE(finished.value("payload").toObject().value("status").toString(),
+             QString("finished"));
+}
+
+void WorkerIntegrationTests::streamedChatCanBeCancelled() {
+    QTemporaryDir sandbox;
+    // 慢一点吐字，取消才发生在流还没结束的时候。
+    QVERIFY(forceDemoMode(sandbox, "40"));
+
+    aipdf::ipc::WorkerClient client;
+    QSignalSpy responses(&client, &aipdf::ipc::WorkerClient::responseReceived);
+    QSignalSpy events(&client, &aipdf::ipc::WorkerClient::eventReceived);
+    QSignalSpy states(&client, &aipdf::ipc::WorkerClient::stateChanged);
+
+    client.setWorkerExecutable(workerExecutablePath());
+    client.start();
+    QTRY_COMPARE_WITH_TIMEOUT(states.last().at(0).toString(), QString("ready"), 5000);
+
+    const QString requestId = client.sendStreamRequest("ai.chat.stream", summaryPayload());
+    QVERIFY(!requestId.isEmpty());
+
+    // 等第一段增量到达：说明流已经跑起来了。
+    QTRY_VERIFY_WITH_TIMEOUT(events.size() >= 1, 5000);
+    client.cancelStreamRequest(requestId);
+
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !lastEvent(events, QStringLiteral("ai.stream.cancelled")).isEmpty(), 5000);
+    // 取消之后这次流也要收尾，不能一直挂着。
+    QTRY_VERIFY_WITH_TIMEOUT(!client.isStreamActive(requestId), 5000);
+}
+
+void WorkerIntegrationTests::busyStreamIsReportedAsFailure() {
+    QTemporaryDir sandbox;
+    // 慢一点吐字，第二条请求才撞得上「上一次还没结束」。
+    QVERIFY(forceDemoMode(sandbox, "60"));
+
+    aipdf::ipc::WorkerClient client;
+    QSignalSpy events(&client, &aipdf::ipc::WorkerClient::eventReceived);
+    QSignalSpy failures(&client, &aipdf::ipc::WorkerClient::requestFailed);
+    QSignalSpy states(&client, &aipdf::ipc::WorkerClient::stateChanged);
+
+    client.setWorkerExecutable(workerExecutablePath());
+    client.start();
+    QTRY_COMPARE_WITH_TIMEOUT(states.last().at(0).toString(), QString("ready"), 5000);
+
+    const QString first = client.sendStreamRequest("ai.chat.stream", summaryPayload());
+    QVERIFY(!first.isEmpty());
+    // 等第一条流真的跑起来：否则第二条可能排在第一条后面。
+    QTRY_VERIFY_WITH_TIMEOUT(events.size() >= 1, 5000);
+
+    client.sendStreamRequest("ai.chat.stream", summaryPayload());
+
+    // 第二条撞上「忙」：Worker 回一个错误帧，客户端必须把它报成失败。
+    // 以前错误帧只是被读掉了，界面收下了这个响应却什么都不显示。
+    QTRY_VERIFY_WITH_TIMEOUT(failures.size() >= 1, 5000);
+    const QString message = failures.first().at(1).toString();
+    QVERIFY2(!message.isEmpty(), "失败没有带原因");
+    QVERIFY2(message.contains(QStringLiteral("还没结束")), qPrintable(message));
 }
 
 QTEST_GUILESS_MAIN(WorkerIntegrationTests)

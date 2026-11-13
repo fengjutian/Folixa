@@ -5,6 +5,7 @@
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
+#include "app/AiPanel.h"
 #include "ipc/WorkerClient.h"
 #include "doc/EditCommand.h"
 #include "doc/RecoveryLog.h"
@@ -90,38 +91,18 @@ MainWindow::MainWindow(QWidget* parent)
                 // 界面上的状态标签在默认收起的 AI 面板里，UI Automation 读不到，
                 // 而面板文案还会随改版变化——断言绑在轨迹上才稳。
                 trace(QStringLiteral("worker state=%1").arg(state));
-                const QString label = state == QStringLiteral("ready") ? tr("已就绪")
-                    : state == QStringLiteral("starting") ? tr("正在启动")
-                    : state == QStringLiteral("stopped") ? tr("已停止")
-                    : state;
-                workerStatus_->setText(tr("AI 服务：%1").arg(label));
-                sendButton_->setEnabled(state == "ready");
-                if (state == "ready") {
+                if (state == QStringLiteral("ready")) {
                     sendHealthCheck();
                 }
             });
     connect(workerClient_, &ipc::WorkerClient::responseReceived,
             this, [this](const QString&, const QJsonObject& response) {
                 const QJsonObject payload = response.value("payload").toObject();
-                if (payload.contains("status")) {
+                if (payload.contains("protocol_version")) {
                     trace(QStringLiteral("worker health protocol=%1 version=%2")
                               .arg(payload.value("protocol_version").toInt())
                               .arg(payload.value("worker_version").toString()));
-                    conversation_->append(
-                        tr("<b>系统：</b>本地 AI 服务已就绪（协议 %1，版本 %2）。")
-                            .arg(payload.value("protocol_version").toInt())
-                            .arg(payload.value("worker_version").toString().toHtmlEscaped()));
-                } else if (payload.contains("text")) {
-                    conversation_->append(tr("<b>服务：</b>") +
-                                          payload.value("text").toString().toHtmlEscaped());
-                } else {
-                    conversation_->append(tr("<b>服务：</b>") +
-                        QString::fromUtf8(QJsonDocument(response).toJson(QJsonDocument::Compact)).toHtmlEscaped());
                 }
-            });
-    connect(workerClient_, &ipc::WorkerClient::requestFailed,
-            this, [this](const QString&, const QString& message) {
-                conversation_->append(tr("<b>错误：</b>") + message.toHtmlEscaped());
             });
 
     workerClient_->start();
@@ -432,62 +413,11 @@ void MainWindow::buildUi() {
     aiDock_->setObjectName(QStringLiteral("aiDock"));
     aiDock_->setMinimumWidth(280);
     aiDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
-    auto* aiPanel = new QFrame(aiDock_);
-    aiPanel->setObjectName(QStringLiteral("aiPanel"));
-    auto* aiLayout = new QVBoxLayout(aiPanel);
-    aiLayout->setContentsMargins(16, 16, 16, 16);
-    aiLayout->setSpacing(12);
-    auto* aiTitle = new QLabel(tr("✦  Folixa AI"), aiPanel);
-    aiTitle->setObjectName(QStringLiteral("aiTitle"));
-    auto* aiSubtitle = new QLabel(tr("阅读、理解并定位当前文档内容"), aiPanel);
-    aiSubtitle->setObjectName(QStringLiteral("aiSubtitle"));
-    workerStatus_ = new QLabel(tr("AI 服务：正在启动"), aiPanel);
-    workerStatus_->setObjectName(QStringLiteral("secondaryText"));
-    auto* quickActions = new QHBoxLayout();
-    quickActions->setSpacing(6);
-    for (const QString& text : {tr("总结"), tr("解释"), tr("提取要点")}) {
-        auto* chip = new QPushButton(text, aiPanel);
-        chip->setObjectName(QStringLiteral("aiChip"));
-        chip->setEnabled(false);
-        chip->setToolTip(tr("接入模型后可用"));
-        quickActions->addWidget(chip);
-    }
-    conversation_ = new QTextBrowser(aiPanel);
-    conversation_->document()->setDefaultStyleSheet(QStringLiteral(
-        "body{font-family:'Segoe UI','Microsoft YaHei UI';color:#202A3A;}"
-        ".welcome{background:#FFFFFF;border:1px solid #E2DDF2;padding:14px;margin:4px;}"
-        ".eyebrow{color:#765ECC;font-size:11px;font-weight:600;}"
-        ".message{background:#FFFFFF;padding:10px;margin:8px 2px;}"
-        ".user{background:#EAF0FF;padding:10px;margin:8px 2px;}"
-        ".muted{color:#8792A3;font-size:11px;}"));
-    conversation_->setHtml(tr(
-        "<div class='welcome'><div class='eyebrow'>FOLIXA AI</div>"
-        "<h3>从当前文档开始</h3>"
-        "<p>我可以帮你总结内容、解释段落，并在接入引用索引后定位原文。</p>"
-        "<p class='muted'>选择上方建议，或在下方输入问题。</p></div>"));
-    prompt_ = new QLineEdit(aiPanel);
-    prompt_->setPlaceholderText(tr("询问当前文档…"));
-    sendButton_ = new QPushButton(aiPanel);
-    sendButton_->setObjectName(QStringLiteral("aiButton"));
-    sendButton_->setIcon(QIcon(QStringLiteral(":/icons/send.svg")));
-    sendButton_->setIconSize(QSize(18, 18));
-    sendButton_->setToolTip(tr("发送"));
-    sendButton_->setFixedSize(38, 38);
-    sendButton_->setEnabled(false);
-    aiLayout->addWidget(aiTitle);
-    aiLayout->addWidget(aiSubtitle);
-    aiLayout->addLayout(quickActions);
-    aiLayout->addWidget(workerStatus_);
-    aiLayout->addWidget(conversation_, 1);
-    auto* composer = new QFrame(aiPanel);
-    composer->setObjectName(QStringLiteral("aiComposer"));
-    auto* composerLayout = new QHBoxLayout(composer);
-    composerLayout->setContentsMargins(8, 6, 6, 6);
-    composerLayout->setSpacing(6);
-    composerLayout->addWidget(prompt_, 1);
-    composerLayout->addWidget(sendButton_);
-    aiLayout->addWidget(composer);
-    aiDock_->setWidget(aiPanel);
+    // AI 面板（v0.10.0）：三个受限功能 + 流式显示 + 取消 + 费用指标。
+    // 面板自己管 Worker 客户端、状态标签与对话区。
+    aiPanel_ = new AiPanel(aiDock_);
+    aiPanel_->setWorkerClient(workerClient_);
+    aiDock_->setWidget(aiPanel_);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
     resizeDocks({navigationDock_, aiDock_}, {52, 340}, Qt::Horizontal);
     viewMenu->addAction(aiDock_->toggleViewAction());
@@ -510,11 +440,29 @@ void MainWindow::buildUi() {
                 aiQuickCard_->hide();
                 aiDock_->show();
                 aiDock_->raise();
-                prompt_->setFocus();
+                if (aiPanel_ != nullptr) {
+                    aiPanel_->focusPrompt();
+                }
+            });
+        } else if (index == 3 || index == 4) {
+            // 「解释」与「总结」已经真的能用了，直接接过去。
+            button->setEnabled(true);
+            connect(button, &QPushButton::clicked, this, [this, index] {
+                aiQuickCard_->hide();
+                aiDock_->show();
+                aiDock_->raise();
+                if (aiPanel_ == nullptr) {
+                    return;
+                }
+                if (index == 4) {
+                    aiPanel_->requestSummary();
+                } else {
+                    aiPanel_->requestExplain();
+                }
             });
         } else {
             button->setEnabled(false);
-            button->setToolTip(tr("接入模型后可用"));
+            button->setToolTip(tr("将在后续版本中提供"));
         }
         quickCardLayout->addWidget(button);
     }
@@ -569,8 +517,6 @@ void MainWindow::buildUi() {
         QSettings().setValue(QStringLiteral("workspace/aiVisible"), visible);
     });
 
-    connect(sendButton_, &QPushButton::clicked, this, &MainWindow::sendEcho);
-    connect(prompt_, &QLineEdit::returnPressed, this, &MainWindow::sendEcho);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
         refreshThumbnails(view);
@@ -584,6 +530,11 @@ void MainWindow::buildUi() {
         }
         // 索引面板也跟着当前文档走。
         bindIndex(view);
+        // AI 面板也要跟着当前文档走：它要拿当前页的文本与选区。
+        if (aiPanel_ != nullptr) {
+            aiPanel_->setTextSource(view != nullptr ? view->textController() : nullptr);
+            aiPanel_->setCurrentPage(view != nullptr ? view->currentPage() : 0);
+        }
     });
 
     statusBar()->showMessage(tr("就绪"));
@@ -1184,16 +1135,6 @@ void MainWindow::sendHealthCheck() {
     workerClient_->sendRequest("system.health");
 }
 
-void MainWindow::sendEcho() {
-    const QString text = prompt_->text().trimmed();
-    if (text.isEmpty()) {
-        return;
-    }
-    conversation_->append(tr("<div class='user'><b>你</b><br>%1</div>").arg(text.toHtmlEscaped()));
-    prompt_->clear();
-    workerClient_->sendRequest("ai.echo", {{"text", text}});
-}
-
 void MainWindow::refreshThumbnails(PdfView* view) {
     if (pagesList_ == nullptr) {
         return;
@@ -1320,6 +1261,10 @@ void MainWindow::openPdfFile(const QString& filePath) {
     connect(view, &PdfView::currentPageChanged, this, [this](int index) {
         highlightThumbnail(index);
         updatePageActionState();
+        // AI 面板要知道当前页：摘要与提问都只送当前页。
+        if (aiPanel_ != nullptr) {
+            aiPanel_->setCurrentPage(index);
+        }
     });
     // 页面结构变了：缩略图列表与页面按钮都要跟着更新。
     connect(view, &PdfView::pageStructureChanged, this, [this]() {

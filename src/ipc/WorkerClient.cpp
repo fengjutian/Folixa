@@ -141,6 +141,36 @@ QString WorkerClient::sendRequest(const QString& operation,
     return requestId;
 }
 
+QString WorkerClient::sendStreamRequest(const QString& operation,
+                                         const QJsonObject& payload) {
+    const QString requestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    if (socket_.state() != QLocalSocket::ConnectedState) {
+        emit requestFailed(requestId, "AI Worker is not connected");
+        return requestId;
+    }
+    // 流式请求不挂超时定时器：一次回答可能比普通请求久得多，
+    // 超时判定应该由「取消」和 Worker 的错误事件来做。
+    activeStreams_.insert(requestId);
+    socket_.write(encodeFrame(makeRequest(requestId, operation, payload)));
+    return requestId;
+}
+
+void WorkerClient::cancelStreamRequest(const QString& requestId) {
+    if (requestId.isEmpty()) {
+        return;
+    }
+    if (socket_.state() != QLocalSocket::ConnectedState) {
+        return;
+    }
+    // 取消本身是一次普通请求：它马上就有回执。
+    sendRequest(QStringLiteral("ai.chat.cancel"),
+                QJsonObject{{"target", requestId}});
+}
+
+bool WorkerClient::isStreamActive(const QString& requestId) const {
+    return activeStreams_.contains(requestId);
+}
+
 void WorkerClient::connectToWorker() {
     if (stopping_ || socket_.state() == QLocalSocket::ConnectedState) {
         return;
@@ -180,9 +210,33 @@ void WorkerClient::readFrames() {
 
         const QJsonObject response = document.object();
         const QString requestId = response.value("request_id").toString();
+        const QString type = response.value("type").toString();
+
+        if (type == QLatin1String("event")) {
+            // 中间事件：这次请求还没结束。
+            // 不能停掉挂起的定时器，也不能清掉流式状态——
+            // 把中间事件当成最终结果，界面就会提前显示「已完成」。
+            emit eventReceived(requestId,
+                               response.value("event").toString(),
+                               response.value("payload").toObject());
+            continue;
+        }
+
+        // 最终结果（result / error）：请求到此结束。
         if (QTimer* timer = pendingTimers_.take(requestId)) {
             timer->stop();
             timer->deleteLater();
+        }
+        activeStreams_.remove(requestId);
+        if (type == QLatin1String("error")) {
+            // 错误帧也是一次失败的请求：要把它当成失败报出去，
+            // 否则界面收下了这个响应却什么都不显示——用户只看到界面没反应。
+            const QJsonObject error = response.value("error").toObject();
+            const QString message = error.value("message").toString();
+            emit requestFailed(requestId,
+                               message.isEmpty()
+                                   ? QStringLiteral("AI Worker request failed")
+                                   : message);
         }
         emit responseReceived(requestId, response);
     }
@@ -219,6 +273,12 @@ void WorkerClient::failPendingRequests(const QString& message) {
             timer->stop();
             timer->deleteLater();
         }
+        emit requestFailed(requestId, message);
+    }
+    // 流式请求也要收尾：Worker 没了，它们的流不会自己结束。
+    const auto streams = activeStreams_.values();
+    activeStreams_.clear();
+    for (const QString& requestId : streams) {
         emit requestFailed(requestId, message);
     }
 }

@@ -26,6 +26,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/LinkHitTest.cpp
     app/SearchPanel.h
     app/SearchPanel.cpp
+    app/AiPanel.h
+    app/AiPanel.cpp
+    app/AiSettingsDialog.h
+    app/AiSettingsDialog.cpp
     app/IndexController.h
     app/IndexController.cpp
     app/IndexPanel.h
@@ -46,6 +50,12 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/Navigation.h
     pdf/TextPage.cpp
     pdf/TextPage.h
+    ai/ChatTypes.cpp
+    ai/ChatTypes.h
+    ai/CredentialStore.cpp
+    ai/CredentialStore.h
+    ai/ProviderConfig.cpp
+    ai/ProviderConfig.h
     doc/AnnotationModel.cpp
     doc/AnnotationModel.h
     doc/ChunkBuilder.cpp
@@ -86,6 +96,11 @@ target_link_libraries(AiPdfEditor PRIVATE
     Qt6::Network
     ${AIPDF_PDFIUM_LIBRARY}
 )
+
+# Windows 凭据管理器（API 密钥）：advapi32。
+if (WIN32)
+    target_link_libraries(AiPdfEditor PRIVATE advapi32)
+endif()
 
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(AiPdfEditor PRIVATE ${AIPDF_PDFIUM_INCLUDE_DIR})

@@ -26,6 +26,7 @@ namespace aipdf::app {
 class PdfView;
 class SearchPanel;
 class IndexPanel;
+class AiPanel;
 class NavigationController;
 class AnnotationController;
 
@@ -51,7 +52,6 @@ private:
     QStackedWidget* createAnnotationTab();
     void openPdfDialog();
     void sendHealthCheck();
-    void sendEcho();
     void refreshThumbnails(PdfView* view);
     // 在缩略图列表里高亮当前页。
     void highlightThumbnail(int pageIndex);
@@ -95,12 +95,10 @@ private:
     void positionFloatingUi();
 
     ipc::WorkerClient* workerClient_ = nullptr;
-    QLabel* workerStatus_ = nullptr;
     // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
     QLabel* metricsLabel_ = nullptr;
-    QTextBrowser* conversation_ = nullptr;
-    QLineEdit* prompt_ = nullptr;
-    QPushButton* sendButton_ = nullptr;
+    // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
+    AiPanel* aiPanel_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
