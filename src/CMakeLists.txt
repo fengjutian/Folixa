@@ -62,6 +62,10 @@ qt_add_executable(AiPdfEditor WIN32
     ai/CredentialStore.h
     ai/ProviderConfig.cpp
     ai/ProviderConfig.h
+    ai/DataPolicy.cpp
+    ai/DataPolicy.h
+    ai/AuditLog.cpp
+    ai/AuditLog.h
     ai/EmbeddingProvider.h
     ai/LocalHashEmbedding.cpp
     ai/LocalHashEmbedding.h

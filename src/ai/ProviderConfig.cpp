@@ -21,11 +21,17 @@ constexpr auto kKeyModel = "model";
 constexpr auto kKeyInputPrice = "inputPricePerMillion";
 constexpr auto kKeyOutputPrice = "outputPricePerMillion";
 constexpr auto kKeyTimeoutMs = "timeoutMs";
+constexpr auto kKeyDataMode = "dataMode";
 constexpr int kFormatVersion = 1;
 
 }  // namespace
 
 QString ProviderConfig::sharedDataDirectory() {
+    // 测试与验收用这个变量把配置/审计落到临时目录，不碰真实用户目录。
+    const QString override = qEnvironmentVariable("AIPDF_DATA_DIR");
+    if (!override.isEmpty()) {
+        return override;
+    }
     // 主程序与 Worker 都要找到同一个目录，所以不能带应用名。
 #ifdef Q_OS_WIN
     const QString localAppData = qEnvironmentVariable("LOCALAPPDATA");
@@ -68,7 +74,12 @@ ProviderConfig ProviderConfig::load() {
     config.outputPricePerMillion =
         root.value(QString::fromLatin1(kKeyOutputPrice)).toDouble(config.outputPricePerMillion);
     config.timeoutMs = root.value(QString::fromLatin1(kKeyTimeoutMs)).toInt(config.timeoutMs);
+    config.dataMode = root.value(QString::fromLatin1(kKeyDataMode)).toString(config.dataMode);
     return config;
+}
+
+DataMode ProviderConfig::effectiveDataMode() const {
+    return dataModeFromId(dataMode);
 }
 
 bool ProviderConfig::save() const {
@@ -85,6 +96,7 @@ bool ProviderConfig::save() const {
     root.insert(QString::fromLatin1(kKeyInputPrice), inputPricePerMillion);
     root.insert(QString::fromLatin1(kKeyOutputPrice), outputPricePerMillion);
     root.insert(QString::fromLatin1(kKeyTimeoutMs), timeoutMs);
+    root.insert(QString::fromLatin1(kKeyDataMode), dataModeId(effectiveDataMode()));
 
     // 先写临时文件再替换：写到一半崩了，旧的配置还在。
     const QString temporaryPath = path + QStringLiteral(".tmp");

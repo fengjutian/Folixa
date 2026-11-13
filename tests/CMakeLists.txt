@@ -419,6 +419,10 @@ qt_add_executable(AiProviderTests
     ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/ai/SseParser.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/SseParser.h
 )
@@ -493,6 +497,10 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
@@ -578,3 +586,27 @@ set_target_properties(IconResourceTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(IconResourceTests)
 
 add_test(NAME IconResourceTests COMMAND IconResourceTests)
+
+# ------------------------------------------------- AI 数据策略与审计 ----
+
+qt_add_executable(DataPolicyTests
+    DataPolicyTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
+)
+
+target_link_libraries(DataPolicyTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(DataPolicyTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(DataPolicyTests PROPERTIES WIN32_EXECUTABLE FALSE)
+if (WIN32)
+    target_link_libraries(DataPolicyTests PRIVATE advapi32)
+endif()
+aipdf_deploy_qt_runtime(DataPolicyTests)
+
+add_test(NAME DataPolicyTests COMMAND DataPolicyTests)

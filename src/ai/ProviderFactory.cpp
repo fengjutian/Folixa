@@ -7,6 +7,11 @@
 namespace aipdf::ai {
 
 std::unique_ptr<ModelProvider> createProvider(const ProviderConfig& config) {
+    // 本地模式：云端分支直接短路——即使配了密钥也返回演示 Provider。
+    // 这是「文档内容不出本机」的机械保证，不是界面上一个变灰的按钮。
+    if (!mayUseCloud(config.effectiveDataMode())) {
+        return std::make_unique<MockProvider>();
+    }
     if (config.providerId == QLatin1String("openai")) {
         // 密钥只在这里读一次，读完就交给 Provider；
         // 它不会出现在任何日志、轨迹或 IPC 帧里。

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ai/DataPolicy.h"
+
 #include <QString>
 
 namespace aipdf::ai {
@@ -25,6 +27,13 @@ struct ProviderConfig {
     double outputPricePerMillion = 0.0;
     // 单次请求超时（毫秒）。
     int timeoutMs = 60'000;
+
+    // 数据策略（v0.12.0）：local / chunks / pages。
+    // 默认 chunks，保持 v0.11.0 的行为；坏值由 dataModeFromId 回退到 local。
+    QString dataMode = QStringLiteral("chunks");
+
+    // 解析后的模式。配置里写了不认识的值时返回 LocalOnly。
+    DataMode effectiveDataMode() const;
 
     // 配置文件路径。
     static QString configFilePath();

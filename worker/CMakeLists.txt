@@ -16,6 +16,8 @@ qt_add_executable(PdfAiWorker
     ${CMAKE_SOURCE_DIR}/src/ai/OpenAiProvider.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/OpenAiProvider.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderFactory.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderFactory.h
