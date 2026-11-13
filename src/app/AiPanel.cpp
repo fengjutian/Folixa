@@ -183,6 +183,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     : state;
                 updateStatus(tr("AI 服务：%1").arg(label));
                 const bool ready = state == QLatin1String("ready");
+                workerReady_ = ready;
                 sendButton_->setEnabled(ready && !busy_);
                 summaryButton_->setEnabled(ready);
                 explainButton_->setEnabled(ready);
@@ -547,7 +548,8 @@ void AiPanel::updateStatus(const QString& text) {
 
 void AiPanel::setBusy(bool busy) {
     busy_ = busy;
-    sendButton_->setEnabled(!busy && workerClient_ != nullptr);
+    // Worker 掉线时不能把「发送」点亮：点了也只会换来一句「未连接」。
+    sendButton_->setEnabled(!busy && workerReady_);
     cancelButton_->setEnabled(busy);
     if (!busy) {
         activeRequestId_.clear();

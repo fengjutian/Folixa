@@ -51,6 +51,19 @@ if (-not $Version) {
     $Version = $match.Groups[1].Value
 }
 
+# 协议版本从源码里读，不要写死。
+#
+# 写死过一次：v0.10.0 把协议升到 2，这个断言还盯着 protocol=1，
+# 于是 CI 在启动验收这一步红了——被测的东西早就变了，断言没跟上。
+$protocolHeader = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\src\ipc\IpcProtocol.h') -Raw
+$protocolMatch = [regex]::Match($protocolHeader, 'kProtocolVersion\s*=\s*(\d+)')
+if (-not $protocolMatch.Success) {
+    Write-Host '无法从 IpcProtocol.h 解析协议版本' -ForegroundColor Red
+    exit 2
+}
+$ProtocolVersion = $protocolMatch.Groups[1].Value
+
 # 让子进程能加载 Qt 与 MinGW 运行库，即使 bin 目录里还没有部署 DLL。
 $qtRoot = if ($env:AIPDF_QT_ROOT) { $env:AIPDF_QT_ROOT } else { 'C:\Qt\6.8.3\mingw_64' }
 $mingwRoot = if ($env:AIPDF_MINGW_ROOT) { $env:AIPDF_MINGW_ROOT } else { 'C:\Qt\Tools\mingw1310_64' }
@@ -101,7 +114,7 @@ try {
     $ready = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
     Test-Check 'Worker 状态上报为 ready' $ready ''
     $health = Wait-AiPdfTraceMatch -Path $tracePath `
-        -Pattern ("worker health protocol=1 version=" + [regex]::Escape($Version)) -TimeoutSeconds 20
+        -Pattern ("worker health protocol=$ProtocolVersion version=" + [regex]::Escape($Version)) -TimeoutSeconds 20
     Test-Check '健康检查返回协议版本与 Worker 版本' $health ''
 
     if ($ScreenshotPath) {

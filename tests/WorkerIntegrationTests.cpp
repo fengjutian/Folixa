@@ -191,7 +191,8 @@ void WorkerIntegrationTests::requestTimeoutIsReported() {
 
     client.sendRequest("system.health", {}, 400);
     QTRY_COMPARE_WITH_TIMEOUT(failures.size(), 1, 5000);
-    QVERIFY(failures.first().at(1).toString().contains("timed out"));
+    // 超时提示是直接显示给用户的，文案用中文。
+    QVERIFY(failures.first().at(1).toString().contains(QStringLiteral("超时")));
 }
 
 void WorkerIntegrationTests::workerExitIsReported() {

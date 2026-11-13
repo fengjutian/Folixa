@@ -109,6 +109,8 @@ private:
     QString pendingTask_;
     QString pendingQuestion_;
     bool busy_ = false;
+    // Worker 在不在：Worker 掉线后不能把「发送」按钮点亮。
+    bool workerReady_ = false;
 };
 
 }  // namespace aipdf::app

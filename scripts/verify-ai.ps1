@@ -153,6 +153,76 @@ function Prepare-AiPdfWindow {
     return Set-AiPdfForeground -Process $Process
 }
 
+# 按控件名字点按钮（找不到 AutomationId 时用）。
+#
+# 快捷卡上的几个按钮都叫 aiQuickAction，只能按文字认：
+# 「开始聊天」是其中唯一一个不会顺手发起 AI 请求的。
+function Click-AiPdfButtonByName {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$NamePattern,
+        [int]$TimeoutSeconds = 10
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+            try {
+                if ($element.Current.ControlType.ProgrammaticName -ne 'ControlType.Button') {
+                    continue
+                }
+                if ($element.Current.Name -notmatch $NamePattern) {
+                    continue
+                }
+                if (Invoke-AiPdfElement -Element $element) {
+                    Start-Sleep -Milliseconds 600
+                    return $true
+                }
+            } catch {
+                # 元素可能在读取瞬间失效。
+            }
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    return $false
+}
+
+# 打开 AI 面板。
+#
+# AI 面板默认是**收起**的（QSettings 里的 workspace/aiVisible 默认 false），
+# 收起时它的控件根本不出现在 UI Automation 树里，按 AutomationId 查必然是 null。
+# 所以要走用户真实路径打开它：点右下角的悬浮「✦」→ 点快捷卡上的「开始聊天」。
+function Open-AiPanel {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [int]$TimeoutSeconds = 15
+    )
+    # 已经打开着就不用再点一遍（同一份验收设置文件里可能记住了上次的可见性）。
+    if (Wait-AiPdfElementById -Process $Process -IdPattern '*aiSummaryButton*' -TimeoutSeconds 2) {
+        return $true
+    }
+
+    $floating = Wait-AiPdfEnabled -Process $Process -IdPattern '*aiFloatingButton*' -TimeoutSeconds 10
+    if (-not $floating) {
+        Write-Host '    没找到 AI 悬浮按钮' -ForegroundColor DarkGray
+        return $false
+    }
+    if (-not (Invoke-AiPdfElement -Element $floating)) {
+        Write-Host '    点不开 AI 悬浮按钮' -ForegroundColor DarkGray
+        return $false
+    }
+    Start-Sleep -Milliseconds 600
+
+    $opened = Click-AiPdfButtonByName -Process $Process -NamePattern '^开始聊天$' -TimeoutSeconds 10
+    if (-not $opened) {
+        Write-Host '    快捷卡上找不到「开始聊天」' -ForegroundColor DarkGray
+        return $false
+    }
+
+    # 面板出来了才算数：按钮出现在 UIA 树里。
+    return ($null -ne (Wait-AiPdfElementById -Process $Process `
+                -IdPattern '*aiSummaryButton*' -TimeoutSeconds $TimeoutSeconds))
+}
+
 function Click-AiPdfById {
     param(
         [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
@@ -263,6 +333,8 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
+    $opened = Open-AiPanel -Process $app
+    Test-Check 'AI 面板已打开' $opened ''
 
     # Worker 必须先就绪：AI 面板的一切都要经过它。
     $ready = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
@@ -300,6 +372,8 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
+    $opened = Open-AiPanel -Process $app
+    Test-Check 'AI 面板已打开' $opened ''
     $null = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
 
     $clicked = Click-AiPdfById -Process $app -IdPattern '*aiSummaryButton*'
@@ -347,6 +421,8 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
+    $opened = Open-AiPanel -Process $app
+    Test-Check 'AI 面板已打开' $opened ''
     $null = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
 
     $input = Wait-AiPdfElementById -Process $app -IdPattern '*aiPromptInput*' -TimeoutSeconds 5
@@ -372,6 +448,8 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
+    $opened = Open-AiPanel -Process $app
+    Test-Check 'AI 面板已打开' $opened ''
     $null = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
 
     $null = Click-AiPdfById -Process $app -IdPattern '*aiSummaryButton*' -SettleMs 200
@@ -413,6 +491,8 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
+    $opened = Open-AiPanel -Process $app
+    Test-Check 'AI 面板已打开' $opened ''
 
     $null = Click-AiPdfById -Process $app -IdPattern '*aiSettingsButton*'
     $dialog = Wait-AiPdfDialog -Process $app -TitlePattern 'AI 服务设置' -TimeoutSeconds 15

@@ -39,6 +39,16 @@ if (-not (Test-Path -LiteralPath $PackagePath)) {
     exit 2
 }
 
+# 协议版本从源码里读，不要写死（见 verify-m0.ps1 里的同一个坑）。
+$protocolHeader = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\src\ipc\IpcProtocol.h') -Raw
+$protocolMatch = [regex]::Match($protocolHeader, 'kProtocolVersion\s*=\s*(\d+)')
+if (-not $protocolMatch.Success) {
+    Write-Host '无法从 IpcProtocol.h 解析协议版本' -ForegroundColor Red
+    exit 2
+}
+$ProtocolVersion = $protocolMatch.Groups[1].Value
+
 if (-not $WorkDir) {
     $WorkDir = Join-Path (Join-Path $PSScriptRoot '..\build\verify-package') ([guid]::NewGuid().ToString('N'))
 }
@@ -139,7 +149,7 @@ $env:AIPDF_RECOVERY_DIR = Join-Path $WorkDir 'recovery'
     $ready = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'worker state=ready' -TimeoutSeconds 20
     Test-Check 'Worker 状态上报为 ready' $ready ''
     $health = Wait-AiPdfTraceMatch -Path $tracePath `
-        -Pattern ("worker health protocol=1 version=" + [regex]::Escape($Version)) -TimeoutSeconds 20
+        -Pattern ("worker health protocol=$ProtocolVersion version=" + [regex]::Escape($Version)) -TimeoutSeconds 20
     Test-Check '健康检查返回协议版本与 Worker 版本' $health ''
 
     if ($ScreenshotPath) {
