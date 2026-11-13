@@ -4,6 +4,7 @@
 
 #include <QEnterEvent>
 #include <QFileInfo>
+#include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -152,8 +153,10 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // 视图口必须透出下面的渐变。不要给 viewport 设样式表：Qt 会把控件级样式表
+    // 原样传播给全部子控件，一个 `background: transparent` 会把页面里所有按钮的
+    // 底色一起清掉（主按钮变成只有描边的空框）。这里只关掉自动填背景。
     scroll->viewport()->setAutoFillBackground(false);
-    scroll->viewport()->setStyleSheet(QStringLiteral("background: transparent;"));
     outer->addWidget(scroll);
 
     auto* content = new QWidget(scroll);
@@ -191,6 +194,9 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     auto* eyebrow = new QLabel(QStringLiteral("AI PDF EDITOR"), column);
     eyebrow->setObjectName(QStringLiteral("welcomeEyebrow"));
     eyebrow->setAlignment(Qt::AlignCenter);
+    QFont eyebrowFont = eyebrow->font();
+    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.6);
+    eyebrow->setFont(eyebrowFont);
     columnLayout->addWidget(eyebrow);
     columnLayout->addSpacing(26);
 
@@ -346,22 +352,22 @@ void WelcomePage::paintEvent(QPaintEvent*) {
     const QRectF area = rect();
 
     QLinearGradient base(area.topLeft(), area.bottomLeft());
-    base.setColorAt(0.0, QColor(0xFD, 0xFE, 0xFF));
-    base.setColorAt(0.55, QColor(0xF6, 0xF8, 0xFC));
-    base.setColorAt(1.0, QColor(0xED, 0xF2, 0xFA));
+    base.setColorAt(0.0, QColor(0xFE, 0xFE, 0xFF));
+    base.setColorAt(0.55, QColor(0xF8, 0xFA, 0xFD));
+    base.setColorAt(1.0, QColor(0xF1, 0xF4, 0xFA));
     painter.fillRect(area, base);
 
     // 两团极淡的棱光：上面偏蓝，右下偏紫。不做动画，不抢文字。
-    QRadialGradient topGlow(QPointF(area.width() * 0.5, area.top() - area.height() * 0.08),
-                            area.width() * 0.62);
-    topGlow.setColorAt(0.0, QColor(0x5B, 0x8D, 0xEF, 34));
+    QRadialGradient topGlow(QPointF(area.width() * 0.5, area.top() - area.height() * 0.12),
+                            area.width() * 0.55);
+    topGlow.setColorAt(0.0, QColor(0x5B, 0x8D, 0xEF, 20));
     topGlow.setColorAt(1.0, QColor(0x5B, 0x8D, 0xEF, 0));
     painter.fillRect(area, topGlow);
 
     QRadialGradient violetGlow(
-        QPointF(area.right() + area.width() * 0.06, area.bottom() + area.height() * 0.10),
-        area.width() * 0.55);
-    violetGlow.setColorAt(0.0, QColor(0x7C, 0x63, 0xDC, 26));
+        QPointF(area.right() + area.width() * 0.08, area.bottom() + area.height() * 0.14),
+        area.width() * 0.5);
+    violetGlow.setColorAt(0.0, QColor(0x7C, 0x63, 0xDC, 14));
     violetGlow.setColorAt(1.0, QColor(0x7C, 0x63, 0xDC, 0));
     painter.fillRect(area, violetGlow);
 }

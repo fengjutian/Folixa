@@ -167,6 +167,7 @@ void MainWindow::buildUi() {
     resize(1440, 900);
 
     auto* tabs = new QTabWidget(this);
+    tabs_ = tabs;
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
@@ -190,7 +191,6 @@ void MainWindow::buildUi() {
         syncTabBar();
     });
     setCentralWidget(tabs);
-    tabs_ = tabs;
 
     auto* fileMenu = menuBar()->addMenu(tr("文件(&F)"));
     auto* openAction = fileMenu->addAction(tr("打开 PDF…"));
@@ -671,6 +671,16 @@ void MainWindow::buildUi() {
     metricsLabel_->setVisible(qEnvironmentVariableIsSet("AIPDF_DIAGNOSTICS") ||
                               qEnvironmentVariableIsSet("AIPDF_TRACE_FILE") ||
                               QCoreApplication::arguments().contains(QStringLiteral("--diagnostics")));
+}
+
+void MainWindow::syncTabBar() {
+    if (tabs_ == nullptr) {
+        return;
+    }
+    const QWidget* page = tabs_->widget(0);
+    const bool onlyWelcome = tabs_->count() == 1 && page != nullptr &&
+                             page->property("welcomePage").toBool();
+    tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWelcome);
 }
 
 QWidget* MainWindow::createWelcomePage() {
@@ -1458,6 +1468,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     }
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
+    syncTabBar();
     refreshThumbnails(view);
     bindNavigation(view);
     bindAnnotations(view);

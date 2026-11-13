@@ -4,6 +4,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/MainWindow.h
     app/Theme.cpp
     app/Theme.h
+    app/BrandMark.cpp
+    app/BrandMark.h
+    app/WelcomePage.cpp
+    app/WelcomePage.h
     app/PdfView.h
     app/PdfView.cpp
     app/PageCanvas.h
