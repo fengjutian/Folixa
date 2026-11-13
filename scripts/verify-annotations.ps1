@@ -262,7 +262,7 @@ try {
         (Get-AiPdfTraceText -Path $tracePath)
 
     # 拖选第 2 行文字（显示空间 y ≈ 145）。
-    $dragged = Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 145.0 -ToX 200.0 -ToY 145.0
+    $dragged = Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 135.0 -ToX 200.0 -ToY 135.0
     Test-Check '拖选了一段文字' $dragged ''
     Start-Sleep -Milliseconds 600
     Test-Check '选区里有文字' `
@@ -301,7 +301,7 @@ try {
     Test-Check '第 1 页文本层已就绪' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'text page=0' -TimeoutSeconds 20) ''
 
-    Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 145.0 -ToX 200.0 -ToY 145.0 | Out-Null
+    Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 135.0 -ToX 200.0 -ToY 135.0 | Out-Null
     Start-Sleep -Milliseconds 600
     $button = Get-AiPdfToolButton -Process $app -IdPattern '*annotation.highlight*'
     if ($button) {
@@ -425,7 +425,7 @@ try {
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'text page=0' -TimeoutSeconds 20) ''
 
     # 做两条批注：高亮 + 矩形。
-    Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 145.0 -ToX 200.0 -ToY 145.0 | Out-Null
+    Invoke-AiPdfPageDrag -Process $app -FromX 62.0 -FromY 135.0 -ToX 200.0 -ToY 135.0 | Out-Null
     Start-Sleep -Milliseconds 600
     $highlight = Get-AiPdfToolButton -Process $app -IdPattern '*annotation.highlight*'
     if ($highlight) {
