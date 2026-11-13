@@ -15,6 +15,8 @@ namespace aipdf::pdf {
 struct OutlineItem {
     QString title;
     int pageIndex = -1;
+    // 指向外部地址的书签（URI 动作）在这里，pageIndex 此时为 -1。
+    QString uri;
     std::vector<OutlineItem> children;
 };
 

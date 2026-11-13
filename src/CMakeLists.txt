@@ -28,6 +28,8 @@ qt_add_executable(AiPdfEditor WIN32
     ipc/IpcProtocol.h
     pdf/PdfiumAdapter.cpp
     pdf/PdfiumAdapter.h
+    pdf/Navigation.cpp
+    pdf/Navigation.h
     pdf/TextPage.cpp
     pdf/TextPage.h
 )

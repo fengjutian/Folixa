@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QString>
 
+#include "pdf/Navigation.h"
 #include "pdf/TextPage.h"
 
 #include <memory>
@@ -62,6 +63,13 @@ public:
     // PDFium 渲染的就是这个区域，字符框相对它才能和页面图像对齐。
     MediaBox contentBox() const;
 
+    // 本页的链接注释（内部跳转与外部 URI）。
+    //
+    // 矩形是 **PDF user space**（左下原点），与字符框同一坐标系：
+    // 页面自带的 /Rotate 没有被应用，要和渲染图像对齐得由上层做旋转变换。
+    // 页面没有链接时返回空列表。
+    QVector<PageLink> links() const;
+
 private:
     std::shared_ptr<detail::PageImpl> impl_;
     explicit PdfPage(std::shared_ptr<detail::PageImpl> impl);
@@ -88,6 +96,12 @@ public:
     QString filePath() const;
 
     std::optional<PdfPage> page(int index) const;
+
+    // 文档大纲（PDF 规范里也叫书签）。
+    //
+    // 返回一棵按文档顺序排列的树；没有大纲时返回空列表。
+    // 条目的目标页解析不出来时 pageIndex 为 -1（条目本身仍然显示）。
+    std::vector<OutlineItem> outline() const;
 
     // 在当前线程创建一份独立的文档句柄。
     // 返回的文档只能在这个线程里使用；文件数据与原文档共享，不额外占内存。

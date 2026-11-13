@@ -8,6 +8,7 @@
 #include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
+#include <QStringDecoder>
 
 #include <cstring>
 #include <mutex>
@@ -119,6 +120,104 @@ QString describePdfiumError(unsigned long error) {
             return QStringLiteral("页码越界");
         default:
             return QStringLiteral("PDFium 错误码 %1").arg(error);
+    }
+}
+
+// 大纲遍历的安全上限。PDFium 明确要求调用方处理畸形文档里的环形书签引用
+//（fpdf_doc.h: "the caller is responsible for handling circular bookmark
+// references"），所以深度和条目数都要设上限，否则会无限展开。
+constexpr int kMaxOutlineDepth = 32;
+constexpr int kMaxOutlineItems = 10000;
+
+// PDFium 返回的字符串是 UTF-16LE（带终止符）。
+QString decodeUtf16(const unsigned char* bytes, unsigned long byteCount) {
+    if (bytes == nullptr || byteCount < 2) {
+        return {};
+    }
+    // 去掉末尾的 UTF-16 终止符。
+    const int charCount = int(byteCount / 2) - 1;
+    if (charCount <= 0) {
+        return {};
+    }
+    std::u16string utf16;
+    utf16.resize(charCount);
+    memcpy(utf16.data(), bytes, size_t(charCount) * 2);
+    return QString::fromUtf16(utf16.c_str(), charCount);
+}
+
+// 书签标题。
+QString bookmarkTitle(FPDF_BOOKMARK bookmark) {
+    const unsigned long byteCount = FPDFBookmark_GetTitle(bookmark, nullptr, 0);
+    if (byteCount <= 2 || byteCount > 65536) {
+        return {};
+    }
+    QByteArray buffer(int(byteCount), Qt::Uninitialized);
+    const unsigned long written = FPDFBookmark_GetTitle(bookmark, buffer.data(), byteCount);
+    if (written <= 2 || written > byteCount) {
+        return {};
+    }
+    return decodeUtf16(reinterpret_cast<const unsigned char*>(buffer.constData()), written);
+}
+
+// 动作的目标页（内部跳转）。不是 GoTo 动作或目标无效时返回 -1。
+int actionTargetPage(FPDF_DOCUMENT document, FPDF_ACTION action) {
+    if (action == nullptr || FPDFAction_GetType(action) != PDFACTION_GOTO) {
+        return -1;
+    }
+    FPDF_DEST dest = FPDFAction_GetDest(document, action);
+    if (dest == nullptr) {
+        return -1;
+    }
+    return FPDFDest_GetDestPageIndex(document, dest);
+}
+
+// 动作的 URI（外部链接）。PDFium 给的字节通常是 UTF-8，
+// 但文档明确说过也可能不是，因此按 UTF-8 解，失败再退回 Latin-1。
+QString actionUri(FPDF_DOCUMENT document, FPDF_ACTION action) {
+    if (action == nullptr || FPDFAction_GetType(action) != PDFACTION_URI) {
+        return {};
+    }
+    const unsigned long byteCount = FPDFAction_GetURIPath(document, action, nullptr, 0);
+    if (byteCount == 0 || byteCount > 65536) {
+        return {};
+    }
+    QByteArray buffer(int(byteCount) + 1, Qt::Uninitialized);
+    const unsigned long written = FPDFAction_GetURIPath(document, action, buffer.data(), byteCount);
+    if (written == 0 || written > byteCount) {
+        return {};
+    }
+    buffer.truncate(int(written));
+    QStringDecoder decoder(QStringDecoder::Utf8);
+    const QString text = decoder.decode(buffer);
+    if (decoder.hasError()) {
+        return QString::fromLatin1(buffer);
+    }
+    return text;
+}
+
+// 读取一层书签（parent 为空表示顶层）。
+void readOutlineLevel(FPDF_DOCUMENT document,
+                      FPDF_BOOKMARK parent,
+                      std::vector<OutlineItem>* out,
+                      int depth,
+                      int* itemCount) {
+    if (out == nullptr || depth > kMaxOutlineDepth) {
+        return;
+    }
+    FPDF_BOOKMARK bookmark = FPDFBookmark_GetFirstChild(document, parent);
+    while (bookmark != nullptr) {
+        if (*itemCount >= kMaxOutlineItems) {
+            return;
+        }
+        ++(*itemCount);
+        OutlineItem item;
+        item.title = bookmarkTitle(bookmark);
+        FPDF_ACTION action = FPDFBookmark_GetAction(bookmark);
+        item.pageIndex = actionTargetPage(document, action);
+        item.uri = actionUri(document, action);
+        readOutlineLevel(document, bookmark, &item.children, depth + 1, itemCount);
+        out->push_back(std::move(item));
+        bookmark = FPDFBookmark_GetNextSibling(document, bookmark);
     }
 }
 
@@ -267,6 +366,53 @@ MediaBox PdfPage::contentBox() const {
     return MediaBox{0.0, 0.0, widthPoints(), heightPoints()};
 }
 
+QVector<PageLink> PdfPage::links() const {
+    if (!isValid()) {
+        return {};
+    }
+
+    // 链接注释的读取全程在锁内：PDFium 解析页面注释时会动全局状态。
+    const detail::PdfiumGuard guard;
+
+    QVector<PageLink> result;
+    int startPos = 0;
+    FPDF_LINK link = nullptr;
+    // FPDFLink_Enumerate 按 Z 序枚举本页的链接注释（越靠后越在上层）。
+    while (FPDFLink_Enumerate(impl_->page, &startPos, &link)) {
+        if (link == nullptr) {
+            break;
+        }
+        FS_RECTF rect = {};
+        if (!FPDFLink_GetAnnotRect(link, &rect)) {
+            continue;
+        }
+        PageLink item;
+        item.rect = QRectF(QPointF(rect.left, rect.bottom),
+                            QPointF(rect.right, rect.top)).normalized();
+
+        // 先看直接的目标（内部跳转），再看动作（GoTo 或 URI）。
+        FPDF_DEST dest = FPDFLink_GetDest(impl_->document->handle, link);
+        if (dest != nullptr) {
+            item.pageIndex = FPDFDest_GetDestPageIndex(impl_->document->handle, dest);
+        }
+        if (item.pageIndex < 0) {
+            FPDF_ACTION action = FPDFLink_GetAction(link);
+            if (action != nullptr) {
+                if (FPDFAction_GetType(action) == PDFACTION_GOTO) {
+                    FPDF_DEST actionDest = FPDFAction_GetDest(impl_->document->handle, action);
+                    if (actionDest != nullptr) {
+                        item.pageIndex = FPDFDest_GetDestPageIndex(impl_->document->handle, actionDest);
+                    }
+                } else {
+                    item.uri = actionUri(impl_->document->handle, action);
+                }
+            }
+        }
+        result.append(item);
+    }
+    return result;
+}
+
 std::optional<TextPage> PdfPage::extractText() const {
     if (!isValid()) {
         return std::nullopt;
@@ -386,6 +532,20 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
     pageImpl->page = page;
     pageImpl->index = index;
     return PdfPage(pageImpl);
+}
+
+std::vector<OutlineItem> PdfDocument::outline() const {
+    if (!isValid()) {
+        return {};
+    }
+
+    // 大纲遍历全程在锁内。
+    const detail::PdfiumGuard guard;
+
+    std::vector<OutlineItem> result;
+    int itemCount = 0;
+    readOutlineLevel(impl_->handle, nullptr, &result, 0, &itemCount);
+    return result;
 }
 
 // ------------------------------------------------------------ 打开文档 ----
