@@ -49,6 +49,11 @@ public:
     void setAnnotationController(AnnotationController* controller);
     AnnotationController* annotationController() const;
 
+    // 高亮某页的一块（显示空间矩形）：索引检索结果定位用。
+    //
+    // 传 pageIndex = -1 或空列表就是取消高亮。
+    void setIndexHighlight(int pageIndex, const QVector<QRectF>& displayRects);
+
     // 当前视口顶页（从 1 开始，供界面显示）。
     int currentPage() const;
 
@@ -87,6 +92,9 @@ private:
     TextController* textController_ = nullptr;
     NavigationController* navigationController_ = nullptr;
     AnnotationController* annotationController_ = nullptr;
+    // 索引结果定位的高亮：页序号 + 显示空间矩形。
+    int indexHighlightPage_ = -1;
+    QVector<QRectF> indexHighlightRects_;
     int currentPage_ = 0;
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;

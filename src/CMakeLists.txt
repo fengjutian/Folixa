@@ -26,6 +26,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/LinkHitTest.cpp
     app/SearchPanel.h
     app/SearchPanel.cpp
+    app/IndexController.h
+    app/IndexController.cpp
+    app/IndexPanel.h
+    app/IndexPanel.cpp
     app/RenderThread.h
     app/RenderThread.cpp
     app/TileCache.h
@@ -44,9 +48,14 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/TextPage.h
     doc/AnnotationModel.cpp
     doc/AnnotationModel.h
+    doc/ChunkBuilder.cpp
+    doc/ChunkBuilder.h
+    doc/DocumentChunk.h
     doc/EditCommand.cpp
     doc/EditCommand.h
     doc/EditContext.h
+    doc/LocalIndex.cpp
+    doc/LocalIndex.h
     doc/PageCommand.cpp
     doc/PageCommand.h
     doc/RecoveryLog.cpp
@@ -66,6 +75,7 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/bookmark.svg
         app/icons/search.svg
         app/icons/annotation.svg
+        app/icons/index.svg
         app/icons/send.svg
 )
 

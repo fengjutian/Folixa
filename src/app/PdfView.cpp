@@ -5,6 +5,9 @@
 #include "app/TextController.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
+#include "app/IndexController.h"
+#include "app/PageTransform.h"
+#include "doc/DocumentChunk.h"
 #include "doc/RecoveryLog.h"
 #include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
@@ -443,6 +446,72 @@ void PdfView::setupControllers() {
                 }
                 emit linkFollowed(-1, uri);
             });
+
+    // 索引控制器：后台把文档切成块，带章节归属与坐标。
+    // 它自己开一份独立句柄，在后台线程抽文本。
+    indexController_ = std::make_unique<IndexController>(document_);
+    indexController_->setDocumentPath(filePath_);
+    connect(indexController_.get(), &IndexController::indexProgress, this,
+            [this](int done, int total) {
+                // 进度只在轨迹里留一句，界面上的状态由索引面板显示。
+                Q_UNUSED(done);
+                Q_UNUSED(total);
+            });
+}
+
+// 索引里的坐标是 PDF user space；显示时要用页面的变换换过去。
+//
+// 优先用批注控制器：它把「页面自带 /Rotate + 用户额外旋转」合在一起，
+// 和画布用的显示空间是同一套。没有它就按文档里的页面盒子自己算一份
+// （只有页面自带的旋转，没有用户旋转）。
+bool PdfView::transformForIndexPage(int pageIndex, PageTransform* transform) const {
+    if (transform == nullptr) {
+        return false;
+    }
+    if (annotationController_ != nullptr &&
+        annotationController_->transformForPage(pageIndex, transform)) {
+        return true;
+    }
+    const auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return false;
+    }
+    const pdf::MediaBox& box = page->contentBox();
+    const double left = qMin(box.left, box.right);
+    const double right = qMax(box.left, box.right);
+    const double bottom = qMin(box.bottom, box.top);
+    const double top = qMax(box.bottom, box.top);
+    transform->setPage(left, bottom, right - left, top - bottom);
+    transform->setRotationDegrees(page->rotationDegrees());
+    return true;
+}
+
+// 跳到某页的某个块，并把那块在页面上高亮出来。
+void PdfView::showIndexedChunk(int pageIndex, const QString& chunkId) {
+    if (indexController_ == nullptr) {
+        return;
+    }
+    doc::DocumentChunk chunk;
+    // 按页取块：两页内容完全一样时，按 id 全局取会拿到另一页的块。
+    if (!indexController_->chunkByIdOnPage(pageIndex, chunkId, &chunk)) {
+        trace(QStringLiteral("index chunk missing page=%1 id=%2").arg(pageIndex).arg(chunkId));
+        return;
+    }
+    PageTransform transform;
+    if (!transformForIndexPage(pageIndex, &transform)) {
+        return;
+    }
+    QVector<QRectF> displayRects;
+    displayRects.reserve(chunk.lineBoxes.size());
+    for (const QRectF& box : chunk.lineBoxes) {
+        displayRects.append(transform.toDisplay(box));
+    }
+    canvas_->setIndexHighlight(pageIndex, displayRects);
+    goToPage(pageIndex);
+    trace(QStringLiteral("index chunk page=%1 id=%2 rects=%3")
+              .arg(pageIndex)
+              .arg(chunkId)
+              .arg(displayRects.size()));
 }
 
 // 渲染线程：自己开一份独立句柄。
@@ -514,9 +583,11 @@ void PdfView::clear() {
     canvas_->setTextController(nullptr);
     canvas_->setNavigationController(nullptr);
     canvas_->setAnnotationController(nullptr);
+    canvas_->setIndexHighlight(-1, {});
     textController_.reset();
     navigationController_.reset();
     annotationController_.reset();
+    indexController_.reset();
     document_ = pdf::PdfDocument();
     filePath_.clear();
     pageCount_ = 0;
@@ -573,6 +644,10 @@ NavigationController* PdfView::navigationController() const {
 
 AnnotationController* PdfView::annotationController() const {
     return annotationController_.get();
+}
+
+IndexController* PdfView::indexController() const {
+    return indexController_.get();
 }
 
 void PdfView::setZoom(double factor) {

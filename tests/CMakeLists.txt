@@ -317,8 +317,67 @@ aipdf_deploy_qt_runtime(RecoveryLogTests)
 
 add_test(NAME RecoveryLogTests COMMAND RecoveryLogTests)
 
-# ---------------------------------------------------------- 渲染线程收工 ----
+# ---------------------------------------------------------- 文档索引底座 ----
 
+qt_add_executable(DocumentIndexTests
+    DocumentIndexTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+)
+
+target_link_libraries(DocumentIndexTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(DocumentIndexTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(DocumentIndexTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(DocumentIndexTests)
+
+add_test(NAME DocumentIndexTests COMMAND DocumentIndexTests)
+
+qt_add_executable(PdfIndexTests
+    PdfIndexTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+)
+
+target_link_libraries(PdfIndexTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PdfIndexTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(PdfIndexTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PdfIndexTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(PdfIndexTests pdf-fixtures)
+aipdf_deploy_qt_runtime(PdfIndexTests)
+aipdf_deploy_pdfium(PdfIndexTests)
+
+add_test(NAME PdfIndexTests COMMAND PdfIndexTests)
+
+# ---------------------------------------------------------- 渲染线程收工 ----
 qt_add_executable(RenderThreadTests
     RenderThreadTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/RenderThread.cpp

@@ -108,6 +108,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/pages.png'
     )
+    Invoke-Script '文档索引与检索验收' (Join-Path $PSScriptRoot 'verify-index.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/index.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

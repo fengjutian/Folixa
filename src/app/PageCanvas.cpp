@@ -356,10 +356,26 @@ QPointF PageCanvas::toUserSpacePoint(int pageIndex, const QPointF& displayPoint)
     return transform.toUserSpace(displayPoint);
 }
 
+void PageCanvas::setIndexHighlight(int pageIndex, const QVector<QRectF>& displayRects) {
+    indexHighlightPage_ = pageIndex;
+    indexHighlightRects_ = displayRects;
+    viewport()->update();
+}
+
 void PageCanvas::paintHighlights(QPainter& painter,
                                  int pageIndex,
                                  const QRectF& pageRect,
                                  double zoom) const {
+    // 索引高亮与文本层无关：扫描件没有文本层，但索引里照样可能有块
+    // （比如从别处拿来的坐标），所以先画它。
+    if (indexHighlightPage_ == pageIndex && !indexHighlightRects_.isEmpty()) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(46, 160, 67, 110));
+        for (const QRectF& rect : indexHighlightRects_) {
+            painter.drawRect(toViewportRect(rect, pageRect, zoom));
+        }
+    }
+
     if (textController_ == nullptr) {
         return;
     }

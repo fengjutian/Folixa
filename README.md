@@ -24,15 +24,19 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   页面操作与批注操作共用同一个撤销栈；保存走「临时文件 → 重新打开校验 →
   原子替换」，失败时原文件原封不动，原文件旁边留一份 `.folixa.bak` 备份；
   另存为可换路径；改过的文档会写恢复日志，崩溃后下次启动可以恢复未保存的工作
+- **文档分块与本地索引**：后台把文档按排版特征切成块（段落、标题、列表项），
+  每块带页码、PDF 用户空间坐标、章节路径与标题层级；索引落在本地，
+  内容没变的页直接复用（前面插了页也不用重建），按关键词检索后
+  点结果即可跳到原文并高亮对应区域
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
 - Worker 跟随主程序退出：主程序被强制结束时 Worker 自行退出，不留孤儿进程
 - IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试、
-  批注/撤销栈单元测试与页面管理/安全保存单元测试
+  批注/撤销栈单元测试、页面管理/安全保存单元测试与文档索引单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
-PDF 索引与真实模型 Provider 将在后续里程碑接入。
+PDF 真实模型 Provider 将在后续里程碑接入。
 
 ## 构建环境
 
@@ -223,7 +227,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.8.0`](docs/versions/v0.8.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.9.0`](docs/versions/v0.9.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发规范
 
@@ -243,8 +247,8 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ### 界面验收会抢桌面
 
 `verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation` /
-`verify-annotations` / `verify-pages` 这七个脚本要驱动真实界面：把窗口抢到前台、
-置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
+`verify-annotations` / `verify-pages` / `verify-index` 这八个脚本要驱动真实界面：
+把窗口抢到前台、置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
 **在开发机上跑会打断正在用这台机器的人**（真实指针会被挪走，窗口会突然跳出来）。
 
 因此：
@@ -259,10 +263,12 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - 验收用的应用实例把设置写到临时目录（`AIPDF_TRACE_FILE` 存在时），
   不会覆盖使用者自己的窗口布局与面板可见性；
   脚本跑完还会把鼠标指针放回原位。
-- 验收环境变量（由 `scripts/AcceptanceProbe.ps1` 统一设置）：
+- 验收环境变量：
+  `AIPDF_SKIP_RECOVERY_PROMPT`（由 `scripts/AcceptanceProbe.ps1` 统一设置）
+  跳过启动时的恢复问询——那个问询是模态弹窗，会挡住验收要点的界面；
   `AIPDF_RECOVERY_DIR` 把恢复日志放到临时目录，各脚本互不干扰；
-  `AIPDF_SKIP_RECOVERY_PROMPT` 跳过启动时的恢复问询——
-  那个问询是模态弹窗，会挡住验收要点的界面。
+  `AIPDF_INDEX_DIR` 把本地索引放到临时目录，索引验收脚本之间互不干扰，
+  也不会写进使用者自己的索引目录。
 
 ### 写代码时的硬约束
 

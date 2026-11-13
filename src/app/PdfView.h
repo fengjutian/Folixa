@@ -20,6 +20,8 @@ class RenderThread;
 class TextController;
 class NavigationController;
 class AnnotationController;
+class IndexController;
+class PageTransform;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -61,6 +63,10 @@ public:
     // 没有打开文档时返回 nullptr。
     AnnotationController* annotationController() const;
 
+    // 当前文档的索引控制器（分块、章节归属与本地检索）。
+    // 没有打开文档时返回 nullptr。
+    IndexController* indexController() const;
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -95,6 +101,12 @@ public slots:
     bool saveAs(const QString& targetPath, QString* errorMessage, QString* backupPath = nullptr);
     // 文档有没有未保存的改动。
     bool isModified() const;
+
+    // -------------------------------------------------------- 索引定位 ----
+    //
+    // 跳到某页的某个块，并把那块在页面上高亮出来。
+    // 索引里的坐标是 PDF user space，这里负责转成显示空间。
+    void showIndexedChunk(int pageIndex, const QString& chunkId);
 
 signals:
     void zoomChanged(double factor);
@@ -138,6 +150,9 @@ private:
     void startRenderThread();
     // 建文本与导航控制器，并把画布指过去。
     void setupControllers();
+    // 取某页的显示变换：优先用批注控制器（它知道用户额外旋转），
+    // 没有就按文档里的页面盒子自己算一份。
+    bool transformForIndexPage(int pageIndex, PageTransform* transform) const;
     // 页面结构变了：重排布局、换掉渲染线程与后台控制器的文档副本。
     void handlePageStructureChanged();
     // 记一次恢复日志（改过文档就要能恢复）。
@@ -165,6 +180,9 @@ private:
     // 批注控制器：批注模型、撤销栈与批注工具。
     // 同样声明在 document_ 之后：它内部也持有一份文档句柄。
     std::unique_ptr<AnnotationController> annotationController_;
+    // 索引控制器：后台分块、章节归属与本地检索。
+    // 同样声明在 document_ 之后：它内部也持有一份文档句柄。
+    std::unique_ptr<IndexController> indexController_;
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;

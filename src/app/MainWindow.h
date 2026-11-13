@@ -25,6 +25,7 @@ namespace aipdf::app {
 
 class PdfView;
 class SearchPanel;
+class IndexPanel;
 class NavigationController;
 class AnnotationController;
 
@@ -60,6 +61,8 @@ private:
     // 把批注面板绑到当前文档的批注控制器上，并刷新批注列表。
     void bindAnnotations(PdfView* view);
     void refreshAnnotations(PdfView* view);
+    // 把索引面板绑到当前文档的索引控制器上。
+    void bindIndex(PdfView* view);
     // 删除批注面板里选中的批注。
     void removeSelectedAnnotation();
     // ------------------------------------------------------- 页面管理 ----
@@ -129,6 +132,8 @@ private:
     QMetaObject::Connection navigationConnection_;
     QButtonGroup* navigationRail_ = nullptr;
     SearchPanel* searchPanel_ = nullptr;
+    // 索引页：本地索引状态、检索与结果（v0.9.0）。
+    IndexPanel* indexPanel_ = nullptr;
     QFrame* aiQuickCard_ = nullptr;
     QPushButton* aiFloatingButton_ = nullptr;
     bool navigationWasVisible_ = true;

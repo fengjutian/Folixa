@@ -2,6 +2,7 @@
 
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
+#include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "ipc/WorkerClient.h"
@@ -243,6 +244,16 @@ void MainWindow::buildUi() {
         showNavigationPage(0);
         trace(QStringLiteral("open page panel"));
     });
+    // 本地索引已交付（v0.9.0）：点开就是索引页（状态、检索、结果）。
+    auto* indexAction = commandBar->addAction(tr("索引"));
+    indexAction->setObjectName(QStringLiteral("commandIndex"));
+    indexAction->setToolTip(tr("建立文档索引并按关键词检索"));
+    connect(indexAction, &QAction::triggered, this, [this]() {
+        navigationDock_->setVisible(true);
+        // 切到导航栏的索引页（最后一个按钮）。
+        showNavigationPage(5);
+        trace(QStringLiteral("open index panel"));
+    });
     // 工具栏里的按钮是 Qt 自己建的 QToolButton：
     // QAction 的对象名不会出现在 UI Automation 里，验收脚本按它找不到人。
     // 给真正的按钮也起一个名字。
@@ -253,6 +264,7 @@ void MainWindow::buildUi() {
     };
     nameCommandButton(annotationAction, QStringLiteral("commandAnnotationButton"));
     nameCommandButton(pageAction, QStringLiteral("commandPagesButton"));
+    nameCommandButton(indexAction, QStringLiteral("commandIndexButton"));
     const QStringList futureCommands = {tr("编辑"), tr("转换"),
                                         tr("保护"), tr("表单"), tr("工具")};
     for (const QString& label : futureCommands) {
@@ -311,6 +323,10 @@ void MainWindow::buildUi() {
     // 批注页：批注列表（v0.7.0）。
     railEntries.append({QStringLiteral(":/icons/annotation.svg"), tr("批注"),
                          QStringLiteral("railButton.annotations"), createAnnotationTab()});
+    // 索引页：本地索引与检索（v0.9.0）。放在最后，页签下标不变。
+    indexPanel_ = new IndexPanel(navigationPages);
+    railEntries.append({QStringLiteral(":/icons/index.svg"), tr("索引"),
+                         QStringLiteral("railButton.index"), indexPanel_});
 
     // 页签顺序 = 按钮下标：按钮 i 对应第 i 个页签。
     for (const RailEntry& entry : railEntries) {
@@ -355,6 +371,14 @@ void MainWindow::buildUi() {
             view->goToPage(pageIndex);
         }
     });
+    // 索引结果 → 跳到那一页并高亮那一块。
+    connect(indexPanel_, &IndexPanel::chunkActivated, this,
+            [this](int pageIndex, const QString& chunkId) {
+                auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+                if (view != nullptr) {
+                    view->showIndexedChunk(pageIndex, chunkId);
+                }
+            });
     connect(outlineTree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
         if (item == nullptr) {
             return;
@@ -558,6 +582,8 @@ void MainWindow::buildUi() {
         if (searchPanel_ != nullptr) {
             searchPanel_->setController(view != nullptr ? view->textController() : nullptr);
         }
+        // 索引面板也跟着当前文档走。
+        bindIndex(view);
     });
 
     statusBar()->showMessage(tr("就绪"));
@@ -761,6 +787,17 @@ void MainWindow::bindAnnotations(PdfView* view) {
                                        });
     }
     refreshAnnotations(view);
+}
+
+// 索引面板跟着当前文档走。
+//
+// 换文档时旧控制器的连接要断掉：面板自己会断（setController 里处理），
+// 这里只要把新的指过去。
+void MainWindow::bindIndex(PdfView* view) {
+    if (indexPanel_ == nullptr) {
+        return;
+    }
+    indexPanel_->setController(view != nullptr ? view->indexController() : nullptr);
 }
 
 void MainWindow::refreshAnnotations(PdfView* view) {
@@ -1112,6 +1149,10 @@ void MainWindow::traceNavigationPanel(int index) {
             trace(QStringLiteral("panel annotations items=%1")
                       .arg(annotationList_ != nullptr ? annotationList_->count() : 0));
             break;
+        case 5:
+            trace(QStringLiteral("panel index items=%1")
+                      .arg(indexPanel_ != nullptr ? indexPanel_->resultCount() : 0));
+            break;
         default:
             break;
     }
@@ -1291,6 +1332,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
             searchPanel_->setController(view->textController());
         }
         bindNavigation(view);
+        // 索引控制器也换了：索引面板要重新指过去。
+        bindIndex(view);
     });
     connect(view, &PdfView::filePathChanged, this, [this, view](const QString&) {
         const int index = tabs_->indexOf(view);
@@ -1308,6 +1351,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     if (searchPanel_ != nullptr) {
         searchPanel_->setController(view->textController());
     }
+    bindIndex(view);
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
 
