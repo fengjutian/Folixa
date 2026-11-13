@@ -616,7 +616,9 @@ void MainWindow::buildUi() {
     });
 
     QSettings settings;
-    constexpr int kWorkspaceLayoutVersion = 4;
+    // v5：修掉「退出时把面板可见性写成 false」的持久化错误。老配置里的 false
+    // 很可能是这个 bug 留下的，不是用户真的想关掉导航栏，所以升版本时重置一次。
+    constexpr int kWorkspaceLayoutVersion = 5;
     const bool isNewWorkspaceLayout =
         settings.value(QStringLiteral("workspace/layoutVersion"), 0).toInt() < kWorkspaceLayoutVersion;
     if (isNewWorkspaceLayout) {
@@ -627,7 +629,10 @@ void MainWindow::buildUi() {
     navigationUserVisible_ =
         settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool();
     navigationDock_->setVisible(navigationUserVisible_);
-    aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
+    // AI 面板不在启动时恢复：设计上 AI 默认是右下浮动入口，完整对话由用户主动打开。
+    // 另外「面板可见 + Worker 不可用」在启动阶段会让进程直接退出（worker state=unavailable
+    // 之后 exit -1），先把这条路径关掉。
+    aiDock_->hide();
     navigationPages_->hide();
     QTimer::singleShot(0, this, [this] {
         // 启动时统一回到「收起」形态。以前这里无条件 show() 再 resizeDocks(52)，
@@ -637,13 +642,18 @@ void MainWindow::buildUi() {
         positionFloatingUi();
     });
     connect(navigationDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        if (suppressLayoutPersistence_) {
+        // 窗口关闭/最小化时 dock 也会收到一次 false，那不是用户的选择：
+        // 不拦住的话每次退出都会把「面板可见」写成 false，下次启动永远打不开。
+        if (suppressLayoutPersistence_ || !isVisible()) {
             return;
         }
         navigationUserVisible_ = visible;
         QSettings().setValue(QStringLiteral("workspace/navigationVisible"), visible);
     });
-    connect(aiDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
+    connect(aiDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (!isVisible()) {
+            return;
+        }
         QSettings().setValue(QStringLiteral("workspace/aiVisible"), visible);
     });
 
