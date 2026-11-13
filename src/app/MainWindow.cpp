@@ -178,7 +178,10 @@ void MainWindow::buildUi() {
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setText(QStringLiteral("☰"));
     appMenuButton->setToolTip(tr("主菜单"));
-    appMenuButton->setPopupMode(QToolButton::InstantPopup);
+    // 不挂 setMenu：带菜单的 QToolButton 会为右侧的菜单箭头预留宽度，
+    // 样式表里的 max-width 压不住它（实测被撑到 60 多像素，看着像 ☰ 和 ▾
+    // 两个控件并排）。这里自己弹菜单，按钮就老老实实是 34px。
+    appMenuButton->setFixedSize(34, 34);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
@@ -191,7 +194,9 @@ void MainWindow::buildUi() {
     appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
     appMenu->addSeparator();
     appMenu->addAction(tr("退出"), this, &QWidget::close);
-    appMenuButton->setMenu(appMenu);
+    connect(appMenuButton, &QToolButton::clicked, this, [appMenuButton, appMenu] {
+        appMenu->popup(appMenuButton->mapToGlobal(QPoint(0, appMenuButton->height())));
+    });
     commandBar->addWidget(appMenuButton);
     connect(findAction, &QAction::triggered, this, [this]() {
         trace(QStringLiteral("open search panel"));
@@ -346,8 +351,7 @@ void MainWindow::buildUi() {
         const bool samePage = navigationPages->currentIndex() == index;
         navigationPages->setCurrentIndex(index);
         const bool shouldShow = !wasVisible || !samePage;
-        navigationPages->setVisible(shouldShow);
-        resizeDocks({navigationDock_}, {shouldShow ? 224 : 52}, Qt::Horizontal);
+        setNavigationExpanded(shouldShow);
         traceNavigationPanel(index);
     });
     connect(pagesList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
@@ -403,6 +407,37 @@ void MainWindow::buildUi() {
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
+    // TEMP diagnostics
+    auto traceNavGeometry = [this, navigation, rail, navigationPages]() {
+        trace(QStringLiteral("navgeo dock=%1,%2 %3x%4 content=%5,%6 %7x%8 rail=%9,%10 %11x%12 pages=%13,%14 %15x%16 pagesVisible=%17 index=%18 list=%19,%20 %21x%22 listVisible=%23 dir=%24")
+                  .arg(navigationDock_->mapTo(this, QPoint(0, 0)).x())
+                  .arg(navigationDock_->mapTo(this, QPoint(0, 0)).y())
+                  .arg(navigationDock_->width())
+                  .arg(navigationDock_->height())
+                  .arg(navigation->mapTo(this, QPoint(0, 0)).x())
+                  .arg(navigation->mapTo(this, QPoint(0, 0)).y())
+                  .arg(navigation->width())
+                  .arg(navigation->height())
+                  .arg(rail->mapTo(this, QPoint(0, 0)).x())
+                  .arg(rail->mapTo(this, QPoint(0, 0)).y())
+                  .arg(rail->width())
+                  .arg(rail->height())
+                  .arg(navigationPages->mapTo(this, QPoint(0, 0)).x())
+                  .arg(navigationPages->mapTo(this, QPoint(0, 0)).y())
+                  .arg(navigationPages->width())
+                  .arg(navigationPages->height())
+                  .arg(navigationPages->isVisible() ? 1 : 0)
+                  .arg(navigationPages->currentIndex())
+                  .arg(pagesList_->mapTo(this, QPoint(0, 0)).x())
+                  .arg(pagesList_->mapTo(this, QPoint(0, 0)).y())
+                  .arg(pagesList_->width())
+                  .arg(pagesList_->height())
+                  .arg(pagesList_->isVisible() ? 1 : 0)
+                  .arg(static_cast<int>(navigationPages->layoutDirection())));
+    };
+    auto* navDiag = new QTimer(this);
+    connect(navDiag, &QTimer::timeout, this, traceNavGeometry);
+    navDiag->start(500);
     // 菜单在导航面板创建后补齐切换动作。
     // 按文本找而不是按下标：菜单里增删条目会挪动下标。
     const QList<QAction*> appMenuActions = appMenu->actions();
@@ -568,8 +603,10 @@ void MainWindow::buildUi() {
     aiDock_->setVisible(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
     navigationPages_->hide();
     QTimer::singleShot(0, this, [this] {
-        navigationDock_->show();
-        resizeDocks({navigationDock_}, {52}, Qt::Horizontal);
+        // 启动时统一回到「收起」形态。以前这里无条件 show() 再 resizeDocks(52)，
+        // 但 dock 刚从隐藏变可见时 resizeDocks 会被随后的布局覆盖，
+        // 结果留下一条 300 多像素的空面板、rail 飘在中间，欢迎页也跟着偏右。
+        setNavigationExpanded(false);
         positionFloatingUi();
     });
     connect(navigationDock_, &QDockWidget::visibilityChanged, this, [](bool visible) {
@@ -621,7 +658,10 @@ QWidget* MainWindow::createWelcomePage() {
 
     auto* card = new QFrame(page);
     card->setObjectName(QStringLiteral("emptyCard"));
-    card->setMaximumWidth(560);
+    // 固定卡片宽度，别让外层布局在“按 sizeHint 还是按 heightForWidth”之间摇摆：
+    // QLabel 开了 wordWrap 时 sizeHint 给的是「一行高、很长」，卡片又只给了
+    // 居中对齐，结果标签拿到的高度不够，三行字被裁成上下各半个字。
+    card->setFixedWidth(520);
     auto* layout = new QVBoxLayout(card);
     layout->setContentsMargins(48, 44, 48, 44);
     layout->setSpacing(14);
@@ -634,6 +674,9 @@ QWidget* MainWindow::createWelcomePage() {
     description->setObjectName(QStringLiteral("emptyDescription"));
     description->setAlignment(Qt::AlignCenter);
     description->setWordWrap(true);
+    // 再兜一层：按三行留高度。中文与英文混排时换行位置不稳定，
+    // 宁可多留一点空白，也不要让文字被裁掉半行。
+    description->setMinimumHeight(description->fontMetrics().lineSpacing() * 3);
     auto* openButton = new QPushButton(tr("打开 PDF"), card);
     openButton->setObjectName(QStringLiteral("primaryButton"));
     openButton->setMinimumHeight(40);
@@ -1143,8 +1186,7 @@ void MainWindow::showNavigationPage(int index) {
         return;
     }
     navigationPages_->setCurrentIndex(index);
-    navigationPages_->setVisible(true);
-    resizeDocks({navigationDock_}, {224}, Qt::Horizontal);
+    setNavigationExpanded(true);
     traceNavigationPanel(index);
 }
 
@@ -1284,6 +1326,35 @@ void MainWindow::updateAiQuickActions() {
             button->setToolTip(hasDocument ? tr("总结当前页") : tr("先打开一份 PDF"));
         }
     }
+}
+
+void MainWindow::setNavigationExpanded(bool expanded) {
+    if (navigationDock_ == nullptr || navigationPages_ == nullptr) {
+        return;
+    }
+    navigationPages_->setVisible(expanded);
+    // 收起时把 dock 连同内容一起钉在 rail 的宽度上。只调 resizeDocks 不够：
+    // QMainWindow 在窗口尺寸变化/布局重算时会重新分配，空面板又会被撑开，
+    // rail 就飘在一条 300 多像素的空条中间。
+    if (expanded) {
+        navigationDock_->setMinimumWidth(52);
+        navigationDock_->setMaximumWidth(QWIDGETSIZE_MAX);
+        if (QWidget* content = navigationDock_->widget()) {
+            content->setMinimumWidth(0);
+            content->setMaximumWidth(QWIDGETSIZE_MAX);
+        }
+        resizeDocks({navigationDock_}, {224}, Qt::Horizontal);
+    } else {
+        resizeDocks({navigationDock_}, {52}, Qt::Horizontal);
+        navigationDock_->setFixedWidth(52);
+        if (QWidget* content = navigationDock_->widget()) {
+            content->setFixedWidth(52);
+        }
+    }
+    trace(QStringLiteral("nav expand=%1 maxW=%2 width=%3")
+              .arg(expanded ? 1 : 0)
+              .arg(navigationDock_->maximumWidth())
+              .arg(navigationDock_->width()));
 }
 
 void MainWindow::positionFloatingUi() {

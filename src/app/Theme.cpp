@@ -26,8 +26,16 @@ QToolBar#commandBar QToolButton:hover { color: #3555B7; background: #F1F4FF; }
 QToolBar#commandBar QToolButton:checked { color: #3555B7; background: #EAF0FF; border-bottom: 2px solid #5277E8; border-radius: 8px; }
 QToolBar#commandBar QToolButton:disabled { color: #AAB2C0; background: transparent; }
 QLabel#brandMark { min-width: 30px; min-height: 30px; color: white; background: #5277E8; border-radius: 9px; font-size: 16px; font-weight: 700; }
-QToolButton#appMenuButton { min-width: 34px; max-width: 34px; padding: 0; border: 0; color: #465267; background: transparent; font-size: 17px; }
-QToolButton#appMenuButton:hover { background: #F1F4FF; color: #3555B7; }
+/* 选择器必须带上 commandBar 前缀：`QToolBar#commandBar QToolButton`
+   （id + 两个类型）比 `QToolButton#appMenuButton` 更具体，会盖掉这里的
+   padding / border / background，把按钮撑成 60 多像素的白底方块。 */
+QToolBar#commandBar QToolButton#appMenuButton {
+    min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px;
+    padding: 0; border: 0; border-radius: 8px;
+    color: #465267; background: transparent; font-size: 17px; font-weight: 400;
+}
+QToolBar#commandBar QToolButton#appMenuButton:hover { background: #F1F4FF; color: #3555B7; }
+QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #E4EAFF; }
 QPushButton, QToolButton {
     min-height: 30px; padding: 0 11px; border: 1px solid #E3E7EE;
     border-radius: 8px; background: #FFFFFF;

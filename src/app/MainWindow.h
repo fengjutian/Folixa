@@ -93,6 +93,8 @@ private:
     // 会让人以为功能坏了。
     void showNavigationPage(int index);
     void positionFloatingUi();
+    // 展开/收起导航面板：除页面对应关系外，还要把 dock 的宽度一起管住。
+    void setNavigationExpanded(bool expanded);
     // 按当前文档与选区状态刷新 AI 快捷卡的动作与说明。
     void updateAiQuickActions();
 
