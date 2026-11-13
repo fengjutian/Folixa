@@ -4,6 +4,7 @@
 // 所以能在毫秒级跑完，也就能在每次改动时都跑。
 #include "ai/AuditLog.h"
 #include "ai/DataPolicy.h"
+#include "ai/ProviderSelection.h"
 #include "ai/UploadPreview.h"
 
 #include <QDir>
@@ -36,6 +37,10 @@ private slots:
     void previewParsesHost();
     void previewDedupesAndSortsPages();
     void previewCarriesPolicyDecision();
+
+    // Provider 选择：本地模式的机械保证，不依赖本机是否存了密钥。
+    void localModeForcesDemoEvenWithCredential();
+    void cloudOnlyWhenConfiguredAndCredentialPresent();
 
 private:
     QTemporaryDir dataDir_;
@@ -204,6 +209,32 @@ void DataPolicyTests::previewCarriesPolicyDecision() {
     const UploadPreview blocked = buildUploadPreview(config, small, {});
     QVERIFY(!blocked.decision.allowed);
     QCOMPARE(blocked.mode, DataMode::LocalOnly);
+}
+
+void DataPolicyTests::localModeForcesDemoEvenWithCredential() {
+    ProviderConfig config;
+    config.providerId = QStringLiteral("openai");
+    config.dataMode = QStringLiteral("local");
+    // 关键：凭据存在也必须走演示。界面禁用按钮不算数，这里才是真的发不出去。
+    QVERIFY(resolveProviderKind(config, true) == ProviderKind::Demo);
+    QVERIFY(resolveProviderKind(config, false) == ProviderKind::Demo);
+}
+
+void DataPolicyTests::cloudOnlyWhenConfiguredAndCredentialPresent() {
+    ProviderConfig config;
+    config.providerId = QStringLiteral("openai");
+    config.dataMode = QStringLiteral("chunks");
+    QVERIFY(resolveProviderKind(config, true) == ProviderKind::OpenAi);
+    // 没有密钥：演示模式接管，不能拿空密钥去联网。
+    QVERIFY(resolveProviderKind(config, false) == ProviderKind::Demo);
+
+    config.providerId = QStringLiteral("demo");
+    QVERIFY(resolveProviderKind(config, true) == ProviderKind::Demo);
+
+    // 坏模式回退到 local，也就回退到演示。
+    config.providerId = QStringLiteral("openai");
+    config.dataMode = QStringLiteral("chunkz");
+    QVERIFY(resolveProviderKind(config, true) == ProviderKind::Demo);
 }
 
 QTEST_MAIN(DataPolicyTests)

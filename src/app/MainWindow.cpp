@@ -42,6 +42,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QPainter>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -77,6 +78,34 @@ void trace(const QString& message) {
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
+}
+
+// 命令栏与页面页统一的图标：SVG 资源，18px（20px 画布按 0.9 缩）。
+//
+// 禁用态自己画：QSvgIconEngine 不保证按 QIcon::Disabled 变灰，
+// 而设计规范要求「未实现的功能不得伪装为可用」。同一份 SVG 再渲染一次、
+// 用 SourceIn 覆盖成中性灰，禁用按钮就不会带着一条深色笔画装成活按钮。
+QIcon commandIcon(const QString& name) {
+    const QIcon source(QStringLiteral(":/icons/%1.svg").arg(name));
+    QIcon icon;
+    // 1x 与 2x 各一份：125% / 150% 缩放下图标不该被拉伸糊掉。
+    for (const int scale : {1, 2}) {
+        const QSize size(18 * scale, 18 * scale);
+        QPixmap normal = source.pixmap(size, QIcon::Normal);
+        if (normal.isNull()) {
+            continue;
+        }
+        normal.setDevicePixelRatio(scale);
+        icon.addPixmap(normal, QIcon::Normal);
+        QPixmap disabled = normal;
+        QPainter painter(&disabled);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(disabled.rect(), QColor(180, 189, 203, 170));
+        painter.end();
+        disabled.setDevicePixelRatio(scale);
+        icon.addPixmap(disabled, QIcon::Disabled);
+    }
+    return icon.isNull() ? source : icon;
 }
 
 // 把大纲树灌进目录树控件。目标页解析不出来的条目照样显示，只是不能点。
@@ -317,11 +346,23 @@ void MainWindow::buildUi() {
     nameCommandButton(pageAction, QStringLiteral("commandPagesButton"));
     nameCommandButton(indexAction, QStringLiteral("commandIndexButton"));
     // 后续能力与已交付功能之间留一条分隔线。
+    //
+    // 还没有实现的能力也带图标：它们和已交付功能并排，缺图标会让人以为
+    // 是状态异常；图标统一取中性灰的禁用态，仍然一眼看得出「还不能点」。
     commandBar->addSeparator();
-    const QStringList futureCommands = {tr("编辑"), tr("转换"),
-                                        tr("保护"), tr("表单"), tr("工具")};
-    for (const QString& label : futureCommands) {
-        QAction* action = commandBar->addAction(label);
+    struct FutureCommand {
+        QString label;
+        QString icon;
+    };
+    const QVector<FutureCommand> futureCommands = {
+        {tr("编辑"), QStringLiteral("edit")},
+        {tr("转换"), QStringLiteral("convert")},
+        {tr("保护"), QStringLiteral("protect")},
+        {tr("表单"), QStringLiteral("form")},
+        {tr("工具"), QStringLiteral("tools")},
+    };
+    for (const FutureCommand& entry : futureCommands) {
+        QAction* action = commandBar->addAction(commandIcon(entry.icon), entry.label);
         action->setEnabled(false);
         action->setToolTip(tr("将在后续版本中提供"));
     }
@@ -817,26 +858,36 @@ QWidget* MainWindow::createPagesTab() {
     layout->addWidget(pagesList_, 1);
 
     // 按钮给独立的对象名：验收脚本靠 AutomationId 定位。
+    //
+    // 图标与命令栏共用同一套 SVG：这几个按钮以前只有文字，面板上
+    // 六个等宽按钮排成三行，扫一眼分不出「插入」和「删除」。
     auto makeButton = [page](const QString& text,
+                              const QString& icon,
                               const QString& tip,
                               const QString& id) {
-        auto* button = new QPushButton(text, page);
+        auto* button = new QPushButton(commandIcon(icon), text, page);
         button->setToolTip(tip);
         button->setObjectName(id);
         return button;
     };
 
-    pageInsertButton_ = makeButton(tr("插入"), tr("在当前页后插入一张空白页"),
+    pageInsertButton_ = makeButton(tr("插入"), QStringLiteral("page-insert"),
+                                    tr("在当前页后插入一张空白页"),
                                     QStringLiteral("page.insert"));
-    pageDeleteButton_ = makeButton(tr("删除"), tr("删除当前页"),
+    pageDeleteButton_ = makeButton(tr("删除"), QStringLiteral("page-delete"),
+                                    tr("删除当前页"),
                                     QStringLiteral("page.delete"));
-    pageRotateRightButton_ = makeButton(tr("右转"), tr("把当前页顺时针转 90 度"),
+    pageRotateRightButton_ = makeButton(tr("右转"), QStringLiteral("rotate-right"),
+                                         tr("把当前页顺时针转 90 度"),
                                          QStringLiteral("page.rotateRight"));
-    pageRotateLeftButton_ = makeButton(tr("左转"), tr("把当前页逆时针转 90 度"),
+    pageRotateLeftButton_ = makeButton(tr("左转"), QStringLiteral("rotate-left"),
+                                        tr("把当前页逆时针转 90 度"),
                                         QStringLiteral("page.rotateLeft"));
-    pageMoveUpButton_ = makeButton(tr("上移"), tr("把当前页往前挪一位"),
+    pageMoveUpButton_ = makeButton(tr("上移"), QStringLiteral("move-up"),
+                                    tr("把当前页往前挪一位"),
                                     QStringLiteral("page.moveUp"));
-    pageMoveDownButton_ = makeButton(tr("下移"), tr("把当前页往后挪一位"),
+    pageMoveDownButton_ = makeButton(tr("下移"), QStringLiteral("move-down"),
+                                      tr("把当前页往后挪一位"),
                                       QStringLiteral("page.moveDown"));
 
     auto* firstRow = new QHBoxLayout();

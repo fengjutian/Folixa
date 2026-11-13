@@ -2,6 +2,7 @@
 
 #include "ai/ModelProvider.h"
 #include "ai/ProviderConfig.h"
+#include "ai/ProviderSelection.h"
 
 #include <memory>
 

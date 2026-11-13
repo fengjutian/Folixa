@@ -503,6 +503,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
@@ -584,6 +586,15 @@ qt_add_resources(IconResourceTests "icon_test_resources"
         ${CMAKE_SOURCE_DIR}/src/app/icons/ink.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/undo.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/redo.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/page-insert.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/page-delete.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/move-up.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/move-down.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/edit.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/convert.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/protect.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/form.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/tools.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/app.svg
 )
 
@@ -601,6 +612,8 @@ qt_add_executable(DataPolicyTests
     DataPolicyTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp

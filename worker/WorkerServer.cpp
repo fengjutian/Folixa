@@ -129,14 +129,21 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
     }
     if (operation == "ai.provider.status") {
         // 报给界面用：现在用的是哪个 Provider、是不是演示模式、单价多少。
+        //
+        // 「是不是演示」必须按**实际会造出来的 Provider** 算，而不是只看
+        // 有没有密钥：本地模式下即使存着密钥，createProvider 也只会给演示
+        // Provider。这里若按密钥判断，界面会显示「openai」而回答其实是本地的，
+        // 正好把 v0.12.0 要解决的那个误解又造了回来。
         const aipdf::ai::ProviderConfig config = aipdf::ai::ProviderConfig::load();
-        const bool demo = config.providerId != QLatin1String("openai") ||
-                          !config.hasCredential();
+        const aipdf::ai::ProviderKind kind = aipdf::ai::resolveProviderKind(
+            config, config.hasCredential());
+        const bool demo = kind == aipdf::ai::ProviderKind::Demo;
         socket->write(ipc::encodeFrame(ipc::makeResult(
             requestId,
             {{"provider", config.providerId},
              {"model", config.model},
              {"demo", demo},
+             {"data_mode", aipdf::ai::dataModeId(config.effectiveDataMode())},
              {"input_price_per_million", config.inputPricePerMillion},
              {"output_price_per_million", config.outputPricePerMillion}})));
         return;

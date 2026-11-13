@@ -64,6 +64,8 @@ qt_add_executable(AiPdfEditor WIN32
     ai/CredentialStore.h
     ai/ProviderConfig.cpp
     ai/ProviderConfig.h
+    ai/ProviderSelection.cpp
+    ai/ProviderSelection.h
     ai/UploadPreview.cpp
     ai/UploadPreview.h
     ai/DataPolicy.cpp
@@ -133,6 +135,15 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/app.svg
         app/icons/close.svg
         app/icons/book.svg
+        app/icons/page-insert.svg
+        app/icons/page-delete.svg
+        app/icons/move-up.svg
+        app/icons/move-down.svg
+        app/icons/edit.svg
+        app/icons/convert.svg
+        app/icons/protect.svg
+        app/icons/form.svg
+        app/icons/tools.svg
 )
 
 target_link_libraries(AiPdfEditor PRIVATE

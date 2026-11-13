@@ -9,6 +9,7 @@
 #include "ai/ChatTypes.h"
 #include "ai/CredentialStore.h"
 #include "ai/ProviderConfig.h"
+#include "ai/ProviderFactory.h"
 #include "ai/UploadPreview.h"
 #include "ipc/WorkerClient.h"
 
@@ -370,12 +371,23 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                 if (payload.contains("provider")) {
                     // Provider 状态：现在是哪个服务、是不是演示模式。
                     const bool demo = payload.value("demo").toBool();
-                    const QString name = demo
-                        ? tr("演示模式（未配置密钥）· 回答由本地拼出，不会发到网络")
-                        : tr("%1 · %2")
-                              .arg(payload.value("provider").toString(),
-                                   payload.value("model").toString());
+                    const QString mode = payload.value("data_mode").toString();
+                    QString name;
+                    if (mode == QLatin1String("local")) {
+                        // 本地模式比「没配密钥」更强：这里不是降级，而是策略。
+                        // 只写「演示模式」会让用户以为配了密钥就能发出去。
+                        name = tr("本地模式 · 文档内容不出本机（回答由本地演示模型生成）");
+                    } else if (demo) {
+                        name = tr("演示模式（未配置密钥）· 回答由本地拼出，不会发到网络");
+                    } else {
+                        name = tr("%1 · %2")
+                                   .arg(payload.value("provider").toString(),
+                                        payload.value("model").toString());
+                    }
                     updateStatus(tr("AI 服务：%1").arg(name));
+                    trace(QStringLiteral("ai provider mode=%1 demo=%2")
+                              .arg(mode.isEmpty() ? QStringLiteral("unknown") : mode)
+                              .arg(demo ? 1 : 0));
                     // 演示模式的说明放在服务状态行，不放在发送范围行：
                     // 范围行要留给用户看「这一趟送了什么」。
                     emit providerChanged(name, demo);
@@ -635,9 +647,17 @@ bool AiPanel::confirmCloudUpload(const ai::DataScope& scope,
     const ai::DataMode mode = config.effectiveDataMode();
 
     // 演示 Provider 根本不联网：不需要预览，也不该写一条「云端请求」的审计。
-    const bool cloud = ai::mayUseCloud(mode) &&
-                       config.providerId == QLatin1String("openai") && config.hasCredential();
+    //
+    // 用 resolveProviderKind 判断，而不是再手写一遍「有密钥且是 openai」：
+    // 本地模式那条短路必须只有一处实现，否则界面预览与实际 Provider 迟早对不上。
+    const bool cloud = ai::resolveProviderKind(config, config.hasCredential()) ==
+                       ai::ProviderKind::OpenAi;
     if (!cloud) {
+        if (!ai::mayUseCloud(mode)) {
+            // 本地模式不是「没配好」，是用户明确选的策略：留一条能核对的轨迹。
+            trace(QStringLiteral("ai upload skipped mode=%1 reason=local")
+                      .arg(ai::dataModeId(mode)));
+        }
         return true;
     }
 

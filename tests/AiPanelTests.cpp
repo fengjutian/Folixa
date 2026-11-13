@@ -9,10 +9,14 @@
 //
 // 所以这条链路必须有本地就能跑的守卫。
 #include "app/AiPanel.h"
+#include "app/UploadPreviewDialog.h"
+#include "ai/UploadPreview.h"
 
 #include <QAbstractButton>
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QListWidget>
+#include <QPushButton>
 #include <QTextBrowser>
 #include <QtTest>
 
@@ -41,6 +45,10 @@ private slots:
     void scopeLabelTellsUserWhichHalf();
     void citationListStartsEmpty();
     void documentQaWithoutWorkerReportsError();
+
+    // 上传预览（v0.12.0）：发送前把「发什么、发到哪、多少」念给用户看。
+    void uploadPreviewShowsTargetSizeAndPages();
+    void uploadPreviewCancelIsTheDefaultButton();
 };
 
 void AiPanelTests::scopeStartsOnCurrentPage() {
@@ -119,6 +127,48 @@ void AiPanelTests::documentQaWithoutWorkerReportsError() {
 
     panel.requestDocumentQa(QStringLiteral("这份文档讲了什么？"));
     QVERIFY(conversation->toPlainText().contains(QStringLiteral("还没连上")));
+}
+
+void AiPanelTests::uploadPreviewShowsTargetSizeAndPages() {
+    ai::UploadPreview preview;
+    preview.mode = ai::DataMode::SelectedPages;
+    preview.host = QStringLiteral("api.openai.com");
+    preview.chunkCount = 3;
+    preview.charCount = 1200;
+    preview.pages = {2, 5};
+    preview.decision.allowed = true;
+    UploadPreviewDialog dialog(preview);
+
+    QLabel* target = findWidget<QLabel>(&dialog, QStringLiteral("uploadPreviewTarget"));
+    QVERIFY(target != nullptr);
+    QVERIFY2(target->text().contains(QStringLiteral("api.openai.com")),
+             qPrintable(target->text()));
+
+    QLabel* content = findWidget<QLabel>(&dialog, QStringLiteral("uploadPreviewContent"));
+    QVERIFY(content != nullptr);
+    QVERIFY2(content->text().contains(QStringLiteral("3")), qPrintable(content->text()));
+    QVERIFY2(content->text().contains(QStringLiteral("1200")), qPrintable(content->text()));
+
+    QLabel* pages = findWidget<QLabel>(&dialog, QStringLiteral("uploadPreviewPages"));
+    QVERIFY(pages != nullptr);
+    QVERIFY2(pages->text().contains(QStringLiteral("2、5")), qPrintable(pages->text()));
+}
+
+void AiPanelTests::uploadPreviewCancelIsTheDefaultButton() {
+    // 手快回车时不该把文档发出去：默认按钮必须是「取消」，不是「发送」。
+    ai::UploadPreview preview;
+    preview.host = QStringLiteral("api.openai.com");
+    preview.chunkCount = 1;
+    preview.charCount = 100;
+    preview.decision.allowed = true;
+    UploadPreviewDialog dialog(preview);
+
+    auto* cancel = findWidget<QPushButton>(&dialog, QStringLiteral("uploadPreviewCancel"));
+    auto* send = findWidget<QPushButton>(&dialog, QStringLiteral("uploadPreviewSend"));
+    QVERIFY(cancel != nullptr);
+    QVERIFY(send != nullptr);
+    QVERIFY(cancel->isDefault());
+    QVERIFY(!send->isDefault());
 }
 
 QTEST_MAIN(AiPanelTests)

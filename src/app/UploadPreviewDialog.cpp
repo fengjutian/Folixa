@@ -46,10 +46,12 @@ UploadPreviewDialog::UploadPreviewDialog(const ai::UploadPreview& preview, QWidg
 
     layout->addWidget(new QLabel(tr("数据模式：%1").arg(modeLabel(preview_.mode)), this));
 
-    layout->addWidget(new QLabel(tr("内容：%1 块 · %2 字")
-                                     .arg(preview_.chunkCount)
-                                     .arg(preview_.charCount),
-                                 this));
+    auto* content = new QLabel(tr("内容：%1 块 · %2 字")
+                                   .arg(preview_.chunkCount)
+                                   .arg(preview_.charCount),
+                               this);
+    content->setObjectName(QStringLiteral("uploadPreviewContent"));
+    layout->addWidget(content);
 
     if (!preview_.pages.isEmpty()) {
         QStringList pageTexts;

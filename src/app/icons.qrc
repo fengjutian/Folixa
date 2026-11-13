@@ -30,5 +30,14 @@
     <file>icons/app.svg</file>
     <file>icons/close.svg</file>
     <file>icons/book.svg</file>
+    <file>icons/page-insert.svg</file>
+    <file>icons/page-delete.svg</file>
+    <file>icons/move-up.svg</file>
+    <file>icons/move-down.svg</file>
+    <file>icons/edit.svg</file>
+    <file>icons/convert.svg</file>
+    <file>icons/protect.svg</file>
+    <file>icons/form.svg</file>
+    <file>icons/tools.svg</file>
   </qresource>
 </RCC>

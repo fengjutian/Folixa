@@ -45,6 +45,14 @@ void IconResourceTests::iconHasInk_data() {
                             QStringLiteral("note"),     QStringLiteral("square"),
                             QStringLiteral("ink"),      QStringLiteral("undo"),
                             QStringLiteral("redo"),
+                            // 页面管理按钮与命令栏未实现项（v0.12.0）：
+                            // 补齐图标后，图标缺失必须被这条守卫挡住，
+                            // 不能再回到「只剩一行文字」的样子。
+                            QStringLiteral("page-insert"), QStringLiteral("page-delete"),
+                            QStringLiteral("move-up"),     QStringLiteral("move-down"),
+                            QStringLiteral("edit"),        QStringLiteral("convert"),
+                            QStringLiteral("protect"),     QStringLiteral("form"),
+                            QStringLiteral("tools"),
                             // 应用图标（窗口 / 任务栏）：与 exe 里嵌的 app.ico 同源。
                             QStringLiteral("app")};
     for (const QString& name : names) {
