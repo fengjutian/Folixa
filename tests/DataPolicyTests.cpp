@@ -4,6 +4,7 @@
 // 所以能在毫秒级跑完，也就能在每次改动时都跑。
 #include "ai/AuditLog.h"
 #include "ai/DataPolicy.h"
+#include "ai/UploadPreview.h"
 
 #include <QDir>
 #include <QFile>
@@ -31,6 +32,10 @@ private slots:
 
     void auditWritesMetadataOnly();
     void auditNeverContainsSecrets();
+
+    void previewParsesHost();
+    void previewDedupesAndSortsPages();
+    void previewCarriesPolicyDecision();
 
 private:
     QTemporaryDir dataDir_;
@@ -166,6 +171,39 @@ void DataPolicyTests::auditNeverContainsSecrets() {
     QVERIFY(!content.contains("sk-"));
     QVERIFY(!QString::fromUtf8(content)
                  .contains(QStringLiteral("Authorization"), Qt::CaseInsensitive));
+}
+
+void DataPolicyTests::previewParsesHost() {
+    QCOMPARE(hostFromBaseUrl(QStringLiteral("https://api.openai.com/v1")),
+             QStringLiteral("api.openai.com"));
+    QCOMPARE(hostFromBaseUrl(QStringLiteral("http://127.0.0.1:8080/v1")),
+             QStringLiteral("127.0.0.1"));
+    QVERIFY(hostFromBaseUrl(QStringLiteral("not a url")).isEmpty());
+}
+
+void DataPolicyTests::previewDedupesAndSortsPages() {
+    ProviderConfig config;
+    config.dataMode = QStringLiteral("chunks");
+    DataScope scope;
+    scope.chunkCount = 3;
+    scope.charCount = 500;
+    const UploadPreview preview =
+        buildUploadPreview(config, scope, QVector<int>{5, 2, 5, 1});
+    QCOMPARE(preview.pages, (QVector<int>{1, 2, 5}));
+}
+
+void DataPolicyTests::previewCarriesPolicyDecision() {
+    ProviderConfig config;
+    config.dataMode = QStringLiteral("chunks");
+    DataScope small;
+    small.chunkCount = 1;
+    small.charCount = 100;
+    QVERIFY(buildUploadPreview(config, small, {}).decision.allowed);
+
+    config.dataMode = QStringLiteral("local");
+    const UploadPreview blocked = buildUploadPreview(config, small, {});
+    QVERIFY(!blocked.decision.allowed);
+    QCOMPARE(blocked.mode, DataMode::LocalOnly);
 }
 
 QTEST_MAIN(DataPolicyTests)

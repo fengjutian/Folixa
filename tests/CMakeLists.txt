@@ -421,6 +421,8 @@ qt_add_executable(AiProviderTests
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/ai/SseParser.cpp
@@ -503,6 +505,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
@@ -597,6 +601,8 @@ qt_add_executable(DataPolicyTests
     DataPolicyTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
