@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="brandBase" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B8DEF"/>
+      <stop offset="0.55" stop-color="#627CE8"/>
+      <stop offset="1" stop-color="#7C63DC"/>
+    </linearGradient>
+    <linearGradient id="brandSheen" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="74" fill="url(#brandBase)"/>
+  <rect width="256" height="256" rx="74" fill="url(#brandSheen)"/>
+  <rect x="81.92" y="76.8" width="76.8" height="102.4" rx="12.8" fill="#FFFFFF" fill-opacity="0.955"/>
+  <path d="M95.74 107.52H144.9M95.74 128H144.9M95.74 148.48H124.93" stroke="#546FCE" stroke-opacity="0.65" stroke-width="8.19" stroke-linecap="round"/>
+  <path d="M180.5 46.04Q186.72 74.38 215.06 80.6Q186.72 86.82 180.5 115.16Q174.28 86.82 145.94 80.6Q174.28 74.38 180.5 46.04Z" fill="#FFFFFF" fill-opacity="0.92"/>
+</svg>

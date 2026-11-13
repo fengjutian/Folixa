@@ -5,6 +5,7 @@
 #include <QEnterEvent>
 #include <QFileInfo>
 #include <QFont>
+#include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -15,6 +16,8 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QTextStream>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <functional>
@@ -258,6 +261,22 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     columnLayout->addWidget(footnote);
 
     scroll->setWidget(content);
+    // TEMP-DEBUG
+    QTimer::singleShot(1500, this, [this, scroll, content, column, dropZone] {
+        QFile f(QStringLiteral("D:/github/pdf/.tmp/geom.txt"));
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            return;
+        }
+        QTextStream out(&f);
+        out << "dpr=" << devicePixelRatioF() << " page=" << width() << "x" << height()
+            << " scroll=" << scroll->width() << "x" << scroll->height()
+            << " viewport=" << scroll->viewport()->width() << "x"
+            << scroll->viewport()->height() << " content=" << content->width() << "x"
+            << content->height() << " contentMin=" << content->minimumSizeHint().height()
+            << " column=" << column->width() << "x" << column->height() << " dropzone="
+            << dropZone->width() << "x" << dropZone->height()
+            << " dropMin=" << dropZone->minimumSizeHint().height() << "\n";
+    });
 }
 
 QWidget* WelcomePage::createRecentCard(const QStringList& files) {

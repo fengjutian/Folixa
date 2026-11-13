@@ -44,7 +44,9 @@ void IconResourceTests::iconHasInk_data() {
                             QStringLiteral("underline"), QStringLiteral("strikethrough"),
                             QStringLiteral("note"),     QStringLiteral("square"),
                             QStringLiteral("ink"),      QStringLiteral("undo"),
-                            QStringLiteral("redo")};
+                            QStringLiteral("redo"),
+                            // 应用图标（窗口 / 任务栏）：与 exe 里嵌的 app.ico 同源。
+                            QStringLiteral("app")};
     for (const QString& name : names) {
         QTest::newRow(qPrintable(name))
             << QStringLiteral(":/icons/%1.svg").arg(name);

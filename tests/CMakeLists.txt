@@ -568,6 +568,7 @@ qt_add_resources(IconResourceTests "icon_test_resources"
         ${CMAKE_SOURCE_DIR}/src/app/icons/ink.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/undo.svg
         ${CMAKE_SOURCE_DIR}/src/app/icons/redo.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/app.svg
 )
 
 # Qt6::Svg 必须链上：windeployqt 靠它判断要部署 imageformats/qsvg.dll，

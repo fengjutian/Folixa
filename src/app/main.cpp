@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QIcon>
 #include <QSettings>
 
 int main(int argc, char* argv[]) {
@@ -27,6 +28,10 @@ int main(int argc, char* argv[]) {
     }
 
     aipdf::app::theme::apply(application);
+
+    // 窗口与任务栏图标：与标题栏左侧、安装包里的那份一致。
+    // 矢量图标由 Qt 按需栅格化，16px 标题栏和高 DPI 任务栏都清楚。
+    application.setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
 
     aipdf::app::MainWindow window;
     window.show();

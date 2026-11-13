@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.25)
 
 project(AiPdfEditor VERSION 0.11.0 LANGUAGES CXX)
 
+# 应用图标：Windows 资源里嵌一份（资源管理器、任务栏与文件关联用），
+# 运行时窗口图标用同一份设计的 SVG（src/app/icons/app.svg），
+# 两份都由 src/app/icons/app.svg 派生，改设计时一起换。
+set(AIPDF_APP_ICON "${CMAKE_SOURCE_DIR}/src/app/app.ico")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

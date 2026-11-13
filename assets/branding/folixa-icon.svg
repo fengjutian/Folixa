@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="Folixa">
+  <title>Folixa — Prism Fold</title>
+  <defs>
+    <linearGradient id="tile" x1="172" y1="40" x2="880" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5E80F5"/>
+      <stop offset="0.52" stop-color="#4A69E2"/>
+      <stop offset="1" stop-color="#3350BE"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="page" x1="300" y1="200" x2="700" y2="840" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E7EDFA"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="566" y1="170" x2="716" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B7A0F7"/>
+      <stop offset="1" stop-color="#7556DB"/>
+    </linearGradient>
+    <filter id="pageShadow" x="150" y="80" width="740" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#0A1230" flood-opacity="0.34"/>
+    </filter>
+    <clipPath id="tileClip"><rect width="1024" height="1024" rx="228"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect width="1024" height="1024" fill="url(#tile)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+  </g>
+
+  <g filter="url(#pageShadow)">
+    <path d="M294 170 H566 L716 320 V808 A46 46 0 0 1 670 854 H294 A46 46 0 0 1 248 808 V216 A46 46 0 0 1 294 170 Z" fill="url(#page)"/>
+  </g>
+
+  <path d="M566 170 L716 320 H566 Z" fill="url(#fold)"/>
+
+  <g stroke="#C9D5EE" stroke-width="34" stroke-linecap="round">
+    <path d="M310 470 H610"/>
+    <path d="M310 546 H654"/>
+    <path d="M310 622 H520"/>
+  </g>
+
+  <rect x="4" y="4" width="1016" height="1016" rx="224" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="8"/>
+</svg>
