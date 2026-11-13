@@ -591,7 +591,7 @@ void AiPanel::sendDocumentQa(const QString& question) {
     user.insert(QStringLiteral("role"), QStringLiteral("user"));
     user.insert(QStringLiteral("content"),
                 QStringLiteral("材料：\n\n%1\n\n问题：%2")
-                    .arg(ai::formatContextBlocks(context), question));
+                    .arg(ai::wrapMaterial(ai::formatContextBlocks(context)), question));
     messages.append(user);
 
     // 结构化的一份也带上：演示模式要靠它引用**真实的**块。

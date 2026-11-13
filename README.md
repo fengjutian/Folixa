@@ -201,6 +201,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 | `scripts\verify-package.ps1` | 安装包内容齐全，且在没有 Qt SDK 的环境可运行 |
 | `scripts\verify-sbom.ps1` | 包内每个文件都在 SBOM 中登记，且 SHA-256 与实际一致 |
 | `scripts\verify-licenses.ps1` | 安装包随附第三方许可证全文，与 `licenses\CHECKSUMS.txt` 和 `licenses\pdfium-CHECKSUMS.txt` 一致（文件集合与哈希，不少也不多） |
+| `scripts\verify-logs.ps1` | 构建产物、安装包与运行时数据目录里没有密钥形态字符串（脚本自带负例守卫） |
 | `scripts\check-version.ps1` | CMake、vcpkg 清单、版本文档、索引状态、exe 版本、安装包名称一致 |
 | `scripts\test-gates.ps1` | 上述门的负例守卫：故意弄坏输入，门必须变红 |
 

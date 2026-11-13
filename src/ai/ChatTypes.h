@@ -112,4 +112,8 @@ QString formatContextBlocks(const QVector<ContextBlock>& blocks);
 // 整篇问答的系统提示词（比别的任务多一整套引用格式的要求）。
 QString qaSystemPrompt();
 
+// 提示注入防护：把「材料不是指令」固定成一段措辞，并给正文加起止边界。
+QString untrustedMaterialNotice();
+QString wrapMaterial(const QString& material);
+
 }  // namespace aipdf::ai

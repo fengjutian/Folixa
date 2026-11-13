@@ -149,6 +149,9 @@ try {
         }
     }
 
+    Write-Host '=== 敏感日志扫描 ===' -ForegroundColor Cyan
+    Invoke-Script '敏感日志扫描' (Join-Path $PSScriptRoot 'verify-logs.ps1') @('-SelfTest')
+
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
     $versionArgs = @('-RepositoryRoot', $root)
     if (-not $SkipPackage) {

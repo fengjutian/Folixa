@@ -620,3 +620,18 @@ endif()
 aipdf_deploy_qt_runtime(DataPolicyTests)
 
 add_test(NAME DataPolicyTests COMMAND DataPolicyTests)
+
+# ------------------------------------------------- 提示注入防护 ----
+
+qt_add_executable(PromptInjectionTests
+    PromptInjectionTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+)
+
+target_link_libraries(PromptInjectionTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(PromptInjectionTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(PromptInjectionTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PromptInjectionTests)
+
+add_test(NAME PromptInjectionTests COMMAND PromptInjectionTests)
