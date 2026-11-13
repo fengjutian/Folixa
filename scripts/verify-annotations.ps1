@@ -314,10 +314,14 @@ try {
         (Get-AiPdfTraceText -Path $tracePath)
 
     # 撤销：批注应当从文档里消失。
+    #
+    # 轨迹是追加写的：断言前先清空，否则「撤销后 count=0」可能匹配到
+    # 撤销之前就存在的旧行，断言就成了空转。
     $undo = Get-AiPdfToolButton -Process $app -IdPattern '*annotation.undo*'
     Test-Check '找到「撤销」按钮' ($null -ne $undo) ''
     if ($undo) {
         Prepare-AiPdfWindow -Process $app | Out-Null
+        Reset-AiPdfTrace -Path $tracePath
         Click-AiPdfElement -Process $app -Element $undo | Out-Null
         Start-Sleep -Milliseconds 800
     }
@@ -330,6 +334,7 @@ try {
     Test-Check '找到「重做」按钮' ($null -ne $redo) ''
     if ($redo) {
         Prepare-AiPdfWindow -Process $app | Out-Null
+        Reset-AiPdfTrace -Path $tracePath
         Click-AiPdfElement -Process $app -Element $redo | Out-Null
         Start-Sleep -Milliseconds 800
     }
@@ -476,6 +481,8 @@ try {
     Test-Check '找到「删除所选批注」按钮' ($null -ne $remove) ''
     if ($remove) {
         Prepare-AiPdfWindow -Process $app | Out-Null
+        # 删除前清空轨迹：否则「只剩一条」可能匹配到删除前就存在的旧行。
+        Reset-AiPdfTrace -Path $tracePath
         Click-AiPdfElement -Process $app -Element $remove | Out-Null
         Start-Sleep -Milliseconds 800
     }
