@@ -60,6 +60,7 @@ QPushButton:disabled { color: #AAB2C0; background: #F7F8FA; }
 QPushButton#primaryButton {
     color: #FFFFFF; background: #5277E8; border: 1px solid #4A6DDE;
     border-radius: 10px; font-weight: 600; font-size: 14px;
+    min-height: 40px; padding: 0 22px;
 }
 QPushButton#primaryButton:hover { background: #476BDF; border-color: #3F63D6; }
 QPushButton#primaryButton:pressed { background: #3B5ECB; }
@@ -98,6 +99,8 @@ QTabBar::tab:selected {
     color: #202A3A; background: #F3F6FD; border-color: #E4EAF5; font-weight: 600;
 }
 QTabBar::tab:hover:!selected { background: #F6F8FC; color: #3555B7; }
+QTabBar::close-button { image: url(:/icons/close.svg); subcontrol-position: right; margin-left: 4px; padding: 2px; border-radius: 4px; }
+QTabBar::close-button:hover { background: #E4EAF5; }
 
 /* -------------------------------------------------------------- 面板 -- */
 QDockWidget { color: #202A3A; font-weight: 600; }
@@ -151,7 +154,7 @@ QLabel#welcomeSectionTitle { font-size: 13px; font-weight: 600; color: #465267; 
 QLabel#welcomeSectionMeta { font-size: 12px; color: #98A2B3; }
 QLabel#welcomeFootnote { font-size: 11px; color: #9AA5B8; }
 QFrame#recentCard { background: #FFFFFF; border: 1px solid #E6EAF2; border-radius: 16px; }
-QPushButton#recentRow { background: transparent; border: 0; border-radius: 15px; padding: 0; text-align: left; }
+QPushButton#recentRow { background: transparent; border: 0; border-radius: 12px; padding: 0; min-height: 56px; text-align: left; }
 QPushButton#recentRow:hover { background: #F5F8FD; }
 QPushButton#recentRow:pressed { background: #EDF2FC; }
 QLabel#pdfBadge { background: #FDECEE; color: #D1434F; font-size: 9px; font-weight: 700; border-radius: 10px; }

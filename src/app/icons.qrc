@@ -28,5 +28,6 @@
     <file>icons/undo.svg</file>
     <file>icons/redo.svg</file>
     <file>icons/app.svg</file>
+    <file>icons/close.svg</file>
   </qresource>
 </RCC>

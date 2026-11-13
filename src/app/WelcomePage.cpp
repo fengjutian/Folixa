@@ -5,7 +5,6 @@
 #include <QEnterEvent>
 #include <QFileInfo>
 #include <QFont>
-#include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,8 +15,6 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScrollArea>
-#include <QTextStream>
-#include <QTimer>
 #include <QVBoxLayout>
 
 #include <functional>
@@ -40,6 +37,7 @@ public:
         full_ = text;
         setToolTip(text);
         relayout();
+        updateGeometry();
     }
 
 protected:
@@ -212,12 +210,12 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
 
     auto* dropZone = new DropZone(column);
     dropZone->setObjectName(QStringLiteral("dropZone"));
-    dropZone->setFixedHeight(172);
+    dropZone->setFixedHeight(200);
     dropZone->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     dropZone->onClick = [this] { emit openPdfRequested(); };
     {
         auto* zoneLayout = new QVBoxLayout(dropZone);
-        zoneLayout->setContentsMargins(24, 82, 24, 22);
+        zoneLayout->setContentsMargins(24, 80, 24, 20);
         zoneLayout->setSpacing(0);
         auto* title = new QLabel(tr("把 PDF 拖到这里"), dropZone);
         title->setObjectName(QStringLiteral("dropZoneTitle"));
@@ -261,27 +259,13 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     columnLayout->addWidget(footnote);
 
     scroll->setWidget(content);
-    // TEMP-DEBUG
-    QTimer::singleShot(1500, this, [this, scroll, content, column, dropZone] {
-        QFile f(QStringLiteral("D:/github/pdf/.tmp/geom.txt"));
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            return;
-        }
-        QTextStream out(&f);
-        out << "dpr=" << devicePixelRatioF() << " page=" << width() << "x" << height()
-            << " scroll=" << scroll->width() << "x" << scroll->height()
-            << " viewport=" << scroll->viewport()->width() << "x"
-            << scroll->viewport()->height() << " content=" << content->width() << "x"
-            << content->height() << " contentMin=" << content->minimumSizeHint().height()
-            << " column=" << column->width() << "x" << column->height() << " dropzone="
-            << dropZone->width() << "x" << dropZone->height()
-            << " dropMin=" << dropZone->minimumSizeHint().height() << "\n";
-    });
 }
 
 QWidget* WelcomePage::createRecentCard(const QStringList& files) {
     auto* card = new QFrame(this);
     card->setObjectName(QStringLiteral("recentCard"));
+    // 和拖放区同宽：默认卡片按 sizeHint 缩到内容宽度，右边会多出一条缝。
+    card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto* layout = new QVBoxLayout(card);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -324,7 +308,8 @@ QWidget* WelcomePage::createRecentRow(const QString& path, bool isLast) {
     row->setObjectName(QStringLiteral("recentRow"));
     row->setCursor(Qt::PointingHandCursor);
     row->setToolTip(path);
-    row->setMinimumHeight(58);
+    // 固定行高：行内标签的 sizeHint 依赖当前文本宽度，交给布局算会压成一条。
+    row->setFixedHeight(58);
 
     auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(12, 9, 14, 9);

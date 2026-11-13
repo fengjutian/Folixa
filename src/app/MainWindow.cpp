@@ -710,14 +710,24 @@ void MainWindow::syncTabBar() {
             aiQuickCard_->hide();
         }
     }
-    if (navigationDock_ != nullptr && navigationDock_->isVisible() == onlyWelcome) {
-        suppressLayoutPersistence_ = true;
-        if (onlyWelcome) {
+    if (navigationDock_ == nullptr) {
+        return;
+    }
+    if (onlyWelcome) {
+        // 只在「本来就可见」时记一笔：用户自己关掉的面板不该被我们重新打开。
+        if (navigationDock_->isVisible()) {
+            navHiddenForWelcome_ = true;
+            suppressLayoutPersistence_ = true;
             navigationDock_->hide();
-        } else {
-            navigationDock_->setVisible(navigationUserVisible_);
+            suppressLayoutPersistence_ = false;
         }
+    } else if (navHiddenForWelcome_) {
+        navHiddenForWelcome_ = false;
+        suppressLayoutPersistence_ = true;
+        navigationDock_->setVisible(navigationUserVisible_);
         suppressLayoutPersistence_ = false;
+        // 重新露面时回到「图标轨」形态：只 show 不设宽度，dock 会摊成一条空面板。
+        setNavigationExpanded(false);
     }
 }
 

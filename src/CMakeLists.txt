@@ -123,6 +123,7 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/undo.svg
         app/icons/redo.svg
         app/icons/app.svg
+        app/icons/close.svg
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
