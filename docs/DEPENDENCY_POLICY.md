@@ -11,6 +11,17 @@
 7. Security-critical parsers and cryptographic libraries must have a documented emergency update path.
 8. Third-party commercial application artifacts are research inputs only and must not enter product source, tests or releases.
 
+## Proposed change: PDF object layer (not yet approved)
+
+[v1.3.0](versions/v1.3.0.md) proposes adding `qpdf` (Apache-2.0) as the first
+source-built third-party dependency, to obtain object-level writes and
+incremental updates that PDFium does not expose.
+
+This is a **proposal, not an accepted policy**: it takes effect only when
+v1.3.0 is implemented, and requires a license entry, an SBOM entry, a pinned
+version with SHA-256, and an emergency update path (rule 7) for the PDF parser.
+Until then, rule 2 stands as written.
+
 ## Review record
 
 The dependency table in `THIRD_PARTY_LICENSES.md` is updated whenever a new dependency is proposed. A dependency is production-approved only after its status includes an exact version and an accepted distribution strategy.

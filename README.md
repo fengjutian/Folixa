@@ -237,6 +237,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 
 ## 文档
 
+- [对标基线：Foxit PDF Editor 2026](docs/FOXIT_BENCHMARK.md)
 - [技术设计](docs/AI_PDF_EDITOR_TECHNICAL_DESIGN.md)
 - [Prism Document UI 设计规范](docs/UI_DESIGN_SYSTEM.md)
 - [版本与任务管理规范](docs/VERSIONING.md)
@@ -246,7 +247,10 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.11.0`](docs/versions/v0.11.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.12.0`](docs/versions/v0.12.0.md)，只有当前版本通过验收后才进入下一版本。
+
+1.0 之后的能力路线以 [对标基线](docs/FOXIT_BENCHMARK.md) 为准：先补齐打印、批注互操作、
+表单、加密与签名，再做内容编辑，最后按 96 项评分卡收敛到 2.0。
 
 ## 开发规范
 
