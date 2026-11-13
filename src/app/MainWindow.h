@@ -83,6 +83,12 @@ private:
     void navigateToOutlineTarget(int pageIndex, const QString& title);
     // 切换导航页签时把该页签的条目数记进轨迹（验收脚本据此断言面板真的有内容）。
     void traceNavigationPanel(int index);
+    // 切到导航栏的某一页并把它显示出来。
+    //
+    // 导航栏自己的图标是开关：再点一次当前页会把面板收起来；
+    // 命令栏的「页面」「批注」是导航命令，不该做开关——连点两次把面板关掉
+    // 会让人以为功能坏了。
+    void showNavigationPage(int index);
     void positionFloatingUi();
 
     ipc::WorkerClient* workerClient_ = nullptr;

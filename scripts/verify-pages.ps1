@@ -188,6 +188,35 @@ function Clear-RecoveryRecords {
         }
 }
 
+# 打开页面管理面板。
+#
+# 命令栏的「页面」按钮是工具栏里的 QToolButton（AutomationId 形如
+# commandPagesButton），QAction 的对象名不会出现在 UI Automation 里，按它
+# 找不到人。拿不到就退回导航栏的「页面」页签（railButton.pages）。
+# 导航栏的图标是开关：面板开着的时候再点会收起来，所以只点一次。
+# 面板有没有真的打开，以「插入」按钮在不在为准。
+function Open-PagePanel {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process
+    )
+    $button = Wait-AiPdfElementById -Process $Process -IdPattern '*commandPagesButton*' -TimeoutSeconds 5
+    if (-not $button) {
+        $button = Wait-AiPdfElementById -Process $Process -IdPattern '*railButton.pages*' -TimeoutSeconds 5
+    }
+    if (-not $button) {
+        Write-Host '    没找到「页面」入口按钮' -ForegroundColor DarkGray
+        return $false
+    }
+    $null = Prepare-AiPdfWindow -Process $Process
+    if (-not (Invoke-AiPdfElement -Element $button)) {
+        $bounds = $button.Current.BoundingRectangle
+        Invoke-AiPdfMouseClick -X ([int]($bounds.Left + $bounds.Width / 2)) `
+            -Y ([int]($bounds.Top + $bounds.Height / 2))
+    }
+    Start-Sleep -Milliseconds 800
+    return ($null -ne (Wait-AiPdfElementById -Process $Process -IdPattern '*page.insert*' -TimeoutSeconds 5))
+}
+
 # --------------------------------------------------------------- 场景 1 ------
 Write-Host '==> 场景 1：页面面板' -ForegroundColor Cyan
 $app = $null
@@ -197,9 +226,8 @@ try {
     $null = Prepare-AiPdfWindow -Process $app
 
     # 命令栏的「页面」：打开导航面板的页面页。
-    $opened = Click-AiPdfById -Process $app -IdPattern '*commandPages*'
-    Test-Check '命令栏的「页面」能点' $opened ''
-    Start-Sleep -Milliseconds 600
+    $opened = Open-PagePanel -Process $app
+    Test-Check '页面管理面板能打开' $opened ''
 
     foreach ($id in @('page.insert', 'page.delete', 'page.rotateRight',
                      'page.rotateLeft', 'page.moveUp', 'page.moveDown')) {
@@ -223,7 +251,7 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $targetPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
-    $null = Click-AiPdfById -Process $app -IdPattern '*commandPages*'
+    $null = Open-PagePanel -Process $app
 
     # 插入：3 页的文档插一页之后应当是 4 页。
     $null = Click-AiPdfById -Process $app -IdPattern '*page.insert*'
@@ -252,11 +280,11 @@ try {
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page rotate index=\d+ turns=1 pages=4' -TimeoutSeconds 8) `
         (Get-AiPdfTraceText -Path $tracePath)
 
-    # 下移：第 1 页挪到第 2 位。
+    # 下移：当前页往后挪一位。当前页不一定是第 1 页，所以只断言「往后挪」。
     Reset-AiPdfTrace -Path $tracePath
     $null = Click-AiPdfById -Process $app -IdPattern '*page.moveDown*'
     Test-Check '下移页面' `
-        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page move from=0 to=1 pages=4' -TimeoutSeconds 8) `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page move from=(0 to=1|1 to=2|2 to=3) pages=4' -TimeoutSeconds 8) `
         (Get-AiPdfTraceText -Path $tracePath)
 
     # 删除：4 页变 3 页。
@@ -285,7 +313,7 @@ try {
         (Get-AiPdfTraceText -Path $tracePath)
 
     # 先改一页，保存才有内容可写。
-    $null = Click-AiPdfById -Process $app -IdPattern '*commandPages*'
+    $null = Open-PagePanel -Process $app
     $null = Click-AiPdfById -Process $app -IdPattern '*page.insert*'
     Test-Check '保存前先插了一页' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page insert index=\d+ pages=4' -TimeoutSeconds 8) `
@@ -328,7 +356,7 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $recoveryPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
-    $null = Click-AiPdfById -Process $app -IdPattern '*commandPages*'
+    $null = Open-PagePanel -Process $app
     $null = Click-AiPdfById -Process $app -IdPattern '*page.insert*'
     Test-Check '页面改动已记录' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page insert index=\d+ pages=4' -TimeoutSeconds 8) `
@@ -355,7 +383,7 @@ try {
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-AiPdfApp -Pdf $replayPdf -WaitSeconds $StartupSeconds
     $null = Prepare-AiPdfWindow -Process $app
-    $null = Click-AiPdfById -Process $app -IdPattern '*commandPages*'
+    $null = Open-PagePanel -Process $app
     $null = Click-AiPdfById -Process $app -IdPattern '*page.insert*'
     Test-Check '崩溃前插了一页' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page insert index=\d+ pages=4' -TimeoutSeconds 8) `

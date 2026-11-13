@@ -229,12 +229,8 @@ void MainWindow::buildUi() {
     annotationAction->setToolTip(tr("查看与删除批注"));
     connect(annotationAction, &QAction::triggered, this, [this]() {
         navigationDock_->setVisible(true);
-        if (navigationRail_ != nullptr) {
-            // 切到导航栏的批注页（第五个按钮）。
-            if (auto* button = navigationRail_->button(4)) {
-                button->click();
-            }
-        }
+        // 切到导航栏的批注页（第五个按钮）。
+        showNavigationPage(4);
         trace(QStringLiteral("open annotation panel"));
     });
     // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
@@ -243,14 +239,20 @@ void MainWindow::buildUi() {
     pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
     connect(pageAction, &QAction::triggered, this, [this]() {
         navigationDock_->setVisible(true);
-        if (navigationRail_ != nullptr) {
-            // 切到导航栏的页面页（第一个按钮）。
-            if (auto* button = navigationRail_->button(0)) {
-                button->click();
-            }
-        }
+        // 切到导航栏的页面页（第一个按钮）。
+        showNavigationPage(0);
         trace(QStringLiteral("open page panel"));
     });
+    // 工具栏里的按钮是 Qt 自己建的 QToolButton：
+    // QAction 的对象名不会出现在 UI Automation 里，验收脚本按它找不到人。
+    // 给真正的按钮也起一个名字。
+    auto nameCommandButton = [commandBar](QAction* action, const QString& id) {
+        if (auto* button = qobject_cast<QToolButton*>(commandBar->widgetForAction(action))) {
+            button->setObjectName(id);
+        }
+    };
+    nameCommandButton(annotationAction, QStringLiteral("commandAnnotationButton"));
+    nameCommandButton(pageAction, QStringLiteral("commandPagesButton"));
     const QStringList futureCommands = {tr("编辑"), tr("转换"),
                                         tr("保护"), tr("表单"), tr("工具")};
     for (const QString& label : futureCommands) {
@@ -1072,6 +1074,26 @@ void MainWindow::refreshOutline(PdfView* view) {
         }
     }
     trace(QStringLiteral("outline shown items=%1").arg(entries.size()));
+}
+
+// 切到导航栏的某一页并把它显示出来。
+//
+// 导航栏的图标按钮是开关：再点一次当前页会把面板收起来。
+// 命令栏的「页面」「批注」是导航命令，不是开关——连点两次把面板关掉，
+// 会让人以为功能坏了。
+void MainWindow::showNavigationPage(int index) {
+    if (navigationRail_ != nullptr) {
+        if (auto* button = navigationRail_->button(index)) {
+            button->setChecked(true);
+        }
+    }
+    if (navigationPages_ == nullptr) {
+        return;
+    }
+    navigationPages_->setCurrentIndex(index);
+    navigationPages_->setVisible(true);
+    resizeDocks({navigationDock_}, {224}, Qt::Horizontal);
+    traceNavigationPanel(index);
 }
 
 void MainWindow::traceNavigationPanel(int index) {
