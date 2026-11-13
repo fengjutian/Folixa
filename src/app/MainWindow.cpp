@@ -265,11 +265,17 @@ void MainWindow::buildUi() {
         }
     });
     commandBar->addSeparator();
+    // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
+    // 未交付的保持纯文字并用分隔线隔开，一眼能看出「这些还不能点」。
+    commandBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     auto* homeAction = commandBar->addAction(tr("阅读"));
+    homeAction->setIcon(QIcon(QStringLiteral(":/icons/book.svg")));
+    homeAction->setToolTip(tr("阅读视图"));
     homeAction->setCheckable(true);
     homeAction->setChecked(true);
     // 批注已交付（v0.7.0）：点开就是批注面板。
     auto* annotationAction = commandBar->addAction(tr("批注"));
+    annotationAction->setIcon(QIcon(QStringLiteral(":/icons/annotation.svg")));
     annotationAction->setObjectName(QStringLiteral("commandAnnotation"));
     annotationAction->setToolTip(tr("查看与删除批注"));
     connect(annotationAction, &QAction::triggered, this, [this]() {
@@ -280,6 +286,7 @@ void MainWindow::buildUi() {
     });
     // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
     auto* pageAction = commandBar->addAction(tr("页面"));
+    pageAction->setIcon(QIcon(QStringLiteral(":/icons/pages.svg")));
     pageAction->setObjectName(QStringLiteral("commandPages"));
     pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
     connect(pageAction, &QAction::triggered, this, [this]() {
@@ -290,6 +297,7 @@ void MainWindow::buildUi() {
     });
     // 本地索引已交付（v0.9.0）：点开就是索引页（状态、检索、结果）。
     auto* indexAction = commandBar->addAction(tr("索引"));
+    indexAction->setIcon(QIcon(QStringLiteral(":/icons/index.svg")));
     indexAction->setObjectName(QStringLiteral("commandIndex"));
     indexAction->setToolTip(tr("建立文档索引并按关键词检索"));
     connect(indexAction, &QAction::triggered, this, [this]() {
@@ -309,6 +317,8 @@ void MainWindow::buildUi() {
     nameCommandButton(annotationAction, QStringLiteral("commandAnnotationButton"));
     nameCommandButton(pageAction, QStringLiteral("commandPagesButton"));
     nameCommandButton(indexAction, QStringLiteral("commandIndexButton"));
+    // 后续能力与已交付功能之间留一条分隔线。
+    commandBar->addSeparator();
     const QStringList futureCommands = {tr("编辑"), tr("转换"),
                                         tr("保护"), tr("表单"), tr("工具")};
     for (const QString& label : futureCommands) {
@@ -616,9 +626,9 @@ void MainWindow::buildUi() {
     });
 
     QSettings settings;
-    // v5：修掉「退出时把面板可见性写成 false」的持久化错误。老配置里的 false
+    // v6：修掉「退出时把面板可见性写成 false」的持久化错误。老配置里的 false
     // 很可能是这个 bug 留下的，不是用户真的想关掉导航栏，所以升版本时重置一次。
-    constexpr int kWorkspaceLayoutVersion = 5;
+    constexpr int kWorkspaceLayoutVersion = 6;
     const bool isNewWorkspaceLayout =
         settings.value(QStringLiteral("workspace/layoutVersion"), 0).toInt() < kWorkspaceLayoutVersion;
     if (isNewWorkspaceLayout) {
@@ -642,9 +652,13 @@ void MainWindow::buildUi() {
         positionFloatingUi();
     });
     connect(navigationDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        // 窗口关闭/最小化时 dock 也会收到一次 false，那不是用户的选择：
-        // 不拦住的话每次退出都会把「面板可见」写成 false，下次启动永远打不开。
-        if (suppressLayoutPersistence_ || !isVisible()) {
+        // 窗口关闭/最小化时 dock 也会收到一次 false，那不是用户的选择。
+        if (!isVisible()) {
+            return;
+        }
+        // 欢迎页我们自己把导航栏收起来（QDockWidget 的信号还可能晚一拍才到），
+        // 这不算用户关闭，不能写进设置。
+        if (navHiddenForWelcome_ && !visible) {
             return;
         }
         navigationUserVisible_ = visible;
@@ -727,15 +741,11 @@ void MainWindow::syncTabBar() {
         // 只在「本来就可见」时记一笔：用户自己关掉的面板不该被我们重新打开。
         if (navigationDock_->isVisible()) {
             navHiddenForWelcome_ = true;
-            suppressLayoutPersistence_ = true;
             navigationDock_->hide();
-            suppressLayoutPersistence_ = false;
         }
     } else if (navHiddenForWelcome_) {
         navHiddenForWelcome_ = false;
-        suppressLayoutPersistence_ = true;
         navigationDock_->setVisible(navigationUserVisible_);
-        suppressLayoutPersistence_ = false;
         // 重新露面时回到「图标轨」形态：只 show 不设宽度，dock 会摊成一条空面板。
         setNavigationExpanded(false);
     }

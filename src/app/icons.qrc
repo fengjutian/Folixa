@@ -29,5 +29,6 @@
     <file>icons/redo.svg</file>
     <file>icons/app.svg</file>
     <file>icons/close.svg</file>
+    <file>icons/book.svg</file>
   </qresource>
 </RCC>

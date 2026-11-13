@@ -157,8 +157,6 @@ private:
     bool aiWasVisible_ = false;
     // 用户是否希望左侧导航栏可见（与「欢迎页临时收起」区分开）。
     bool navigationUserVisible_ = true;
-    // 同步布局时临时置位：这时 dock 的显隐不算用户意图，不写回设置。
-    bool suppressLayoutPersistence_ = false;
     // 欢迎页临时收起了导航栏；打开文档时要把它放回来。
     bool navHiddenForWelcome_ = false;
 };
