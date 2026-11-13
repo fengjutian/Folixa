@@ -254,52 +254,50 @@ void MainWindow::buildUi() {
     pagesList_->setIconSize(QSize(132, 172));
     pagesList_->setGridSize(QSize(166, 206));
     pagesList_->setSpacing(6);
-    navigationPages->addWidget(pagesList_);
-    // 页签顺序 = 导航栏按钮的下标（0 页面 / 1 目录 / 2 书签 / 3 搜索 / 4 批注）。
+    // 导航栏按钮与页签一一对应。
     //
-    // 这两个列表必须一一对应：一旦错位，点「搜索」会打开别的页，
-    // Ctrl+F 也会跟着失灵（v0.7.0 真的踩过一次）。
-    // 所以把页签收进一个列表，紧接着就是按钮列表，中间不要插别的页签。
-    QVector<QWidget*> navigationPageWidgets;
-    navigationPageWidgets.append(pagesList_);
-    navigationPageWidgets.append(createOutlineTab());
-    navigationPageWidgets.append(createBookmarkTab());
+    // 两者必须写在同一张表里：v0.7.0 真的踩过一次——
+    // 批注页插在搜索页之前，两处列表的下标就错开了，
+    // 点「搜索」打开的是批注页，Ctrl+F 也跟着失灵。
+    struct RailEntry {
+        QString icon;
+        QString tip;
+        // 每个按钮给一个独立的对象名：验收脚本靠它定位「目录」「书签」页签，
+        // 靠按钮文字（图标按钮没有文字）会随主题改版一起失效。
+        QString id;
+        QWidget* page = nullptr;
+    };
+    QVector<RailEntry> railEntries;
+    railEntries.append({QStringLiteral(":/icons/pages.svg"), tr("页面"),
+                         QStringLiteral("railButton.pages"), pagesList_});
+    // 目录页与书签页：同一份大纲的两种看法（树 / 扁平列表）。
+    railEntries.append({QStringLiteral(":/icons/outline.svg"), tr("目录"),
+                         QStringLiteral("railButton.outline"), createOutlineTab()});
+    railEntries.append({QStringLiteral(":/icons/bookmark.svg"), tr("书签"),
+                         QStringLiteral("railButton.bookmarks"), createBookmarkTab()});
     // 搜索页：全文搜索（v0.5.0）。
     searchPanel_ = new SearchPanel(navigationPages);
-    navigationPageWidgets.append(searchPanel_);
+    railEntries.append({QStringLiteral(":/icons/search.svg"), tr("搜索"),
+                         QStringLiteral("railButton.search"), searchPanel_});
     // 批注页：批注列表（v0.7.0）。
-    navigationPageWidgets.append(createAnnotationTab());
-    for (QWidget* page : navigationPageWidgets) {
-        navigationPages->addWidget(page);
+    railEntries.append({QStringLiteral(":/icons/annotation.svg"), tr("批注"),
+                         QStringLiteral("railButton.annotations"), createAnnotationTab()});
+
+    // 页签顺序 = 按钮下标：按钮 i 对应第 i 个页签。
+    for (const RailEntry& entry : railEntries) {
+        navigationPages->addWidget(entry.page);
     }
+
     auto* railGroup = new QButtonGroup(rail);
     navigationRail_ = railGroup;
     railGroup->setExclusive(true);
-    const QStringList railIcons = {QStringLiteral(":/icons/pages.svg"),
-                                   QStringLiteral(":/icons/outline.svg"),
-                                   QStringLiteral(":/icons/bookmark.svg"),
-                                   QStringLiteral(":/icons/search.svg"),
-                                   QStringLiteral(":/icons/annotation.svg")};
-    const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索"), tr("批注")};
-    // 每个按钮给一个独立的对象名：验收脚本靠它定位「目录」「书签」页签，
-    // 靠按钮文字（图标按钮没有文字）会随主题改版一起失效。
-    const QStringList railIds = {QStringLiteral("railButton.pages"),
-                                 QStringLiteral("railButton.outline"),
-                                 QStringLiteral("railButton.bookmarks"),
-                                 QStringLiteral("railButton.search"),
-                                 QStringLiteral("railButton.annotations")};
-    // 页签数与按钮数必须一致：按钮下标就是页签下标。
-    if (navigationPageWidgets.size() != railIcons.size()) {
-        qWarning("导航栏按钮数(%1)与页签数(%2)不一致，页签顺序必须与按钮下标一致",
-                 railIcons.size(),
-                 navigationPageWidgets.size());
-    }
-    for (int index = 0; index < railIcons.size(); ++index) {
+    for (int index = 0; index < railEntries.size(); ++index) {
+        const RailEntry& entry = railEntries.at(index);
         auto* button = new QToolButton(rail);
-        button->setObjectName(railIds.at(index));
-        button->setIcon(QIcon(railIcons.at(index)));
+        button->setObjectName(entry.id);
+        button->setIcon(QIcon(entry.icon));
         button->setIconSize(QSize(20, 20));
-        button->setToolTip(railTips.at(index));
+        button->setToolTip(entry.tip);
         button->setCheckable(true);
         button->setAutoExclusive(true);
         button->setChecked(index == 0);
