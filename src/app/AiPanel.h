@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ai/ChatTypes.h"
+#include "ai/DataPolicy.h"
 #include "doc/CitationVerifier.h"
 
 #include <QObject>
@@ -105,6 +106,11 @@ private:
     // 文本还没抽出来时：记下要做的任务，等 textPageReady 到了再发。
     void ensureTextThenRun(const QString& task, const QString& question);
     void sendTask(const QString& task, const QString& question);
+    // 云端请求前的隐私确认：跑策略、必要时弹预览、写审计。
+    // 返回 false 表示这次不发送（被策略拒绝，或用户点了取消）。
+    bool confirmCloudUpload(const ai::DataScope& scope,
+                            const QVector<int>& pages,
+                            const QString& task);
     // 整篇问答：检索 → 拼上下文 → 发请求。
     void sendDocumentQa(const QString& question);
     // 回答收完：核验引用并渲染（带可点击的引用）。
