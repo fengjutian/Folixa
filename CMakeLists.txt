@@ -15,7 +15,7 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${config} "${CMAKE_BINARY_DIR}/bin")
 endforeach()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Svg)
 
 if(AIPDF_BUILD_TESTS)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)

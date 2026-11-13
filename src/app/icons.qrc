@@ -4,6 +4,13 @@
     <file>icons/outline.svg</file>
     <file>icons/bookmark.svg</file>
     <file>icons/search.svg</file>
+    <file>icons/annotation.svg</file>
+    <file>icons/index.svg</file>
     <file>icons/send.svg</file>
+    <file>icons/chat.svg</file>
+    <file>icons/rewrite.svg</file>
+    <file>icons/proofread.svg</file>
+    <file>icons/explain.svg</file>
+    <file>icons/summarize.svg</file>
   </qresource>
 </RCC>

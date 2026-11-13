@@ -1,5 +1,6 @@
 #include "app/MainWindow.h"
 
+#include "app/TextController.h"
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
 #include "app/IndexPanel.h"
@@ -20,6 +21,8 @@
 #include <QDockWidget>
 #include <QDateTime>
 #include <QFrame>
+#include <QGraphicsDropShadowEffect>
+#include <QIcon>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -43,6 +46,7 @@
 #include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
+#include <iterator>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QTimer>
@@ -321,6 +325,11 @@ void MainWindow::buildUi() {
         const RailEntry& entry = railEntries.at(index);
         auto* button = new QToolButton(rail);
         button->setObjectName(entry.id);
+        // 样式表靠这个属性选中导航栏按钮：objectName 必须保持
+        // 「railButton.<页>」这种带点的形式给 UI Automation 用，
+        // 而 QSS 的 #railButton 是精确匹配，带点就匹配不上（按钮会退化成
+        // 普通白色按钮），所以另用一个属性做样式钩子。
+        button->setProperty("railButton", true);
         button->setIcon(QIcon(entry.icon));
         button->setIconSize(QSize(20, 20));
         button->setToolTip(entry.tip);
@@ -433,17 +442,39 @@ void MainWindow::buildUi() {
 
     aiQuickCard_ = new QFrame(tabs_);
     aiQuickCard_->setObjectName(QStringLiteral("aiQuickCard"));
-    aiQuickCard_->setFixedWidth(230);
+    aiQuickCard_->setFixedWidth(252);
     auto* quickCardLayout = new QVBoxLayout(aiQuickCard_);
-    quickCardLayout->setContentsMargins(14, 14, 14, 14);
-    quickCardLayout->setSpacing(8);
-    auto* quickCardTitle = new QLabel(tr("✦ Folixa AI"), aiQuickCard_);
+    quickCardLayout->setContentsMargins(16, 14, 16, 16);
+    quickCardLayout->setSpacing(6);
+    auto* quickCardTitle = new QLabel(QStringLiteral("✦  Folixa AI"), aiQuickCard_);
     quickCardTitle->setObjectName(QStringLiteral("aiQuickTitle"));
     quickCardLayout->addWidget(quickCardTitle);
-    const QStringList quickLabels = {tr("开始聊天"), tr("改写"), tr("校对"), tr("解释"), tr("总结")};
-    for (int index = 0; index < quickLabels.size(); ++index) {
-        auto* button = new QPushButton(quickLabels.at(index), aiQuickCard_);
+    // 一行上下文说明：AI 动作作用于什么、为什么现在是灰的，都写在这里。
+    aiQuickSubtitle_ = new QLabel(QString(), aiQuickCard_);
+    aiQuickSubtitle_->setObjectName(QStringLiteral("aiQuickSubtitle"));
+    aiQuickSubtitle_->setWordWrap(true);
+    quickCardLayout->addWidget(aiQuickSubtitle_);
+    quickCardLayout->addSpacing(4);
+
+    struct QuickAction {
+        QString label;
+        QString icon;
+        QString tip;
+    };
+    const QuickAction quickActions[] = {
+        {tr("开始聊天"), QStringLiteral(":/icons/chat.svg"), tr("打开完整对话面板，自己提问")},
+        {tr("改写"), QStringLiteral(":/icons/rewrite.svg"), tr("将在后续版本中提供")},
+        {tr("校对"), QStringLiteral(":/icons/proofread.svg"), tr("将在后续版本中提供")},
+        {tr("解释"), QStringLiteral(":/icons/explain.svg"), tr("解释页面上选中的文字")},
+        {tr("总结"), QStringLiteral(":/icons/summarize.svg"), tr("总结当前页")},
+    };
+    for (int index = 0; index < static_cast<int>(std::size(quickActions)); ++index) {
+        const QuickAction& action = quickActions[index];
+        auto* button = new QPushButton(QIcon(action.icon), action.label, aiQuickCard_);
         button->setObjectName(QStringLiteral("aiQuickAction"));
+        button->setIconSize(QSize(16, 16));
+        button->setToolTip(action.tip);
+        button->setCursor(Qt::PointingHandCursor);
         if (index == 0) {
             connect(button, &QPushButton::clicked, this, [this] {
                 aiQuickCard_->hide();
@@ -455,7 +486,6 @@ void MainWindow::buildUi() {
             });
         } else if (index == 3 || index == 4) {
             // 「解释」与「总结」已经真的能用了，直接接过去。
-            button->setEnabled(true);
             connect(button, &QPushButton::clicked, this, [this, index] {
                 aiQuickCard_->hide();
                 aiDock_->show();
@@ -470,22 +500,42 @@ void MainWindow::buildUi() {
                 }
             });
         } else {
+            // 还没实现的动作保持禁用，而不是点了什么也不发生。
             button->setEnabled(false);
-            button->setToolTip(tr("将在后续版本中提供"));
         }
+        aiQuickButtons_.append(button);
         quickCardLayout->addWidget(button);
     }
+    // 浮层投影（设计规范 shadow.md：0,6 / 18 / 12%），让卡片和页面分开。
+    auto* cardShadow = new QGraphicsDropShadowEffect(aiQuickCard_);
+    cardShadow->setBlurRadius(18);
+    cardShadow->setOffset(0, 6);
+    cardShadow->setColor(QColor(32, 42, 58, 31));
+    aiQuickCard_->setGraphicsEffect(cardShadow);
     aiQuickCard_->hide();
+    updateAiQuickActions();
 
     aiFloatingButton_ = new QPushButton(QStringLiteral("✦"), tabs_);
     aiFloatingButton_->setObjectName(QStringLiteral("aiFloatingButton"));
     aiFloatingButton_->setFixedSize(44, 44);
     aiFloatingButton_->setToolTip(tr("AI 快捷操作"));
     connect(aiFloatingButton_, &QPushButton::clicked, this, [this] {
-        aiQuickCard_->setVisible(!aiQuickCard_->isVisible());
+        const bool show = !aiQuickCard_->isVisible();
+        // 每次展开前按当前文档/选区重新算一遍可用状态：
+        // 「解释」要有选区，「总结」要有文档，禁用时要写明原因。
+        if (show) {
+            updateAiQuickActions();
+        }
+        aiQuickCard_->setVisible(show);
         positionFloatingUi();
     });
     connect(aiAction, &QAction::triggered, aiFloatingButton_, &QPushButton::click);
+    // 切换文档 / 换标签时，卡片上的动作要跟着当前文档与选区走。
+    connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
+        if (aiQuickCard_ != nullptr && aiQuickCard_->isVisible()) {
+            updateAiQuickActions();
+        }
+    });
 
     auto* focusAction = viewMenu->addAction(tr("专注模式"));
     focusAction->setCheckable(true);
@@ -1190,6 +1240,45 @@ void MainWindow::highlightThumbnail(int pageIndex) {
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     positionFloatingUi();
+}
+
+void MainWindow::updateAiQuickActions() {
+    if (aiQuickCard_ == nullptr || aiQuickButtons_.isEmpty()) {
+        return;
+    }
+    PdfView* view = currentView();
+    const bool hasDocument = view != nullptr;
+    bool hasSelection = false;
+    if (hasDocument && view->textController() != nullptr) {
+        hasSelection = !view->textController()->selectedText().trimmed().isEmpty();
+    }
+
+    if (aiQuickSubtitle_ != nullptr) {
+        // 设计规范：上下文不足时要禁用并说明原因，而不是让按钮静默失效。
+        if (!hasDocument) {
+            aiQuickSubtitle_->setText(tr("打开一份 PDF 后，这些动作才有可用的内容"));
+        } else if (!hasSelection) {
+            aiQuickSubtitle_->setText(tr("选中文字后可「解释」；「总结」作用于当前页"));
+        } else {
+            aiQuickSubtitle_->setText(tr("「解释」会用到你选中的这段文字"));
+        }
+    }
+
+    for (int index = 0; index < aiQuickButtons_.size(); ++index) {
+        QPushButton* button = aiQuickButtons_.at(index);
+        if (button == nullptr) {
+            continue;
+        }
+        // 下标与构建时的动作表一致：0 开始聊天、1 改写、2 校对、3 解释、4 总结。
+        if (index == 3) {
+            button->setEnabled(hasSelection);
+            button->setToolTip(hasSelection ? tr("解释页面上选中的文字")
+                                            : tr("先在页面上选中一段文字"));
+        } else if (index == 4) {
+            button->setEnabled(hasDocument);
+            button->setToolTip(hasDocument ? tr("总结当前页") : tr("先打开一份 PDF"));
+        }
+    }
 }
 
 void MainWindow::positionFloatingUi() {

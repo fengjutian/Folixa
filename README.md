@@ -52,7 +52,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 
 | 组件 | 版本 | 说明 |
 |---|---|---|
-| Qt | 6.8.3 `mingw_64` | 官方二进制套件，仅 qtbase |
+| Qt | 6.8.3 `mingw_64` | 官方二进制套件，qtbase + qtsvg |
 | MinGW-w64 | GCC 13.1.0 | Qt 官方工具包 |
 | PDFium | API 159（chromium/8152） | 预编译 Windows x64 包，按 SHA-256 校验 |
 | CMake | 3.25+ | 系统安装 |

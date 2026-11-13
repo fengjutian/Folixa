@@ -529,3 +529,36 @@ aipdf_deploy_qt_runtime(AiPanelTests)
 aipdf_deploy_pdfium(AiPanelTests)
 
 add_test(NAME AiPanelTests COMMAND AiPanelTests)
+
+# ------------------------------------------------- 图标资源的回归守卫 ----
+
+qt_add_executable(IconResourceTests
+    IconResourceTests.cpp
+)
+
+# 图标资源只打包进主程序，测试要自己再打一份，才能验证「资源在」这一半。
+qt_add_resources(IconResourceTests "icon_test_resources"
+    PREFIX "/icons"
+    BASE "${CMAKE_SOURCE_DIR}/src/app/icons"
+    FILES
+        ${CMAKE_SOURCE_DIR}/src/app/icons/pages.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/outline.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/bookmark.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/search.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/annotation.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/index.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/send.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/chat.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/rewrite.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/proofread.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/explain.svg
+        ${CMAKE_SOURCE_DIR}/src/app/icons/summarize.svg
+)
+
+# Qt6::Svg 必须链上：windeployqt 靠它判断要部署 imageformats/qsvg.dll，
+# 少了这个插件图标就是空的——这正是本用例守的那个回归。
+target_link_libraries(IconResourceTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test Qt6::Svg)
+set_target_properties(IconResourceTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(IconResourceTests)
+
+add_test(NAME IconResourceTests COMMAND IconResourceTests)

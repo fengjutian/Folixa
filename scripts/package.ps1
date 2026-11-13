@@ -96,7 +96,9 @@ $requiredFiles = @(
     'Qt6Gui.dll',
     'Qt6Widgets.dll',
     'Qt6Network.dll',
+    'Qt6Svg.dll',
     'platforms/qwindows.dll',
+    'imageformats/qsvg.dll',
     'libgcc_s_seh-1.dll',
     'libstdc++-6.dll',
     'libwinpthread-1.dll'

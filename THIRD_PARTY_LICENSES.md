@@ -6,7 +6,7 @@ notices must be generated and reviewed for every release.
 
 | Component | Version / source | Planned use | License review status |
 |---|---|---|---|
-| Qt | 6.8.3 (`mingw_64`), official binary kit via `aqtinstall` | Desktop UI, networking and local IPC | LGPL v3, dynamically linked; distribute the Qt binaries and license notices alongside the application |
+| Qt | 6.8.3 (`mingw_64`), official binary kit via `aqtinstall` (`qtbase`, `qtsvg`) | Desktop UI, networking, local IPC and SVG icon rendering | LGPL v3, dynamically linked; distribute the Qt binaries and license notices alongside the application |
 | MinGW-w64 | GCC 13.1.0 (`qt.tools.win64_mingw1310`) | Build-time toolchain only | GPLv3 with GCC Runtime Library Exception; runtime libraries come from the Qt kit |
 | PDFium | API 159 (`chromium/8152`), `bblanchon/pdfium-binaries` | PDF parsing and page rendering | BSD-3-Clause; `pdfium.dll` plus 19 third-party license texts are bundled in the package |
 | SQLite | Pending version pin | Metadata and FTS5 | Pending version pin |

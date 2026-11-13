@@ -98,6 +98,11 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/annotation.svg
         app/icons/index.svg
         app/icons/send.svg
+        app/icons/chat.svg
+        app/icons/rewrite.svg
+        app/icons/proofread.svg
+        app/icons/explain.svg
+        app/icons/summarize.svg
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
@@ -105,6 +110,9 @@ target_link_libraries(AiPdfEditor PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    # 导航栏与发送按钮的图标是 SVG（qt_add_resources 打包）：没有 QSvg 插件
+    # 时 QIcon 拿到的是空图标，按钮就只剩下一个白方块。
+    Qt6::Svg
     ${AIPDF_PDFIUM_LIBRARY}
 )
 

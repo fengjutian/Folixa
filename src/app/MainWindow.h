@@ -93,6 +93,8 @@ private:
     // 会让人以为功能坏了。
     void showNavigationPage(int index);
     void positionFloatingUi();
+    // 按当前文档与选区状态刷新 AI 快捷卡的动作与说明。
+    void updateAiQuickActions();
 
     ipc::WorkerClient* workerClient_ = nullptr;
     // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
@@ -134,6 +136,10 @@ private:
     IndexPanel* indexPanel_ = nullptr;
     QFrame* aiQuickCard_ = nullptr;
     QPushButton* aiFloatingButton_ = nullptr;
+    // 快捷卡的上下文说明（没有文档/选区时这里写明原因）。
+    QLabel* aiQuickSubtitle_ = nullptr;
+    // 快捷卡上的动作按钮，顺序与 quickActions 一致；按上下文启用/禁用。
+    QVector<QPushButton*> aiQuickButtons_;
     bool navigationWasVisible_ = true;
     bool aiWasVisible_ = false;
 };

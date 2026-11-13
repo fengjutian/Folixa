@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     只安装免管理员的官方二进制套件：
-      - Qt 6.8.3 (win64_mingw, 仅 qtbase)
+      - Qt 6.8.3 (win64_mingw, qtbase + qtsvg)
       - MinGW-w64 GCC 13.1.0 (Qt 官方工具包)
     脚本可重复执行：已安装且版本一致时直接跳过。
 
@@ -72,9 +72,21 @@ if (Test-Path -LiteralPath $qtConfig) {
 } else {
     Write-Step "下载 Qt $QtVersion ($QtArchitecture)"
     aqt install-qt windows desktop $QtVersion $QtArchitecture `
-        --outputdir $InstallDir --archives qtbase
+        --outputdir $InstallDir --archives qtbase qtsvg
     if ($LASTEXITCODE -ne 0) {
         throw "Qt 安装失败"
+    }
+}
+
+# qtsvg 单独补装：老环境里只有 qtbase，而导航栏图标是 SVG。
+# 没有 QSvg 插件时 QIcon 静默变成空图标，界面上只剩白方块。
+$qtSvgConfig = Join-Path $qtRoot 'lib\cmake\Qt6Svg\Qt6SvgConfig.cmake'
+if (-not (Test-Path -LiteralPath $qtSvgConfig)) {
+    Write-Step "补装 Qt Svg 模块（图标渲染）"
+    aqt install-qt windows desktop $QtVersion $QtArchitecture `
+        --outputdir $InstallDir --archives qtsvg
+    if ($LASTEXITCODE -ne 0) {
+        throw "Qt Svg 模块安装失败"
     }
 }
 
