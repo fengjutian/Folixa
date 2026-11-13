@@ -1,5 +1,7 @@
 #include "pdf/PdfiumAdapter.h"
 
+#include <fpdf_annot.h>
+#include <fpdf_doc.h>
 #include <fpdf_edit.h>
 #include <fpdf_text.h>
 #include <fpdf_transformpage.h>
