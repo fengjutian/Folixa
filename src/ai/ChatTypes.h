@@ -36,7 +36,25 @@ inline constexpr auto Summary = "summary";    // 总结当前页
 inline constexpr auto Explain = "explain";    // 解释当前选区
 inline constexpr auto Translate = "translate";// 翻译当前选区
 inline constexpr auto Chat = "chat";          // 就当前页提问
+inline constexpr auto DocumentQa = "qa";      // 问整份文档（带引用）
 }  // namespace Task
+
+// 检索到的一块上下文（带引用编号）。
+//
+// 编号是模型与原文之间的唯一联系：模型在回答里写 [n]，
+// 应用侧拿着 n 找回这一块，再核验模型引的原文是不是真的在这里。
+struct ContextBlock {
+    // 引用编号（1 起）。
+    int number = 0;
+    // 页码（1 起）。
+    int pageNumber = 0;
+    // 块文本。
+    QString text;
+    // 块 id：应用侧靠它把引用定位回原文（跳到那一页并高亮那一块）。
+    //
+    // 它**不进提示词**（模型不需要知道 id），只在应用内部与 IPC 载荷里流转。
+    QString chunkId;
+};
 
 // 一次对话请求。
 struct ChatRequest {
@@ -50,6 +68,11 @@ struct ChatRequest {
     // 用户可见的「本次发送范围」说明，例如「第 3 页 · 1,240 字」。
     // 界面在发出去之前先把它显示出来。
     QString dataScope;
+    // 检索到的上下文块（整篇问答用）。
+    //
+    // 既进提示词（formatContextBlocks），也进结构化载荷——
+    // 结构化那份让演示模式能引用**真实的**块，而不是编一段像样的样子。
+    QVector<ContextBlock> context;
 };
 
 // token 用量。
@@ -79,5 +102,14 @@ QString systemPromptForTask(const QString& task);
 QString userPromptForTask(const QString& task,
                           const QString& material,
                           const QString& question);
+
+// 把上下文块格式化成带编号的文本（给模型看的那一份）。
+//
+// 编号写在每块的最前面，模型照着写 [n] 就能指回具体的块。
+// 页码也一并给出：模型写引用时要连页码一起写，应用侧才能核对。
+QString formatContextBlocks(const QVector<ContextBlock>& blocks);
+
+// 整篇问答的系统提示词（比别的任务多一整套引用格式的要求）。
+QString qaSystemPrompt();
 
 }  // namespace aipdf::ai

@@ -34,6 +34,11 @@ public:
 private:
     void emitNextChunk();
     QString buildAnswer(const ChatRequest& request) const;
+    // 整篇问答的演示回答：引用**真实的**上下文块。
+    //
+    // 为什么不用编一段像样的样子：引文要能在原文里逐字核对到，
+    // 编出来的引文必然核验不过，演示模式就跑不通整条链路。
+    QString buildQaAnswer(const ChatRequest& request) const;
 
     int chunkDelayMs_;
     QTimer* timer_ = nullptr;

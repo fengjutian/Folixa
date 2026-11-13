@@ -6,6 +6,7 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/IndexController.h"
+#include "app/DocumentQaController.h"
 #include "app/PageTransform.h"
 #include "doc/DocumentChunk.h"
 #include "doc/RecoveryLog.h"
@@ -447,6 +448,10 @@ void PdfView::setupControllers() {
                 emit linkFollowed(-1, uri);
             });
 
+    // 问答控制器持有索引控制器的指针：换索引控制器之前先把它放掉，
+    // 不然它会握着一个已经销毁的指针。
+    qaController_.reset();
+
     // 索引控制器：后台把文档切成块，带章节归属与坐标。
     // 它自己开一份独立句柄，在后台线程抽文本。
     indexController_ = std::make_unique<IndexController>(document_);
@@ -457,6 +462,12 @@ void PdfView::setupControllers() {
                 Q_UNUSED(done);
                 Q_UNUSED(total);
             });
+
+    // 整篇问答控制器：跟着索引走（检索要用块，核验要用原文）。
+    // 不设 QObject 父对象：它由 unique_ptr 负责释放，
+    // 再挂到 QObject 父子树上会被删两次。
+    qaController_ = std::make_unique<DocumentQaController>();
+    qaController_->setIndexController(indexController_.get());
 }
 
 // 索引里的坐标是 PDF user space；显示时要用页面的变换换过去。
@@ -587,6 +598,8 @@ void PdfView::clear() {
     textController_.reset();
     navigationController_.reset();
     annotationController_.reset();
+    // 问答控制器持有索引控制器的指针：它要先于索引控制器释放。
+    qaController_.reset();
     indexController_.reset();
     document_ = pdf::PdfDocument();
     filePath_.clear();
@@ -648,6 +661,10 @@ AnnotationController* PdfView::annotationController() const {
 
 IndexController* PdfView::indexController() const {
     return indexController_.get();
+}
+
+DocumentQaController* PdfView::qaController() const {
+    return qaController_.get();
 }
 
 void PdfView::setZoom(double factor) {

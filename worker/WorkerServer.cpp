@@ -184,6 +184,25 @@ void WorkerServer::startChat(const QString& requestId, const QJsonObject& payloa
         chat.messages.append(message);
     }
 
+    // 整篇问答的上下文块（带编号）。
+    //
+    // 这一份是**结构化**的：提示词里那份是给模型看的文本，
+    // 这里这份是给 Provider 用的——演示模式要靠它引用真实的块，
+    // 而不是编一段像样的样子。
+    const QJsonArray context = payload.value("context").toArray();
+    for (const QJsonValue& value : context) {
+        const QJsonObject object = value.toObject();
+        aipdf::ai::ContextBlock block;
+        block.number = object.value("number").toInt();
+        block.pageNumber = object.value("page").toInt();
+        block.text = object.value("text").toString();
+        block.chunkId = object.value("chunk_id").toString();
+        if (block.text.trimmed().isEmpty()) {
+            continue;
+        }
+        chat.context.append(block);
+    }
+
     const aipdf::ai::ProviderConfig config = aipdf::ai::ProviderConfig::load();
     provider_ = aipdf::ai::createProvider(config);
     activeStreamId_ = requestId;

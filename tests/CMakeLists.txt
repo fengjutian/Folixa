@@ -435,3 +435,33 @@ endif()
 aipdf_deploy_qt_runtime(AiProviderTests)
 
 add_test(NAME AiProviderTests COMMAND AiProviderTests)
+
+# ------------------------------------------------- 可验证文档问答底座 ----
+
+qt_add_executable(DocumentQaTests
+    DocumentQaTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ModelProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.h
+    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.h
+)
+
+target_link_libraries(DocumentQaTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(DocumentQaTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(DocumentQaTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(DocumentQaTests)
+
+add_test(NAME DocumentQaTests COMMAND DocumentQaTests)

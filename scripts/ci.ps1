@@ -16,7 +16,7 @@
 param(
     [switch]$SkipToolchain,
     [switch]$SkipPackage,
-    # 跳过界面验收（M0/PDF/滚动/文本/导航/批注/页面/索引/AI）。
+    # 跳过界面验收（M0/PDF/滚动/文本/导航/批注/页面/索引/AI/整篇问答）。
     #
     # 界面验收会抢占前台窗口、置顶、并用合成鼠标事件点屏幕坐标：
     # 在开发机上跑会打断正在写代码的人。CI 上有独立的会话，照跑不误；
@@ -115,6 +115,10 @@ try {
     Invoke-Script 'AI 面板与流式对话验收' (Join-Path $PSScriptRoot 'verify-ai.ps1') @(
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/ai.png'
+    )
+    Invoke-Script '整篇问答与引用核验验收' (Join-Path $PSScriptRoot 'verify-qa.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/qa.png'
     )
     }
 

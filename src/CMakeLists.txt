@@ -34,6 +34,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/IndexController.cpp
     app/IndexPanel.h
     app/IndexPanel.cpp
+    app/DocumentQaController.h
+    app/DocumentQaController.cpp
     app/RenderThread.h
     app/RenderThread.cpp
     app/TileCache.h
@@ -56,6 +58,9 @@ qt_add_executable(AiPdfEditor WIN32
     ai/CredentialStore.h
     ai/ProviderConfig.cpp
     ai/ProviderConfig.h
+    ai/EmbeddingProvider.h
+    ai/LocalHashEmbedding.cpp
+    ai/LocalHashEmbedding.h
     doc/AnnotationModel.cpp
     doc/AnnotationModel.h
     doc/ChunkBuilder.cpp
@@ -64,6 +69,10 @@ qt_add_executable(AiPdfEditor WIN32
     doc/EditCommand.cpp
     doc/EditCommand.h
     doc/EditContext.h
+    doc/CitationVerifier.cpp
+    doc/CitationVerifier.h
+    doc/HybridRetriever.cpp
+    doc/HybridRetriever.h
     doc/LocalIndex.cpp
     doc/LocalIndex.h
     doc/PageCommand.cpp
@@ -74,6 +83,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/SafeSave.h
     doc/UndoStack.cpp
     doc/UndoStack.h
+    doc/VectorIndex.cpp
+    doc/VectorIndex.h
 )
 
 qt_add_resources(AiPdfEditor "app_icons"

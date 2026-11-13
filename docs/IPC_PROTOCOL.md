@@ -4,14 +4,16 @@
 
 The implementation uses a local named pipe through Qt Local IPC. Messages are UTF-8 JSON objects delimited by a single newline. The maximum accepted frame size is 1 MiB.
 
-**Protocol version: 2.** Version 2 adds the `event` frame type for streaming output.
-A client that only understands version 1 cannot handle version 2 frames — the main program and the Worker must always ship together.
+**Protocol version: 3.** Version 2 added the `event` frame type for streaming output.
+Version 3 adds the `context` payload to `ai.chat.stream` and the `qa` task type (whole-document
+question answering with citations). A client that only understands an earlier version cannot
+handle version 3 frames — the main program and the Worker must always ship together.
 
 ## Request
 
 ```json
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "request_id": "uuid",
   "operation": "system.health",
   "payload": {}
@@ -22,7 +24,7 @@ A client that only understands version 1 cannot handle version 2 frames — the 
 
 ```json
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "request_id": "uuid",
   "type": "result",
   "ok": true,
@@ -34,14 +36,14 @@ A client that only understands version 1 cannot handle version 2 frames — the 
 
 Errors use `type: "error"`, `ok: false`, and a stable error object containing `code` and `message`.
 
-## Event (protocol 2)
+## Event (protocol 2, unchanged in version 3)
 
 An event is an **intermediate** message for a request that is still running. The Worker sends
 many events for one request id, then a final `result` or `error`.
 
 ```json
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "request_id": "uuid",
   "type": "event",
   "event": "ai.stream.delta",
@@ -80,9 +82,32 @@ Unknown operations return `operation_not_supported`. Protocol version mismatches
 
 ### `ai.chat.stream`
 
-Payload: `task` (`summary` / `explain` / `translate` / `chat`), `messages` (the fully built
+Payload: `task` (`summary` / `explain` / `translate` / `chat` / `qa`), `messages` (the fully built
 prompt), and `data_scope` (the user-visible description of what is being sent, e.g.
 “第 3 页 · 1,240 字”).
+
+For the `qa` task the payload also carries `context`: the retrieved, numbered context blocks.
+
+```json
+{
+  "protocol_version": 3,
+  "request_id": "uuid",
+  "operation": "ai.chat.stream",
+  "payload": {
+    "task": "qa",
+    "data_scope": "整篇文档 · 检索到 2 块 · 320 字",
+    "messages": [ { "role": "system", "content": "…" }, { "role": "user", "content": "…" } ],
+    "context": [
+      { "number": 1, "page": 1, "text": "…", "chunk_id": "a1b2b0" }
+    ]
+  }
+}
+```
+
+`number` is the citation number the model refers to with `[n]`; `page` is 1-based.
+The structured copy exists so a Provider can cite **real** blocks (the demo Provider quotes
+the first line of a block verbatim) instead of inventing plausible-looking text. The main
+program verifies every citation against these blocks after the answer arrives.
 
 The Worker answers with a `result` frame carrying `status: "streaming"` and then emits
 events for the same request id:

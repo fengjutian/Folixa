@@ -6,7 +6,9 @@
 
 namespace aipdf::ipc {
 
-inline constexpr int kProtocolVersion = 2;
+// v0.11.0 加了整篇问答：ai.chat.stream 的载荷多了 context（带编号的上下文块），
+// 任务类型多了 "qa"。旧 Worker 收到这个载荷会不知道怎么处理，版本号必须跟着涨。
+inline constexpr int kProtocolVersion = 3;
 inline constexpr qsizetype kMaximumFrameBytes = 1024 * 1024;
 
 QJsonObject makeRequest(const QString& requestId,

@@ -34,6 +34,10 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   没配密钥时走演示模式，界面上显式标注「演示模式」
 - **发送范围先展示再上传**：只有当前页文本或当前选区会被送出（上限 4000 字），
   发送前界面先显示「本次发送：第 N 页 · M 字」
+- **可验证的整篇问答**：把范围切到「整篇文档」后提问，先用关键词 + 向量混合检索
+  （RRF 融合）挑出最相关的几块，只把这几块送去回答；回答里的每条引用都会被
+  **离线逐字核对**（编号是否存在、引文是否真的出现在原文里、页码是否一致），
+  核验不通过的引用标成「无法核实」；点引用即可跳到那一页并高亮那一块
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
@@ -241,7 +245,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.10.0`](docs/versions/v0.10.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.11.0`](docs/versions/v0.11.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发规范
 
@@ -261,7 +265,8 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ### 界面验收会抢桌面
 
 `verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation` /
-`verify-annotations` / `verify-pages` / `verify-index` / `verify-ai` 这九个脚本要驱动真实界面：
+`verify-annotations` / `verify-pages` / `verify-index` / `verify-ai` / `verify-qa`
+这十个脚本要驱动真实界面：
 把窗口抢到前台、置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
 **在开发机上跑会打断正在用这台机器的人**（真实指针会被挪走，窗口会突然跳出来）。
 

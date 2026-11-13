@@ -21,6 +21,7 @@ class TextController;
 class NavigationController;
 class AnnotationController;
 class IndexController;
+class DocumentQaController;
 class PageTransform;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
@@ -66,6 +67,10 @@ public:
     // 当前文档的索引控制器（分块、章节归属与本地检索）。
     // 没有打开文档时返回 nullptr。
     IndexController* indexController() const;
+
+    // 整篇问答控制器（混合检索 + 引用核验）。
+    // 没有打开文档时返回 nullptr。
+    DocumentQaController* qaController() const;
 
 public slots:
     void zoomIn();
@@ -183,6 +188,9 @@ private:
     // 索引控制器：后台分块、章节归属与本地检索。
     // 同样声明在 document_ 之后：它内部也持有一份文档句柄。
     std::unique_ptr<IndexController> indexController_;
+    // 整篇问答控制器：混合检索与引用核验。
+    // 它跟着索引控制器走（要块与文本），也必须在文档句柄之前释放。
+    std::unique_ptr<DocumentQaController> qaController_;
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;

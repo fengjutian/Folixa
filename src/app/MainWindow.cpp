@@ -422,6 +422,15 @@ void MainWindow::buildUi() {
     resizeDocks({navigationDock_, aiDock_}, {52, 340}, Qt::Horizontal);
     viewMenu->addAction(aiDock_->toggleViewAction());
 
+    // AI 回答里的引用 → 跳到那一页并高亮那一块。
+    connect(aiPanel_, &AiPanel::citationActivated, this,
+            [this](int pageIndex, const QString& chunkId) {
+                auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+                if (view != nullptr) {
+                    view->showIndexedChunk(pageIndex, chunkId);
+                }
+            });
+
     aiQuickCard_ = new QFrame(tabs_);
     aiQuickCard_->setObjectName(QStringLiteral("aiQuickCard"));
     aiQuickCard_->setFixedWidth(230);
@@ -534,6 +543,8 @@ void MainWindow::buildUi() {
         if (aiPanel_ != nullptr) {
             aiPanel_->setTextSource(view != nullptr ? view->textController() : nullptr);
             aiPanel_->setCurrentPage(view != nullptr ? view->currentPage() : 0);
+            // 整篇问答也跟着当前文档走：检索要用它的索引与向量索引。
+            aiPanel_->setQaController(view != nullptr ? view->qaController() : nullptr);
         }
     });
 
@@ -1279,6 +1290,11 @@ void MainWindow::openPdfFile(const QString& filePath) {
         bindNavigation(view);
         // 索引控制器也换了：索引面板要重新指过去。
         bindIndex(view);
+        // 问答控制器同样换了：AI 面板要重新指过去，
+        // 否则它握着的是上一个已经销毁的控制器。
+        if (aiPanel_ != nullptr) {
+            aiPanel_->setQaController(view->qaController());
+        }
     });
     connect(view, &PdfView::filePathChanged, this, [this, view](const QString&) {
         const int index = tabs_->indexOf(view);
@@ -1297,6 +1313,13 @@ void MainWindow::openPdfFile(const QString& filePath) {
         searchPanel_->setController(view->textController());
     }
     bindIndex(view);
+    // AI 面板的整篇问答也要指到这个文档的问答控制器。
+    //
+    // 换标签页时也会指一次（currentChanged），但启动时直接打开文档走的是这条路径，
+    // 这里不指的话，整篇问答会找不到索引。
+    if (aiPanel_ != nullptr) {
+        aiPanel_->setQaController(view->qaController());
+    }
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
 

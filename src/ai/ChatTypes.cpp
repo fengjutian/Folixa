@@ -2,6 +2,31 @@
 
 namespace aipdf::ai {
 
+QString formatContextBlocks(const QVector<ContextBlock>& blocks) {
+    QStringList parts;
+    for (const ContextBlock& block : blocks) {
+        parts.append(QStringLiteral("[%1]（第 %2 页）\n%3")
+                         .arg(block.number)
+                         .arg(block.pageNumber)
+                         .arg(block.text.trimmed()));
+    }
+    return parts.join(QStringLiteral("\n\n"));
+}
+
+QString qaSystemPrompt() {
+    // 引用格式是**硬要求**，不是建议：
+    // 应用侧会逐字核对模型引的原文，格式不对的引用会被标成「无法核实」。
+    return QStringLiteral(
+        "你是一个 PDF 阅读助手。请只依据用户给出的材料回答问题，材料里没有的内容就直说「这些材料里没有提到」。\n"
+        "回答要求：\n"
+        "1. 用中文回答，尽量简短；\n"
+        "2. 每一个事实性句子后面要加上来源编号，格式是方括号里的数字，例如 [1]；\n"
+        "3. 回答的最后另起一段，以「引用：」开头，每条引用单独一行，"
+        "格式是 [编号] 第 N 页 | 引文：原文片段；\n"
+        "4. 「引文」必须**逐字照抄**材料里的原文片段（可以截取一段，不要改写、不要加省略号）；\n"
+        "5. 只能引用材料里出现过的编号，不能编造编号。");
+}
+
 ChatMessage ChatMessage::system(const QString& text) {
     ChatMessage message;
     message.role = Role::System;
@@ -43,6 +68,9 @@ double TokenUsage::estimatedCost(double inputPricePerMillion,
 }
 
 QString systemPromptForTask(const QString& task) {
+    if (task == Task::DocumentQa) {
+        return qaSystemPrompt();
+    }
     if (task == Task::Summary) {
         return QStringLiteral(
             "你是一个 PDF 阅读助手。请用中文总结用户给出的这一页文本。"
