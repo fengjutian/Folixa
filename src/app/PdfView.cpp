@@ -19,6 +19,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -40,6 +41,13 @@ constexpr double kMaxZoom = 8.0;
 constexpr double kZoomStep = 1.25;
 // 缓存上限 128 MiB，按像素字节计。
 constexpr qint64 kCacheBytes = 128LL * 1024 * 1024;
+// 工具栏图标的绘制尺寸：设计规范是 20px 画布，按钮上按 18px 排。
+constexpr int kToolBarIconPixels = 18;
+
+// 工具栏图标一律走资源里的 SVG（src/app/icons，20×20 Rounded Linear）。
+QIcon toolbarIcon(const char* name) {
+    return QIcon(QStringLiteral(":/icons/%1.svg").arg(QLatin1String(name)));
+}
 
 // 验收探针用的轨迹文件：复制动作要能被脚本看到。
 void trace(const QString& message) {

@@ -12,5 +12,20 @@
     <file>icons/proofread.svg</file>
     <file>icons/explain.svg</file>
     <file>icons/summarize.svg</file>
+    <file>icons/zoom-out.svg</file>
+    <file>icons/zoom-in.svg</file>
+    <file>icons/fit-width.svg</file>
+    <file>icons/fit-page.svg</file>
+    <file>icons/rotate-left.svg</file>
+    <file>icons/rotate-right.svg</file>
+    <file>icons/save.svg</file>
+    <file>icons/highlight.svg</file>
+    <file>icons/underline.svg</file>
+    <file>icons/strikethrough.svg</file>
+    <file>icons/note.svg</file>
+    <file>icons/square.svg</file>
+    <file>icons/ink.svg</file>
+    <file>icons/undo.svg</file>
+    <file>icons/redo.svg</file>
   </qresource>
 </RCC>

@@ -27,6 +27,7 @@
 #include <QDateTime>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -44,6 +45,7 @@
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabBar>
@@ -164,7 +166,16 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::buildUi() {
     setWindowTitle(QString("Folixa · AI PDF Editor %1").arg(QStringLiteral(AIPDF_VERSION)));
+    // 1440×900 是设计基准，但 1080p + 125% 缩放的机器上工作区只有 1440×768 左右：
+    // 直接按基准开窗会把状态栏和页面底边推到屏幕外面。先按工作区收一次。
     resize(1440, 900);
+    if (const QScreen* screen = QGuiApplication::primaryScreen()) {
+        const QRect available = screen->availableGeometry();
+        const QSize fitted(std::min(1440, available.width() - 40),
+                           std::min(900, available.height() - 40));
+        resize(fitted);
+        move(available.center() - QPoint(fitted.width() / 2, fitted.height() / 2));
+    }
 
     auto* tabs = new QTabWidget(this);
     tabs_ = tabs;

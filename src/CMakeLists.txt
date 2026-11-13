@@ -107,6 +107,21 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/proofread.svg
         app/icons/explain.svg
         app/icons/summarize.svg
+        app/icons/zoom-out.svg
+        app/icons/zoom-in.svg
+        app/icons/fit-width.svg
+        app/icons/fit-page.svg
+        app/icons/rotate-left.svg
+        app/icons/rotate-right.svg
+        app/icons/save.svg
+        app/icons/highlight.svg
+        app/icons/underline.svg
+        app/icons/strikethrough.svg
+        app/icons/note.svg
+        app/icons/square.svg
+        app/icons/ink.svg
+        app/icons/undo.svg
+        app/icons/redo.svg
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
