@@ -36,6 +36,9 @@ QToolBar#commandBar QToolButton#appMenuButton {
 }
 QToolBar#commandBar QToolButton#appMenuButton:hover { background: #F1F4FF; color: #3555B7; }
 QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #E4EAFF; }
+/* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
+   留着它还会在 34px 的按钮里挤出一块空白。 */
+QToolBar#commandBar QToolButton#appMenuButton::menu-indicator { image: none; width: 0; height: 0; }
 QPushButton, QToolButton {
     min-height: 30px; padding: 0 11px; border: 1px solid #E3E7EE;
     border-radius: 8px; background: #FFFFFF;
