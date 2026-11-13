@@ -30,6 +30,10 @@ public:
     // 用户空间点 → 显示空间点。
     QPointF toDisplay(const QPointF& userSpace) const;
 
+    // 显示空间点 → 用户空间点（toDisplay 的逆变换）。
+    // 链接命中判定需要：链接矩形在用户空间，而鼠标位置在显示空间。
+    QPointF toUserSpace(const QPointF& displaySpace) const;
+
     // 用户空间矩形 → 显示空间矩形（变换后取包围盒）。
     QRectF toDisplay(const QRectF& userSpace) const;
 

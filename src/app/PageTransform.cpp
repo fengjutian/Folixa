@@ -54,4 +54,25 @@ QRectF PageTransform::toDisplay(const QRectF& userSpace) const {
     return QRectF(left, top, qMax(a.x(), b.x()) - left, qMax(a.y(), b.y()) - top);
 }
 
+QPointF PageTransform::toUserSpace(const QPointF& displaySpace) const {
+    // toDisplay 的逆变换，逐个旋转角解方程：
+    //   0°:  dx = rx,      dy = height - ry
+    //   90°: dx = ry,      dy = rx
+    //   180°:dx = width - rx, dy = ry
+    //   270°:dx = height - ry, dy = width - rx
+    const double dx = displaySpace.x();
+    const double dy = displaySpace.y();
+
+    switch (rotation_) {
+        case 90:
+            return {mediaLeft_ + dy, mediaBottom_ + dx};
+        case 180:
+            return {mediaLeft_ + width_ - dx, mediaBottom_ + dy};
+        case 270:
+            return {mediaLeft_ + width_ - dy, mediaBottom_ + height_ - dx};
+        default:
+            return {mediaLeft_ + dx, mediaBottom_ + height_ - dy};
+    }
+}
+
 }  // namespace aipdf::app
