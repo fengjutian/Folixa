@@ -1,6 +1,7 @@
 #include "doc/EditCommand.h"
 
 #include "doc/AnnotationModel.h"
+#include "doc/PageCommand.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -71,14 +72,16 @@ bool AddAnnotationCommand::deserialize(const QByteArray& data, QString* error) {
     return true;
 }
 
-bool AddAnnotationCommand::apply(AnnotationModel* model) const {
+bool AddAnnotationCommand::apply(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
     return model->add(annotation_);
 }
 
-bool AddAnnotationCommand::revert(AnnotationModel* model) const {
+bool AddAnnotationCommand::revert(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
@@ -137,14 +140,16 @@ bool RemoveAnnotationCommand::deserialize(const QByteArray& data, QString* error
     return true;
 }
 
-bool RemoveAnnotationCommand::apply(AnnotationModel* model) const {
+bool RemoveAnnotationCommand::apply(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
     return model->remove(annotation_.id);
 }
 
-bool RemoveAnnotationCommand::revert(AnnotationModel* model) const {
+bool RemoveAnnotationCommand::revert(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
@@ -213,14 +218,16 @@ bool UpdateAnnotationCommand::deserialize(const QByteArray& data, QString* error
     return true;
 }
 
-bool UpdateAnnotationCommand::apply(AnnotationModel* model) const {
+bool UpdateAnnotationCommand::apply(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
     return model->update(after_);
 }
 
-bool UpdateAnnotationCommand::revert(AnnotationModel* model) const {
+bool UpdateAnnotationCommand::revert(EditContext* context) const {
+    AnnotationModel* model = (context != nullptr) ? context->annotationModel() : nullptr;
     if (model == nullptr) {
         return false;
     }
@@ -238,6 +245,20 @@ std::unique_ptr<EditCommand> createEditCommand(const QString& typeName) {
     }
     if (typeName == QLatin1String(kTypeUpdate)) {
         return std::make_unique<UpdateAnnotationCommand>();
+    }
+    // 页面命令也进同一个工厂：恢复日志按类型名重建命令，
+    // 不该分两套。
+    if (typeName == QLatin1String("page.insert")) {
+        return std::make_unique<InsertBlankPageCommand>();
+    }
+    if (typeName == QLatin1String("page.delete")) {
+        return std::make_unique<DeletePageCommand>();
+    }
+    if (typeName == QLatin1String("page.rotate")) {
+        return std::make_unique<RotatePageCommand>();
+    }
+    if (typeName == QLatin1String("page.move")) {
+        return std::make_unique<MovePageCommand>();
     }
     return nullptr;
 }

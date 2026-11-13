@@ -20,6 +20,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/NavigationController.cpp
     app/AnnotationController.h
     app/AnnotationController.cpp
+    app/PdfPageOperations.h
+    app/PdfPageOperations.cpp
     app/LinkHitTest.h
     app/LinkHitTest.cpp
     app/SearchPanel.h
@@ -44,6 +46,13 @@ qt_add_executable(AiPdfEditor WIN32
     doc/AnnotationModel.h
     doc/EditCommand.cpp
     doc/EditCommand.h
+    doc/EditContext.h
+    doc/PageCommand.cpp
+    doc/PageCommand.h
+    doc/RecoveryLog.cpp
+    doc/RecoveryLog.h
+    doc/SafeSave.cpp
+    doc/SafeSave.h
     doc/UndoStack.cpp
     doc/UndoStack.h
 )

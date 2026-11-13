@@ -41,6 +41,13 @@ public:
     int count() const;
     int countForPage(int pageIndex) const;
 
+    // 页面结构变了：按「旧页序号 → 新页序号」重映射批注的页码。
+    //
+    // pageMapping 里是 -1 的页表示被删掉了，那几页上的批注一并删掉；
+    // 其余批注跟着页面搬到新页码。
+    // 整个模型按「整体重置」通知一次：页码变了，投影要重做。
+    void remapPages(const QVector<int>& pageMapping);
+
 signals:
     // 某页的批注有变化；pageIndex 为 -1 表示整体重置。
     void changed(int pageIndex);

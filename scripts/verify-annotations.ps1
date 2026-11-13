@@ -97,6 +97,9 @@ $annotationPdf = Join-Path $fixtureDir 'annotation.pdf'
 
 $tracePath = Join-Path $WorkDir 'trace.log'
 $env:AIPDF_TRACE_FILE = $tracePath
+# 恢复日志单独放一份：验收里改过文档，启动时会问要不要恢复，
+# 问询框会挡住验收界面。指到临时目录就不会互相干扰。
+$env:AIPDF_RECOVERY_DIR = Join-Path $WorkDir 'recovery'
 
 # 记下用户真实的鼠标位置：验收要用合成鼠标事件点屏幕坐标，跑完必须放回去。
 $script:CursorStart = Get-AiPdfCursorPosition

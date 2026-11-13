@@ -10,6 +10,7 @@
 
 #include "app/PageTransform.h"
 #include "doc/AnnotationModel.h"
+#include "doc/EditContext.h"
 #include "doc/UndoStack.h"
 #include "pdf/Annotation.h"
 #include "pdf/PdfiumAdapter.h"
@@ -34,7 +35,11 @@ inline constexpr double kNoteAnnotationSize = 16.0;
 // （FPDFAnnot_SetAP 只写字典、不建 XObject），
 // 所以批注的显示由画布按模型绘制（PageCanvas::paintAnnotations）。
 // 写进文档是为了让批注成为文档里真实的对象，存盘时能直接带走。
-class AnnotationController : public QObject {
+//
+// v0.8.0 起它还管**页面结构**（插入、删除、旋转、移动页）：
+// 页面操作与批注操作共用同一个撤销栈，所以这个类同时是
+// 编辑上下文（doc::EditContext）——命令通过它拿到模型与文档。
+class AnnotationController : public QObject, public doc::EditContext {
     Q_OBJECT
 
 public:
@@ -97,6 +102,39 @@ public:
 
     const doc::AnnotationModel* model() const;
 
+    // ------------------------------------------------------- 页面结构操作 ----
+    //
+    // 页面操作与批注操作共用同一个撤销栈，可以互相撤销。
+
+    // 在 index 处插入一张 width×height（点）的空白页。
+    bool insertBlankPage(int index, double width, double height);
+    // 删除第 index 页。
+    bool deletePage(int index);
+    // 把第 index 页转 quarterTurns 个四分之一圈（顺时针）。
+    bool rotatePage(int index, int quarterTurns);
+    // 把第 from 页移动到第 to 页（to 是移动之后的目标下标）。
+    bool movePage(int from, int to);
+
+    // 当前页数。
+    int pageCount() const;
+    // 某页的尺寸（点，已含页面自带的旋转）。
+    double pageWidth(int index) const;
+    double pageHeight(int index) const;
+    // 某页自带的旋转（四分之一圈：0=0°，1=90°，2=180°，3=270°）。
+    int pageRotation(int index) const;
+
+    // ---------------------------------------------------------- 编辑上下文 ----
+
+    // 批注模型（命令用它读写批注）。
+    doc::AnnotationModel* annotationModel() override;
+    // 页面操作入口（命令通过它改页面结构）。
+    doc::PageOperations* pages() override;
+    // 页面结构变了：批注页码重映射、几何缓存作废、通知视图重排。
+    void pageStructureChanged(const QVector<int>& pageMapping) override;
+
+    // 当前历史的序列化命令（恢复日志用）：按执行顺序。
+    QVector<QByteArray> serializedHistory() const;
+
 signals:
     // 某页的批注有变化。
     void annotationsChanged(int pageIndex);
@@ -104,6 +142,9 @@ signals:
     void undoStateChanged();
     // 工具切换了。
     void toolChanged();
+    // 页面结构变了：页数、顺序或某页的旋转改了。
+    // 视图要重排页面、重算布局、换掉渲染线程的文档副本。
+    void documentStructureChanged();
 
 private:
     // 一页的几何：内容盒与页面自带的旋转。
@@ -122,6 +163,9 @@ private:
     pdf::PdfDocument document_;
     doc::AnnotationModel model_;
     doc::UndoStack undoStack_;
+    // 页面结构操作的原始实现（命令通过编辑上下文拿到它）。
+    // 声明在文档之后：它持有文档句柄，析构时要先于文档释放。
+    std::unique_ptr<class PdfPageOperations> pageOperations_;
     // 每页几何缓存。
     mutable QHash<int, PageGeometry> geometry_;
     // 已经在文档里写过批注的页：撤销或清空时要把它们都撤掉。

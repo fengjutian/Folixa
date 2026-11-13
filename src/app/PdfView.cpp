@@ -5,6 +5,8 @@
 #include "app/TextController.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
+#include "doc/RecoveryLog.h"
+#include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
 
 #include <QClipboard>
@@ -98,6 +100,13 @@ void PdfView::buildUi() {
     rotateRightButton->setToolTip(QStringLiteral("向右旋转"));
     connect(rotateRightButton, &QToolButton::clicked, this, &PdfView::rotateRight);
 
+    // 保存按钮（v0.8.0）：菜单栏是收起的，文档工具栏上留一个入口。
+    auto* saveButton = new QToolButton(this);
+    saveButton->setText(QStringLiteral("保存"));
+    saveButton->setToolTip(QStringLiteral("保存文档 (Ctrl+S)"));
+    saveButton->setObjectName(QStringLiteral("document.save"));
+    connect(saveButton, &QToolButton::clicked, this, &PdfView::saveRequested);
+
     zoomLabel_ = new QLabel(QStringLiteral("100%"), this);
     zoomLabel_->setObjectName(QStringLiteral("secondaryText"));
     zoomLabel_->setMinimumWidth(56);
@@ -114,6 +123,8 @@ void PdfView::buildUi() {
     toolBar->addSeparator();
     toolBar->addWidget(rotateLeftButton);
     toolBar->addWidget(rotateRightButton);
+    toolBar->addSeparator();
+    toolBar->addWidget(saveButton);
     toolBar->addSeparator();
     toolBar->addWidget(zoomLabel_);
     auto* spacer = new QWidget(toolBar);
@@ -286,53 +297,10 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     fitToWidth_ = false;
     fitToPage_ = false;
     cache_.clear();
+    modified_ = false;
 
-    // 文本控制器自己持有一份独立句柄，在后台线程做提取与搜索。
-    textController_ = std::make_unique<TextController>(document_);
-    canvas_->setTextController(textController_.get());
-    // 选区、搜索命中与新到的文本层都要让画布重画。
-    connect(textController_.get(), &TextController::selectionChanged, this, [this]() {
-        canvas_->viewport()->update();
-        // 选区变了，标记类批注按钮的可用状态也跟着变。
-        updateAnnotationToolBar();
-    });
-    connect(textController_.get(), &TextController::searchHitsFound, this, [this](int) {
-        canvas_->viewport()->update();
-    });
-    connect(textController_.get(), &TextController::searchFinished, this, [this](bool) {
-        canvas_->viewport()->update();
-    });
-    connect(textController_.get(), &TextController::textPageReady, this, [this](int) {
-        canvas_->viewport()->update();
-    });
-
-    // 导航控制器同样自己持有一份独立句柄，在后台线程取大纲与链接。
-    navigationController_ = std::make_unique<NavigationController>(document_);
-    canvas_->setNavigationController(navigationController_.get());
-    connect(canvas_, &PageCanvas::linkActivated, this,
-            [this](int pageIndex, int targetPage, const QString& uri) {
-                if (targetPage >= 0) {
-                    // 内部跳转：滚到目标页。
-                    trace(QStringLiteral("link goto from=%1 to=%2").arg(pageIndex).arg(targetPage));
-                    goToPage(targetPage);
-                    emit linkFollowed(targetPage, QString());
-                    return;
-                }
-                if (uri.isEmpty()) {
-                    return;
-                }
-                // 外部链接交给系统浏览器：用户点了就是授权。
-                // 验收探针可以要求不真的拉起浏览器（会打断脚本），
-                // 但动作本身必须留在轨迹里。
-                const bool suppressed = qEnvironmentVariableIsSet("AIPDF_SUPPRESS_EXTERNAL_LINKS");
-                trace(QStringLiteral("link external uri=%1 suppressed=%2")
-                          .arg(uri)
-                          .arg(suppressed ? 1 : 0));
-                if (!suppressed) {
-                    QDesktopServices::openUrl(QUrl(uri));
-                }
-                emit linkFollowed(-1, uri);
-            });
+    // 文本控制器与导航控制器：各自开一份独立句柄，在后台线程干活。
+    setupControllers();
 
     // 批注控制器：持有批注模型、撤销栈，并把批注写进文档。
     annotationController_ = std::make_unique<AnnotationController>(document_);
@@ -343,13 +311,21 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 emit annotationsChanged(annotationController_->annotationCount());
             });
     connect(annotationController_.get(), &AnnotationController::undoStateChanged, this,
-            &PdfView::updateAnnotationToolBar);
+            [this]() {
+                updateAnnotationToolBar();
+                // 有过编辑就记恢复日志：崩了还能把未保存的工作找回来。
+                setModified(true);
+                writeRecoveryLog();
+            });
     connect(annotationController_.get(), &AnnotationController::toolChanged, this, [this]() {
         const auto tool = annotationController_->tool();
         noteButton_->setChecked(tool == AnnotationController::Tool::Note);
         squareButton_->setChecked(tool == AnnotationController::Tool::Square);
         inkButton_->setChecked(tool == AnnotationController::Tool::Ink);
     });
+    // 页面结构变了：布局、渲染线程、后台控制器都要跟着换。
+    connect(annotationController_.get(), &AnnotationController::documentStructureChanged,
+            this, &PdfView::handlePageStructureChanged);
 
     // 画布上的批注工具：便签要问一句内容，矩形与墨迹直接生成。
     connect(canvas_, &PageCanvas::noteAnnotationRequested, this,
@@ -405,6 +381,72 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     layout_.setScale(zoom_);
 
     // 渲染线程自己开一份独立句柄（PDFium 句柄不能跨线程用）。
+    startRenderThread();
+
+    canvas_->setLayout(layout_);
+    emit pageCountChanged(pageCount_);
+    updateZoomLabel();
+    updatePageInfo();
+    // 文档换新了：批注工具栏的可用状态要跟着重算（工具可用、标记类按钮要等选区）。
+    updateAnnotationToolBar();
+    requestVisiblePages();
+}
+
+// 文本控制器与导航控制器：各自持有一份独立句柄，在后台线程取数据。
+//
+// 这两个控制器会被整体换掉（页面结构变化之后，旧副本里的页面已经过期），
+// 所以建立过程单独抽出来，换文档与换副本都走这一条路。
+void PdfView::setupControllers() {
+    // 文本控制器自己持有一份独立句柄，在后台线程做提取与搜索。
+    textController_ = std::make_unique<TextController>(document_);
+    canvas_->setTextController(textController_.get());
+    // 选区、搜索命中与新到的文本层都要让画布重画。
+    connect(textController_.get(), &TextController::selectionChanged, this, [this]() {
+        canvas_->viewport()->update();
+        // 选区变了，标记类批注按钮的可用状态也跟着变。
+        updateAnnotationToolBar();
+    });
+    connect(textController_.get(), &TextController::searchHitsFound, this, [this](int) {
+        canvas_->viewport()->update();
+    });
+    connect(textController_.get(), &TextController::searchFinished, this, [this](bool) {
+        canvas_->viewport()->update();
+    });
+    connect(textController_.get(), &TextController::textPageReady, this, [this](int) {
+        canvas_->viewport()->update();
+    });
+
+    // 导航控制器同样自己持有一份独立句柄，在后台线程取大纲与链接。
+    navigationController_ = std::make_unique<NavigationController>(document_);
+    canvas_->setNavigationController(navigationController_.get());
+    connect(canvas_, &PageCanvas::linkActivated, this,
+            [this](int pageIndex, int targetPage, const QString& uri) {
+                if (targetPage >= 0) {
+                    // 内部跳转：滚到目标页。
+                    trace(QStringLiteral("link goto from=%1 to=%2").arg(pageIndex).arg(targetPage));
+                    goToPage(targetPage);
+                    emit linkFollowed(targetPage, QString());
+                    return;
+                }
+                if (uri.isEmpty()) {
+                    return;
+                }
+                // 外部链接交给系统浏览器：用户点了就是授权。
+                // 验收探针可以要求不真的拉起浏览器（会打断脚本），
+                // 但动作本身必须留在轨迹里。
+                const bool suppressed = qEnvironmentVariableIsSet("AIPDF_SUPPRESS_EXTERNAL_LINKS");
+                trace(QStringLiteral("link external uri=%1 suppressed=%2")
+                          .arg(uri)
+                          .arg(suppressed ? 1 : 0));
+                if (!suppressed) {
+                    QDesktopServices::openUrl(QUrl(uri));
+                }
+                emit linkFollowed(-1, uri);
+            });
+}
+
+// 渲染线程：自己开一份独立句柄。
+void PdfView::startRenderThread() {
     renderThread_ = new RenderThread(document_, this);
     connect(renderThread_, &RenderThread::pageRendered, this,
             [this](int index, qint64 zoomKey, int rotation, const QImage& image) {
@@ -419,14 +461,52 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             });
     connect(renderThread_, &RenderThread::pageFailed, this, [](int, qint64, int) {});
     renderThread_->start();
+}
+
+// 页面结构变了（插入、删除、旋转、移动页）：
+// 布局要重排，渲染线程与后台控制器要换新副本，缓存要清。
+void PdfView::handlePageStructureChanged() {
+    if (!document_.isValid()) {
+        return;
+    }
+
+    // 副本是从源字节重新解析出来的：内存里的改动它看不到。
+    // 把最新的状态同步进源字节，换出来的副本才是新的。
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+
+    // 布局：页数、顺序、页面尺寸（旋转后宽高会换）都可能变了。
+    pageCount_ = document_.pageCount();
+    QVector<PageLayout::PageInfo> pages;
+    pages.reserve(pageCount_);
+    for (int index = 0; index < pageCount_; ++index) {
+        PageLayout::PageInfo info;
+        const auto page = document_.page(index);
+        if (page.has_value()) {
+            info.widthPoints = page->displayWidthPoints();
+            info.heightPoints = page->displayHeightPoints();
+        }
+        pages.append(info);
+    }
+    layout_.setPages(pages);
+    layout_.setUserRotation(userRotation_);
+    cache_.clear();
+
+    // 渲染线程与后台控制器换新副本。
+    stopRenderThread();
+    startRenderThread();
+    setupControllers();
+    // 控制器换过了：外面拿着旧指针的地方要重新指一遍。
+    emit controllersRefreshed();
 
     canvas_->setLayout(layout_);
     emit pageCountChanged(pageCount_);
-    updateZoomLabel();
     updatePageInfo();
-    // 文档换新了：批注工具栏的可用状态要跟着重算（工具可用、标记类按钮要等选区）。
-    updateAnnotationToolBar();
     requestVisiblePages();
+    emit pageStructureChanged();
 }
 
 void PdfView::clear() {
@@ -752,6 +832,201 @@ double PdfView::fitZoomForPage() const {
     const double byWidth = availableWidth / (size.width() / zoom_);
     const double byHeight = availableHeight / (size.height() / zoom_);
     return std::clamp(std::min(byWidth, byHeight), kMinZoom, kMaxZoom);
+}
+
+// --------------------------------------------------- 页面管理（v0.8.0）----
+
+void PdfView::insertBlankPageAfterCurrent() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    if (current < 0 || annotationController_->pageCount() <= 0) {
+        return;
+    }
+    // 新页沿用当前页的尺寸。
+    const double width = annotationController_->pageWidth(current);
+    const double height = annotationController_->pageHeight(current);
+    if (width <= 0.0 || height <= 0.0) {
+        emit statusMessage(tr("当前页的尺寸取不到，插入失败"));
+        return;
+    }
+    if (!annotationController_->insertBlankPage(current + 1, width, height)) {
+        emit statusMessage(tr("插入空白页失败"));
+        return;
+    }
+    emit statusMessage(tr("已在当前页后插入空白页"));
+}
+
+void PdfView::deleteCurrentPage() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    const int count = annotationController_->pageCount();
+    if (current < 0 || count <= 0) {
+        return;
+    }
+    if (count <= 1) {
+        emit statusMessage(tr("文档至少要保留一页"));
+        return;
+    }
+    if (!annotationController_->deletePage(current)) {
+        emit statusMessage(tr("删除页失败"));
+        return;
+    }
+    emit statusMessage(tr("已删除第 %1 页").arg(current + 1));
+}
+
+void PdfView::rotateCurrentPageRight() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    if (current < 0) {
+        return;
+    }
+    const int turns = (annotationController_->pageRotation(current) + 1) % 4;
+    if (!annotationController_->rotatePage(current, turns)) {
+        emit statusMessage(tr("旋转页面失败"));
+        return;
+    }
+    emit statusMessage(tr("第 %1 页已顺时针旋转 90 度").arg(current + 1));
+}
+
+void PdfView::rotateCurrentPageLeft() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    if (current < 0) {
+        return;
+    }
+    const int turns = (annotationController_->pageRotation(current) + 3) % 4;
+    if (!annotationController_->rotatePage(current, turns)) {
+        emit statusMessage(tr("旋转页面失败"));
+        return;
+    }
+    emit statusMessage(tr("第 %1 页已逆时针旋转 90 度").arg(current + 1));
+}
+
+void PdfView::moveCurrentPageUp() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    if (current <= 0) {
+        emit statusMessage(tr("已经是第一页了"));
+        return;
+    }
+    if (!annotationController_->movePage(current, current - 1)) {
+        emit statusMessage(tr("移动页面失败"));
+        return;
+    }
+    emit statusMessage(tr("第 %1 页已上移").arg(current + 1));
+}
+
+void PdfView::moveCurrentPageDown() {
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    const int count = annotationController_->pageCount();
+    if (current < 0) {
+        return;
+    }
+    if (current >= count - 1) {
+        emit statusMessage(tr("已经是最后一页了"));
+        return;
+    }
+    if (!annotationController_->movePage(current, current + 1)) {
+        emit statusMessage(tr("移动页面失败"));
+        return;
+    }
+    emit statusMessage(tr("第 %1 页已下移").arg(current + 1));
+}
+
+// ---------------------------------------------------------- 安全保存 ----
+
+bool PdfView::save(QString* errorMessage, QString* backupPath) {
+    if (filePath_.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("这个文档还没有保存过，请用「另存为」");
+        }
+        return false;
+    }
+    return saveAs(filePath_, errorMessage, backupPath);
+}
+
+bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* backupPath) {
+    if (!document_.isValid()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("没有打开文档");
+        }
+        return false;
+    }
+    if (targetPath.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("没有目标路径");
+        }
+        return false;
+    }
+
+    // 先把当前状态（含内存里的批注与页面改动）序列化成 PDF 字节。
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = serializeError.isEmpty() ? tr("文档序列化失败") : serializeError;
+        }
+        return false;
+    }
+
+    // 写临时文件 → 重新打开校验 → 原子替换。失败时原文件不动。
+    const doc::SaveResult result =
+        doc::SafeSave::writeAtomically(targetPath, bytes, document_.pageCount(), true);
+    if (!result.ok) {
+        if (errorMessage != nullptr) {
+            *errorMessage = result.errorMessage;
+        }
+        trace(QStringLiteral("save failed path=%1").arg(targetPath));
+        return false;
+    }
+    if (backupPath != nullptr) {
+        *backupPath = result.backupPath;
+    }
+
+    // 另存为之后文档换了路径：旧的恢复日志用不上了。
+    if (targetPath != filePath_) {
+        doc::RecoveryLog::remove(filePath_);
+        filePath_ = targetPath;
+        emit filePathChanged(filePath_);
+    }
+    // 保存成功：这篇文档没有未保存的工作了。
+    doc::RecoveryLog::remove(filePath_);
+    setModified(false);
+    trace(QStringLiteral("save ok path=%1 pages=%2").arg(targetPath).arg(document_.pageCount()));
+    return true;
+}
+
+bool PdfView::isModified() const {
+    return modified_;
+}
+
+// 记一次恢复日志：改过就要能恢复。
+void PdfView::writeRecoveryLog() {
+    if (!annotationController_ || filePath_.isEmpty()) {
+        return;
+    }
+    doc::RecoveryLog::write(filePath_, annotationController_->serializedHistory());
+}
+
+void PdfView::setModified(bool modified) {
+    if (modified_ == modified) {
+        return;
+    }
+    modified_ = modified;
+    emit modifiedChanged(modified_);
 }
 
 }  // namespace aipdf::app

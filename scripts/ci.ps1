@@ -104,6 +104,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/annotations.png'
     )
+    Invoke-Script '页面管理与安全保存验收' (Join-Path $PSScriptRoot 'verify-pages.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/pages.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

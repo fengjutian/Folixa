@@ -124,6 +124,8 @@ try {
     # 轨迹写在解压目录之外，别混进发布包。
     $tracePath = Join-Path $WorkDir 'worker-trace.log'
     $env:AIPDF_TRACE_FILE = $tracePath
+# 恢复日志单独放一份：验收改过文档之后，启动时的恢复问询会挡住界面。
+$env:AIPDF_RECOVERY_DIR = Join-Path $WorkDir 'recovery'
     Reset-AiPdfTrace -Path $tracePath
     $app = Start-Process -FilePath (Join-Path $appDir 'AiPdfEditor.exe') `
         -WorkingDirectory $appDir -PassThru

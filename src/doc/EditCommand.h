@@ -3,13 +3,12 @@
 #include <QByteArray>
 #include <QString>
 
+#include "doc/EditContext.h"
 #include "pdf/Annotation.h"
 
 #include <memory>
 
 namespace aipdf::doc {
-
-class AnnotationModel;
 
 // 可序列化的编辑命令。
 //
@@ -30,9 +29,9 @@ public:
     virtual bool deserialize(const QByteArray& data, QString* error) = 0;
 
     // 执行（也是重做）。
-    virtual bool apply(AnnotationModel* model) const = 0;
+    virtual bool apply(EditContext* context) const = 0;
     // 撤销。
-    virtual bool revert(AnnotationModel* model) const = 0;
+    virtual bool revert(EditContext* context) const = 0;
 };
 
 // 添加一条批注。
@@ -44,8 +43,8 @@ public:
     QString displayName() const override;
     QByteArray serialize() const override;
     bool deserialize(const QByteArray& data, QString* error) override;
-    bool apply(AnnotationModel* model) const override;
-    bool revert(AnnotationModel* model) const override;
+    bool apply(EditContext* context) const override;
+    bool revert(EditContext* context) const override;
 
     const pdf::Annotation& annotation() const;
 
@@ -65,8 +64,8 @@ public:
     QString displayName() const override;
     QByteArray serialize() const override;
     bool deserialize(const QByteArray& data, QString* error) override;
-    bool apply(AnnotationModel* model) const override;
-    bool revert(AnnotationModel* model) const override;
+    bool apply(EditContext* context) const override;
+    bool revert(EditContext* context) const override;
 
     const pdf::Annotation& annotation() const;
 
@@ -85,8 +84,8 @@ public:
     QString displayName() const override;
     QByteArray serialize() const override;
     bool deserialize(const QByteArray& data, QString* error) override;
-    bool apply(AnnotationModel* model) const override;
-    bool revert(AnnotationModel* model) const override;
+    bool apply(EditContext* context) const override;
+    bool revert(EditContext* context) const override;
 
 private:
     pdf::Annotation before_;

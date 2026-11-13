@@ -20,11 +20,16 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   便签、矩形、墨迹（作用于页面区域）；批注模型 + 可序列化编辑命令 + 统一撤销栈，
   Ctrl+Z / Ctrl+Shift+Z 撤销重做，批注面板可列出、跳转与删除；
   批注同时写进 PDFium 文档，成为文档里真实的注释对象
+- **页面管理与安全保存**：页面页里插入空白页、删除页、旋转页、上下移动页，
+  页面操作与批注操作共用同一个撤销栈；保存走「临时文件 → 重新打开校验 →
+  原子替换」，失败时原文件原封不动，原文件旁边留一份 `.folixa.bak` 备份；
+  另存为可换路径；改过的文档会写恢复日志，崩溃后下次启动可以恢复未保存的工作
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
 - Worker 跟随主程序退出：主程序被强制结束时 Worker 自行退出，不留孤儿进程
-- IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试与批注/撤销栈单元测试
+- IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试、
+  批注/撤销栈单元测试与页面管理/安全保存单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
 PDF 索引与真实模型 Provider 将在后续里程碑接入。
@@ -136,6 +141,17 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-annotations.ps1
 并检查批注是否写进了 PDFium 文档、撤销与重做是否同步、批注面板能否列出与删除。
 脚本会抢前台并用合成鼠标操作桌面，**只应在 CI 或空闲机器上运行**。
 
+## 页面管理与安全保存验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-pages.ps1
+```
+
+用真实界面路径验证页面管理：命令栏的「页面」打开页面页，插入空白页、撤销、重做、
+旋转、下移、删除，逐步核对页数；再点「保存」，核对原文件被换成新内容、
+旁边留下备份、临时文件没有残留，以及恢复日志在保存之后被清掉。
+同样会抢前台，**只应在 CI 或空闲机器上运行**。
+
 ## 打包
 
 ```powershell
@@ -206,7 +222,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.7.0`](docs/versions/v0.7.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.8.0`](docs/versions/v0.8.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发规范
 

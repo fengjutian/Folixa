@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QVector>
 
@@ -7,8 +8,8 @@
 
 namespace aipdf::doc {
 
-class AnnotationModel;
 class EditCommand;
+class EditContext;
 
 // 统一撤销栈：所有编辑命令都进这里。
 //
@@ -24,11 +25,11 @@ public:
     static constexpr int kMaxDepth = 200;
 
     // 执行命令并入栈。执行失败不入栈，返回 false。
-    bool push(std::unique_ptr<EditCommand> command, AnnotationModel* model);
+    bool push(std::unique_ptr<EditCommand> command, EditContext* context);
     // 撤销一步。栈空时返回 false。
-    bool undo(AnnotationModel* model);
+    bool undo(EditContext* context);
     // 重做一步。栈空时返回 false。
-    bool redo(AnnotationModel* model);
+    bool redo(EditContext* context);
 
     bool canUndo() const;
     bool canRedo() const;
@@ -40,6 +41,12 @@ public:
     int undoCount() const;
     int redoCount() const;
     void clear();
+
+    // 当前撤销历史的序列化命令（按执行顺序，从最早到最新）。
+    //
+    // 恢复日志靠它重放：崩溃之后按同样的顺序再执行一遍，
+    // 就能把未保存的工作恢复出来。
+    QVector<QByteArray> serializedHistory() const;
 
 private:
     QVector<std::shared_ptr<EditCommand>> undoStack_;

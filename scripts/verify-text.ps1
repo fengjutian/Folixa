@@ -97,6 +97,8 @@ $longPdf = Join-Path $fixtureDir 'dense.pdf'
 # 轨迹文件：选择与复制过程要能被脚本断言（界面上的选中状态没法直接读）。
 $tracePath = Join-Path $WorkDir 'trace.log'
 $env:AIPDF_TRACE_FILE = $tracePath
+# 恢复日志单独放一份：验收改过文档之后，启动时的恢复问询会挡住界面。
+$env:AIPDF_RECOVERY_DIR = Join-Path $WorkDir 'recovery'
 
 function Start-AiPdfApp {
     param(

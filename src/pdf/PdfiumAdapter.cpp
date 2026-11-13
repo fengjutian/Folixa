@@ -3,6 +3,8 @@
 #include <fpdf_annot.h>
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
+#include <fpdf_ppo.h>
+#include <fpdf_save.h>
 #include <fpdf_text.h>
 #include <fpdf_transformpage.h>
 #include <fpdfview.h>
@@ -49,12 +51,6 @@ struct DocumentImpl {
     QString password;
     FPDF_FILEACCESS access{};
     FPDF_DOCUMENT handle = nullptr;
-    // 每页由本类写入的批注数量（页序号 → 数量）。
-    //
-    // 批注是**追加**在页面原有批注之后的，所以重新写入时：
-    // 原有批注占据 [0, 原有数)，我们写的占据其后的区间。
-    // 记住写了多少，就知道该从哪个下标开始删。
-    QHash<int, int> writtenAnnotations;
 
     ~DocumentImpl() {
         if (handle != nullptr) {
@@ -248,11 +244,51 @@ void readOutlineLevel(FPDF_DOCUMENT document,
     }
 }
 
+// 内存输出缓冲：FPDF_FILEWRITE 的写入回调往这里追加。
+//
+// FPDF_FILEWRITE 没有用户数据字段（只有 version 与 WriteBlock），
+// 所以缓冲指针只能走文件级静态变量。
+struct MemoryWriter {
+    QByteArray data;
+};
+
+MemoryWriter* g_memoryWriterTarget = nullptr;
+
+int writeToMemory(FPDF_FILEWRITE* self, const void* data, unsigned long size) {
+    if (g_memoryWriterTarget == nullptr || data == nullptr) {
+        return 0;
+    }
+    g_memoryWriterTarget->data.append(static_cast<const char*>(data), int(size));
+    return 1;
+}
+
 // ------------------------------------------------------- 批注与 PDFium 的互转 ----
 
+// 我们写的批注带一个 /NM 标记（"Folixa:<id>"）。
+//
+// 认批注靠标记，不靠「写在页面末尾第几条」：
+// 页面一插入、删除、移动，末尾的位置就变了，按位置记账会认错批注，
+// 表现出来就是重写批注变成了追加（同一个批注在页面上出现两次）。
+constexpr auto kAnnotationNamePrefix = "Folixa:";
+
+// 这条批注是不是我们写的。
+bool isOurAnnotation(FPDF_ANNOTATION annot) {
+    unsigned short buffer[64] = {0};
+    const unsigned long length = FPDFAnnot_GetStringValue(annot, "NM", buffer, 64);
+    // 长度含结尾的 NUL：至少要装得下前缀本身。
+    if (length < sizeof(kAnnotationNamePrefix)) {
+        return false;
+    }
+    for (size_t i = 0; i + 1 < sizeof(kAnnotationNamePrefix); ++i) {
+        if (buffer[i] != static_cast<unsigned short>(kAnnotationNamePrefix[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
-std::vector<unsigned short> toWideString(const QString& text) {
-    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
+std::vector<unsigned short> toWideString(const QString& text) {    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
     const int count = text.size();
     std::vector<unsigned short> wide;
     wide.reserve(static_cast<size_t>(count) + 1);
@@ -311,6 +347,13 @@ bool createAnnotation(FPDF_PAGE page, const Annotation& annotation) {
     if (!annotation.author.isEmpty()) {
         const std::vector<unsigned short> author = toWideString(annotation.author);
         FPDFAnnot_SetStringValue(annot, "T", reinterpret_cast<const FPDF_WIDESTRING>(author.data()));
+    }
+
+    // 打标记：认批注靠它，不靠它在页面上的位置。
+    {
+        const std::vector<unsigned short> name = toWideString(
+            QString::fromLatin1(kAnnotationNamePrefix) + QString::number(annotation.id));
+        FPDFAnnot_SetStringValue(annot, "NM", reinterpret_cast<const FPDF_WIDESTRING>(name.data()));
     }
 
     // 高亮/下划线/删除线：逐行写四角点。
@@ -564,6 +607,26 @@ QVector<Annotation> PdfPage::annotations() const {
         }
         item.pageIndex = impl_->index;
 
+        // 我们的批注带 /NM 标记（"Folixa:<id>"）：id 从这里读回来，
+        // 这样存盘再打开之后，批注的 id 还在。
+        {
+            unsigned short buffer[64] = {0};
+            const unsigned long length = FPDFAnnot_GetStringValue(annot, "NM", buffer, 64);
+            const int prefixLength = int(sizeof(kAnnotationNamePrefix)) - 1;
+            if (length > sizeof(kAnnotationNamePrefix)) {
+                const int charCount = int(length / 2) - 1;
+                const QString name = QString::fromUtf16(
+                    reinterpret_cast<const char16_t*>(buffer), charCount);
+                if (name.startsWith(QString::fromLatin1(kAnnotationNamePrefix))) {
+                    bool ok = false;
+                    const quint64 id = name.mid(prefixLength).toULongLong(&ok);
+                    if (ok) {
+                        item.id = id;
+                    }
+                }
+            }
+        }
+
         FS_RECTF rect = {};
         if (FPDFAnnot_GetRect(annot, &rect)) {
             item.rect = fromFsRect(rect);
@@ -622,15 +685,26 @@ bool PdfPage::setAnnotations(const QVector<Annotation>& annotations) {
 
     // 先删掉上一次由本类写入的批注。
     //
-    // 我们写的批注总是追加在页面原有批注之后，所以删的时候下标是固定的：
-    // 删掉一个，后面的会前移一位，下一个还是同一个下标。
-    int& written = impl_->document->writtenAnnotations[impl_->index];
+    // 认它们靠 /NM 标记，不靠「写在末尾第几条」：
+    // 页面被插入、删除、移动之后，末尾的位置就变了，
+    // 按位置记账会把原文档自带的批注误删，或者把自己的批注留下来变成重复。
+    QVector<int> ours;
     const int total = FPDFPage_GetAnnotCount(impl_->page);
-    const int original = qMax(0, total - written);
-    for (int i = 0; i < written; ++i) {
-        FPDFPage_RemoveAnnot(impl_->page, original);
+    for (int i = 0; i < total; ++i) {
+        FPDF_ANNOTATION annot = FPDFPage_GetAnnot(impl_->page, i);
+        if (annot == nullptr) {
+            continue;
+        }
+        const bool isOurs = isOurAnnotation(annot);
+        FPDFPage_CloseAnnot(annot);
+        if (isOurs) {
+            ours.append(i);
+        }
     }
-    written = 0;
+    // 从后往前删：删掉后面的不会影响前面的下标。
+    for (int i = ours.size() - 1; i >= 0; --i) {
+        FPDFPage_RemoveAnnot(impl_->page, ours[i]);
+    }
 
     // 再写新的。
     int created = 0;
@@ -639,7 +713,6 @@ bool PdfPage::setAnnotations(const QVector<Annotation>& annotations) {
             ++created;
         }
     }
-    written = created;
     return created == static_cast<int>(annotations.size());
 }
 
@@ -826,6 +899,238 @@ std::vector<OutlineItem> PdfDocument::outline() const {
     return result;
 }
 
+// ----------------------------------------------------------- 页面结构操作 ----
+
+bool PdfDocument::insertBlankPage(int index,
+                                  double width,
+                                  double height,
+                                  QVector<int>* pageMapping) {
+    if (!isValid() || width <= 0.0 || height <= 0.0) {
+        return false;
+    }
+    const int count = pageCount();
+    if (index < 0 || index > count) {
+        return false;
+    }
+
+    const detail::PdfiumGuard guard;
+    FPDF_PAGE page = FPDFPage_New(impl_->handle,
+                                   index,
+                                   static_cast<float>(width),
+                                   static_cast<float>(height));
+    if (page == nullptr) {
+        return false;
+    }
+    FPDF_ClosePage(page);
+
+    // 批注不用记账：认批注靠 /NM 标记，与它在页面上的位置无关。
+    if (pageMapping != nullptr) {
+        pageMapping->resize(count);
+        for (int i = 0; i < count; ++i) {
+            (*pageMapping)[i] = (i < index) ? i : i + 1;
+        }
+    }
+    return true;
+}
+
+bool PdfDocument::deletePage(int index, QVector<int>* pageMapping) {
+    if (!isValid()) {
+        return false;
+    }
+    const int count = pageCount();
+    if (index < 0 || index >= count) {
+        return false;
+    }
+
+    {
+        const detail::PdfiumGuard guard;
+        FPDFPage_Delete(impl_->handle, index);
+    }
+    if (pageCount() != count - 1) {
+        return false;
+    }
+
+    if (pageMapping != nullptr) {
+        pageMapping->resize(count);
+        for (int i = 0; i < count; ++i) {
+            (*pageMapping)[i] = (i < index) ? i : (i == index ? -1 : i - 1);
+        }
+    }
+    return true;
+}
+
+bool PdfDocument::setPageRotation(int index, int quarterTurns) {
+    if (!isValid()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_PAGE page = FPDF_LoadPage(impl_->handle, index);
+    if (page == nullptr) {
+        return false;
+    }
+    // FPDFPage_SetRotation 收的是**四分之一圈**（0..3），不是角度。
+    FPDFPage_SetRotation(page, ((quarterTurns % 4) + 4) % 4);
+    FPDF_ClosePage(page);
+    return true;
+}
+
+bool PdfDocument::movePage(int from, int to, QVector<int>* pageMapping) {
+    if (!isValid()) {
+        return false;
+    }
+    const int count = pageCount();
+    if (from < 0 || from >= count || to < 0 || to >= count || from == to) {
+        return false;
+    }
+
+    // PDFium 159 没有移动页的接口，只能「导入副本 + 删除原件」。
+    //
+    // 副本先落到一份临时文档里，再从临时文档导回主文档：
+    // 同一份文档自导自入 PDFium 不保证安全。
+    FPDF_DOCUMENT scratch = nullptr;
+    {
+        const detail::PdfiumGuard guard;
+        scratch = FPDF_CreateNewDocument();
+        if (scratch == nullptr) {
+            return false;
+        }
+        const int sourceIndex = from;
+        if (!FPDF_ImportPagesByIndex(scratch, impl_->handle, &sourceIndex, 1, 0)) {
+            FPDF_CloseDocument(scratch);
+            return false;
+        }
+    }
+
+    // 副本插回主文档的位置。
+    //
+    // 把 from 删掉之后，剩下的序列是 R；副本要落在最终序列的第 to 位，
+    // 也就是插进 R 的第 to 个位置。而 R 的下标与主文档当下标号的差别
+    // 取决于 from 在前面还是后面：
+    //   - from 在 to 前面（to >= from）：主文档里插到 to + 1，
+    //     删掉原件后副本正好落到 to；
+    //   - from 在 to 后面：主文档里插到 to，删掉原件后副本落在 to。
+    const int insertAt = (to >= from) ? to + 1 : to;
+    {
+        const detail::PdfiumGuard guard;
+        const int scratchIndex = 0;
+        if (!FPDF_ImportPagesByIndex(impl_->handle, scratch, &scratchIndex, 1, insertAt)) {
+            FPDF_CloseDocument(scratch);
+            return false;
+        }
+        // 删掉原件：它在插入之后的下标是 from + (insertAt <= from ? 1 : 0)。
+        const int originalAt = (insertAt <= from) ? from + 1 : from;
+        FPDFPage_Delete(impl_->handle, originalAt);
+        FPDF_CloseDocument(scratch);
+    }
+
+    if (pageCount() != count) {
+        return false;
+    }
+
+    if (pageMapping != nullptr) {
+        pageMapping->resize(count);
+        for (int i = 0; i < count; ++i) {
+            if (i == from) {
+                (*pageMapping)[i] = to;
+            } else if (to > from && i > from && i <= to) {
+                (*pageMapping)[i] = i - 1;
+            } else if (to < from && i >= to && i < from) {
+                (*pageMapping)[i] = i + 1;
+            } else {
+                (*pageMapping)[i] = i;
+            }
+        }
+    }
+    return true;
+}
+
+PdfDocument PdfDocument::backupPage(int index) const {
+    if (!isValid()) {
+        return PdfDocument();
+    }
+    const int count = pageCount();
+    if (index < 0 || index >= count) {
+        return PdfDocument();
+    }
+
+    const detail::PdfiumGuard guard;
+    FPDF_DOCUMENT scratch = FPDF_CreateNewDocument();
+    if (scratch == nullptr) {
+        return PdfDocument();
+    }
+    const int sourceIndex = index;
+    if (!FPDF_ImportPagesByIndex(scratch, impl_->handle, &sourceIndex, 1, 0)) {
+        FPDF_CloseDocument(scratch);
+        return PdfDocument();
+    }
+    return adoptHandle(scratch, QString());
+}
+
+bool PdfDocument::restorePageFrom(const PdfDocument& backup, int index) {
+    if (!isValid() || !backup.isValid()) {
+        return false;
+    }
+    const int count = pageCount();
+    if (index < 0 || index > count) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    const int scratchIndex = 0;
+    if (!FPDF_ImportPagesByIndex(impl_->handle,
+                                 backup.impl_->handle,
+                                 &scratchIndex,
+                                 1,
+                                 index)) {
+        return false;
+    }
+    return pageCount() == count + 1;
+}
+
+QByteArray PdfDocument::serialize(QString* error) const {
+    if (!isValid()) {
+        if (error != nullptr) {
+            *error = QStringLiteral("文档无效");
+        }
+        return {};
+    }
+
+    const detail::PdfiumGuard guard;
+
+    MemoryWriter writer;
+    FPDF_FILEWRITE fileWrite = {};
+    fileWrite.version = 1;
+    fileWrite.WriteBlock = &writeToMemory;
+    g_memoryWriterTarget = &writer;
+    const FPDF_BOOL saved = FPDF_SaveAsCopy(impl_->handle, &fileWrite, 0);
+    g_memoryWriterTarget = nullptr;
+
+    if (!saved) {
+        if (error != nullptr) {
+            *error = QStringLiteral("PDFium 保存失败");
+        }
+        return {};
+    }
+    return writer.data;
+}
+
+void PdfDocument::syncBytes(const QByteArray& bytes) {
+    if (impl_ == nullptr) {
+        return;
+    }
+    impl_->fileData = bytes;
+    impl_->access.m_FileLen = static_cast<unsigned long>(bytes.size());
+}
+
+PdfDocument PdfDocument::adoptHandle(void* handle, const QString& path) {
+    if (handle == nullptr) {
+        return PdfDocument();
+    }
+    auto impl = std::make_shared<detail::DocumentImpl>();
+    impl->path = path;
+    impl->handle = static_cast<FPDF_DOCUMENT>(handle);
+    return PdfDocument(impl);
+}
+
 // ------------------------------------------------------------ 打开文档 ----
 
 PdfOpenResult openDocument(const QString& filePath, const QString& password) {
@@ -854,6 +1159,47 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
     file.close();
     if (data.size() > kMaxPdfFileSizeBytes) {
         result.errorMessage = QStringLiteral("文件过大，拒绝加载");
+        return result;
+    }
+
+    auto impl = std::make_shared<detail::DocumentImpl>();
+    impl->fileData = data;
+    impl->path = filePath;
+    impl->password = password;
+    impl->access.m_FileLen = static_cast<unsigned long>(data.size());
+    impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
+    impl->access.m_Param = impl.get();
+
+    const QByteArray passwordBytes = password.toUtf8();
+    const char* passwordPointer = passwordBytes.isEmpty() ? nullptr : passwordBytes.constData();
+
+    {
+        const detail::PdfiumGuard guard;
+        impl->handle = FPDF_LoadCustomDocument(&impl->access, passwordPointer);
+    }
+    if (impl->handle == nullptr) {
+        const unsigned long error = FPDF_GetLastError();
+        result.errorMessage = describePdfiumError(error);
+        result.passwordRequired = (error == FPDF_ERR_PASSWORD);
+        return result;
+    }
+
+    result.document = PdfDocument(impl);
+    return result;
+}
+
+PdfOpenResult openDocumentFromBytes(const QByteArray& data,
+                                     const QString& filePath,
+                                     const QString& password) {
+    PdfOpenResult result;
+    initializePdfium();
+
+    if (data.isEmpty()) {
+        result.errorMessage = QStringLiteral("内容为空");
+        return result;
+    }
+    if (data.size() > kMaxPdfFileSizeBytes) {
+        result.errorMessage = QStringLiteral("内容过大，拒绝加载");
         return result;
     }
 

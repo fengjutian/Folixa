@@ -76,6 +76,26 @@ public slots:
     void undoAnnotation();
     void redoAnnotation();
 
+    // ------------------------------------------------- 页面管理（v0.8.0）----
+    //
+    // 页面操作都作用在「当前页」上：
+    // 插入是在当前页之后插一张空白页；旋转改的是页面自身的 /Rotate
+    // （与工具栏上那个只转视图的「旋转」不是一回事）。
+    void insertBlankPageAfterCurrent();
+    void deleteCurrentPage();
+    void rotateCurrentPageRight();
+    void rotateCurrentPageLeft();
+    void moveCurrentPageUp();
+    void moveCurrentPageDown();
+
+    // ---------------------------------------------------------- 安全保存 ----
+    //
+    // 写临时文件 → 重新打开校验 → 原子替换，失败时原文件不动。
+    bool save(QString* errorMessage, QString* backupPath = nullptr);
+    bool saveAs(const QString& targetPath, QString* errorMessage, QString* backupPath = nullptr);
+    // 文档有没有未保存的改动。
+    bool isModified() const;
+
 signals:
     void zoomChanged(double factor);
     void pageCountChanged(int pages);
@@ -90,6 +110,17 @@ signals:
     void annotationsChanged(int count);
     // 需要在状态栏提示一句话。
     void statusMessage(const QString& text);
+    // 点了「保存」按钮：真正的保存由主窗口做（它管着文件与提示）。
+    void saveRequested();
+    // 页面结构变了：页数、顺序或某页的旋转改了。
+    void pageStructureChanged();
+    // 文本控制器与导航控制器被换掉了（页面结构变化之后）。
+    // 外面拿着旧指针的地方要在这个信号里重新指一遍。
+    void controllersRefreshed();
+    // 文档路径变了（另存为之后）。
+    void filePathChanged(const QString& path);
+    // 文档的未保存状态变了。
+    void modifiedChanged(bool modified);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -103,6 +134,16 @@ private:
     void updateMetrics();
     void requestVisiblePages();
     void stopRenderThread();
+    // 起一个渲染线程（换文档或页面结构变化后重新起）。
+    void startRenderThread();
+    // 建文本与导航控制器，并把画布指过去。
+    void setupControllers();
+    // 页面结构变了：重排布局、换掉渲染线程与后台控制器的文档副本。
+    void handlePageStructureChanged();
+    // 记一次恢复日志（改过文档就要能恢复）。
+    void writeRecoveryLog();
+    // 更新「有没有未保存的改动」并通知界面。
+    void setModified(bool modified);
     double fitZoomForWidth() const;
     double fitZoomForPage() const;
     // 给当前选区加一个标记类批注（高亮 / 下划线 / 删除线）。
@@ -149,6 +190,8 @@ private:
     int userRotation_ = 0;
     bool fitToWidth_ = false;
     bool fitToPage_ = false;
+    // 文档有没有未保存的改动。
+    bool modified_ = false;
 };
 
 }  // namespace aipdf::app

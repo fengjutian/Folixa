@@ -1,6 +1,8 @@
 #include "app/AnnotationController.h"
 
+#include "app/PdfPageOperations.h"
 #include "doc/EditCommand.h"
+#include "doc/PageCommand.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -31,6 +33,7 @@ QString annotationAuthor() {
 
 AnnotationController::AnnotationController(pdf::PdfDocument document, QObject* parent)
     : QObject(parent), document_(std::move(document)) {
+    pageOperations_ = std::make_unique<PdfPageOperations>(document_);
     connect(&model_, &doc::AnnotationModel::changed, this, &AnnotationController::handleModelChanged);
 }
 
@@ -84,7 +87,7 @@ quint64 AnnotationController::addMarkAnnotation(pdf::AnnotationType type,
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
     const quint64 id = annotation.id;
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
@@ -110,7 +113,7 @@ quint64 AnnotationController::addNote(int pageIndex, const QRectF& rect, const Q
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
     const quint64 id = annotation.id;
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 chars=%4")
@@ -135,7 +138,7 @@ quint64 AnnotationController::addSquare(int pageIndex, const QRectF& rect) {
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
     const quint64 id = annotation.id;
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
@@ -164,7 +167,7 @@ quint64 AnnotationController::addInk(int pageIndex, const QVector<QPointF>& stro
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
     const quint64 id = annotation.id;
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 points=%4")
@@ -182,7 +185,7 @@ bool AnnotationController::removeAnnotation(quint64 id) {
         return false;
     }
     auto command = std::make_unique<doc::RemoveAnnotationCommand>(*annotation);
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return false;
     }
     trace(QStringLiteral("annotation remove id=%1").arg(id));
@@ -205,7 +208,7 @@ bool AnnotationController::updateAnnotation(quint64 id,
     after.contents = contents;
 
     auto command = std::make_unique<doc::UpdateAnnotationCommand>(before, after);
-    if (!undoStack_.push(std::move(command), &model_)) {
+    if (!undoStack_.push(std::move(command), this)) {
         return false;
     }
     trace(QStringLiteral("annotation update id=%1").arg(id));
@@ -214,19 +217,23 @@ bool AnnotationController::updateAnnotation(quint64 id,
 }
 
 bool AnnotationController::undo() {
-    if (!undoStack_.undo(&model_)) {
+    if (!undoStack_.undo(this)) {
         return false;
     }
-    trace(QStringLiteral("annotation undo count=%1").arg(undoStack_.undoCount()));
+    trace(QStringLiteral("annotation undo count=%1 pages=%2")
+              .arg(undoStack_.undoCount())
+              .arg(pageCount()));
     emit undoStateChanged();
     return true;
 }
 
 bool AnnotationController::redo() {
-    if (!undoStack_.redo(&model_)) {
+    if (!undoStack_.redo(this)) {
         return false;
     }
-    trace(QStringLiteral("annotation redo count=%1").arg(undoStack_.redoCount()));
+    trace(QStringLiteral("annotation redo count=%1 pages=%2")
+              .arg(undoStack_.redoCount())
+              .arg(pageCount()));
     emit undoStateChanged();
     return true;
 }
@@ -357,6 +364,115 @@ void AnnotationController::handleModelChanged(int pageIndex) {
         syncPageToDocument(pageIndex);
     }
     emit annotationsChanged(pageIndex);
+}
+
+// ------------------------------------------------------- 页面结构操作 ----
+
+bool AnnotationController::insertBlankPage(int index, double width, double height) {
+    if (!document_.isValid() || index < 0 || index > document_.pageCount()) {
+        return false;
+    }
+    auto command = std::make_unique<doc::InsertBlankPageCommand>(index, width, height);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("page insert index=%1 pages=%2").arg(index).arg(pageCount()));
+    emit undoStateChanged();
+    return true;
+}
+
+bool AnnotationController::deletePage(int index) {
+    if (!document_.isValid() || index < 0 || index >= document_.pageCount()) {
+        return false;
+    }
+    auto command = std::make_unique<doc::DeletePageCommand>(index);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("page delete index=%1 pages=%2").arg(index).arg(pageCount()));
+    emit undoStateChanged();
+    return true;
+}
+
+bool AnnotationController::rotatePage(int index, int quarterTurns) {
+    if (!document_.isValid() || index < 0 || index >= document_.pageCount()) {
+        return false;
+    }
+    // 撤销要把角度改回去，所以命令里要带着旋转前的角度。
+    const int before = pageRotation(index);
+    auto command = std::make_unique<doc::RotatePageCommand>(index, before, quarterTurns);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("page rotate index=%1 turns=%2 pages=%3").arg(index).arg(quarterTurns).arg(pageCount()));
+    emit undoStateChanged();
+    return true;
+}
+
+bool AnnotationController::movePage(int from, int to) {
+    if (!document_.isValid()) {
+        return false;
+    }
+    const int count = document_.pageCount();
+    if (from < 0 || from >= count || to < 0 || to >= count || from == to) {
+        return false;
+    }
+    auto command = std::make_unique<doc::MovePageCommand>(from, to);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("page move from=%1 to=%2 pages=%3").arg(from).arg(to).arg(pageCount()));
+    emit undoStateChanged();
+    return true;
+}
+
+int AnnotationController::pageCount() const {
+    return document_.pageCount();
+}
+
+double AnnotationController::pageWidth(int index) const {
+    const auto page = document_.page(index);
+    return page.has_value() ? page->displayWidthPoints() : 0.0;
+}
+
+double AnnotationController::pageHeight(int index) const {
+    const auto page = document_.page(index);
+    return page.has_value() ? page->displayHeightPoints() : 0.0;
+}
+
+int AnnotationController::pageRotation(int index) const {
+    const auto page = document_.page(index);
+    if (!page.has_value()) {
+        return 0;
+    }
+    // 页面的 /Rotate 以四分之一圈计。
+    return page->rotationDegrees() / 90;
+}
+
+// ---------------------------------------------------------- 编辑上下文 ----
+
+doc::AnnotationModel* AnnotationController::annotationModel() {
+    return &model_;
+}
+
+doc::PageOperations* AnnotationController::pages() {
+    return pageOperations_.get();
+}
+
+void AnnotationController::pageStructureChanged(const QVector<int>& pageMapping) {
+    // 页面挪了位置：之前记下「哪些页投影过」的页号已经作废。
+    // 适配层按页维护着批注记账，页面操作时已经跟着重排过，
+    // 这里不需要再按旧页号重投影。
+    syncedPages_.clear();
+    // 几何缓存作废：页数、顺序、某页的旋转都可能变了。
+    geometry_.clear();
+    // 批注的页码跟着页面走。
+    model_.remapPages(pageMapping);
+    emit documentStructureChanged();
+}
+
+QVector<QByteArray> AnnotationController::serializedHistory() const {
+    return undoStack_.serializedHistory();
 }
 
 }  // namespace aipdf::app

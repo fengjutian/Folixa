@@ -5,6 +5,8 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "ipc/WorkerClient.h"
+#include "doc/EditCommand.h"
+#include "doc/RecoveryLog.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
 #include "pdf/Navigation.h"
@@ -12,6 +14,7 @@
 #include <QAction>
 #include <QButtonGroup>
 #include <QCoreApplication>
+#include <QDir>
 #include <QDockWidget>
 #include <QDateTime>
 #include <QFrame>
@@ -26,6 +29,7 @@
 #include <QListWidgetItem>
 #include <QMenuBar>
 #include <QMenu>
+#include <QMessageBox>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -120,6 +124,10 @@ MainWindow::MainWindow(QWidget* parent)
             });
 
     workerClient_->start();
+
+    // 启动后看看有没有上次没保存完的工作。
+    // 延后到事件循环起来之后再问：这时主窗口已经显示出来了。
+    QTimer::singleShot(0, this, &MainWindow::checkRecovery);
 }
 
 void MainWindow::buildUi() {
@@ -155,6 +163,16 @@ void MainWindow::buildUi() {
     openAction->setShortcut(QKeySequence::Open);
     connect(openAction, &QAction::triggered, this, &MainWindow::openPdfDialog);
     fileMenu->addSeparator();
+    // 保存与另存为（v0.8.0）：写临时文件、校验、原子替换，失败不动原文件。
+    auto* saveAction = fileMenu->addAction(tr("保存"));
+    saveAction->setShortcut(QKeySequence::Save);
+    saveAction->setObjectName(QStringLiteral("fileSave"));
+    connect(saveAction, &QAction::triggered, this, &MainWindow::saveDocument);
+    auto* saveAsAction = fileMenu->addAction(tr("另存为…"));
+    saveAsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+S")));
+    saveAsAction->setObjectName(QStringLiteral("fileSaveAs"));
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveDocumentAs);
+    fileMenu->addSeparator();
     fileMenu->addAction(tr("退出"), QKeySequence::Quit, this, &QWidget::close);
 
     auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
@@ -176,6 +194,9 @@ void MainWindow::buildUi() {
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
+    appMenu->addSeparator();
+    appMenu->addAction(saveAction);
+    appMenu->addAction(saveAsAction);
     appMenu->addSeparator();
     auto* findAction = appMenu->addAction(tr("查找…"));
     findAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
@@ -216,8 +237,22 @@ void MainWindow::buildUi() {
         }
         trace(QStringLiteral("open annotation panel"));
     });
+    // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
+    auto* pageAction = commandBar->addAction(tr("页面"));
+    pageAction->setObjectName(QStringLiteral("commandPages"));
+    pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
+    connect(pageAction, &QAction::triggered, this, [this]() {
+        navigationDock_->setVisible(true);
+        if (navigationRail_ != nullptr) {
+            // 切到导航栏的页面页（第一个按钮）。
+            if (auto* button = navigationRail_->button(0)) {
+                button->click();
+            }
+        }
+        trace(QStringLiteral("open page panel"));
+    });
     const QStringList futureCommands = {tr("编辑"), tr("转换"),
-                                        tr("页面"), tr("保护"), tr("表单"), tr("工具")};
+                                        tr("保护"), tr("表单"), tr("工具")};
     for (const QString& label : futureCommands) {
         QAction* action = commandBar->addAction(label);
         action->setEnabled(false);
@@ -246,14 +281,6 @@ void MainWindow::buildUi() {
     railLayout->setSpacing(8);
     auto* navigationPages = new QStackedWidget(navigation);
     navigationPages_ = navigationPages;
-    pagesList_ = new QListWidget(navigationPages);
-    pagesList_->setObjectName(QStringLiteral("thumbnailList"));
-    pagesList_->setViewMode(QListView::IconMode);
-    pagesList_->setResizeMode(QListView::Adjust);
-    pagesList_->setMovement(QListView::Static);
-    pagesList_->setIconSize(QSize(132, 172));
-    pagesList_->setGridSize(QSize(166, 206));
-    pagesList_->setSpacing(6);
     // 导航栏按钮与页签一一对应。
     //
     // 两者必须写在同一张表里：v0.7.0 真的踩过一次——
@@ -269,7 +296,7 @@ void MainWindow::buildUi() {
     };
     QVector<RailEntry> railEntries;
     railEntries.append({QStringLiteral(":/icons/pages.svg"), tr("页面"),
-                         QStringLiteral("railButton.pages"), pagesList_});
+                         QStringLiteral("railButton.pages"), createPagesTab()});
     // 目录页与书签页：同一份大纲的两种看法（树 / 扁平列表）。
     railEntries.append({QStringLiteral(":/icons/outline.svg"), tr("目录"),
                          QStringLiteral("railButton.outline"), createOutlineTab()});
@@ -597,6 +624,74 @@ QWidget* MainWindow::createNavigationEmptyState(const QString& titleText,
     return page;
 }
 
+// 页面页：缩略图列表 + 页面管理按钮（v0.8.0）。
+//
+// 页面管理放在页面页里，而不是另开一个面板：
+// 页面上做什么操作，列表就是操作对象，不用换地方。
+QWidget* MainWindow::createPagesTab() {
+    auto* page = new QWidget(navigationPages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setSpacing(6);
+
+    pagesList_ = new QListWidget(page);
+    pagesList_->setObjectName(QStringLiteral("thumbnailList"));
+    pagesList_->setViewMode(QListView::IconMode);
+    pagesList_->setResizeMode(QListView::Adjust);
+    pagesList_->setMovement(QListView::Static);
+    pagesList_->setIconSize(QSize(132, 172));
+    pagesList_->setGridSize(QSize(166, 206));
+    pagesList_->setSpacing(6);
+    layout->addWidget(pagesList_, 1);
+
+    // 按钮给独立的对象名：验收脚本靠 AutomationId 定位。
+    auto makeButton = [page](const QString& text,
+                              const QString& tip,
+                              const QString& id) {
+        auto* button = new QPushButton(text, page);
+        button->setToolTip(tip);
+        button->setObjectName(id);
+        return button;
+    };
+
+    pageInsertButton_ = makeButton(tr("插入"), tr("在当前页后插入一张空白页"),
+                                    QStringLiteral("page.insert"));
+    pageDeleteButton_ = makeButton(tr("删除"), tr("删除当前页"),
+                                    QStringLiteral("page.delete"));
+    pageRotateRightButton_ = makeButton(tr("右转"), tr("把当前页顺时针转 90 度"),
+                                         QStringLiteral("page.rotateRight"));
+    pageRotateLeftButton_ = makeButton(tr("左转"), tr("把当前页逆时针转 90 度"),
+                                        QStringLiteral("page.rotateLeft"));
+    pageMoveUpButton_ = makeButton(tr("上移"), tr("把当前页往前挪一位"),
+                                    QStringLiteral("page.moveUp"));
+    pageMoveDownButton_ = makeButton(tr("下移"), tr("把当前页往后挪一位"),
+                                      QStringLiteral("page.moveDown"));
+
+    auto* firstRow = new QHBoxLayout();
+    firstRow->addWidget(pageInsertButton_);
+    firstRow->addWidget(pageDeleteButton_);
+    auto* secondRow = new QHBoxLayout();
+    secondRow->addWidget(pageRotateRightButton_);
+    secondRow->addWidget(pageRotateLeftButton_);
+    auto* thirdRow = new QHBoxLayout();
+    thirdRow->addWidget(pageMoveUpButton_);
+    thirdRow->addWidget(pageMoveDownButton_);
+    layout->addLayout(firstRow);
+    layout->addLayout(secondRow);
+    layout->addLayout(thirdRow);
+
+    connect(pageInsertButton_, &QPushButton::clicked, this, &MainWindow::insertBlankPage);
+    connect(pageDeleteButton_, &QPushButton::clicked, this, &MainWindow::deleteCurrentPage);
+    connect(pageRotateRightButton_, &QPushButton::clicked, this,
+            &MainWindow::rotateCurrentPageRight);
+    connect(pageRotateLeftButton_, &QPushButton::clicked, this,
+            &MainWindow::rotateCurrentPageLeft);
+    connect(pageMoveUpButton_, &QPushButton::clicked, this, &MainWindow::moveCurrentPageUp);
+    connect(pageMoveDownButton_, &QPushButton::clicked, this, &MainWindow::moveCurrentPageDown);
+
+    return page;
+}
+
 QStackedWidget* MainWindow::createOutlineTab() {
     auto* stack = new QStackedWidget(navigationPages_);
     stack->addWidget(createNavigationEmptyState(
@@ -714,6 +809,184 @@ void MainWindow::removeSelectedAnnotation() {
 
 PdfView* MainWindow::currentView() const {
     return qobject_cast<PdfView*>(tabs_->currentWidget());
+}
+
+// ------------------------------------------------------- 页面管理（v0.8.0）----
+
+void MainWindow::insertBlankPage() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->insertBlankPageAfterCurrent();
+}
+
+void MainWindow::deleteCurrentPage() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->deleteCurrentPage();
+}
+
+void MainWindow::rotateCurrentPageRight() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->rotateCurrentPageRight();
+}
+
+void MainWindow::rotateCurrentPageLeft() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->rotateCurrentPageLeft();
+}
+
+void MainWindow::moveCurrentPageUp() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->moveCurrentPageUp();
+}
+
+void MainWindow::moveCurrentPageDown() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    view->moveCurrentPageDown();
+}
+
+void MainWindow::updatePageActionState() {
+    if (pageInsertButton_ == nullptr) {
+        return;
+    }
+    auto* view = currentView();
+    const bool hasDocument = view != nullptr && view->pageCount() > 0;
+    const int current = view != nullptr ? view->currentPage() : -1;
+    const int count = view != nullptr ? view->pageCount() : 0;
+
+    pageInsertButton_->setEnabled(hasDocument);
+    pageDeleteButton_->setEnabled(hasDocument && count > 1);
+    pageRotateRightButton_->setEnabled(hasDocument);
+    pageRotateLeftButton_->setEnabled(hasDocument);
+    pageMoveUpButton_->setEnabled(hasDocument && current > 0);
+    pageMoveDownButton_->setEnabled(hasDocument && current >= 0 && current < count - 1);
+}
+
+// ---------------------------------------------------------- 保存（v0.8.0）----
+
+void MainWindow::saveDocument() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    if (view->filePath().isEmpty()) {
+        saveDocumentAs();
+        return;
+    }
+    QString error;
+    QString backupPath;
+    if (!view->save(&error, &backupPath)) {
+        statusBar()->showMessage(tr("保存失败：%1").arg(error));
+        trace(QStringLiteral("save failed"));
+        return;
+    }
+    statusBar()->showMessage(
+        backupPath.isEmpty()
+            ? tr("已保存 %1").arg(QFileInfo(view->filePath()).fileName())
+            : tr("已保存 %1（原文件备份为 %2）")
+                  .arg(QFileInfo(view->filePath()).fileName(),
+                       QFileInfo(backupPath).fileName()),
+        5000);
+}
+
+void MainWindow::saveDocumentAs() {
+    auto* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString suggested =
+        view->filePath().isEmpty()
+            ? QString()
+            : QFileInfo(view->filePath()).absolutePath() + QDir::separator() +
+                  QFileInfo(view->filePath()).completeBaseName() + QStringLiteral("-copy.pdf");
+    const QString target = QFileDialog::getSaveFileName(
+        this, tr("另存为"), suggested, tr("PDF 文件 (*.pdf)"));
+    if (target.isEmpty()) {
+        return;
+    }
+    QString error;
+    QString backupPath;
+    if (!view->saveAs(target, &error, &backupPath)) {
+        statusBar()->showMessage(tr("保存失败：%1").arg(error));
+        trace(QStringLiteral("save as failed"));
+        return;
+    }
+    // 文档换了路径：标签页标题跟着改。
+    const int index = tabs_->currentIndex();
+    tabs_->setTabText(index, QFileInfo(target).fileName());
+    statusBar()->showMessage(tr("已另存为 %1").arg(QFileInfo(target).fileName()), 5000);
+}
+
+// 启动时看看有没有上次没保存完的工作。
+//
+// 恢复日志记的是命令序列，不是文件副本：
+// 打开原文档之后按同样的顺序重放一遍，未保存的工作就回来了。
+void MainWindow::checkRecovery() {
+    const QVector<doc::RecoveryEntry> entries = doc::RecoveryLog::list();
+    if (entries.isEmpty()) {
+        return;
+    }
+    const doc::RecoveryEntry entry = entries.first();
+    // 原文档已经不在了：这条记录没用了，直接清掉。
+    if (!QFileInfo::exists(entry.documentPath)) {
+        doc::RecoveryLog::remove(entry.documentPath);
+        return;
+    }
+    trace(QStringLiteral("recovery found path=%1 commands=%2")
+              .arg(entry.documentPath)
+              .arg(entry.commands.size()));
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("发现未保存的工作"));
+    box.setIcon(QMessageBox::Question);
+    box.setText(tr("上次在 %1 的修改没有保存（%2 条操作）。要恢复吗？")
+                    .arg(QFileInfo(entry.documentPath).fileName())
+                    .arg(entry.commands.size()));
+    QPushButton* recoverButton = box.addButton(tr("恢复"), QMessageBox::AcceptRole);
+    box.addButton(tr("丢弃"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(recoverButton);
+    box.exec();
+    if (box.clickedButton() != recoverButton) {
+        // 丢弃：把恢复日志删掉，免得每次启动都来问。
+        doc::RecoveryLog::remove(entry.documentPath);
+        return;
+    }
+
+    openPdfFile(entry.documentPath);
+    auto* view = currentView();
+    if (view == nullptr || view->annotationController() == nullptr) {
+        return;
+    }
+    // 重放命令：恢复出来的修改同样能撤销。
+    int replayed = 0;
+    for (const QByteArray& command : entry.commands) {
+        QString error;
+        auto restored = doc::deserializeEditCommand(command, &error);
+        if (restored == nullptr) {
+            continue;
+        }
+        if (restored->apply(view->annotationController())) {
+            ++replayed;
+        }
+    }
+    statusBar()->showMessage(tr("已恢复 %1 条未保存的操作").arg(replayed), 5000);
+    trace(QStringLiteral("recovery replayed=%1").arg(replayed));
 }
 
 void MainWindow::bindNavigation(PdfView* view) {
@@ -960,6 +1233,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     bindNavigation(view);
     bindAnnotations(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
+    connect(view, &PdfView::saveRequested, this, &MainWindow::saveDocument);
     connect(view, &PdfView::statusMessage, this, [this](const QString& text) {
         statusBar()->showMessage(text, 3000);
     });
@@ -971,6 +1245,25 @@ void MainWindow::openPdfFile(const QString& filePath) {
     });
     connect(view, &PdfView::currentPageChanged, this, [this](int index) {
         highlightThumbnail(index);
+        updatePageActionState();
+    });
+    // 页面结构变了：缩略图列表与页面按钮都要跟着更新。
+    connect(view, &PdfView::pageStructureChanged, this, [this]() {
+        refreshThumbnails(currentView());
+        updatePageActionState();
+    });
+    // 文本与导航控制器被换掉了：搜索面板与目录面板要重新指过去。
+    connect(view, &PdfView::controllersRefreshed, this, [this, view]() {
+        if (searchPanel_ != nullptr) {
+            searchPanel_->setController(view->textController());
+        }
+        bindNavigation(view);
+    });
+    connect(view, &PdfView::filePathChanged, this, [this, view](const QString&) {
+        const int index = tabs_->indexOf(view);
+        if (index >= 0) {
+            tabs_->setTabText(index, QFileInfo(view->filePath()).fileName());
+        }
     });
     connect(view, &PdfView::linkFollowed, this, [this](int targetPage, const QString& uri) {
         if (targetPage >= 0) {

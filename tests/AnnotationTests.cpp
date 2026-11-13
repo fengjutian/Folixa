@@ -48,6 +48,19 @@ Annotation makeInk(quint64 id = 2, int pageIndex = 1) {
     return annotation;
 }
 
+// 测试用的编辑上下文：这一层只碰批注模型，不碰文档。
+class TestEditContext : public aipdf::doc::EditContext {
+public:
+    explicit TestEditContext(AnnotationModel* model) : model_(model) {}
+
+    AnnotationModel* annotationModel() override { return model_; }
+    aipdf::doc::PageOperations* pages() override { return nullptr; }
+    void pageStructureChanged(const QVector<int>&) override {}
+
+private:
+    AnnotationModel* model_ = nullptr;
+};
+
 }  // namespace
 
 class AnnotationTests : public QObject {
@@ -82,6 +95,7 @@ private slots:
 
 void AnnotationTests::modelRejectsDuplicateId() {
     AnnotationModel model;
+    TestEditContext context(&model);
     QVERIFY(model.add(makeHighlight(1)));
     QVERIFY(!model.add(makeHighlight(1)));
     QCOMPARE(model.count(), 1);
@@ -89,6 +103,7 @@ void AnnotationTests::modelRejectsDuplicateId() {
 
 void AnnotationTests::modelRejectsZeroId() {
     AnnotationModel model;
+    TestEditContext context(&model);
     // id 为 0 表示「没有身份」，模型不接受：撤销栈靠 id 认批注。
     QVERIFY(!model.add(makeHighlight(0)));
     QCOMPARE(model.count(), 0);
@@ -96,6 +111,7 @@ void AnnotationTests::modelRejectsZeroId() {
 
 void AnnotationTests::modelKeepsInsertionOrder() {
     AnnotationModel model;
+    TestEditContext context(&model);
     QVERIFY(model.add(makeHighlight(7)));
     QVERIFY(model.add(makeInk(3)));
     const QVector<Annotation> all = model.all();
@@ -106,6 +122,7 @@ void AnnotationTests::modelKeepsInsertionOrder() {
 
 void AnnotationTests::modelCountsPerPage() {
     AnnotationModel model;
+    TestEditContext context(&model);
     QVERIFY(model.add(makeHighlight(1, 0)));
     QVERIFY(model.add(makeHighlight(2, 0)));
     QVERIFY(model.add(makeInk(3, 1)));
@@ -119,6 +136,7 @@ void AnnotationTests::modelCountsPerPage() {
 
 void AnnotationTests::modelUpdateKeepsIdentity() {
     AnnotationModel model;
+    TestEditContext context(&model);
     QVERIFY(model.add(makeHighlight(1)));
     Annotation updated = makeHighlight(1);
     updated.color = QColor(10, 20, 30);
@@ -132,6 +150,7 @@ void AnnotationTests::modelUpdateKeepsIdentity() {
 
 void AnnotationTests::modelEmitsChangedForAffectedPage() {
     AnnotationModel model;
+    TestEditContext context(&model);
     QSignalSpy spy(&model, &AnnotationModel::changed);
     QVERIFY(model.add(makeHighlight(1, 3)));
     QCOMPARE(spy.count(), 1);
@@ -219,8 +238,9 @@ void AnnotationTests::updateCommandSerializesAndDeserializes() {
 
     // 反序列化后再执行，结果应当与修改后的批注一致。
     AnnotationModel model;
+    TestEditContext context(&model);
     QVERIFY(model.add(before));
-    QVERIFY(restored->apply(&model));
+    QVERIFY(restored->apply(&context));
     const Annotation* found = model.find(11);
     QVERIFY(found != nullptr);
     QCOMPARE(found->color, QColor(1, 2, 3));
@@ -257,58 +277,62 @@ void AnnotationTests::unknownCommandTypeIsRejected() {
 
 void AnnotationTests::undoRestoresPreviousState() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
-    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &model));
+    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &context));
     QCOMPARE(model.count(), 1);
 
-    QVERIFY(stack.undo(&model));
+    QVERIFY(stack.undo(&context));
     QCOMPARE(model.count(), 0);
     QVERIFY(model.find(1) == nullptr);
 }
 
 void AnnotationTests::redoReappliesCommand() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
-    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &model));
-    QVERIFY(stack.undo(&model));
+    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &context));
+    QVERIFY(stack.undo(&context));
     QCOMPARE(model.count(), 0);
 
-    QVERIFY(stack.redo(&model));
+    QVERIFY(stack.redo(&context));
     QCOMPARE(model.count(), 1);
     QVERIFY(model.find(1) != nullptr);
 }
 
 void AnnotationTests::newCommandClearsRedoStack() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
-    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &model));
-    QVERIFY(stack.undo(&model));
+    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &context));
+    QVERIFY(stack.undo(&context));
     QVERIFY(stack.canRedo());
 
     // 在旧状态上分叉：重做栈必须失效，否则会重做到另一条分支上。
-    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(2)), &model));
+    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(2)), &context));
     QVERIFY(!stack.canRedo());
     QCOMPARE(model.count(), 1);
 }
 
 void AnnotationTests::undoStackRespectsDepthLimit() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
     constexpr int extra = 25;
     for (int index = 0; index < UndoStack::kMaxDepth + extra; ++index) {
         const quint64 id = static_cast<quint64>(index) + 1;
-        QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(id)), &model));
+        QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(id)), &context));
     }
     QCOMPARE(stack.undoCount(), UndoStack::kMaxDepth);
 
     // 全部撤销后，被挤出撤销历史的那 extra 条批注仍在模型里：
     // 深度上限的语义就是「再早的操作撤不了」，而不是「把批注也撤了」。
     while (stack.canUndo()) {
-        QVERIFY(stack.undo(&model));
+        QVERIFY(stack.undo(&context));
     }
     QCOMPARE(model.count(), extra);
     QVERIFY(model.find(1) != nullptr);   // 最老的一条已无命令可撤
@@ -317,24 +341,26 @@ void AnnotationTests::undoStackRespectsDepthLimit() {
 
 void AnnotationTests::undoTextDescribesCommand() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
     QVERIFY(stack.undoText().isEmpty());
-    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight()), &model));
+    QVERIFY(stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight()), &context));
     QCOMPARE(stack.undoText(), QStringLiteral("撤销 添加高亮"));
     QCOMPARE(stack.redoText(), QString());
 
-    QVERIFY(stack.undo(&model));
+    QVERIFY(stack.undo(&context));
     QCOMPARE(stack.redoText(), QStringLiteral("重做 添加高亮"));
 }
 
 void AnnotationTests::failedApplyIsNotPushed() {
     AnnotationModel model;
+    TestEditContext context(&model);
     UndoStack stack;
 
     // 重复 id：apply 会失败，命令不该进撤销历史。
     QVERIFY(model.add(makeHighlight(1)));
-    QVERIFY(!stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &model));
+    QVERIFY(!stack.push(std::make_unique<AddAnnotationCommand>(makeHighlight(1)), &context));
     QCOMPARE(stack.undoCount(), 0);
     QVERIFY(!stack.canUndo());
 }

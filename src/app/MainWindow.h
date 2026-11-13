@@ -44,6 +44,7 @@ private:
     void buildUi();
     QWidget* createWelcomePage();
     QWidget* createNavigationEmptyState(const QString& title, const QString& description);
+    QWidget* createPagesTab();
     QStackedWidget* createOutlineTab();
     QStackedWidget* createBookmarkTab();
     QStackedWidget* createAnnotationTab();
@@ -61,6 +62,21 @@ private:
     void refreshAnnotations(PdfView* view);
     // 删除批注面板里选中的批注。
     void removeSelectedAnnotation();
+    // ------------------------------------------------------- 页面管理 ----
+    // 下面几个都作用在当前页上（页面页的按钮）。
+    void insertBlankPage();
+    void deleteCurrentPage();
+    void rotateCurrentPageRight();
+    void rotateCurrentPageLeft();
+    void moveCurrentPageUp();
+    void moveCurrentPageDown();
+    // 更新页面管理按钮的可用状态。
+    void updatePageActionState();
+    // ---------------------------------------------------------- 保存 ----
+    void saveDocument();
+    void saveDocumentAs();
+    // 启动时看看有没有上次没保存完的工作。
+    void checkRecovery();
     // 当前标签页的文档视图；不是文档页时返回 nullptr。
     PdfView* currentView() const;
     // 目录树里点到某个条目：跳到它的目标页。
@@ -92,6 +108,13 @@ private:
     QStackedWidget* annotationStack_ = nullptr;
     QListWidget* annotationList_ = nullptr;
     QPushButton* annotationRemoveButton_ = nullptr;
+    // 页面页的页面管理按钮（v0.8.0）。
+    QPushButton* pageInsertButton_ = nullptr;
+    QPushButton* pageDeleteButton_ = nullptr;
+    QPushButton* pageRotateRightButton_ = nullptr;
+    QPushButton* pageRotateLeftButton_ = nullptr;
+    QPushButton* pageMoveUpButton_ = nullptr;
+    QPushButton* pageMoveDownButton_ = nullptr;
     // 当前绑定的批注控制器；换文档时要把上一个的连接断掉。
     AnnotationController* boundAnnotations_ = nullptr;
     QMetaObject::Connection annotationConnection_;

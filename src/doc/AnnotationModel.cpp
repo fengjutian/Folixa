@@ -103,4 +103,40 @@ int AnnotationModel::countForPage(int pageIndex) const {
     return total;
 }
 
+void AnnotationModel::remapPages(const QVector<int>& pageMapping) {
+    if (pageMapping.isEmpty() || annotations_.isEmpty()) {
+        return;
+    }
+
+    QVector<quint64> kept;
+    kept.reserve(order_.size());
+    for (quint64 id : order_) {
+        const auto it = annotations_.constFind(id);
+        if (it == annotations_.constEnd()) {
+            continue;
+        }
+        pdf::Annotation annotation = it.value();
+        const int oldPage = annotation.pageIndex;
+        const int newPage = (oldPage >= 0 && oldPage < pageMapping.size())
+                                ? pageMapping[oldPage]
+                                : -1;
+        if (newPage < 0) {
+            // 页面被删了：这页上的批注没有意义，跟着删掉。
+            annotations_.remove(id);
+            continue;
+        }
+        if (newPage != oldPage) {
+            annotation.pageIndex = newPage;
+            annotations_.insert(id, annotation);
+        }
+        kept.append(id);
+    }
+
+    if (kept.size() != order_.size()) {
+        order_ = kept;
+    }
+    // 页码变了，投影要整体重做：通知 -1 表示「全部重来」。
+    emit changed(-1);
+}
+
 }  // namespace aipdf::doc

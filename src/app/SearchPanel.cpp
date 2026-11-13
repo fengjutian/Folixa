@@ -126,6 +126,12 @@ void SearchPanel::setController(TextController* controller) {
     if (controller_ == nullptr) {
         return;
     }
+    // 控制器会被换掉：页面结构一变，文本控制器就重建了。
+    // 它析构时要把指针清掉，不然这里拿到的就是野指针。
+    connect(controller_, &QObject::destroyed, this, [this]() {
+        controller_ = nullptr;
+        clearResults();
+    });
     connect(controller_, &TextController::searchStarted, this, [this]() {
         stopButton_->setEnabled(true);
         statusLabel_->setText(QStringLiteral("正在搜索…"));

@@ -196,6 +196,9 @@ qt_add_executable(AnnotationTests
     ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
@@ -219,12 +222,17 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
 )
@@ -247,3 +255,64 @@ aipdf_deploy_qt_runtime(PdfAnnotationTests)
 aipdf_deploy_pdfium(PdfAnnotationTests)
 
 add_test(NAME PdfAnnotationTests COMMAND PdfAnnotationTests)
+
+# ---------------------------------------------------- 页面管理与安全保存 ----
+
+qt_add_executable(PageOperationTests
+    PageOperationTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+)
+
+target_link_libraries(PageOperationTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PageOperationTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(PageOperationTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PageOperationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(PageOperationTests pdf-fixtures)
+aipdf_deploy_qt_runtime(PageOperationTests)
+aipdf_deploy_pdfium(PageOperationTests)
+
+add_test(NAME PageOperationTests COMMAND PageOperationTests)
+
+qt_add_executable(RecoveryLogTests
+    RecoveryLogTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.h
+)
+
+target_link_libraries(RecoveryLogTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(RecoveryLogTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(RecoveryLogTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(RecoveryLogTests)
+
+add_test(NAME RecoveryLogTests COMMAND RecoveryLogTests)
