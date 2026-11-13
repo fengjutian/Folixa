@@ -170,13 +170,6 @@ void PdfAnnotationTests::invalidDocumentIsRejected() {
     QVERIFY(!result.document.page(0).has_value());
 }
 
-void PdfAnnotationTests::invalidDocumentIsRejected() {
-    const auto result = openDocument(fixturePath(QStringLiteral("corrupt.pdf")));
-    QVERIFY(!result.document.isValid());
-    QCOMPARE(result.document.pageCount(), 0);
-    QVERIFY(!result.document.page(0).has_value());
-}
-
 // 控制器层面的关键保证：批注要真的进文档，撤销要真的把它从文档里拿掉。
 void PdfAnnotationTests::controllerSyncsAnnotationsIntoDocument() {
     const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
