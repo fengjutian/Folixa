@@ -259,7 +259,12 @@ try {
     $opened = Open-IndexPanel -Process $app
     Test-Check '索引面板能打开' $opened ''
 
-    foreach ($id in @('indexBuildButton', 'indexCancelButton', 'indexQueryInput', 'indexResults')) {
+    # 控件逐个找。
+    #
+    # 结果列表（indexResults）这一项不在这里查：Qt 对**空的** QListWidget
+    # 不生成可访问接口，它根本不出现在 UIA 树里。
+    # 列表非空之后才查（场景 3 里查），那时它才会暴露出来。
+    foreach ($id in @('indexBuildButton', 'indexCancelButton', 'indexQueryInput')) {
         $element = Wait-AiPdfElementById -Process $app -IdPattern "*$id*" -TimeoutSeconds 5
         Test-Check "索引控件存在：$id" ($null -ne $element) ''
     }
@@ -349,6 +354,10 @@ try {
         Start-Sleep -Milliseconds 400
     }
     Test-Check '结果列表有 2 条' ($results.Count -eq 2) "count=$($results.Count)"
+
+    # 列表非空之后，列表控件本身才会在 UIA 树里出现。
+    $listElement = Wait-AiPdfElementById -Process $app -IdPattern '*indexResults*' -TimeoutSeconds 5
+    Test-Check '结果列表控件在界面上' ($null -ne $listElement) ''
 
     if ($results.Count -ge 1) {
         # 点第 2 条结果 → 跳到第 2 页，并高亮那一块。

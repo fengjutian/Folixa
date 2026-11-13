@@ -235,8 +235,6 @@ protected:
 
         const int pageCount = document_.pageCount();
         const QVector<QString> sectionPaths = buildSectionPaths(document_.outline(), pageCount);
-        // 总页数只有后台线程知道（句柄在它自己手里），报回主线程。
-        postTotalPages(pageCount);
 
         int order = 0;
 
@@ -253,6 +251,12 @@ protected:
                 taskPending_ = false;
                 knownIndex = knownIndex_;
             }
+
+            // 总页数只有后台线程知道（句柄在它自己手里），报回主线程。
+            //
+            // 必须在接到任务之后再报：主线程 startIndexing() 会把总页数清零，
+            // 先报的话会被清掉，进度就成了「0/0 页」。
+            postTotalPages(pageCount);
 
             // 正文字高：整篇文档统一一个值，标题层级才跨页一致。
             // 索引里存过就复用，没存过才探。
