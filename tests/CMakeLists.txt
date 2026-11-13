@@ -49,6 +49,8 @@ qt_add_executable(PdfiumAdapterTests
     PdfiumAdapterTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
 )
 
 target_link_libraries(PdfiumAdapterTests PRIVATE
@@ -109,6 +111,8 @@ qt_add_executable(TextExtractionTests
     TextExtractionTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
@@ -157,6 +161,8 @@ qt_add_executable(PdfNavigationTests
     PdfNavigationTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
@@ -181,3 +187,53 @@ aipdf_deploy_qt_runtime(PdfNavigationTests)
 aipdf_deploy_pdfium(PdfNavigationTests)
 
 add_test(NAME PdfNavigationTests COMMAND PdfNavigationTests)
+
+# ------------------------------------------------------------ 批注与撤销 ----
+
+qt_add_executable(AnnotationTests
+    AnnotationTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(AnnotationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(AnnotationTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AnnotationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AnnotationTests)
+
+add_test(NAME AnnotationTests COMMAND AnnotationTests)
+
+qt_add_executable(PdfAnnotationTests
+    PdfAnnotationTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(PdfAnnotationTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PdfAnnotationTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(PdfAnnotationTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PdfAnnotationTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+add_dependencies(PdfAnnotationTests pdf-fixtures)
+aipdf_deploy_qt_runtime(PdfAnnotationTests)
+aipdf_deploy_pdfium(PdfAnnotationTests)
+
+add_test(NAME PdfAnnotationTests COMMAND PdfAnnotationTests)

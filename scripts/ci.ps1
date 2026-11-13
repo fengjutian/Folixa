@@ -100,6 +100,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/navigation-outline.png'
     )
+    Invoke-Script '批注与撤销重做验收' (Join-Path $PSScriptRoot 'verify-annotations.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/annotations.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

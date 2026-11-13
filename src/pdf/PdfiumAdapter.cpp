@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QStringDecoder>
 
 #include <cstring>
@@ -48,6 +49,12 @@ struct DocumentImpl {
     QString password;
     FPDF_FILEACCESS access{};
     FPDF_DOCUMENT handle = nullptr;
+    // 每页由本类写入的批注数量（页序号 → 数量）。
+    //
+    // 批注是**追加**在页面原有批注之后的，所以重新写入时：
+    // 原有批注占据 [0, 原有数)，我们写的占据其后的区间。
+    // 记住写了多少，就知道该从哪个下标开始删。
+    QHash<int, int> writtenAnnotations;
 
     ~DocumentImpl() {
         if (handle != nullptr) {
@@ -239,6 +246,107 @@ void readOutlineLevel(FPDF_DOCUMENT document,
         out->push_back(std::move(item));
         bookmark = FPDFBookmark_GetNextSibling(document, bookmark);
     }
+}
+
+// ------------------------------------------------------- 批注与 PDFium 的互转 ----
+
+// 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
+std::vector<unsigned short> toWideString(const QString& text) {
+    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
+    const int count = text.size();
+    std::vector<unsigned short> wide;
+    wide.reserve(static_cast<size_t>(count) + 1);
+    for (int i = 0; i < count; ++i) {
+        wide.push_back(chars[i].unicode());
+    }
+    wide.push_back(0);
+    return wide;
+}
+
+// PDFium 的 FS_RECTF 的 top 是**较高**的 y、bottom 是较低的 y；
+// 我们的 QRectF 存的是原样的用户空间坐标，取 min/max 即可对上。
+FS_RECTF toFsRect(const QRectF& rect) {
+    FS_RECTF result = {};
+    result.left = static_cast<float>(rect.left());
+    result.right = static_cast<float>(rect.right());
+    result.top = static_cast<float>(qMax(rect.top(), rect.bottom()));
+    result.bottom = static_cast<float>(qMin(rect.top(), rect.bottom()));
+    return result;
+}
+
+// 读回 PDFium 的矩形 → 用户空间 QRectF（y 值原样保留）。
+QRectF fromFsRect(const FS_RECTF& rect) {
+    return QRectF(QPointF(rect.left, rect.bottom), QPointF(rect.right, rect.top)).normalized();
+}
+
+// 写一条批注。失败返回 false。
+bool createAnnotation(FPDF_PAGE page, const Annotation& annotation) {
+    const int subtype = annotationTypeToPdfium(annotation.type);
+    if (subtype == FPDF_ANNOT_UNKNOWN) {
+        return false;
+    }
+    FPDF_ANNOTATION annot = FPDFPage_CreateAnnot(page, static_cast<FPDF_ANNOTATION_SUBTYPE>(subtype));
+    if (annot == nullptr) {
+        return false;
+    }
+
+    const FS_RECTF rect = toFsRect(annotation.rect);
+    FPDFAnnot_SetRect(annot, &rect);
+
+    if (annotation.color.isValid()) {
+        FPDFAnnot_SetColor(annot,
+                           FPDFANNOT_COLORTYPE_Color,
+                           static_cast<unsigned int>(annotation.color.red()),
+                           static_cast<unsigned int>(annotation.color.green()),
+                           static_cast<unsigned int>(annotation.color.blue()),
+                           static_cast<unsigned int>(annotation.color.alpha()));
+    }
+
+    // 便签正文与作者。PDFium 要 UTF-16LE。
+    if (!annotation.contents.isEmpty()) {
+        const std::vector<unsigned short> contents = toWideString(annotation.contents);
+        FPDFAnnot_SetStringValue(annot, "Contents",
+                                  reinterpret_cast<const FPDF_WIDESTRING>(contents.data()));
+    }
+    if (!annotation.author.isEmpty()) {
+        const std::vector<unsigned short> author = toWideString(annotation.author);
+        FPDFAnnot_SetStringValue(annot, "T", reinterpret_cast<const FPDF_WIDESTRING>(author.data()));
+    }
+
+    // 高亮/下划线/删除线：逐行写四角点。
+    for (const QRectF& quad : annotation.quads) {
+        const double left = quad.left();
+        const double right = quad.right();
+        const double lower = qMin(quad.top(), quad.bottom());
+        const double upper = qMax(quad.top(), quad.bottom());
+        FS_QUADPOINTSF points = {};
+        // 四角顺序：左上、右上、左下、右下（FS_QUADPOINTSF 是扁平的八个浮点数）。
+        points.x1 = static_cast<float>(left);
+        points.y1 = static_cast<float>(upper);
+        points.x2 = static_cast<float>(right);
+        points.y2 = static_cast<float>(upper);
+        points.x3 = static_cast<float>(left);
+        points.y3 = static_cast<float>(lower);
+        points.x4 = static_cast<float>(right);
+        points.y4 = static_cast<float>(lower);
+        FPDFAnnot_AppendAttachmentPoints(annot, &points);
+    }
+
+    // 墨迹：逐条笔画。
+    for (const QVector<QPointF>& stroke : annotation.strokes) {
+        if (stroke.isEmpty()) {
+            continue;
+        }
+        std::vector<FS_POINTF> points;
+        points.reserve(static_cast<size_t>(stroke.size()));
+        for (const QPointF& point : stroke) {
+            points.push_back({static_cast<float>(point.x()), static_cast<float>(point.y())});
+        }
+        FPDFAnnot_AddInkStroke(annot, points.data(), points.size());
+    }
+
+    FPDFPage_CloseAnnot(annot);
+    return true;
 }
 
 }  // namespace
@@ -433,6 +541,108 @@ QVector<PageLink> PdfPage::links() const {
     return result;
 }
 
+QVector<Annotation> PdfPage::annotations() const {
+    if (!isValid()) {
+        return {};
+    }
+
+    const detail::PdfiumGuard guard;
+
+    QVector<Annotation> result;
+    const int count = FPDFPage_GetAnnotCount(impl_->page);
+    for (int index = 0; index < count; ++index) {
+        FPDF_ANNOTATION annot = FPDFPage_GetAnnot(impl_->page, index);
+        if (annot == nullptr) {
+            continue;
+        }
+        const int subtype = static_cast<int>(FPDFAnnot_GetSubtype(annot));
+        Annotation item;
+        if (!annotationTypeFromPdfium(subtype, &item.type)) {
+            // 链接、Widget 等不是本版本管理的批注类型。
+            FPDFPage_CloseAnnot(annot);
+            continue;
+        }
+        item.pageIndex = impl_->index;
+
+        FS_RECTF rect = {};
+        if (FPDFAnnot_GetRect(annot, &rect)) {
+            item.rect = fromFsRect(rect);
+        }
+
+        unsigned int r = 0;
+        unsigned int g = 0;
+        unsigned int b = 0;
+        unsigned int a = 255;
+        if (FPDFAnnot_GetColor(annot, FPDFANNOT_COLORTYPE_Color, &r, &g, &b, &a)) {
+            item.color = QColor(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b),
+                                static_cast<int>(a));
+        } else {
+            item.color = defaultAnnotationColor(item.type);
+        }
+
+        // 批注正文（Contents）。
+        const unsigned long needed =
+            FPDFAnnot_GetStringValue(annot, "Contents", nullptr, 0);
+        if (needed > 2 && needed < 65536) {
+            std::vector<unsigned short> buffer(needed / 2 + 2, 0);
+            const unsigned long written = FPDFAnnot_GetStringValue(
+                annot, "Contents", reinterpret_cast<FPDF_WCHAR*>(buffer.data()), needed);
+            if (written > 2 && written <= needed) {
+                item.contents = QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()),
+                                                   static_cast<int>(written / 2) - 1);
+            }
+        }
+
+        // 四角点（高亮一类）。
+        const size_t quadCount = FPDFAnnot_CountAttachmentPoints(annot);
+        for (size_t quad = 0; quad < quadCount; ++quad) {
+            FS_QUADPOINTSF points = {};
+            if (!FPDFAnnot_GetAttachmentPoints(annot, quad, &points)) {
+                continue;
+            }
+            const double left = qMin(points.x1, points.x3);
+            const double right = qMax(points.x2, points.x4);
+            const double lower = qMin(points.y1, points.y3);
+            const double upper = qMax(points.y2, points.y4);
+            item.quads.append(QRectF(QPointF(left, lower), QPointF(right, upper)).normalized());
+        }
+
+        FPDFPage_CloseAnnot(annot);
+        result.append(item);
+    }
+    return result;
+}
+
+bool PdfPage::setAnnotations(const QVector<Annotation>& annotations) {
+    if (!isValid()) {
+        return false;
+    }
+
+    const detail::PdfiumGuard guard;
+
+    // 先删掉上一次由本类写入的批注。
+    //
+    // 我们写的批注总是追加在页面原有批注之后，所以删的时候下标是固定的：
+    // 删掉一个，后面的会前移一位，下一个还是同一个下标。
+    int& written = impl_->document->writtenAnnotations[impl_->index];
+    const int total = FPDFPage_GetAnnotCount(impl_->page);
+    const int original = qMax(0, total - written);
+    for (int i = 0; i < written; ++i) {
+        FPDFPage_RemoveAnnot(impl_->page, original);
+    }
+    written = 0;
+
+    // 再写新的。
+    int created = 0;
+    for (const Annotation& annotation : annotations) {
+        if (createAnnotation(impl_->page, annotation)) {
+            ++created;
+        }
+    }
+    written = created;
+    return created == static_cast<int>(annotations.size());
+}
+
 std::optional<TextPage> PdfPage::extractText() const {
     if (!isValid()) {
         return std::nullopt;
@@ -513,8 +723,56 @@ std::optional<TextPage> PdfPage::extractText() const {
     return result;
 }
 
-// ------------------------------------------------------------- PdfDocument ----
+// ------------------------------------------------------- 批注类型 ↔ PDFium ----
 
+int annotationTypeToPdfium(AnnotationType type) {
+    switch (type) {
+        case AnnotationType::Highlight:
+            return FPDF_ANNOT_HIGHLIGHT;
+        case AnnotationType::Underline:
+            return FPDF_ANNOT_UNDERLINE;
+        case AnnotationType::StrikeOut:
+            return FPDF_ANNOT_STRIKEOUT;
+        case AnnotationType::Note:
+            return FPDF_ANNOT_TEXT;
+        case AnnotationType::Square:
+            return FPDF_ANNOT_SQUARE;
+        case AnnotationType::Ink:
+            return FPDF_ANNOT_INK;
+    }
+    return FPDF_ANNOT_UNKNOWN;
+}
+
+bool annotationTypeFromPdfium(int subtype, AnnotationType* out) {
+    if (out == nullptr) {
+        return false;
+    }
+    switch (subtype) {
+        case FPDF_ANNOT_HIGHLIGHT:
+            *out = AnnotationType::Highlight;
+            return true;
+        case FPDF_ANNOT_UNDERLINE:
+            *out = AnnotationType::Underline;
+            return true;
+        case FPDF_ANNOT_STRIKEOUT:
+            *out = AnnotationType::StrikeOut;
+            return true;
+        case FPDF_ANNOT_TEXT:
+            *out = AnnotationType::Note;
+            return true;
+        case FPDF_ANNOT_SQUARE:
+            *out = AnnotationType::Square;
+            return true;
+        case FPDF_ANNOT_INK:
+            *out = AnnotationType::Ink;
+            return true;
+        default:
+            // 链接、Widget 等不是本版本管理的批注类型。
+            return false;
+    }
+}
+
+// ------------------------------------------------------------- PdfDocument ----
 PdfDocument::PdfDocument(std::shared_ptr<detail::DocumentImpl> impl)
     : impl_(std::move(impl)) {}
 PdfDocument::~PdfDocument() = default;

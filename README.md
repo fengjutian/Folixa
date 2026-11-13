@@ -16,11 +16,15 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - **目录、书签与页面链接**：后台取回文档大纲（分层树）与页面链接注释，
   目录树/书签列表可点击跳转，内部链接跳页、外部链接交给系统浏览器，
   悬停在链接上显示手型光标
+- **基础批注与撤销重做**：高亮、下划线、删除线（作用于文字选区），
+  便签、矩形、墨迹（作用于页面区域）；批注模型 + 可序列化编辑命令 + 统一撤销栈，
+  Ctrl+Z / Ctrl+Shift+Z 撤销重做，批注面板可列出、跳转与删除；
+  批注同时写进 PDFium 文档，成为文档里真实的注释对象
 - 独立 `PdfAiWorker` 进程
 - 基于 `QLocalSocket`/`QLocalServer` 的版本化 JSON Lines IPC
 - Worker 自动启动、连接、超时和健康检查
 - Worker 跟随主程序退出：主程序被强制结束时 Worker 自行退出，不留孤儿进程
-- IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试与视口/缓存单元测试
+- IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试与批注/撤销栈单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
 PDF 索引与真实模型 Provider 将在后续里程碑接入。
@@ -122,12 +126,21 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-pdf.ps1
 .\build\windows-debug\bin\AiPdfEditor.exe 某个文件.pdf
 ```
 
+## 批注验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-annotations.ps1
+```
+
+用真实界面路径验证批注：拖选文字做高亮、切换矩形与墨迹工具拖拽、便签输入框，
+并检查批注是否写进了 PDFium 文档、撤销与重做是否同步、批注面板能否列出与删除。
+脚本会抢前台并用合成鼠标操作桌面，**只应在 CI 或空闲机器上运行**。
+
 ## 打包
 
 ```powershell
 cmake --build --preset windows-release --target package
 ```
-
 产出 `dist/ai-pdf-editor-<版本>-win64.zip`，内含主程序、Worker、Qt 运行库与平台插件、
 MinGW 运行库、`LICENSE`、`NOTICE.txt`、第三方许可证清单和 CycloneDX SBOM，
 同时写出 ZIP 的 SHA-256。
@@ -193,7 +206,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.6.0`](docs/versions/v0.6.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.7.0`](docs/versions/v0.7.0.md)，只有当前版本通过验收后才进入下一版本。
 
 ## 开发规范
 

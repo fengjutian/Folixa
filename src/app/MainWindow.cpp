@@ -3,8 +3,10 @@
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
 #include "app/NavigationController.h"
+#include "app/AnnotationController.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/Annotation.h"
 #include "pdf/Navigation.h"
 
 #include <QAction>
@@ -200,7 +202,21 @@ void MainWindow::buildUi() {
     auto* homeAction = commandBar->addAction(tr("阅读"));
     homeAction->setCheckable(true);
     homeAction->setChecked(true);
-    const QStringList futureCommands = {tr("批注"), tr("编辑"), tr("转换"),
+    // 批注已交付（v0.7.0）：点开就是批注面板。
+    auto* annotationAction = commandBar->addAction(tr("批注"));
+    annotationAction->setObjectName(QStringLiteral("commandAnnotation"));
+    annotationAction->setToolTip(tr("查看与删除批注"));
+    connect(annotationAction, &QAction::triggered, this, [this]() {
+        navigationDock_->setVisible(true);
+        if (navigationRail_ != nullptr) {
+            // 切到导航栏的批注页（第五个按钮）。
+            if (auto* button = navigationRail_->button(4)) {
+                button->click();
+            }
+        }
+        trace(QStringLiteral("open annotation panel"));
+    });
+    const QStringList futureCommands = {tr("编辑"), tr("转换"),
                                         tr("页面"), tr("保护"), tr("表单"), tr("工具")};
     for (const QString& label : futureCommands) {
         QAction* action = commandBar->addAction(label);
@@ -242,6 +258,8 @@ void MainWindow::buildUi() {
     // 目录页与书签页：同一份大纲的两种看法（树 / 扁平列表）。
     navigationPages->addWidget(createOutlineTab());
     navigationPages->addWidget(createBookmarkTab());
+    // 批注页：批注列表（v0.7.0）。
+    navigationPages->addWidget(createAnnotationTab());
     // 搜索页：全文搜索（v0.5.0）。
     searchPanel_ = new SearchPanel(navigationPages);
     navigationPages->addWidget(searchPanel_);
@@ -251,14 +269,16 @@ void MainWindow::buildUi() {
     const QStringList railIcons = {QStringLiteral(":/icons/pages.svg"),
                                    QStringLiteral(":/icons/outline.svg"),
                                    QStringLiteral(":/icons/bookmark.svg"),
-                                   QStringLiteral(":/icons/search.svg")};
-    const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索")};
+                                   QStringLiteral(":/icons/search.svg"),
+                                   QStringLiteral(":/icons/annotation.svg")};
+    const QStringList railTips = {tr("页面"), tr("目录"), tr("书签"), tr("搜索"), tr("批注")};
     // 每个按钮给一个独立的对象名：验收脚本靠它定位「目录」「书签」页签，
     // 靠按钮文字（图标按钮没有文字）会随主题改版一起失效。
     const QStringList railIds = {QStringLiteral("railButton.pages"),
                                  QStringLiteral("railButton.outline"),
                                  QStringLiteral("railButton.bookmarks"),
-                                 QStringLiteral("railButton.search")};
+                                 QStringLiteral("railButton.search"),
+                                 QStringLiteral("railButton.annotations")};
     for (int index = 0; index < railIcons.size(); ++index) {
         auto* button = new QToolButton(rail);
         button->setObjectName(railIds.at(index));
@@ -306,6 +326,22 @@ void MainWindow::buildUi() {
         navigateToOutlineTarget(item->data(Qt::UserRole).toInt(),
                                item->data(Qt::UserRole + 1).toString());
     });
+    connect(annotationList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+        if (item == nullptr) {
+            return;
+        }
+        const int pageIndex = item->data(Qt::UserRole + 1).toInt();
+        if (pageIndex < 0) {
+            return;
+        }
+        PdfView* view = currentView();
+        if (view != nullptr) {
+            view->goToPage(pageIndex);
+        }
+        trace(QStringLiteral("annotation goto page=%1").arg(pageIndex));
+    });
+    connect(annotationRemoveButton_, &QPushButton::clicked, this,
+            &MainWindow::removeSelectedAnnotation);
     navigationLayout->addWidget(rail);
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
@@ -474,6 +510,8 @@ void MainWindow::buildUi() {
         refreshThumbnails(view);
         // 目录与书签跟着当前文档走。
         bindNavigation(view);
+        // 批注列表也跟着当前文档走。
+        bindAnnotations(view);
         // 搜索面板跟着当前文档走：换标签页就换控制器。
         if (searchPanel_ != nullptr) {
             searchPanel_->setController(view != nullptr ? view->textController() : nullptr);
@@ -572,6 +610,95 @@ QStackedWidget* MainWindow::createBookmarkTab() {
     return stack;
 }
 
+// 批注页：批注列表 + 删除按钮（v0.7.0）。
+QStackedWidget* MainWindow::createAnnotationTab() {
+    auto* stack = new QStackedWidget(navigationPages_);
+    stack->addWidget(createNavigationEmptyState(
+        tr("暂无批注"), tr("选中文字后点「高亮」，或用便签、矩形、墨迹工具添加批注。")));
+
+    auto* content = new QWidget(stack);
+    auto* layout = new QVBoxLayout(content);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    annotationList_ = new QListWidget(content);
+    annotationList_->setObjectName(QStringLiteral("annotationList"));
+    layout->addWidget(annotationList_, 1);
+    annotationRemoveButton_ = new QPushButton(tr("删除所选批注"), content);
+    annotationRemoveButton_->setObjectName(QStringLiteral("annotationRemove"));
+    layout->addWidget(annotationRemoveButton_);
+
+    stack->addWidget(content);
+    annotationStack_ = stack;
+    return stack;
+}
+
+void MainWindow::bindAnnotations(PdfView* view) {
+    AnnotationController* controller =
+        view != nullptr ? view->annotationController() : nullptr;
+    if (controller == boundAnnotations_) {
+        return;
+    }
+    // 换文档时把上一个控制器的连接断掉，否则刷新会打到别的文档上。
+    if (annotationConnection_) {
+        QObject::disconnect(annotationConnection_);
+        annotationConnection_ = QMetaObject::Connection();
+    }
+    boundAnnotations_ = controller;
+    if (controller != nullptr) {
+        annotationConnection_ = connect(controller, &AnnotationController::annotationsChanged,
+                                       this, [this]() {
+                                           refreshAnnotations(currentView());
+                                       });
+    }
+    refreshAnnotations(view);
+}
+
+void MainWindow::refreshAnnotations(PdfView* view) {
+    if (annotationList_ == nullptr) {
+        return;
+    }
+    annotationList_->clear();
+
+    AnnotationController* controller =
+        view != nullptr ? view->annotationController() : nullptr;
+    const QVector<pdf::Annotation> annotations =
+        controller != nullptr ? controller->allAnnotations() : QVector<pdf::Annotation>();
+
+    if (annotationStack_ != nullptr) {
+        annotationStack_->setCurrentIndex(annotations.isEmpty() ? 0 : 1);
+    }
+    if (annotationRemoveButton_ != nullptr) {
+        annotationRemoveButton_->setEnabled(!annotations.isEmpty());
+    }
+
+    for (const pdf::Annotation& annotation : annotations) {
+        auto* item = new QListWidgetItem(annotationList_);
+        QString summary = pdf::annotationTypeName(annotation.type);
+        if (!annotation.contents.isEmpty()) {
+            summary += QStringLiteral(" · ") + annotation.contents;
+        }
+        item->setText(tr("第 %1 页 · %2").arg(annotation.pageIndex + 1).arg(summary));
+        item->setData(Qt::UserRole, static_cast<qulonglong>(annotation.id));
+        item->setData(Qt::UserRole + 1, annotation.pageIndex);
+        item->setToolTip(tr("跳转到第 %1 页").arg(annotation.pageIndex + 1));
+    }
+    trace(QStringLiteral("panel annotations items=%1").arg(annotations.size()));
+}
+
+void MainWindow::removeSelectedAnnotation() {
+    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = annotationList_->currentItem();
+    if (item == nullptr) {
+        return;
+    }
+    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+    if (boundAnnotations_->removeAnnotation(id)) {
+        statusBar()->showMessage(tr("已删除批注"), 3000);
+    }
+}
+
 PdfView* MainWindow::currentView() const {
     return qobject_cast<PdfView*>(tabs_->currentWidget());
 }
@@ -661,6 +788,10 @@ void MainWindow::traceNavigationPanel(int index) {
         case 2:
             trace(QStringLiteral("panel bookmarks items=%1")
                       .arg(bookmarkList_ != nullptr ? bookmarkList_->count() : 0));
+            break;
+        case 4:
+            trace(QStringLiteral("panel annotations items=%1")
+                      .arg(annotationList_ != nullptr ? annotationList_->count() : 0));
             break;
         default:
             break;
@@ -814,7 +945,14 @@ void MainWindow::openPdfFile(const QString& filePath) {
     tabs_->setCurrentWidget(view);
     refreshThumbnails(view);
     bindNavigation(view);
+    bindAnnotations(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
+    connect(view, &PdfView::statusMessage, this, [this](const QString& text) {
+        statusBar()->showMessage(text, 3000);
+    });
+    connect(view, &PdfView::annotationsChanged, this, [this](int count) {
+        trace(QStringLiteral("annotations total=%1").arg(count));
+    });
     connect(view, &PdfView::textCopied, this, [this](int characters) {
         statusBar()->showMessage(tr("已复制 %1 个字符到剪贴板").arg(characters), 3000);
     });

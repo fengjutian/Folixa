@@ -4,12 +4,15 @@
 #include "app/TextController.h"
 #include "app/TextLayout.h"
 #include "app/NavigationController.h"
+#include "app/AnnotationController.h"
+#include "pdf/Annotation.h"
 
 #include <QDateTime>
 #include <QFile>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPolygonF>
 #include <QScrollBar>
 
 #include <algorithm>
@@ -32,6 +35,22 @@ void trace(const QString& message) {
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
+}
+
+// 便签图标：一块带折角的便签纸。
+void paintNoteIcon(QPainter& painter, const QRectF& rect, const QColor& color) {
+    painter.setPen(QPen(color.darker(150), 1.0));
+    painter.setBrush(color);
+    painter.drawRect(rect);
+
+    // 右下角的折角。
+    QPolygonF corner;
+    corner << rect.bottomRight()
+           << QPointF(rect.right() - rect.width() * 0.45, rect.bottom())
+           << QPointF(rect.right(), rect.bottom() - rect.height() * 0.45);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color.darker(170));
+    painter.drawPolygon(corner);
 }
 }  // namespace
 
@@ -87,6 +106,19 @@ void PageCanvas::setNavigationController(NavigationController* controller) {
 
 NavigationController* PageCanvas::navigationController() const {
     return navigationController_;
+}
+
+void PageCanvas::setAnnotationController(AnnotationController* controller) {
+    annotationController_ = controller;
+    if (controller != nullptr) {
+        connect(controller, &AnnotationController::toolChanged,
+                this, &PageCanvas::updateToolCursor);
+    }
+    updateToolCursor();
+}
+
+AnnotationController* PageCanvas::annotationController() const {
+    return annotationController_;
 }
 
 int PageCanvas::currentPage() const {
@@ -183,7 +215,145 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
 
         // 文本高亮画在页面图像之上。
         paintHighlights(painter, index, pageRect, layout_.zoom());
+        // 批注画在最上层。
+        paintAnnotations(painter, index, pageRect, layout_.zoom());
+        // 正在拖的批注工具的预览。
+        if (index == drawPage_) {
+            paintAnnotationPreview(painter, pageRect, layout_.zoom());
+        }
     }
+}
+
+void PageCanvas::paintAnnotations(QPainter& painter,
+                                  int pageIndex,
+                                  const QRectF& pageRect,
+                                  double zoom) const {
+    if (annotationController_ == nullptr) {
+        return;
+    }
+    const QVector<pdf::Annotation> annotations =
+        annotationController_->annotationsForPage(pageIndex);
+    if (annotations.isEmpty()) {
+        return;
+    }
+
+    PageTransform transform;
+    if (!annotationController_->transformForPage(pageIndex, &transform)) {
+        return;
+    }
+
+    for (const pdf::Annotation& annotation : annotations) {
+        switch (annotation.type) {
+            case pdf::AnnotationType::Highlight: {
+                // 高亮：逐行铺一层半透明底色。
+                QColor fill = annotation.color;
+                fill.setAlpha(105);
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(fill);
+                for (const QRectF& quad : annotation.quads) {
+                    painter.drawRect(toViewportRect(transform.toDisplay(quad), pageRect, zoom));
+                }
+                break;
+            }
+            case pdf::AnnotationType::Underline: {
+                // 下划线：贴着每行的下沿画一条线。
+                painter.setPen(QPen(annotation.color, 1.6));
+                painter.setBrush(Qt::NoBrush);
+                for (const QRectF& quad : annotation.quads) {
+                    const QRectF rect = toViewportRect(transform.toDisplay(quad), pageRect, zoom);
+                    painter.drawLine(QPointF(rect.left(), rect.bottom()),
+                                     QPointF(rect.right(), rect.bottom()));
+                }
+                break;
+            }
+            case pdf::AnnotationType::StrikeOut: {
+                // 删除线：画在每行的中间。
+                painter.setPen(QPen(annotation.color, 1.6));
+                painter.setBrush(Qt::NoBrush);
+                for (const QRectF& quad : annotation.quads) {
+                    const QRectF rect = toViewportRect(transform.toDisplay(quad), pageRect, zoom);
+                    const double y = rect.center().y();
+                    painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y));
+                }
+                break;
+            }
+            case pdf::AnnotationType::Note: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                paintNoteIcon(painter, rect, annotation.color);
+                break;
+            }
+            case pdf::AnnotationType::Square: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                QColor fill = annotation.color;
+                fill.setAlpha(38);
+                painter.setPen(QPen(annotation.color, 1.6));
+                painter.setBrush(fill);
+                painter.drawRect(rect);
+                break;
+            }
+            case pdf::AnnotationType::Ink: {
+                painter.setPen(QPen(annotation.color, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                painter.setBrush(Qt::NoBrush);
+                for (const QVector<QPointF>& stroke : annotation.strokes) {
+                    if (stroke.size() < 2) {
+                        continue;
+                    }
+                    QPolygonF polyline;
+                    for (const QPointF& point : stroke) {
+                        const QPointF display = transform.toDisplay(point);
+                        polyline << QPointF(pageRect.left() + display.x() * zoom,
+                                            pageRect.top() + display.y() * zoom);
+                    }
+                    painter.drawPolyline(polyline);
+                }
+                break;
+            }
+        }
+    }
+}
+
+void PageCanvas::paintAnnotationPreview(QPainter& painter,
+                                        const QRectF& pageRect,
+                                        double zoom) const {
+    if (annotationController_ == nullptr || drawPage_ < 0) {
+        return;
+    }
+    PageTransform transform;
+    if (!annotationController_->transformForPage(drawPage_, &transform)) {
+        return;
+    }
+    painter.setPen(QPen(QColor(64, 124, 235), 1.4, Qt::DashLine));
+    painter.setBrush(Qt::NoBrush);
+
+    if (drawingSquare_) {
+        const QPointF a = transform.toUserSpace(drawAnchor_);
+        const QPointF b = transform.toUserSpace(drawCurrent_);
+        const QRectF rect = toViewportRect(transform.toDisplay(QRectF(a, b).normalized()),
+                                          pageRect,
+                                          zoom);
+        painter.drawRect(rect);
+        return;
+    }
+    if (drawingInk_ && inkPoints_.size() >= 2) {
+        QPolygonF polyline;
+        for (const QPointF& point : inkPoints_) {
+            const QPointF display = transform.toDisplay(transform.toUserSpace(point));
+            polyline << QPointF(pageRect.left() + display.x() * zoom,
+                                pageRect.top() + display.y() * zoom);
+        }
+        painter.drawPolyline(polyline);
+    }
+}
+
+QPointF PageCanvas::toUserSpacePoint(int pageIndex, const QPointF& displayPoint) const {
+    if (annotationController_ == nullptr) {
+        return displayPoint;
+    }
+    PageTransform transform;
+    if (!annotationController_->transformForPage(pageIndex, &transform)) {
+        return displayPoint;
+    }
+    return transform.toUserSpace(displayPoint);
 }
 
 void PageCanvas::paintHighlights(QPainter& painter,
@@ -319,6 +489,39 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
+    // 批注工具优先：工具激活时不进文字拖选，也不触发链接。
+    if (annotationController_ != nullptr) {
+        const auto tool = annotationController_->tool();
+        if (tool != AnnotationController::Tool::None) {
+            selecting_ = false;
+            if (tool == AnnotationController::Tool::Note) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool note page=%1").arg(pageIndex));
+                emit noteAnnotationRequested(pageIndex, userPoint);
+                viewport()->update();
+                return;
+            }
+            if (tool == AnnotationController::Tool::Square) {
+                drawingSquare_ = true;
+                drawPage_ = pageIndex;
+                drawAnchor_ = displayPoint;
+                drawCurrent_ = displayPoint;
+                trace(QStringLiteral("annotation tool square page=%1").arg(pageIndex));
+                viewport()->update();
+                return;
+            }
+            if (tool == AnnotationController::Tool::Ink) {
+                drawingInk_ = true;
+                drawPage_ = pageIndex;
+                inkPoints_.clear();
+                inkPoints_.append(displayPoint);
+                trace(QStringLiteral("annotation tool ink page=%1").arg(pageIndex));
+                viewport()->update();
+                return;
+            }
+        }
+    }
+
     // 链接优先：点在链接热区上就激活链接，不进入文字拖选。
     if (navigationController_ != nullptr) {
         const int hit = navigationController_->hitLink(pageIndex, displayPoint);
@@ -364,6 +567,21 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
 void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseMoveEvent(event);
     updateLinkCursor(event->pos());
+
+    // 批注工具的拖拽中：只收本页的点。
+    if (drawingSquare_ || drawingInk_) {
+        int pageIndex = -1;
+        QPointF displayPoint;
+        if (pagePointAt(event->pos(), &pageIndex, &displayPoint) && pageIndex == drawPage_) {
+            drawCurrent_ = displayPoint;
+            if (drawingInk_) {
+                inkPoints_.append(displayPoint);
+            }
+            viewport()->update();
+        }
+        return;
+    }
+
     if (!selecting_ || textController_ == nullptr) {
         return;
     }
@@ -388,6 +606,12 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
+    // 批注工具激活时，光标归工具管：链接判定不能把它改成手型或箭头。
+    if (annotationController_ != nullptr &&
+        annotationController_->tool() != AnnotationController::Tool::None) {
+        viewport()->setCursor(Qt::CrossCursor);
+        return;
+    }
     if (navigationController_ == nullptr) {
         viewport()->setCursor(Qt::ArrowCursor);
         return;
@@ -410,16 +634,47 @@ void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
 
 void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseReleaseEvent(event);
-    if (event->button() == Qt::LeftButton) {
-        if (selecting_ && textController_ != nullptr) {
-            const QString text = textController_->selectedText();
-            trace(QStringLiteral("selection page=%1 chars=%2 text=%3")
-                      .arg(textController_->selectionPage())
-                      .arg(text.size())
-                      .arg(text));
-        }
-        selecting_ = false;
+    if (event->button() != Qt::LeftButton) {
+        return;
     }
+
+    // 批注工具：拖拽结束，生成批注。
+    if (drawingSquare_ || drawingInk_) {
+        const int pageIndex = drawPage_;
+        if (drawingSquare_) {
+            const QPointF a = toUserSpacePoint(pageIndex, drawAnchor_);
+            const QPointF b = toUserSpacePoint(pageIndex, drawCurrent_);
+            drawingSquare_ = false;
+            drawPage_ = -1;
+            viewport()->update();
+            if (a != b) {
+                emit squareAnnotationRequested(pageIndex, QRectF(a, b).normalized());
+            }
+            return;
+        }
+        QVector<QPointF> stroke;
+        stroke.reserve(inkPoints_.size());
+        for (const QPointF& point : inkPoints_) {
+            stroke.append(toUserSpacePoint(pageIndex, point));
+        }
+        drawingInk_ = false;
+        drawPage_ = -1;
+        inkPoints_.clear();
+        viewport()->update();
+        if (stroke.size() >= 2) {
+            emit inkAnnotationRequested(pageIndex, stroke);
+        }
+        return;
+    }
+
+    if (selecting_ && textController_ != nullptr) {
+        const QString text = textController_->selectedText();
+        trace(QStringLiteral("selection page=%1 chars=%2 text=%3")
+                  .arg(textController_->selectionPage())
+                  .arg(text.size())
+                  .arg(text));
+    }
+    selecting_ = false;
 }
 
 void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
@@ -447,6 +702,18 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     }
     textController_->setSelection(pageIndex, start, end);
     viewport()->update();
+}
+
+void PageCanvas::updateToolCursor() {
+    const bool drawing = annotationController_ != nullptr &&
+                         annotationController_->tool() != AnnotationController::Tool::None;
+    if (drawing) {
+        viewport()->setCursor(Qt::CrossCursor);
+        return;
+    }
+    // 退出工具模式后把光标交回链接判定。
+    overLink_ = false;
+    viewport()->setCursor(Qt::ArrowCursor);
 }
 
 double PageCanvas::pageLeft(int index) const {

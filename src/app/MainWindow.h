@@ -26,6 +26,7 @@ namespace aipdf::app {
 class PdfView;
 class SearchPanel;
 class NavigationController;
+class AnnotationController;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -45,6 +46,7 @@ private:
     QWidget* createNavigationEmptyState(const QString& title, const QString& description);
     QStackedWidget* createOutlineTab();
     QStackedWidget* createBookmarkTab();
+    QStackedWidget* createAnnotationTab();
     void openPdfDialog();
     void sendHealthCheck();
     void sendEcho();
@@ -54,6 +56,11 @@ private:
     // 把导航面板绑到当前文档的导航控制器上，并刷新目录与书签。
     void bindNavigation(PdfView* view);
     void refreshOutline(PdfView* view);
+    // 把批注面板绑到当前文档的批注控制器上，并刷新批注列表。
+    void bindAnnotations(PdfView* view);
+    void refreshAnnotations(PdfView* view);
+    // 删除批注面板里选中的批注。
+    void removeSelectedAnnotation();
     // 当前标签页的文档视图；不是文档页时返回 nullptr。
     PdfView* currentView() const;
     // 目录树里点到某个条目：跳到它的目标页。
@@ -81,6 +88,13 @@ private:
     // 书签页：同一份大纲的扁平列表（v0.6.0）。
     QStackedWidget* bookmarkStack_ = nullptr;
     QListWidget* bookmarkList_ = nullptr;
+    // 批注页：批注列表（v0.7.0）。
+    QStackedWidget* annotationStack_ = nullptr;
+    QListWidget* annotationList_ = nullptr;
+    QPushButton* annotationRemoveButton_ = nullptr;
+    // 当前绑定的批注控制器；换文档时要把上一个的连接断掉。
+    AnnotationController* boundAnnotations_ = nullptr;
+    QMetaObject::Connection annotationConnection_;
     // 当前绑定的导航控制器；换文档时要把上一个的连接断掉。
     NavigationController* boundNavigation_ = nullptr;
     QMetaObject::Connection navigationConnection_;

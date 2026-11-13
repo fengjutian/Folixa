@@ -233,21 +233,21 @@ function Invoke-AiPdfDialogButton {
     return $false
 }
 
-function Enter-AiPdfDialogPassword {
+function Enter-AiPdfDialogText {
     <#
     .SYNOPSIS
-        等待标题匹配的对话框出现，填写密码并确定。成功返回 $true。
+        等待标题匹配的对话框出现，填入文本并确定。成功返回 $true。
     .DESCRIPTION
         只用控件级 InvokePattern 点击确定按钮：不要用键盘兜底，
         回车键会发给前台窗口，在连续跑多个场景时可能打到下一个进程的对话框上。
 
-        密码框的 UIA 元素可能在写入前就失效，所以整段流程按次重试：
+        输入框的 UIA 元素可能在写入前就失效，所以整段流程按次重试：
         每次重新取对话框和输入框，而不是复用上一次的元素。
     #>
     param(
         [Parameter(Mandatory = $true)]
         [System.Diagnostics.Process]$Process,
-        [Parameter(Mandatory = $true)][string]$Password,
+        [Parameter(Mandatory = $true)][string]$Text,
         [string]$TitlePattern = '需要密码',
         [int]$TimeoutSeconds = 15,
         [int]$MaxAttempts = 3
@@ -276,7 +276,7 @@ function Enter-AiPdfDialogPassword {
                 Start-Sleep -Milliseconds 300
                 continue
             }
-            if (-not (Set-AiPdfElementText -Element $edit -Text $Password)) {
+            if (-not (Set-AiPdfElementText -Element $edit -Text $Text)) {
                 continue
             }
 
@@ -295,6 +295,24 @@ function Enter-AiPdfDialogPassword {
         }
     }
     return $false
+}
+
+function Enter-AiPdfDialogPassword {
+    <#
+    .SYNOPSIS
+        等待标题匹配的对话框出现，填写密码并确定。成功返回 $true。
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Password,
+        [string]$TitlePattern = '需要密码',
+        [int]$TimeoutSeconds = 15,
+        [int]$MaxAttempts = 3
+    )
+
+    return (Enter-AiPdfDialogText -Process $Process -Text $Password `
+        -TitlePattern $TitlePattern -TimeoutSeconds $TimeoutSeconds -MaxAttempts $MaxAttempts)
 }
 
 function Wait-AiPdfTextMatch {

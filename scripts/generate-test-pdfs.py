@@ -642,6 +642,49 @@ def navigation_pdf():
     return _build_pdf(objects, 1)
 
 
+def annotation_pdf():
+    """带文本层的批注验收文档：用于批注创建、撤销与重做验收。
+
+    第 1 页四行文字的位置固定，验收脚本据此拖选与拖拽：
+
+      - 第 2 行（y=260）：拖选一段文字做高亮；
+      - 第 3 行（y=212）：拖出一个矩形；
+      - 第 4 行（y=164）：拖出一笔墨迹。
+
+    第 2 页单独放一行文字：验证批注是**按页**存放的，
+    第 1 页的批注不会跑到第 2 页上。
+    """
+    page_one = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"
+    )
+    page_two = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>"
+    )
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+        (3, page_one),
+        (4, page_two),
+        (5, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]
+
+    first = _page_content_stream([
+        ("Annotation demo", 28, 60, 330),
+        ("Select this sentence to highlight it.", 14, 60, 260),
+        ("Drag with the square tool to draw a box.", 14, 60, 212),
+        ("Drag with the ink tool to draw a stroke.", 14, 60, 164),
+    ])
+    second = _page_content_stream([
+        ("Second page", 28, 60, 330),
+        ("Annotations belong to their own page.", 14, 60, 260),
+    ])
+    objects.append((6, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(first), first)))
+    objects.append((7, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(second), second)))
+    return _build_pdf(objects, 1)
+
+
 FIXTURES = {
     "normal.pdf": normal_pdf,
     "empty.pdf": empty_pdf,
@@ -654,6 +697,7 @@ FIXTURES = {
     "text.pdf": text_pdf,
     "cjk.pdf": cjk_pdf,
     "navigation.pdf": navigation_pdf,
+    "annotation.pdf": annotation_pdf,
 }
 
 

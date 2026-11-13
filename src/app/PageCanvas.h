@@ -17,6 +17,7 @@ namespace aipdf::app {
 class RenderThread;
 class TextController;
 class NavigationController;
+class AnnotationController;
 
 // 连续页面画布：把所有页面画在一张虚拟的长文档上，按视口裁剪。
 //
@@ -44,6 +45,10 @@ public:
     void setNavigationController(NavigationController* controller);
     NavigationController* navigationController() const;
 
+    // 绑定批注控制器：批注绘制与画布上的批注工具都靠它。
+    void setAnnotationController(AnnotationController* controller);
+    AnnotationController* annotationController() const;
+
     // 当前视口顶页（从 1 开始，供界面显示）。
     int currentPage() const;
 
@@ -59,6 +64,12 @@ signals:
     void renderRequested(int firstPage, int lastPage);
     // 链接被点击：内部跳转给出目标页（从 0 开始），外部链接给出地址。
     void linkActivated(int pageIndex, int targetPage, const QString& uri);
+    // 便签工具：点在页面上，要放一个便签（坐标是 PDF user space）。
+    void noteAnnotationRequested(int pageIndex, const QPointF& userSpacePoint);
+    // 矩形工具：拖出一块（坐标是 PDF user space）。
+    void squareAnnotationRequested(int pageIndex, const QRectF& userSpaceRect);
+    // 墨迹工具：拖出一笔（坐标是 PDF user space）。
+    void inkAnnotationRequested(int pageIndex, const QVector<QPointF>& userSpaceStroke);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -75,6 +86,7 @@ private:
     RenderThread* renderThread_ = nullptr;
     TextController* textController_ = nullptr;
     NavigationController* navigationController_ = nullptr;
+    AnnotationController* annotationController_ = nullptr;
     int currentPage_ = 0;
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;
@@ -85,6 +97,13 @@ private:
     bool overLink_ = false;
     int anchorPage_ = -1;
     int anchorOrder_ = -1;
+    // 正在用批注工具拖拽（矩形 / 墨迹）：坐标都在显示空间。
+    bool drawingSquare_ = false;
+    bool drawingInk_ = false;
+    int drawPage_ = -1;
+    QPointF drawAnchor_;
+    QPointF drawCurrent_;
+    QVector<QPointF> inkPoints_;
 
     void updateScrollRange();
     void requestVisiblePages();
@@ -95,8 +114,21 @@ private:
     QRectF toViewportRect(const QRectF& displayRect, const QRectF& pageRect, double zoom) const;
     // 画搜索高亮与选区高亮。
     void paintHighlights(QPainter& painter, int pageIndex, const QRectF& pageRect, double zoom) const;
+    // 画批注（按模型绘制：PDFium 不会渲染没有外观流的批注）。
+    void paintAnnotations(QPainter& painter,
+                          int pageIndex,
+                          const QRectF& pageRect,
+                          double zoom) const;
+    // 正在拖的批注工具的预览。
+    void paintAnnotationPreview(QPainter& painter,
+                                const QRectF& pageRect,
+                                double zoom) const;
     // 按指针位置更新光标：悬在链接上时给手型。
     void updateLinkCursor(const QPoint& viewportPos);
+    // 显示空间点 → 用户空间点（批注的坐标一律用用户空间）。
+    QPointF toUserSpacePoint(int pageIndex, const QPointF& displayPoint) const;
+    // 批注工具激活时把光标换成十字，退出时恢复。
+    void updateToolCursor();
 };
 
 }  // namespace aipdf::app

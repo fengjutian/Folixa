@@ -18,6 +18,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/TextController.cpp
     app/NavigationController.h
     app/NavigationController.cpp
+    app/AnnotationController.h
+    app/AnnotationController.cpp
     app/LinkHitTest.h
     app/LinkHitTest.cpp
     app/SearchPanel.h
@@ -32,10 +34,18 @@ qt_add_executable(AiPdfEditor WIN32
     ipc/IpcProtocol.h
     pdf/PdfiumAdapter.cpp
     pdf/PdfiumAdapter.h
+    pdf/Annotation.cpp
+    pdf/Annotation.h
     pdf/Navigation.cpp
     pdf/Navigation.h
     pdf/TextPage.cpp
     pdf/TextPage.h
+    doc/AnnotationModel.cpp
+    doc/AnnotationModel.h
+    doc/EditCommand.cpp
+    doc/EditCommand.h
+    doc/UndoStack.cpp
+    doc/UndoStack.h
 )
 
 qt_add_resources(AiPdfEditor "app_icons"
@@ -46,6 +56,7 @@ qt_add_resources(AiPdfEditor "app_icons"
         app/icons/outline.svg
         app/icons/bookmark.svg
         app/icons/search.svg
+        app/icons/annotation.svg
         app/icons/send.svg
 )
 

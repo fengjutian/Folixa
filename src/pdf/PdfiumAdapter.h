@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QString>
 
+#include "pdf/Annotation.h"
 #include "pdf/Navigation.h"
 #include "pdf/TextPage.h"
 
@@ -70,6 +71,23 @@ public:
     // 页面没有链接时返回空列表。
     QVector<PageLink> links() const;
 
+    // 本页的批注（不含链接注释）。
+    //
+    // 矩形是 **PDF user space**（左下原点），与字符框同一坐标系。
+    //
+    // 注意：PDFium 只会渲染**自带外观流（/AP）**的批注。
+    // 新建的批注没有 /AP，而且 159 的公开 API 无法生成合规的 /AP
+    // （FPDFAnnot_SetAP 只写字典、不建 XObject，见 fpdf_annot.h 的说明），
+    // 所以这些批注**在 PDFium 的渲染里是看不见的**——显示由应用层负责。
+    // 本函数保证的是数据在：写进去能读回来，撤销时能删干净。
+    QVector<Annotation> annotations() const;
+
+    // 把一批批注写进本页：先删掉上一次由本类写入的批注，再写新的。
+    //
+    // 这是「模型 → 文档」的单向投影：调用方要保证传入的是**该页的全部批注**。
+    // 撤销时再调用一次即可（传空列表就是全撤掉）。
+    bool setAnnotations(const QVector<Annotation>& annotations);
+
 private:
     std::shared_ptr<detail::PageImpl> impl_;
     explicit PdfPage(std::shared_ptr<detail::PageImpl> impl);
@@ -123,6 +141,12 @@ struct PdfOpenResult {
 
 // 打开 PDF。filePath 不存在、格式损坏或密码错误时返回失败结果，不抛异常。
 PdfOpenResult openDocument(const QString& filePath, const QString& password = QString());
+
+// 批注类型 ↔ PDFium 注释子类型（FPDF_ANNOT_*）。
+// 放在适配层是因为 PDFium 的常量不能漏进纯数据层。
+int annotationTypeToPdfium(AnnotationType type);
+// PDFium 子类型 → 批注类型。链接等不认识的类型返回 false。
+bool annotationTypeFromPdfium(int subtype, AnnotationType* out);
 
 // 安全上限：文件大小与渲染像素。
 inline constexpr qint64 kMaxPdfFileSizeBytes = 256LL * 1024 * 1024;

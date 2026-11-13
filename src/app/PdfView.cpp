@@ -4,6 +4,8 @@
 #include "app/RenderThread.h"
 #include "app/TextController.h"
 #include "app/NavigationController.h"
+#include "app/AnnotationController.h"
+#include "pdf/Annotation.h"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -11,7 +13,9 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QShortcut>
 #include <QSizePolicy>
 #include <QTimer>
@@ -119,6 +123,8 @@ void PdfView::buildUi() {
     toolBar->addWidget(pageInfoLabel_);
     layout->addWidget(toolBar);
 
+    buildAnnotationToolBar();
+
     auto* zoomInShortcut = new QShortcut(QKeySequence::ZoomIn, this);
     connect(zoomInShortcut, &QShortcut::activated, this, &PdfView::zoomIn);
     auto* zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
@@ -148,8 +154,116 @@ void PdfView::buildUi() {
     updateMetrics();
 }
 
-bool PdfView::load(const QString& path, QString* errorMessage) {
-    const pdf::PdfOpenResult result = pdf::openDocument(path);
+// 批注工具栏：三种基于选区的标记 + 三种画布工具 + 撤销重做。
+//
+// 按钮给独立的对象名：验收脚本靠 AutomationId 定位，
+// 靠按钮文字会随主题改版一起失效。
+void PdfView::buildAnnotationToolBar() {
+    auto* toolBar = new QToolBar(this);
+    toolBar->setObjectName(QStringLiteral("annotationToolBar"));
+    toolBar->setMovable(false);
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+
+    auto makeButton = [toolBar](const QString& text,
+                                const QString& tip,
+                                const QString& objectName) {
+        auto* button = new QToolButton(toolBar);
+        button->setText(text);
+        button->setToolTip(tip);
+        button->setObjectName(objectName);
+        return button;
+    };
+
+    highlightButton_ = makeButton(QStringLiteral("高亮"),
+                                   QStringLiteral("给选中的文字加高亮 (Ctrl+H)"),
+                                   QStringLiteral("annotation.highlight"));
+    underlineButton_ = makeButton(QStringLiteral("下划线"),
+                                   QStringLiteral("给选中的文字加下划线 (Ctrl+U)"),
+                                   QStringLiteral("annotation.underline"));
+    strikeOutButton_ = makeButton(QStringLiteral("删除线"),
+                                  QStringLiteral("给选中的文字加删除线"),
+                                  QStringLiteral("annotation.strikethrough"));
+    noteButton_ = makeButton(QStringLiteral("便签"),
+                              QStringLiteral("在页面上放一个便签"),
+                              QStringLiteral("annotation.note"));
+    squareButton_ = makeButton(QStringLiteral("矩形"),
+                                QStringLiteral("在页面上画一个矩形"),
+                                QStringLiteral("annotation.square"));
+    inkButton_ = makeButton(QStringLiteral("墨迹"),
+                             QStringLiteral("在页面上画一笔"),
+                             QStringLiteral("annotation.ink"));
+    undoButton_ = makeButton(QStringLiteral("撤销"),
+                              QStringLiteral("撤销上一步批注操作 (Ctrl+Z)"),
+                              QStringLiteral("annotation.undo"));
+    redoButton_ = makeButton(QStringLiteral("重做"),
+                              QStringLiteral("重做上一步批注操作 (Ctrl+Shift+Z)"),
+                              QStringLiteral("annotation.redo"));
+
+    toolBar->addWidget(highlightButton_);
+    toolBar->addWidget(underlineButton_);
+    toolBar->addWidget(strikeOutButton_);
+    toolBar->addSeparator();
+    toolBar->addWidget(noteButton_);
+    toolBar->addWidget(squareButton_);
+    toolBar->addWidget(inkButton_);
+    toolBar->addSeparator();
+    toolBar->addWidget(undoButton_);
+    toolBar->addWidget(redoButton_);
+
+    connect(highlightButton_, &QToolButton::clicked, this, [this]() {
+        applyMarkAnnotation(pdf::AnnotationType::Highlight);
+    });
+    connect(underlineButton_, &QToolButton::clicked, this, [this]() {
+        applyMarkAnnotation(pdf::AnnotationType::Underline);
+    });
+    connect(strikeOutButton_, &QToolButton::clicked, this, [this]() {
+        applyMarkAnnotation(pdf::AnnotationType::StrikeOut);
+    });
+
+    // 画布工具是互斥的：再点一次同一个按钮就退出工具模式。
+    noteButton_->setCheckable(true);
+    squareButton_->setCheckable(true);
+    inkButton_->setCheckable(true);
+    noteButton_->setAutoExclusive(true);
+    squareButton_->setAutoExclusive(true);
+    inkButton_->setAutoExclusive(true);
+    connect(noteButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Note
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(squareButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Square
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(inkButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Ink
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+
+    connect(undoButton_, &QToolButton::clicked, this, &PdfView::undoAnnotation);
+    connect(redoButton_, &QToolButton::clicked, this, &PdfView::redoAnnotation);
+
+    // 撤销 / 重做快捷键：放在视图上，焦点在输入框时也能用。
+    auto* undoShortcut = new QShortcut(QKeySequence::Undo, this);
+    connect(undoShortcut, &QShortcut::activated, this, &PdfView::undoAnnotation);
+    auto* redoShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+Z")), this);
+    connect(redoShortcut, &QShortcut::activated, this, &PdfView::redoAnnotation);
+
+    // 工具栏要挂在文档工具栏下面。
+    auto* layout = qobject_cast<QVBoxLayout*>(this->layout());
+    if (layout != nullptr) {
+        layout->insertWidget(1, toolBar);
+    }
+    updateAnnotationToolBar();
+}
+
+bool PdfView::load(const QString& path, QString* errorMessage) {    const pdf::PdfOpenResult result = pdf::openDocument(path);
     if (!result.document.isValid()) {
         if (errorMessage != nullptr) {
             *errorMessage = result.errorMessage;
@@ -179,6 +293,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     // 选区、搜索命中与新到的文本层都要让画布重画。
     connect(textController_.get(), &TextController::selectionChanged, this, [this]() {
         canvas_->viewport()->update();
+        // 选区变了，标记类批注按钮的可用状态也跟着变。
+        updateAnnotationToolBar();
     });
     connect(textController_.get(), &TextController::searchHitsFound, this, [this](int) {
         canvas_->viewport()->update();
@@ -218,6 +334,60 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 emit linkFollowed(-1, uri);
             });
 
+    // 批注控制器：持有批注模型、撤销栈，并把批注写进文档。
+    annotationController_ = std::make_unique<AnnotationController>(document_);
+    canvas_->setAnnotationController(annotationController_.get());
+    connect(annotationController_.get(), &AnnotationController::annotationsChanged, this,
+            [this](int) {
+                canvas_->viewport()->update();
+                emit annotationsChanged(annotationController_->annotationCount());
+            });
+    connect(annotationController_.get(), &AnnotationController::undoStateChanged, this,
+            &PdfView::updateAnnotationToolBar);
+    connect(annotationController_.get(), &AnnotationController::toolChanged, this, [this]() {
+        const auto tool = annotationController_->tool();
+        noteButton_->setChecked(tool == AnnotationController::Tool::Note);
+        squareButton_->setChecked(tool == AnnotationController::Tool::Square);
+        inkButton_->setChecked(tool == AnnotationController::Tool::Ink);
+    });
+
+    // 画布上的批注工具：便签要问一句内容，矩形与墨迹直接生成。
+    connect(canvas_, &PageCanvas::noteAnnotationRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                if (!annotationController_) {
+                    return;
+                }
+                bool accepted = false;
+                const QString contents = QInputDialog::getText(
+                    this,
+                    tr("新建便签"),
+                    tr("备注内容"),
+                    QLineEdit::Normal,
+                    QString(),
+                    &accepted);
+                if (!accepted || contents.isEmpty()) {
+                    trace(QStringLiteral("annotation note cancelled"));
+                    return;
+                }
+                const QRectF rect(userPoint.x() - kNoteAnnotationSize / 2.0,
+                                  userPoint.y() - kNoteAnnotationSize / 2.0,
+                                  kNoteAnnotationSize,
+                                  kNoteAnnotationSize);
+                annotationController_->addNote(pageIndex, rect, contents);
+            });
+    connect(canvas_, &PageCanvas::squareAnnotationRequested, this,
+            [this](int pageIndex, const QRectF& userRect) {
+                if (annotationController_) {
+                    annotationController_->addSquare(pageIndex, userRect);
+                }
+            });
+    connect(canvas_, &PageCanvas::inkAnnotationRequested, this,
+            [this](int pageIndex, const QVector<QPointF>& stroke) {
+                if (annotationController_) {
+                    annotationController_->addInk(pageIndex, stroke);
+                }
+            });
+
     // 采集每页的显示尺寸（页面自带 /Rotate 已经应用），布局服务据此排版。
     QVector<PageLayout::PageInfo> pages;
     pages.reserve(pageCount_);
@@ -254,6 +424,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     emit pageCountChanged(pageCount_);
     updateZoomLabel();
     updatePageInfo();
+    // 文档换新了：批注工具栏的可用状态要跟着重算（工具可用、标记类按钮要等选区）。
+    updateAnnotationToolBar();
     requestVisiblePages();
 }
 
@@ -261,8 +433,10 @@ void PdfView::clear() {
     stopRenderThread();
     canvas_->setTextController(nullptr);
     canvas_->setNavigationController(nullptr);
+    canvas_->setAnnotationController(nullptr);
     textController_.reset();
     navigationController_.reset();
+    annotationController_.reset();
     document_ = pdf::PdfDocument();
     filePath_.clear();
     pageCount_ = 0;
@@ -272,6 +446,8 @@ void PdfView::clear() {
     emit pageCountChanged(0);
     updateZoomLabel();
     updatePageInfo();
+    // 没有文档了：批注工具一律不可用。
+    updateAnnotationToolBar();
 }
 
 int PdfView::pageCount() const {
@@ -313,6 +489,10 @@ TextController* PdfView::textController() const {
 
 NavigationController* PdfView::navigationController() const {
     return navigationController_.get();
+}
+
+AnnotationController* PdfView::annotationController() const {
+    return annotationController_.get();
 }
 
 void PdfView::setZoom(double factor) {
@@ -360,6 +540,9 @@ void PdfView::rotateRight() {
     if (navigationController_) {
         navigationController_->setUserRotation(userRotation_);
     }
+    if (annotationController_) {
+        annotationController_->setUserRotation(userRotation_);
+    }
     cache_.clear();
     canvas_->setLayout(layout_);
     updateZoomLabel();
@@ -374,6 +557,9 @@ void PdfView::rotateLeft() {
     }
     if (navigationController_) {
         navigationController_->setUserRotation(userRotation_);
+    }
+    if (annotationController_) {
+        annotationController_->setUserRotation(userRotation_);
     }
     cache_.clear();
     canvas_->setLayout(layout_);
@@ -398,6 +584,69 @@ void PdfView::goToPage(int index) {
     if (canvas_ != nullptr) {
         canvas_->goToPage(index);
     }
+}
+
+void PdfView::applyMarkAnnotation(pdf::AnnotationType type) {
+    if (!annotationController_ || !textController_) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    if (pageIndex < 0) {
+        emit statusMessage(tr("请先选中要标记的文字"));
+        return;
+    }
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (displayRects.isEmpty()) {
+        emit statusMessage(tr("请先选中要标记的文字"));
+        return;
+    }
+    // 选区矩形在显示空间，批注坐标要的是用户空间。
+    const QVector<QRectF> quads = annotationController_->toUserSpaceRects(pageIndex, displayRects);
+    if (annotationController_->addMarkAnnotation(type, pageIndex, quads) == 0) {
+        emit statusMessage(tr("批注没有添加成功"));
+        return;
+    }
+    emit statusMessage(tr("已添加%1").arg(pdf::annotationTypeName(type)));
+}
+
+void PdfView::undoAnnotation() {
+    if (!annotationController_) {
+        return;
+    }
+    if (!annotationController_->undo()) {
+        emit statusMessage(tr("没有可撤销的批注操作"));
+    }
+}
+
+void PdfView::redoAnnotation() {
+    if (!annotationController_) {
+        return;
+    }
+    if (!annotationController_->redo()) {
+        emit statusMessage(tr("没有可重做的批注操作"));
+    }
+}
+
+void PdfView::updateAnnotationToolBar() {
+    const bool hasDocument = annotationController_ != nullptr;
+    const bool hasSelection = hasDocument && textController_ != nullptr &&
+                              textController_->selectionPage() >= 0 &&
+                              !textController_->selectionRects().isEmpty();
+
+    highlightButton_->setEnabled(hasSelection);
+    underlineButton_->setEnabled(hasSelection);
+    strikeOutButton_->setEnabled(hasSelection);
+    noteButton_->setEnabled(hasDocument);
+    squareButton_->setEnabled(hasDocument);
+    inkButton_->setEnabled(hasDocument);
+    undoButton_->setEnabled(hasDocument && annotationController_->canUndo());
+    redoButton_->setEnabled(hasDocument && annotationController_->canRedo());
+    undoButton_->setToolTip(hasDocument && annotationController_->canUndo()
+                                ? annotationController_->undoText()
+                                : tr("撤销上一步批注操作 (Ctrl+Z)"));
+    redoButton_->setToolTip(hasDocument && annotationController_->canRedo()
+                                ? annotationController_->redoText()
+                                : tr("重做上一步批注操作 (Ctrl+Shift+Z)"));
 }
 
 void PdfView::resizeEvent(QResizeEvent* event) {
