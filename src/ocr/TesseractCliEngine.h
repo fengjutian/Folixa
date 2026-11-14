@@ -41,6 +41,9 @@ public:
                                   const QSize& imageSize,
                                   const QSizeF& pageSize);
 
+    // 语言包目录（AIPDF_TESSDATA_PREFIX → exe 同级 tessdata → conda 的 share/tessdata）。
+    QString findTessdataDirectory() const;
+
     // 自动查找可执行文件；找不到返回空串。
     static QString findExecutable();
 

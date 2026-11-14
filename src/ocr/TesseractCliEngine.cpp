@@ -4,6 +4,8 @@
 #include "ocr/OcrGeometry.h"
 #include "ocr/OcrTextUtils.h"
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QHash>
 #include <QImage>
@@ -36,9 +38,46 @@ QString TesseractCliEngine::findExecutable() {
     if (!fromEnvironment.isEmpty() && QFileInfo::exists(fromEnvironment)) {
         return fromEnvironment;
     }
-    return QStandardPaths::findExecutable(QStringLiteral("tesseract"));
+    const QString onPath = QStandardPaths::findExecutable(QStringLiteral("tesseract"));
+    if (!onPath.isEmpty()) {
+        return onPath;
+    }
+    // 仓库自带的便携版（开发机常见）：应用在 build/<preset>/bin 下，
+    // 仓库根在往上三层，引擎放在 tools/tess 里。
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    const QStringList candidates{
+        appDir.absoluteFilePath(QStringLiteral("../../../tools/tess/Library/bin/tesseract.exe")),
+        appDir.absoluteFilePath(QStringLiteral("../../tools/tess/Library/bin/tesseract.exe")),
+    };
+    for (const QString& candidate : candidates) {
+        if (QFileInfo::exists(candidate)) {
+            return QFileInfo(candidate).absoluteFilePath();
+        }
+    }
+    return {};
 }
 
+QString TesseractCliEngine::findTessdataDirectory() const {
+    const QString fromEnvironment = qEnvironmentVariable("AIPDF_TESSDATA_PREFIX");
+    if (!fromEnvironment.isEmpty() && QFileInfo::exists(fromEnvironment)) {
+        return fromEnvironment;
+    }
+    if (executable_.isEmpty()) {
+        return {};
+    }
+    const QDir exeDir(QFileInfo(executable_).absolutePath());
+    // 解压版：<exe 目录>/tessdata；conda 版：<exe 目录>/../../share/tessdata。
+    const QStringList candidates{
+        exeDir.filePath(QStringLiteral("tessdata")),
+        exeDir.absoluteFilePath(QStringLiteral("../../share/tessdata")),
+    };
+    for (const QString& candidate : candidates) {
+        if (QFileInfo::exists(candidate)) {
+            return QFileInfo(candidate).absoluteFilePath();
+        }
+    }
+    return {};
+}
 QString TesseractCliEngine::id() const {
     return QStringLiteral("tesseract-cli");
 }
@@ -98,10 +137,19 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
 
     QProcess process;
     QStringList arguments;
-    arguments << imagePath << QStringLiteral("stdout")
-              << QStringLiteral("-l") << languages_.join(QLatin1Char('+'))
+    arguments << imagePath << QStringLiteral("stdout");
+    // 便携包（conda / 解压版）不把 tessdata 放在系统默认位置，
+    // 不指定的话会报「找不到语言包」，而错误信息里根本看不出是路径问题。
+    const QString tessdata = findTessdataDirectory();
+    if (!tessdata.isEmpty()) {
+        arguments << QStringLiteral("--tessdata-dir") << QDir::toNativeSeparators(tessdata);
+    }
+    arguments << QStringLiteral("-l") << languages_.join(QLatin1Char('+'))
               << QStringLiteral("--psm") << QStringLiteral("6")
-              << QStringLiteral("tsv");
+              // 用 -c 开 TSV，而不是把 tsv 当配置文件传：便携包不保证
+              // configs/tsv 能找到，找不到时 tesseract 只打一行警告、
+              // 继续输出纯文本——解析器就看到「没有识别出文字」。
+              << QStringLiteral("-c") << QStringLiteral("tessedit_create_tsv=1");
     process.start(executable_, arguments);
     if (!process.waitForStarted(10'000)) {
         result.error = QStringLiteral("tesseract 启动失败");

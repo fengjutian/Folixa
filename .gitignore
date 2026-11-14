@@ -169,3 +169,7 @@ Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
+# 本地便携 OCR 引擎（约 1 GB），由开发机自行安装，不进仓库
+tools/tess/
+tools/tesseract/
+tools/tesseract-cf/

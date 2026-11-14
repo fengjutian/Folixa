@@ -46,6 +46,17 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   批注/撤销栈单元测试、页面管理/安全保存单元测试、文档索引单元测试与模型接入单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
 
+## OCR 引擎（可选）
+
+扫描件识别优先用本机的 Tesseract；没装时退回 Windows 自带 OCR（Win10+ 无需安装）。
+
+想用 Tesseract，二选一：
+
+- 把 `tesseract.exe` 放到 PATH，或用环境变量 `AIPDF_TESSERACT_PATH` 指定；
+- 放到仓库的 `tools/tess/`（解压版放 `tesseract.exe` 同级 + `tessdata/`，
+  conda 版保持 `Library/bin` + `share/tessdata` 结构）——应用会自动找到它。
+
+`tools/tess/` 不进仓库（约 1 GB），语言包目录也可以用 `AIPDF_TESSDATA_PREFIX` 指定。
 ## 构建环境
 
 固定组合：
@@ -80,6 +91,17 @@ $env:AIPDF_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64'
 工具链文件在 `cmake/toolchains/qt-mingw.cmake`。vcpkg 以 `builtin-baseline` 固定版本，
 当前不引入源码构建的第三方依赖。
 
+## OCR 引擎（可选）
+
+扫描件识别优先用本机的 Tesseract；没装时退回 Windows 自带 OCR（Win10+ 无需安装）。
+
+想用 Tesseract，二选一：
+
+- 把 `tesseract.exe` 放到 PATH，或用环境变量 `AIPDF_TESSERACT_PATH` 指定；
+- 放到仓库的 `tools/tess/`（解压版放 `tesseract.exe` 同级 + `tessdata/`，
+  conda 版保持 `Library/bin` + `share/tessdata` 结构）——应用会自动找到它。
+
+`tools/tess/` 不进仓库（约 1 GB），语言包目录也可以用 `AIPDF_TESSDATA_PREFIX` 指定。
 ## 构建与测试
 
 ```powershell
