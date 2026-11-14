@@ -11,13 +11,6 @@ class QThread;
 
 namespace aipdf::ocr {
 
-// 一页 OCR 任务：页面渲染图 + 页面尺寸（PDF 点），后者用于把像素框换回页面坐标。
-struct OcrJob {
-    int pageIndex = 0;
-    QImage image;
-    QSizeF pageSize;
-};
-
 // 本地 OCR 服务：一条后台线程 + 单并发队列。
 //
 // 为什么单并发：OCR 是 CPU 密集的，开两条线程只会让两页都变慢，还会和渲染线程抢核。

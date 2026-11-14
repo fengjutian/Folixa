@@ -1,12 +1,22 @@
 #pragma once
 
 #include <QMetaType>
+#include <QImage>
 #include <QRectF>
+#include <QSizeF>
 #include <QString>
 #include <QStringList>
 #include <QVector>
 
 namespace aipdf::ocr {
+
+// 一页 OCR 任务：页面渲染图 + 页面尺寸（PDF 点）。
+// 页面尺寸必须一起传：引擎要在像素坐标与页面坐标之间换算。
+struct OcrJob {
+    int pageIndex = 0;
+    QImage image;
+    QSizeF pageSize;
+};
 
 // 一个识别出来的词：文字、页面用户空间里的框（PDF 点，原点左下）、置信度 0..1。
 struct OcrWord {

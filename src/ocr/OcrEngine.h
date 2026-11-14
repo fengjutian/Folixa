@@ -26,7 +26,7 @@ public:
     virtual bool isAvailable() const = 0;
 
     // pageImage：页面渲染图；pageIndex：写进结果里，用于回填页码。
-    virtual OcrPageResult recognize(const QImage& pageImage, int pageIndex) = 0;
+    virtual OcrPageResult recognize(const OcrJob& job) = 0;
 
     virtual void cancel() = 0;
 };

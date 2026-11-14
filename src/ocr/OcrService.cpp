@@ -109,7 +109,7 @@ protected:
 
             OcrPageResult result;
             if (engine_ != nullptr) {
-                result = engine_->recognize(job.image, job.pageIndex);
+                result = engine_->recognize(job);
             } else {
                 result.pageIndex = job.pageIndex;
                 result.error = QStringLiteral("没有可用的 OCR 引擎");

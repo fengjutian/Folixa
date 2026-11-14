@@ -23,7 +23,8 @@ public:
     QString id() const override { return QStringLiteral("fake"); }
     bool isAvailable() const override { return true; }
 
-    OcrPageResult recognize(const QImage& image, int pageIndex) override {
+    OcrPageResult recognize(const OcrJob& job) override {
+        const int pageIndex = job.pageIndex;
         if (delayMs_ > 0) {
             QThread::msleep(static_cast<unsigned long>(delayMs_));
         }

@@ -676,3 +676,22 @@ set_target_properties(OcrChunkBridgeTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(OcrChunkBridgeTests)
 
 add_test(NAME OcrChunkBridgeTests COMMAND OcrChunkBridgeTests)
+
+qt_add_executable(TesseractCliEngineTests
+    TesseractCliEngineTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+)
+
+target_link_libraries(TesseractCliEngineTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(TesseractCliEngineTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(TesseractCliEngineTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(TesseractCliEngineTests)
+
+add_test(NAME TesseractCliEngineTests COMMAND TesseractCliEngineTests)
