@@ -718,3 +718,18 @@ set_target_properties(WindowsOcrEngineTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(WindowsOcrEngineTests)
 
 add_test(NAME WindowsOcrEngineTests COMMAND WindowsOcrEngineTests)
+
+qt_add_executable(ToolRegistryTests
+    ToolRegistryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
+)
+
+target_link_libraries(ToolRegistryTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(ToolRegistryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ToolRegistryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ToolRegistryTests)
+
+add_test(NAME ToolRegistryTests COMMAND ToolRegistryTests)

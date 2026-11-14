@@ -121,6 +121,10 @@ qt_add_executable(AiPdfEditor WIN32
     ocr/WindowsOcrEngine.h
     ocr/OcrTextUtils.cpp
     ocr/OcrTextUtils.h
+    tools/ToolRegistry.cpp
+    tools/ToolRegistry.h
+    tools/ProposalValidator.cpp
+    tools/ProposalValidator.h
     doc/VectorIndex.h
 )
 
