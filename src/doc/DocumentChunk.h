@@ -34,6 +34,10 @@ struct DocumentChunk {
     // 词数：中文按字、英文按词。
     int wordCount = 0;
 
+    // 这一块的文字是不是 OCR 识别出来的（v0.13.0）。
+    // 引用要能告诉用户「这句是识别来的」，识别误差不该被当成原文。
+    bool fromOcr = false;
+
     bool isValid() const { return pageIndex >= 0 && !text.isEmpty(); }
     bool isHeading() const { return headingLevel > 0; }
     // 块在页面上的总包围盒。

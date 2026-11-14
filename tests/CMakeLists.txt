@@ -657,3 +657,22 @@ set_target_properties(ImagePreprocessTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(ImagePreprocessTests)
 
 add_test(NAME ImagePreprocessTests COMMAND ImagePreprocessTests)
+
+qt_add_executable(OcrChunkBridgeTests
+    OcrChunkBridgeTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+)
+
+target_link_libraries(OcrChunkBridgeTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(OcrChunkBridgeTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(OcrChunkBridgeTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(OcrChunkBridgeTests)
+
+add_test(NAME OcrChunkBridgeTests COMMAND OcrChunkBridgeTests)

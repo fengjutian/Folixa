@@ -27,6 +27,7 @@ constexpr auto kKeyChunkText = "text";
 constexpr auto kKeyChunkSection = "section";
 constexpr auto kKeyChunkHeading = "heading";
 constexpr auto kKeyChunkWords = "words";
+constexpr auto kKeyChunkSource = "source";
 constexpr auto kKeyChunkBoxes = "boxes";
 
 constexpr int kFormatVersion = 1;
@@ -122,6 +123,7 @@ bool LocalIndex::load(const QString& documentPath) {
         chunk.sectionPath = object.value(QString::fromLatin1(kKeyChunkSection)).toString();
         chunk.headingLevel = object.value(QString::fromLatin1(kKeyChunkHeading)).toInt();
         chunk.wordCount = object.value(QString::fromLatin1(kKeyChunkWords)).toInt();
+        chunk.fromOcr = object.value(QString::fromLatin1(kKeyChunkSource)).toString() == QLatin1String("ocr");
         const QJsonArray boxes = object.value(QString::fromLatin1(kKeyChunkBoxes)).toArray();
         for (const QJsonValue& boxValue : boxes) {
             const QJsonArray box = boxValue.toArray();
@@ -163,6 +165,8 @@ bool LocalIndex::save() const {
             object.insert(QString::fromLatin1(kKeyChunkSection), chunk.sectionPath);
             object.insert(QString::fromLatin1(kKeyChunkHeading), chunk.headingLevel);
             object.insert(QString::fromLatin1(kKeyChunkWords), chunk.wordCount);
+            object.insert(QString::fromLatin1(kKeyChunkSource),
+                          chunk.fromOcr ? QStringLiteral("ocr") : QStringLiteral("text"));
             QJsonArray boxes;
             for (const QRectF& box : chunk.lineBoxes) {
                 QJsonArray values;
