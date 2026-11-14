@@ -48,7 +48,7 @@
 | 图片 | libjpeg-turbo、libpng、OpenJPEG、libtiff |
 | 本地数据库 | SQLite + FTS5 |
 | 加密与签名 | OpenSSL 3、Windows CNG/CryptoAPI |
-| OCR | Tesseract；保留商业 OCR Provider 接口 |
+| OCR | Tesseract；保留商业 OCR Provider 接口。当前版本另有 Windows 自带 OCR 作零安装兜底，其妥协见 [OCR 妥协清单](OCR_LIMITATIONS.md) |
 | 本地推理 | llama.cpp 或 ONNX Runtime，后期接入 |
 | 日志 | spdlog |
 | 单元测试 | GoogleTest + Qt Test |

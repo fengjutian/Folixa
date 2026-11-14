@@ -96,6 +96,8 @@ try {
     Test-Check '索引里标着 source=ocr' ($indexText -match '"source"\s*:\s*"ocr"')
     # 不拿 'Invoice' 当判据：OCR 常把大写 I 认成小写 l（实测 'lnvoice'）。
     # 数字与 'Total' 稳定得多，中英语言包都能认。
+    # 引用要能定位：块必须带行框（页面坐标），否则高亮无处可画。
+    Test-Check '识别结果带行框（引用可定位）' ($indexText -match '"boxes":\s*\[\[[0-9.-]+,')
     Test-Check '索引里有识别出的文字（1234 / Total）' ($indexText -match '1234' -or $indexText -match 'Total') $indexText.Substring(0, [Math]::Min(120, $indexText.Length))
 
     # 文字页不该被 OCR：另开一份有文本层的 PDF，等一会儿确认没有 ocr 记录。
