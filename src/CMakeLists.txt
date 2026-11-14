@@ -107,6 +107,8 @@ qt_add_executable(AiPdfEditor WIN32
     ocr/ScannedPageDetector.h
     ocr/OcrService.cpp
     ocr/OcrService.h
+    ocr/ImagePreprocess.cpp
+    ocr/ImagePreprocess.h
     doc/VectorIndex.h
 )
 

@@ -644,3 +644,16 @@ set_target_properties(OcrServiceTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(OcrServiceTests)
 
 add_test(NAME OcrServiceTests COMMAND OcrServiceTests)
+
+qt_add_executable(ImagePreprocessTests
+    ImagePreprocessTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+)
+
+target_link_libraries(ImagePreprocessTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(ImagePreprocessTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ImagePreprocessTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ImagePreprocessTests)
+
+add_test(NAME ImagePreprocessTests COMMAND ImagePreprocessTests)
