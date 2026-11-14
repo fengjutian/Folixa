@@ -293,8 +293,8 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ### 界面验收会抢桌面
 
 `verify-m0` / `verify-pdf` / `verify-scroll` / `verify-text` / `verify-navigation` /
-`verify-annotations` / `verify-pages` / `verify-index` / `verify-ai` / `verify-qa` / `verify-privacy` / `verify-ocr` / `verify-proposals` / `verify-recovery`
-这十四个脚本要驱动真实界面：
+`verify-annotations` / `verify-pages` / `verify-index` / `verify-ai` / `verify-qa` / `verify-privacy` / `verify-ocr` / `verify-proposals` / `verify-recovery` / `verify-compat`
+这十五个脚本要驱动真实界面：
 把窗口抢到前台、置顶、挪到屏幕左上角，并用合成的鼠标事件点屏幕坐标。
 **在开发机上跑会打断正在用这台机器的人**（真实指针会被挪走，窗口会突然跳出来）。
 
