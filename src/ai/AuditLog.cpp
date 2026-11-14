@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 
 namespace aipdf::ai {
@@ -40,4 +41,31 @@ bool appendAudit(const AuditEntry& entry) {
     return written;
 }
 
+bool appendProposalAudit(const ProposalAuditEntry& entry) {
+    QJsonObject object;
+    object.insert(QStringLiteral("kind"), QStringLiteral("proposal"));
+    object.insert(QStringLiteral("time"),
+                  (entry.time.isValid() ? entry.time : QDateTime::currentDateTime())
+                      .toString(Qt::ISODateWithMs));
+    object.insert(QStringLiteral("document"), entry.documentPath);
+    object.insert(QStringLiteral("operations"), entry.operationCount);
+    object.insert(QStringLiteral("applied"), entry.appliedCount);
+    object.insert(QStringLiteral("confirmed"), entry.confirmed);
+    object.insert(QStringLiteral("result"), entry.result);
+    QJsonArray tools;
+    for (const QString& tool : entry.tools) {
+        tools.append(tool);
+    }
+    object.insert(QStringLiteral("tools"), tools);
+
+    const QString path = auditLogPath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        return false;
+    }
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Compact));
+    file.write("\n");
+    return true;
+}
 }  // namespace aipdf::ai

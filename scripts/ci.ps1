@@ -128,6 +128,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/ocr.png'
     )
+    Invoke-Script 'AI 提案确认验收' (Join-Path $PSScriptRoot 'verify-proposals.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/proposals.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

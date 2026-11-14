@@ -7,6 +7,7 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
+#include "ai/AuditLog.h"
 #include "app/OcrController.h"
 #include "tools/ProposalValidator.h"
 #include "app/ProposalRunner.h"
@@ -347,6 +348,13 @@ void MainWindow::buildUi() {
         app::EditProposalDialog dialog(proposal, this);
         if (dialog.exec() != QDialog::Accepted) {
             trace(QStringLiteral("ai proposal cancelled blank=%1").arg(blankPages.size()));
+            aipdf::ai::ProposalAuditEntry audit;
+            audit.documentPath = view->filePath();
+            audit.tools = QStringList{QStringLiteral("doc.delete_pages")};
+            audit.operationCount = proposal.operations.size();
+            audit.confirmed = false;
+            audit.result = QStringLiteral("cancelled");
+            aipdf::ai::appendProposalAudit(audit);
             statusBar()->showMessage(tr("已取消，文档没有任何改动"), 6000);
             return;
         }
@@ -364,6 +372,14 @@ void MainWindow::buildUi() {
                 return annotations != nullptr && annotations->applyCommand(std::move(command));
             },
             &error);
+        aipdf::ai::ProposalAuditEntry audit;
+        audit.documentPath = view->filePath();
+        audit.tools = QStringList{QStringLiteral("doc.delete_pages")};
+        audit.operationCount = proposal.operations.size();
+        audit.appliedCount = applied;
+        audit.confirmed = true;
+        audit.result = applied > 0 ? QStringLiteral("applied") : QStringLiteral("failed");
+        aipdf::ai::appendProposalAudit(audit);
         trace(QStringLiteral("ai proposal applied ops=%1 blank=%2 pages=%3 error=%4")
                   .arg(applied)
                   .arg(blankPages.size())
