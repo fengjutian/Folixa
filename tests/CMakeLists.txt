@@ -199,6 +199,8 @@ qt_add_executable(AnnotationTests
     ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
@@ -233,6 +235,8 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
 )
@@ -279,6 +283,8 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
@@ -733,3 +739,33 @@ set_target_properties(ToolRegistryTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(ToolRegistryTests)
 
 add_test(NAME ToolRegistryTests COMMAND ToolRegistryTests)
+
+qt_add_executable(ProposalRunnerTests
+    ProposalRunnerTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.h
+    ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(ProposalRunnerTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+target_include_directories(ProposalRunnerTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ProposalRunnerTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ProposalRunnerTests)
+
+add_test(NAME ProposalRunnerTests COMMAND ProposalRunnerTests)

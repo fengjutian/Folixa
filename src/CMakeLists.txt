@@ -125,6 +125,10 @@ qt_add_executable(AiPdfEditor WIN32
     tools/ToolRegistry.h
     tools/ProposalValidator.cpp
     tools/ProposalValidator.h
+    app/ProposalRunner.cpp
+    app/ProposalRunner.h
+    app/EditProposalDialog.cpp
+    app/EditProposalDialog.h
     doc/VectorIndex.h
 )
 
