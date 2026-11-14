@@ -1,4 +1,4 @@
-﻿// 增量写入的测试：给批注补 /AP 之后，文件还在不在、原字节动没动、别人看不看得见。
+// 增量写入的测试：给批注补 /AP 之后，文件还在不在、原字节动没动、别人看不看得见。
 //
 // 这条路径最怕两件事：把文件写坏（打不开），或者写完只有自己认（别的阅读器看不见）。
 // 所以四类断言缺一不可：
@@ -75,6 +75,193 @@ struct PixelDiff {
     QRect bounds;
 };
 
+// ---------------------------------------------------------------- 结构校验 ----
+//
+// 一个独立于写入器的 xref 链检查器。存在的理由：PDFium 对坏文件相当宽容，
+// "能打开"不等于"结构正确"——偏移写错、链断掉，它可能照样渲染，别的阅读器就未必。
+// 这里按规范逐项核：startxref → xref 段 → 每个在用条目指向的确实是 "<n> <g> obj"，
+// 再沿 /Prev 一路回溯到文件头。
+//
+// 这不是产品代码，是测试用的对照物：它和写入器不共享任何实现，写错了才会被抓到。
+
+class Scanner {
+public:
+    explicit Scanner(const QByteArray& pdf) : pdf_(pdf) {}
+
+    void skipSpace() {
+        while (pos_ < pdf_.size()) {
+            const char c = pdf_.at(pos_);
+            if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+                ++pos_;
+            } else {
+                break;
+            }
+        }
+    }
+
+    bool readInt(long* value) {
+        skipSpace();
+        const qsizetype begin = pos_;
+        while (pos_ < pdf_.size() && pdf_.at(pos_) >= '0' && pdf_.at(pos_) <= '9') {
+            ++pos_;
+        }
+        if (pos_ == begin) {
+            return false;
+        }
+        *value = pdf_.mid(begin, pos_ - begin).toLong();
+        return true;
+    }
+
+    bool consume(const char* token) {
+        skipSpace();
+        const QByteArray text(token);
+        if (pdf_.mid(pos_, text.size()) != text) {
+            return false;
+        }
+        pos_ += text.size();
+        return true;
+    }
+
+    void setPosition(qsizetype pos) { pos_ = pos; }
+    void advance() { ++pos_; }
+    qsizetype position() const { return pos_; }
+    qsizetype size() const { return pdf_.size(); }
+    char at(qsizetype index) const { return pdf_.at(index); }
+
+private:
+    const QByteArray& pdf_;
+    qsizetype pos_ = 0;
+};
+
+bool verifyXrefChain(const QByteArray& pdf, QString* error) {
+    const qsizetype startxrefAt = pdf.lastIndexOf("startxref");
+    if (startxrefAt < 0) {
+        *error = QStringLiteral("没有 startxref");
+        return false;
+    }
+    Scanner scanner(pdf);
+    scanner.setPosition(startxrefAt + 9);
+    long offset = 0;
+    if (!scanner.readInt(&offset) || offset <= 0 || offset >= pdf.size()) {
+        *error = QStringLiteral("startxref 指向越界：%1").arg(offset);
+        return false;
+    }
+
+    QVector<long> visited;
+    long pendingObjects = 0;
+    while (offset > 0) {
+        if (visited.contains(offset)) {
+            *error = QStringLiteral("/Prev 出现环：%1").arg(offset);
+            return false;
+        }
+        if (visited.size() > 64) {
+            *error = QStringLiteral("xref 链过长");
+            return false;
+        }
+        visited.append(offset);
+
+        scanner.setPosition(offset);
+        if (!scanner.consume("xref")) {
+            *error = QStringLiteral("偏移 %1 处不是 xref").arg(offset);
+            return false;
+        }
+
+        bool sawSection = false;
+        while (true) {
+            const qsizetype mark = scanner.position();
+            long first = 0;
+            if (!scanner.readInt(&first)) {
+                scanner.setPosition(mark);
+                break;
+            }
+            long count = 0;
+            if (!scanner.readInt(&count) || count < 0 || count > 100000) {
+                *error = QStringLiteral("xref 段头非法");
+                return false;
+            }
+            sawSection = true;
+
+            for (long i = 0; i < count; ++i) {
+                long entryOffset = 0;
+                long generation = 0;
+                if (!scanner.readInt(&entryOffset) || !scanner.readInt(&generation)) {
+                    *error = QStringLiteral("xref 条目被截断");
+                    return false;
+                }
+                scanner.skipSpace();
+                if (scanner.position() >= pdf.size()) {
+                    *error = QStringLiteral("xref 条目缺类型");
+                    return false;
+                }
+                const char type = scanner.at(scanner.position());
+                scanner.advance();
+                if (type != 'n' && type != 'f') {
+                    *error = QStringLiteral("xref 条目类型非法：%1").arg(QLatin1Char(type));
+                    return false;
+                }
+                ++pendingObjects;
+
+                if (type == 'n' && entryOffset > 0) {
+                    // 条目必须精确指向 "<对象号> <代号> obj"。
+                    const QByteArray expected =
+                        QByteArray::number(first + i) + " " + QByteArray::number(generation) + " obj";
+                    if (pdf.mid(entryOffset, expected.size()) != expected) {
+                        *error = QStringLiteral("对象 %1 的偏移 %2 没指向 \"%3\"")
+                                     .arg(first + i)
+                                     .arg(entryOffset)
+                                     .arg(QString::fromLatin1(expected));
+                        return false;
+                    }
+                }
+            }
+        }
+        if (!sawSection) {
+            *error = QStringLiteral("偏移 %1 处的 xref 没有条目").arg(offset);
+            return false;
+        }
+
+        if (!scanner.consume("trailer")) {
+            *error = QStringLiteral("偏移 %1 处的 xref 后没有 trailer").arg(offset);
+            return false;
+        }
+        const qsizetype trailerAt = scanner.position();
+        const qsizetype dictionaryEnd = pdf.indexOf("startxref", trailerAt);
+        if (dictionaryEnd < 0) {
+            *error = QStringLiteral("trailer 之后没有 startxref");
+            return false;
+        }
+        const QByteArray trailer = pdf.mid(trailerAt, dictionaryEnd - trailerAt);
+        if (!trailer.contains("/Root")) {
+            *error = QStringLiteral("trailer 缺 /Root");
+            return false;
+        }
+        const qsizetype prevAt = trailer.indexOf("/Prev");
+        if (prevAt < 0) {
+            break;  // 到最老的一段了
+        }
+        qsizetype cursor = prevAt + 5;
+        while (cursor < trailer.size() &&
+               (trailer.at(cursor) < '0' || trailer.at(cursor) > '9')) {
+            ++cursor;
+        }
+        const qsizetype digitsBegin = cursor;
+        while (cursor < trailer.size() && trailer.at(cursor) >= '0' && trailer.at(cursor) <= '9') {
+            ++cursor;
+        }
+        offset = trailer.mid(digitsBegin, cursor - digitsBegin).toLong();
+        if (offset <= 0) {
+            break;
+        }
+    }
+
+    if (pendingObjects <= 0) {
+        *error = QStringLiteral("一个对象都没扫到");
+        return false;
+    }
+    return true;
+}
+
+
 PixelDiff comparePixels(const QImage& before, const QImage& after) {
     PixelDiff diff;
     if (before.size() != after.size() || before.isNull()) {
@@ -115,6 +302,8 @@ private slots:
     void truncatedPdfIsRejected();
     void duplicateMarkerProducesSingleAppearance();
     void appearanceContentIsActuallyDrawn();
+    void incrementalFileHasValidXrefChain();
+    void corruptXrefOffsetIsCaught();
 };
 
 void IncrementalWriterTests::appendedFileKeepsOriginalBytesIntact() {
@@ -271,6 +460,36 @@ void IncrementalWriterTests::emptyAppearanceIsRejected() {
                                                   buildAnnotationAppearance(note));
     QVERIFY(!write.ok);
     QVERIFY(write.bytes.isEmpty());
+}
+
+void IncrementalWriterTests::incrementalFileHasValidXrefChain() {
+    const QByteArray original = documentWithHighlight(7);
+    const auto write = appendAnnotationAppearance(original, markerFor(7),
+                                                  buildAnnotationAppearance(makeHighlight(7)));
+    QVERIFY(write.ok);
+
+    QString error;
+    // 原文件本身要过，追加之后的文件也要过——否则"能打开"只是 PDFium 宽容。
+    QVERIFY2(verifyXrefChain(original, &error), qPrintable(error));
+    QVERIFY2(verifyXrefChain(write.bytes, &error), qPrintable(error));
+}
+
+void IncrementalWriterTests::corruptXrefOffsetIsCaught() {
+    const QByteArray original = documentWithHighlight(7);
+    const auto write = appendAnnotationAppearance(original, markerFor(7),
+                                                  buildAnnotationAppearance(makeHighlight(7)));
+    QVERIFY(write.ok);
+
+    // 负例守卫：把新 xref 里某个条目的偏移改掉一位，校验器必须抓出来。
+    QByteArray corrupt = write.bytes;
+    const qsizetype entry = corrupt.lastIndexOf(" 00000 n");
+    QVERIFY(entry > 10);
+    const qsizetype offsetAt = entry - 10;
+    corrupt[offsetAt] = corrupt.at(offsetAt) == '0' ? '1' : '0';
+
+    QString error;
+    QVERIFY2(!verifyXrefChain(corrupt, &error), "改坏的 xref 居然通过了校验");
+    QVERIFY(!error.isEmpty());
 }
 
 QTEST_MAIN(IncrementalWriterTests)

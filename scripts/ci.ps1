@@ -162,6 +162,10 @@ try {
     }
 
     Write-Host '=== 敏感日志扫描 ===' -ForegroundColor Cyan
+    Invoke-Script '崩溃恢复验收' (Join-Path $PSScriptRoot 'verify-recovery.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/recovery.png'
+    )
     Invoke-Script '性能基线' (Join-Path $PSScriptRoot 'perf.ps1') @(
         '-BuildDir', 'build/windows-debug/bin'
     )
