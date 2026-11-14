@@ -3,6 +3,7 @@
 #include "app/RenderThread.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
+#include "app/TraceText.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "pdf/Annotation.h"
@@ -693,7 +694,7 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
         trace(QStringLiteral("selection page=%1 chars=%2 text=%3")
                   .arg(textController_->selectionPage())
                   .arg(text.size())
-                  .arg(text));
+                  .arg(traceText(text)));
     }
     selecting_ = false;
 }

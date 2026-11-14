@@ -1,4 +1,5 @@
 #include "app/TextController.h"
+#include "app/TraceText.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -484,7 +485,7 @@ QVector<QRectF> TextController::selectionRects() const {
 void TextController::startSearch(const QString& query) {
     hits_.clear();
     worker_->startSearch(query);
-    trace(QStringLiteral("search start query=%1").arg(query));
+    trace(QStringLiteral("search start query=%1").arg(traceText(query)));
     emit searchStarted();
 }
 

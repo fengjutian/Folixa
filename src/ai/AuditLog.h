@@ -33,7 +33,7 @@ bool appendAudit(const AuditEntry& entry);
 // 它要能回答的是「谁在什么时候确认了几条修改、涉及哪些工具、结果如何」。
 struct ProposalAuditEntry {
     QDateTime time;
-    QString documentPath;   // 文档路径（用于定位是哪份文档）
+    QString documentPath;   // 文档路径；写出时只保留文件名（不落用户名与目录结构）
     QStringList tools;      // 涉及的工具 id（去重后）
     int operationCount = 0; // 提案里的操作条数
     int appliedCount = 0;   // 真正执行成功的条数

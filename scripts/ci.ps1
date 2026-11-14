@@ -72,6 +72,11 @@ try {
     Write-Host '=== 许可证全文 ===' -ForegroundColor Cyan
     Invoke-Script '校验许可证全文' (Join-Path $PSScriptRoot 'fetch-licenses.ps1') @('-VerifyOnly')
 
+    Write-Host '=== 依赖登记 ===' -ForegroundColor Cyan
+    Invoke-Script '依赖登记与固定版本' (Join-Path $PSScriptRoot 'verify-dependencies.ps1') @(
+        '-RepositoryRoot', $root
+    )
+
     Write-Host '=== Debug ===' -ForegroundColor Cyan
     Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')
@@ -159,25 +164,36 @@ try {
             }
             Write-Host "    打包验收截图: $packageScreenshot" -ForegroundColor DarkGray
         }
+
+        Write-Host '=== 包内依赖归属 ===' -ForegroundColor Cyan
+        Invoke-Script '包内二进制都是已登记组件' (Join-Path $PSScriptRoot 'verify-dependencies.ps1') @(
+            '-RepositoryRoot', $root,
+            '-PackagePath', "dist/ai-pdf-editor-$version-win64.zip"
+        )
     }
 
-    Write-Host '=== 敏感日志扫描 ===' -ForegroundColor Cyan
-    Invoke-Script '兼容性验收' (Join-Path $PSScriptRoot 'verify-compat.ps1') @(
-        '-BuildDir', 'build/windows-debug/bin',
-        '-ScreenshotPath', 'build/acceptance/compat.png'
-    )
-    Invoke-Script '崩溃恢复验收' (Join-Path $PSScriptRoot 'verify-recovery.ps1') @(
-        '-BuildDir', 'build/windows-debug/bin',
-        '-ScreenshotPath', 'build/acceptance/recovery.png'
-    )
+    if (-not $SkipAcceptance) {
+        Write-Host '=== 兼容性与崩溃恢复验收 ===' -ForegroundColor Cyan
+        Invoke-Script '兼容性验收' (Join-Path $PSScriptRoot 'verify-compat.ps1') @(
+            '-BuildDir', 'build/windows-debug/bin',
+            '-ScreenshotPath', 'build/acceptance/compat.png'
+        )
+        Invoke-Script '崩溃恢复验收' (Join-Path $PSScriptRoot 'verify-recovery.ps1') @(
+            '-BuildDir', 'build/windows-debug/bin',
+            '-ScreenshotPath', 'build/acceptance/recovery.png'
+        )
+    } else {
+        Write-Host '    （按要求跳过兼容性与崩溃恢复的界面部分）' -ForegroundColor DarkGray
+    }
+
+    Write-Host '=== 性能基线与敏感日志 ===' -ForegroundColor Cyan
     Invoke-Script '性能基线' (Join-Path $PSScriptRoot 'perf.ps1') @(
         '-BuildDir', 'build/windows-debug/bin'
     )
 
     Invoke-Script '敏感日志扫描' (Join-Path $PSScriptRoot 'verify-logs.ps1') @('-SelfTest')
 
-    Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
-    $versionArgs = @('-RepositoryRoot', $root)
+    Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan    $versionArgs = @('-RepositoryRoot', $root)
     if (-not $SkipPackage) {
         $versionArgs += @('-Executable', "build/windows-release/bin/AiPdfEditor.exe")
         $versionArgs += @('-PackagePath', "dist/ai-pdf-editor-$version-win64.zip")

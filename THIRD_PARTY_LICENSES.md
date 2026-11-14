@@ -1,20 +1,36 @@
-# Third-party licenses
+# Third-party licenses and dependency register
 
-This file is an initial dependency register, not a substitute for the license
-texts shipped with a release. Exact versions, transitive dependencies and
-notices must be generated and reviewed for every release.
+This file is the authoritative register of third-party components that are
+either linked into the product, bundled in the package, or required at runtime.
+Every row states an exact pin, the relationship to the product, the license
+position, and the update path required by
+[docs/DEPENDENCY_POLICY.md](docs/DEPENDENCY_POLICY.md) rule 1.
 
-| Component | Version / source | Planned use | License review status |
-|---|---|---|---|
-| Qt | 6.8.3 (`mingw_64`), official binary kit via `aqtinstall` (`qtbase`, `qtsvg`) | Desktop UI, networking, local IPC and SVG icon rendering | LGPL v3, dynamically linked; distribute the Qt binaries and license notices alongside the application |
-| MinGW-w64 | GCC 13.1.0 (`qt.tools.win64_mingw1310`) | Build-time toolchain only | GPLv3 with GCC Runtime Library Exception; runtime libraries come from the Qt kit |
-| PDFium | API 159 (`chromium/8152`), `bblanchon/pdfium-binaries` | PDF parsing and page rendering | BSD-3-Clause; `pdfium.dll` plus 19 third-party license texts are bundled in the package |
-| SQLite | Pending version pin | Metadata and FTS5 | Pending version pin |
-| OpenSSL | Pending version pin | Cryptography and signatures | Pending version pin |
-| FreeType | Pending version pin | Font processing | Pending version pin |
-| HarfBuzz | Pending version pin | Text shaping | Pending version pin |
-| ICU | Pending version pin | Unicode processing | Pending version pin |
-| Tesseract | Pending version pin | Optional OCR | Pending version pin and trained-data review |
+`scripts/verify-dependencies.ps1` parses this file and fails the build when a
+pin drifts from the build scripts, when a row loses its version, license or
+update path, or when a package ships a binary that is not registered here.
+
+## Register
+
+| Component | Exact version | Relationship | Use | License position | Update path |
+|---|---|---|---|---|---|
+| Qt | 6.8.3 `mingw_64` (`qtbase`, `qtsvg`, `aqtinstall`) | Direct, dynamically linked | Desktop UI, networking, local IPC, SVG icons | LGPL-3.0; binaries and notices shipped in the package | Bump `scripts/bootstrap-toolchain.ps1` and `cmake/toolchains/qt-mingw.cmake` in one commit, then run the full pipeline |
+| MinGW-w64 | GCC 13.1.0 (`qt.tools.win64_mingw1310`) | Build-time toolchain and runtime DLLs | Compiler; `libgcc_s_seh-1`, `libstdc++-6`, `libwinpthread-1` are shipped | GPL-3.0 with GCC Runtime Library Exception | Follows the Qt kit; bump both bootstrap script and toolchain file together |
+| PDFium | API 159 (`chromium/8152`) | Direct, bundled as `pdfium.dll` | PDF parsing, rendering, text and annotations | BSD-3-Clause; `pdfium.dll` plus 19 bundled license texts | Bump `Version`, `Sha256` and `ExpectedApiVersion` in `scripts/bootstrap-pdfium.ps1`, then rerun compat and fuzz acceptance |
+| PDFium's bundled third parties | Fixed by `chromium/8152` (freetype, harfbuzz, ICU, libjpeg-turbo, libpng, zlib, lcms, abseil, agg23, fast_float, highway, libopenjpeg, simdutf, dragonbox, llvm-libc) | Transitive, inside `pdfium.dll` | Text shaping, fonts, images, compression | License texts shipped under `licenses/pdfium/` and verified against `licenses/pdfium-CHECKSUMS.txt` | Move only by upgrading PDFium; the checksum manifest must be regenerated in the same commit |
+| Tesseract | Optional, discovered at runtime; not bundled | Optional external runtime dependency | OCR engine preferred when installed locally | Apache-2.0; not redistributed, so no license text is shipped | User-managed install (`AIPDF_TESSERACT_PATH` or `tools/tess/`); the app must keep working when it is absent |
+
+Components that are **not** dependencies and therefore are not listed as pins:
+SQLite and OpenSSL are not linked by this project (the local index is a plain
+on-disk file format, and Qt uses the Windows TLS backend), while FreeType,
+HarfBuzz and ICU are reached only through the PDFium pin above.
+
+<!-- dependency-pins
+qt=6.8.3
+mingw=13.1.0
+pdfium=chromium/8152
+pdfium-api=159
+-->
 
 ## Distribution strategy
 

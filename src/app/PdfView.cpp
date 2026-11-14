@@ -8,6 +8,7 @@
 #include "app/IndexController.h"
 #include "app/DocumentQaController.h"
 #include "app/PageTransform.h"
+#include "app/TraceText.h"
 #include "doc/DocumentChunk.h"
 #include "doc/RecoveryLog.h"
 #include "pdf/Annotation.h"
@@ -807,7 +808,7 @@ void PdfView::copySelection() {
         return;
     }
     QGuiApplication::clipboard()->setText(text);
-    trace(QStringLiteral("copy chars=%1 text=%2").arg(text.size()).arg(text));
+    trace(QStringLiteral("copy chars=%1 text=%2").arg(text.size()).arg(traceText(text)));
     emit textCopied(text.size());
 }
 

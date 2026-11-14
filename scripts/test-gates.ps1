@@ -29,6 +29,9 @@
         I4. 仓库内许可证改成 CRLF 行尾必须仍然通过；
         I5. 全部破坏性验证结束后仓库内许可证必须仍然通过。
 
+      依赖门（scripts\verify-dependencies.ps1）
+        J. 登记表 / vcpkg 基线 / PDFium 哈希 / 包内未登记二进制被破坏时必须失败。
+
       版本门（scripts\check-version.ps1）
         E. 版本一致必须通过；
         F. vcpkg 清单版本与 CMake 不一致必须失败；
@@ -275,6 +278,77 @@ Test-Check 'F vcpkg 版本不一致时必须失败' ($exit -ne 0) "exit=$exit"
     "| [$Version](v$Version.md) | 任务 | In Progress | 产物 |`n| [0.9.0](v0.9.0.md) | 任务 | In Progress | 产物 |`n")
 $exit = Invoke-Gate '两个 In Progress' $versionGate @('-RepositoryRoot', $fakeRoot)
 Test-Check 'G 两个 In Progress 版本时必须失败' ($exit -ne 0) "exit=$exit"
+
+Write-Host '=== 依赖门 ===' -ForegroundColor Cyan
+$dependencyGate = Join-Path $PSScriptRoot 'verify-dependencies.ps1'
+$dependencyRoot = Join-Path $workRoot 'dependency-repo'
+if (Test-Path -LiteralPath $dependencyRoot) {
+    Remove-Item -LiteralPath $dependencyRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Path (Join-Path $dependencyRoot 'cmake\toolchains') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $dependencyRoot 'scripts') -Force | Out-Null
+foreach ($relative in @(
+        'CMakeLists.txt',
+        'vcpkg.json',
+        'THIRD_PARTY_LICENSES.md',
+        'cmake\toolchains\qt-mingw.cmake',
+        'scripts\bootstrap-toolchain.ps1',
+        'scripts\bootstrap-pdfium.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $root $relative) -Destination (Join-Path $dependencyRoot $relative)
+}
+$registerPath = Join-Path $dependencyRoot 'THIRD_PARTY_LICENSES.md'
+$registerOriginal = Get-Content -LiteralPath $registerPath -Raw -Encoding UTF8
+
+$exit = Invoke-Gate '依赖登记一致' $dependencyGate @('-RepositoryRoot', $dependencyRoot)
+Test-Check 'J1 依赖登记一致时通过' ($exit -eq 0) "exit=$exit"
+
+# J2. vcpkg 基线退化成浮动引用
+$manifest = Get-Content -LiteralPath (Join-Path $dependencyRoot 'vcpkg.json') -Raw -Encoding UTF8
+$manifestBackup = $manifest
+$manifest = $manifest -replace '"builtin-baseline"\s*:\s*"[0-9a-f]{40}"', '"builtin-baseline": "main"'
+[System.IO.File]::WriteAllText((Join-Path $dependencyRoot 'vcpkg.json'), $manifest, (New-Object System.Text.UTF8Encoding($false)))
+$exit = Invoke-Gate 'vcpkg 基线未固定' $dependencyGate @('-RepositoryRoot', $dependencyRoot)
+Test-Check 'J2 builtin-baseline 不是提交哈希时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllText((Join-Path $dependencyRoot 'vcpkg.json'), $manifestBackup, (New-Object System.Text.UTF8Encoding($false)))
+
+# J3. 登记表退化成待定版本
+$pendingRegister = $registerOriginal -replace '\| Tesseract \| Optional, discovered at runtime; not bundled', '| Tesseract | Pending version pin'
+Test-Check 'J3a 篡改确实改到了登记行' ($pendingRegister -ne $registerOriginal)
+[System.IO.File]::WriteAllText($registerPath, $pendingRegister, (New-Object System.Text.UTF8Encoding($false)))
+$exit = Invoke-Gate '登记表出现待定版本' $dependencyGate @('-RepositoryRoot', $dependencyRoot)
+Test-Check 'J3 版本仍是 Pending 时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllText($registerPath, $registerOriginal, (New-Object System.Text.UTF8Encoding($false)))
+
+# J4. PDFium 归档哈希退化成短串
+$bootstrapPath = Join-Path $dependencyRoot 'scripts\bootstrap-pdfium.ps1'
+$bootstrapOriginal = Get-Content -LiteralPath $bootstrapPath -Raw -Encoding UTF8
+$bootstrapBroken = $bootstrapOriginal -replace "(?m)\`$Sha256\s*=\s*'[0-9a-fA-F]{64}'", "`$Sha256 = 'deadbeef'"
+Test-Check 'J4a 篡改确实改到了 SHA-256' ($bootstrapBroken -ne $bootstrapOriginal)
+[System.IO.File]::WriteAllText($bootstrapPath, $bootstrapBroken, (New-Object System.Text.UTF8Encoding($false)))
+$exit = Invoke-Gate 'PDFium 哈希未固定' $dependencyGate @('-RepositoryRoot', $dependencyRoot)
+Test-Check 'J4 PDFium SHA-256 不是 64 位时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllText($bootstrapPath, $bootstrapOriginal, (New-Object System.Text.UTF8Encoding($false)))
+
+# J5. vcpkg 出现浮动版本依赖
+$floatingManifest = $manifestBackup -replace '"dependencies"\s*:\s*\[\s*\]', '"dependencies": [ { "name": "zlib", "version>=": "*" } ]'
+Test-Check 'J5a 篡改确实加入了依赖' ($floatingManifest -ne $manifestBackup)
+[System.IO.File]::WriteAllText((Join-Path $dependencyRoot 'vcpkg.json'), $floatingManifest, (New-Object System.Text.UTF8Encoding($false)))
+$exit = Invoke-Gate 'vcpkg 浮动版本' $dependencyGate @('-RepositoryRoot', $dependencyRoot)
+Test-Check 'J5 依赖没有精确版本时必须失败' ($exit -ne 0) "exit=$exit"
+[System.IO.File]::WriteAllText((Join-Path $dependencyRoot 'vcpkg.json'), $manifestBackup, (New-Object System.Text.UTF8Encoding($false)))
+
+# J6. 包内出现未登记二进制
+$fakePackage = Join-Path $workRoot 'dependency-package'
+New-Item -ItemType Directory -Path $fakePackage -Force | Out-Null
+foreach ($name in @('AiPdfEditor.exe', 'PdfAiWorker.exe', 'pdfium.dll', 'Qt6Core.dll', 'libgcc_s_seh-1.dll')) {
+    New-Item -ItemType File -Path (Join-Path $fakePackage $name) -Force | Out-Null
+}
+$exit = Invoke-Gate '包内二进制已登记' $dependencyGate @('-RepositoryRoot', $dependencyRoot, '-PackageDir', $fakePackage)
+Test-Check 'J6 已登记的包通过' ($exit -eq 0) "exit=$exit"
+
+New-Item -ItemType File -Path (Join-Path $fakePackage 'unregistered.dll') -Force | Out-Null
+$exit = Invoke-Gate '包内出现未登记二进制' $dependencyGate @('-RepositoryRoot', $dependencyRoot, '-PackageDir', $fakePackage)
+Test-Check 'J7 未登记二进制出现时必须失败' ($exit -ne 0) "exit=$exit"
 
 Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
 

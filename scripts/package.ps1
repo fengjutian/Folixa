@@ -86,7 +86,7 @@ if (-not (Test-Path -LiteralPath $pdfiumDll)) {
 Copy-Item -LiteralPath $pdfiumDll -Destination $stage
 
 Write-Host '==> 部署 Qt 运行库' -ForegroundColor Cyan
-& $windeployqt --release --no-translations --no-opengl-sw --dir $stage (Join-Path $stage 'AiPdfEditor.exe')
+& $windeployqt --release --no-translations --no-opengl-sw --no-system-d3d-compiler --no-system-dxc-compiler --dir $stage (Join-Path $stage 'AiPdfEditor.exe')
 if ($LASTEXITCODE -ne 0) {
     throw "windeployqt 执行失败（退出码 $LASTEXITCODE）"
 }

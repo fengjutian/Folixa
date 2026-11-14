@@ -47,7 +47,12 @@ bool appendProposalAudit(const ProposalAuditEntry& entry) {
     object.insert(QStringLiteral("time"),
                   (entry.time.isValid() ? entry.time : QDateTime::currentDateTime())
                       .toString(Qt::ISODateWithMs));
-    object.insert(QStringLiteral("document"), entry.documentPath);
+    // 只落文件名，不落绝对路径：路径里的用户名与目录名属于「内容之外、但仍不该扩散」
+    // 的信息，审计文件本身不能成为新的泄露面（见 docs/PRIVACY_AUDIT.md）。
+    const QString documentLabel = entry.documentPath.isEmpty()
+                                      ? QString()
+                                      : QFileInfo(entry.documentPath).fileName();
+    object.insert(QStringLiteral("document"), documentLabel);
     object.insert(QStringLiteral("operations"), entry.operationCount);
     object.insert(QStringLiteral("applied"), entry.appliedCount);
     object.insert(QStringLiteral("confirmed"), entry.confirmed);

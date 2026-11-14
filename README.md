@@ -222,6 +222,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-package.ps1 `
 |---|---|
 | `scripts\verify-package.ps1` | 安装包内容齐全，且在没有 Qt SDK 的环境可运行 |
 | `scripts\verify-sbom.ps1` | 包内每个文件都在 SBOM 中登记，且 SHA-256 与实际一致 |
+| `scripts\verify-dependencies.ps1` | 依赖登记表与 Qt/MinGW/PDFium 固定版本一致；vcpkg 基线是提交哈希；包内每个二进制都能归到已登记组件 |
 | `scripts\verify-licenses.ps1` | 安装包随附第三方许可证全文，与 `licenses\CHECKSUMS.txt` 和 `licenses\pdfium-CHECKSUMS.txt` 一致（文件集合与哈希，不少也不多） |
 | `scripts\verify-logs.ps1` | 构建产物、安装包与运行时数据目录里没有密钥形态字符串（脚本自带负例守卫） |
 | `scripts\check-version.ps1` | CMake、vcpkg 清单、版本文档、索引状态、exe 版本、安装包名称一致 |
@@ -269,9 +270,10 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [OCR 妥协清单](docs/OCR_LIMITATIONS.md)
 - [IPC 协议](docs/IPC_PROTOCOL.md)
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
+- [隐私与许可证审计](docs/PRIVACY_AUDIT.md)
 
 本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.12.0`](docs/versions/v0.12.0.md)，只有当前版本通过验收后才进入下一版本。
+[`0.15.0`](docs/versions/v0.15.0.md)，只有当前版本通过验收后才进入下一版本。
 
 1.0 之后的能力路线以 [对标基线](docs/FOXIT_BENCHMARK.md) 为准：先补齐打印、批注互操作、
 表单、加密与签名，再做内容编辑，最后按 96 项评分卡收敛到 2.0。

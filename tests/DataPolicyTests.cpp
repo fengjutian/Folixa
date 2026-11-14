@@ -33,6 +33,7 @@ private slots:
 
     void auditWritesMetadataOnly();
     void auditNeverContainsSecrets();
+    void proposalAuditRecordsOnlyFileName();
 
     void previewParsesHost();
     void previewDedupesAndSortsPages();
@@ -176,6 +177,35 @@ void DataPolicyTests::auditNeverContainsSecrets() {
     QVERIFY(!content.contains("sk-"));
     QVERIFY(!QString::fromUtf8(content)
                  .contains(QStringLiteral("Authorization"), Qt::CaseInsensitive));
+}
+
+void DataPolicyTests::proposalAuditRecordsOnlyFileName() {
+    // v0.15.0 隐私审计的回归：提案审计只记文件名。
+    // 绝对路径会把用户名与项目目录名写进一个本该只有元数据的文件。
+    QTemporaryDir documentDir;
+    QVERIFY(documentDir.isValid());
+    const QString nested = QDir(documentDir.path())
+                               .filePath(QStringLiteral("Users/alice/secret-project"));
+    QVERIFY(QDir().mkpath(nested));
+    const QString documentPath = QDir(nested).filePath(QStringLiteral("contract.pdf"));
+
+    ProposalAuditEntry entry;
+    entry.documentPath = documentPath;
+    entry.tools = QStringList{QStringLiteral("doc.delete_pages")};
+    entry.operationCount = 2;
+    entry.confirmed = false;
+    entry.result = QStringLiteral("cancelled");
+    QVERIFY(appendProposalAudit(entry));
+
+    QFile file(auditLogPath());
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray content = file.readAll();
+    file.close();
+
+    QVERIFY(content.contains("\"document\":\"contract.pdf\""));
+    QVERIFY(!content.contains("alice"));
+    QVERIFY(!content.contains("secret-project"));
+    QVERIFY(!content.contains(QDir::toNativeSeparators(documentPath).toUtf8()));
 }
 
 void DataPolicyTests::previewParsesHost() {
