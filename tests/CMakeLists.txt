@@ -681,6 +681,8 @@ qt_add_executable(TesseractCliEngineTests
     TesseractCliEngineTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.h
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrEngine.h
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
@@ -695,3 +697,24 @@ set_target_properties(TesseractCliEngineTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(TesseractCliEngineTests)
 
 add_test(NAME TesseractCliEngineTests COMMAND TesseractCliEngineTests)
+
+qt_add_executable(WindowsOcrEngineTests
+    WindowsOcrEngineTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/WindowsOcrEngine.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/WindowsOcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+)
+
+target_link_libraries(WindowsOcrEngineTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(WindowsOcrEngineTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(WindowsOcrEngineTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(WindowsOcrEngineTests)
+
+add_test(NAME WindowsOcrEngineTests COMMAND WindowsOcrEngineTests)

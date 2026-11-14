@@ -115,6 +115,12 @@ qt_add_executable(AiPdfEditor WIN32
     ocr/OcrChunkBridge.h
     ocr/TesseractCliEngine.cpp
     ocr/TesseractCliEngine.h
+    ocr/OcrEngineFactory.cpp
+    ocr/OcrEngineFactory.h
+    ocr/WindowsOcrEngine.cpp
+    ocr/WindowsOcrEngine.h
+    ocr/OcrTextUtils.cpp
+    ocr/OcrTextUtils.h
     doc/VectorIndex.h
 )
 

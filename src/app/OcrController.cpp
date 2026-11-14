@@ -6,14 +6,14 @@
 #include "app/TextLayout.h"
 #include "ocr/OcrChunkBridge.h"
 #include "ocr/ScannedPageDetector.h"
-#include "ocr/TesseractCliEngine.h"
+#include "ocr/OcrEngineFactory.h"
 
 #include <QImage>
 
 namespace aipdf::app {
 
 OcrController::OcrController(QObject* parent) : QObject(parent) {
-    auto engine = std::make_unique<ocr::TesseractCliEngine>();
+    auto engine = ocr::createDefaultEngine();
     engineAvailable_ = engine->isAvailable();
     service_.setEngine(std::move(engine));
 
@@ -25,7 +25,7 @@ OcrController::OcrController(QObject* parent) : QObject(parent) {
 OcrController::~OcrController() = default;
 
 QString OcrController::unavailableReason() const {
-    return QStringLiteral("没有找到 tesseract：把它加到 PATH，或用 AIPDF_TESSERACT_PATH 指定路径");
+    return QStringLiteral("本机没有可用的 OCR：可以装 tesseract（PATH 或 AIPDF_TESSERACT_PATH），或使用 Windows 自带的 OCR");
 }
 
 bool OcrController::requestPage(PdfView* view, int pageIndex, QString* reason) {

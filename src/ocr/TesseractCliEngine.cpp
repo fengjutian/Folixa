@@ -2,6 +2,7 @@
 
 #include "ocr/ImagePreprocess.h"
 #include "ocr/OcrGeometry.h"
+#include "ocr/OcrTextUtils.h"
 
 #include <QFileInfo>
 #include <QHash>
@@ -17,35 +18,7 @@ namespace aipdf::ocr {
 
 namespace {
 
-bool isCjk(QChar ch) {
-    const ushort code = ch.unicode();
-    return (code >= 0x4E00 && code <= 0x9FFF) || (code >= 0x3400 && code <= 0x4DBF) ||
-           (code >= 0xF900 && code <= 0xFAFF) || (code >= 0x3040 && code <= 0x30FF) ||
-           (code >= 0xAC00 && code <= 0xD7AF);
-}
 
-// 中文按字切开时不能加空格，否则「中华人民共和国」会变成「中 华 人 民 …」，
-// 检索与引用都会对不上原文。夹在中文之间的英文单词保持原样。
-QString joinWords(const QStringList& words) {
-    QString joined;
-    for (const QString& word : words) {
-        if (word.isEmpty()) {
-            continue;
-        }
-        if (!joined.isEmpty()) {
-            const QChar previous = joined.at(joined.size() - 1);
-            const QChar next = word.at(0);
-            const bool needsSpace = !isCjk(previous) && !isCjk(next) &&
-                                    previous != QLatin1Char('-') && next != QLatin1Char(',') &&
-                                    next != QLatin1Char('.');
-            if (needsSpace) {
-                joined.append(QLatin1Char(' '));
-            }
-        }
-        joined.append(word);
-    }
-    return joined;
-}
 
 }  // namespace
 
