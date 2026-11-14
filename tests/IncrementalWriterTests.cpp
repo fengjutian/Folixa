@@ -92,7 +92,8 @@ void IncrementalWriterTests::appendedFileKeepsOriginalBytesIntact() {
     // 增量写入的定义：前缀一个字节都不能变。
     QCOMPARE(write.bytes.left(original.size()), original);
     QVERIFY(write.bytes.contains("/AP"));
-    QVERIFY(write.appearanceObject > 0);
+    QCOMPARE(write.appearanceCount, 1);
+    QCOMPARE(write.rewrittenObjects, 1);
 }
 
 void IncrementalWriterTests::appendedFileStillOpensWithAnnotation() {

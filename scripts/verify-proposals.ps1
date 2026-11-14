@@ -105,6 +105,7 @@ $dataDir = Join-Path $workDir 'data'
 $auditPath = Join-Path $dataDir 'ai/audit.jsonl'
 
 $process = $null
+$script:exitCode = 1
 try {
     Test-Check '主程序可执行文件存在' (Test-Path -LiteralPath $exe) $exe
     Test-Check '空白页样例存在' (Test-Path -LiteralPath $fixture) $fixture
@@ -185,17 +186,25 @@ try {
 
     if ($script:failures -gt 0) {
         Write-Host "提案验收失败：$($script:failures) 项未通过" -ForegroundColor Red
-        exit 1
+        $script:exitCode = 1
+    } else {
+        Write-Host '提案验收通过：取消不改动、执行才生效、可撤销、审计如实记录' -ForegroundColor Green
+        $script:exitCode = 0
     }
-    Write-Host '提案验收通过：取消不改动、执行才生效、可撤销、审计如实记录' -ForegroundColor Green
-    exit 0
 } catch {
     Write-Host "提案验收异常：$($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-} finally {
-    if ($process -and -not $process.HasExited) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    }
-    Stop-AiPdfOrphanWorker
-    Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue
+    $script:exitCode = 1
 }
+
+# 清理放在 try 之外：finally 里再抛异常会把退出码变成 -1，
+# 让人误以为验收崩了，其实是「清理时进程已经不在了」。
+$ErrorActionPreference = 'Continue'
+if ($process -and -not $process.HasExited) {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+}
+try {
+    Stop-AiPdfOrphanWorker | Out-Null
+} catch {
+}
+Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue
+exit $script:exitCode
