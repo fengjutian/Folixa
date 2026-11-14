@@ -1,5 +1,7 @@
 #include "app/IndexController.h"
 
+#include <QCryptographicHash>
+
 #include "app/PageTransform.h"
 #include "app/TextLayout.h"
 #include "doc/ChunkBuilder.h"
@@ -595,4 +597,27 @@ void IndexController::handleWorkerFinished(bool cancelled,
     emit indexFinished(index_.chunkCount());
 }
 
+void IndexController::applyOcrPage(int pageIndex, const QVector<doc::DocumentChunk>& chunks) {
+    if (pageIndex < 0) {
+        return;
+    }
+    index_.setPageCount(qMax(index_.pageCount(), pageIndex + 1));
+    index_.setDocumentPath(documentPath_);
+
+    // 指纹取 OCR 文本的哈希：同一页重新识别会覆盖旧结果，不会叠成两份；
+    // 与文本层的指纹格式区分开，便于排查「这块是识别来的还是抽出来的」。
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    for (const doc::DocumentChunk& chunk : chunks) {
+        hash.addData(chunk.text.toUtf8());
+        hash.addData("\n");
+    }
+    const QString fingerprint =
+        QStringLiteral("ocr:") + QString::fromLatin1(hash.result().toHex().left(12));
+    index_.replacePage(pageIndex, chunks, fingerprint);
+    index_.save();
+    trace(QStringLiteral("index ocr page=%1 chunks=%2").arg(pageIndex).arg(chunks.size()));
+    emit ocrPageApplied(pageIndex, chunks.size());
+}
+
 }  // namespace aipdf::app
+

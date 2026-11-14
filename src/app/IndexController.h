@@ -66,12 +66,18 @@ public:
     // 坐标就错位了。
     bool chunkByIdOnPage(int pageIndex, const QString& chunkId, doc::DocumentChunk* chunk) const;
 
+    // 把 OCR 得到的块并入索引：替换该页现有块并立即落盘。
+    // 指纹取 OCR 文本的哈希，同一页重新识别会自然覆盖，不会叠成两份。
+    void applyOcrPage(int pageIndex, const QVector<doc::DocumentChunk>& chunks);
+
 signals:
     void indexStarted(int totalPages);
     void indexProgress(int donePages, int totalPages);
     void indexFinished(int chunkCount);
     void indexCancelled();
     void indexFailed(const QString& message);
+    // OCR 页并入索引之后发出，界面据此刷新状态。
+    void ocrPageApplied(int pageIndex, int chunkCount);
 
 private:
     class Worker;

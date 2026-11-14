@@ -17,6 +17,7 @@ class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDropEvent;
 class QResizeEvent;
+namespace aipdf::app { class OcrController; }
 class QTreeWidget;
 class QTreeWidgetItem;
 
@@ -147,6 +148,8 @@ private:
     SearchPanel* searchPanel_ = nullptr;
     // 索引页：本地索引状态、检索与结果（v0.9.0）。
     IndexPanel* indexPanel_ = nullptr;
+    // OCR 编排：判定 → 渲染 → 识别 → 入索引（v0.13.0）。
+    OcrController* ocrController_ = nullptr;
     QFrame* aiQuickCard_ = nullptr;
     QPushButton* aiFloatingButton_ = nullptr;
     // 快捷卡的上下文说明（没有文档/选区时这里写明原因）。

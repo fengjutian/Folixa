@@ -7,6 +7,7 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
+#include "app/OcrController.h"
 #include "app/BrandMark.h"
 #include "app/WelcomePage.h"
 #include "ipc/WorkerClient.h"
@@ -268,6 +269,36 @@ void MainWindow::buildUi() {
     findAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
     appMenu->addSeparator();
     appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
+    appMenu->addSeparator();
+    // OCR（v0.13.0）：把当前页的扫描图识别成文字并入索引。
+    ocrController_ = new OcrController(this);
+    auto* ocrAction = appMenu->addAction(tr("识别当前页（OCR）"));
+    ocrAction->setObjectName(QStringLiteral("ocrCurrentPage"));
+    connect(ocrAction, &QAction::triggered, this, [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("先打开一份 PDF"), 5000);
+            return;
+        }
+        const int page = view->currentPage();
+        QString reason;
+        if (!ocrController_->requestPage(view, page, &reason)) {
+            statusBar()->showMessage(reason, 8000);
+            trace(QStringLiteral("ocr skipped page=%1 reason=%2").arg(page + 1).arg(reason));
+            return;
+        }
+        statusBar()->showMessage(tr("正在识别第 %1 页…").arg(page + 1));
+        trace(QStringLiteral("ocr request page=%1").arg(page + 1));
+    });
+    connect(ocrController_, &OcrController::pageApplied, this, [this](int page, int chunks) {
+        statusBar()->showMessage(
+            tr("第 %1 页 OCR 完成：%2 块已加入索引").arg(page + 1).arg(chunks), 10000);
+        trace(QStringLiteral("ocr applied page=%1 chunks=%2").arg(page + 1).arg(chunks));
+    });
+    connect(ocrController_, &OcrController::failed, this, [this](int page, const QString& reason) {
+        statusBar()->showMessage(tr("第 %1 页 OCR 失败：%2").arg(page + 1).arg(reason), 10000);
+        trace(QStringLiteral("ocr failed page=%1 reason=%2").arg(page + 1).arg(reason));
+    });
     appMenu->addSeparator();
     appMenu->addAction(tr("退出"), this, &QWidget::close);
     appMenuButton->setMenu(appMenu);

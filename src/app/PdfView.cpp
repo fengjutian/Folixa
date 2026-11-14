@@ -682,6 +682,13 @@ QString PdfView::filePath() const {
     return filePath_;
 }
 
+QSizeF PdfView::pageSizePoints(int pageIndex) const {
+    const auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return {};
+    }
+    return QSizeF(page->displayWidthPoints(), page->displayHeightPoints());
+}
 QImage PdfView::renderThumbnail(int pageIndex, int targetWidth) const {
     const auto page = document_.page(pageIndex);
     if (!page.has_value() || targetWidth <= 0) {

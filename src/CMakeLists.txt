@@ -36,6 +36,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/AiSettingsDialog.cpp
     app/UploadPreviewDialog.h
     app/UploadPreviewDialog.cpp
+    app/OcrController.cpp
+    app/OcrController.h
     app/IndexController.h
     app/IndexController.cpp
     app/IndexPanel.h
