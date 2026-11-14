@@ -1,6 +1,8 @@
-﻿#include "pdf/IncrementalWriter.h"
+#include "pdf/IncrementalWriter.h"
 
 #include <algorithm>
+#include <map>
+#include <utility>
 
 namespace aipdf::pdf {
 
@@ -10,7 +12,7 @@ namespace {
 //
 // 这不是一个 PDF 解析器，也不打算变成解析器：它只处理 PDFium 刚写出来的字节
 // （我们的保存路径天然满足），遇到对象流、交叉引用流、加密文件一律失败退出。
-// 完整对象层（含对象流与加密）留给 1.3.0 的 DocumentWriter + qpdf。
+// 完整对象层（含对象流与加密）留给后续的 qpdf 接入。
 
 struct ObjectRef {
     int object = 0;
@@ -194,18 +196,32 @@ bool findTarget(const QByteArray& pdf, const QByteArray& marker, Target* out) {
     return false;
 }
 
+struct PendingObject {
+    Target target;
+    QVector<QPair<qsizetype, QByteArray>> inserts;  // (插入点, 要插入的片段)
+};
+
+QByteArray buildAppearanceBody(const Appearance& appearance) {
+    QByteArray body =
+        "<< /Type /XObject /Subtype /Form /FormType 1 /BBox [0 0 " +
+        QByteArray::number(appearance.bbox.width(), 'f', 3) + " " +
+        QByteArray::number(appearance.bbox.height(), 'f', 3) + "] ";
+    if (!appearance.resources.isEmpty()) {
+        body += "/Resources << " + appearance.resources + " >> ";
+    }
+    body += "/Length " + QByteArray::number(appearance.content.size()) + " >>\nstream\n";
+    body += appearance.content;
+    body += "endstream";
+    return body;
+}
+
 }  // namespace
 
-IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
-                                            const QByteArray& marker,
-                                            const Appearance& appearance) {
+IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
+                                             const QVector<AppearanceAttachment>& attachments) {
     IncrementalWrite result;
-    if (appearance.isEmpty()) {
-        result.error = QStringLiteral("外观流为空，没有可写的内容");
-        return result;
-    }
-    if (marker.isEmpty()) {
-        result.error = QStringLiteral("缺少批注标记，无法定位注释");
+    if (attachments.isEmpty()) {
+        result.error = QStringLiteral("没有要写入的外观流");
         return result;
     }
 
@@ -242,6 +258,23 @@ IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
         declaredSize = trailerDict.mid(begin, i - begin).toInt();
     }
 
+    qsizetype previousXref = 0;
+    {
+        qsizetype i = startxrefAt + 9;
+        while (i < pdf.size() && (pdf[i] < '0' || pdf[i] > '9')) {
+            ++i;
+        }
+        const qsizetype begin = i;
+        while (i < pdf.size() && pdf[i] >= '0' && pdf[i] <= '9') {
+            ++i;
+        }
+        previousXref = pdf.mid(begin, i - begin).toLongLong();
+    }
+    if (previousXref <= 0) {
+        result.error = QStringLiteral("startxref 数值无效");
+        return result;
+    }
+
     // /Size 不能全信：它可能缺失、可能写小。新对象编号取「扫描到的最大对象号」与
     // 「/Size - 1」的较大者 + 1，否则会和已有对象撞号——撞号表现为文件能打开但没有页。
     int maxObject = 0;
@@ -258,69 +291,107 @@ IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
         }
     }
 
-    qsizetype previousXref = 0;
-    {
-        qsizetype i = startxrefAt + 9;
-        while (i < pdf.size() && (pdf[i] < '0' || pdf[i] > '9')) {
-            ++i;
+    int nextObject = std::max(maxObject, declaredSize > 0 ? declaredSize - 1 : 0) + 1;
+
+    // 按「承载对象」分组：同一页上的多条批注往往内联在同一个页面对象里，
+    // 逐条重写会让前面的写入被后一次覆盖。
+    std::map<int, PendingObject> pending;
+    QVector<QPair<int, QByteArray>> appearanceBodies;
+    QVector<QByteArray> seenMarkers;
+
+    for (const AppearanceAttachment& item : attachments) {
+        if (item.appearance.isEmpty()) {
+            continue;
         }
-        const qsizetype digitsBegin = i;
-        while (i < pdf.size() && pdf[i] >= '0' && pdf[i] <= '9') {
-            ++i;
+        if (seenMarkers.contains(item.marker)) {
+            continue;  // 同一个标记只补一次，避免插出两个 /AP 键
         }
-        previousXref = pdf.mid(digitsBegin, i - digitsBegin).toLongLong();
+        Target target;
+        if (!findTarget(pdf, item.marker, &target)) {
+            result.error = QStringLiteral("找不到带标记 %1 的批注对象")
+                               .arg(QString::fromUtf8(item.marker));
+            result.bytes.clear();
+            return result;
+        }
+        seenMarkers.append(item.marker);
+
+        auto it = pending.find(target.object);
+        if (it == pending.end()) {
+            PendingObject fresh;
+            fresh.target = target;
+            it = pending.emplace(target.object, fresh).first;
+        }
+
+        const int appearanceObject = nextObject++;
+        it->second.inserts.append(
+            { target.insertAt,
+              "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> " });
+        appearanceBodies.append({ appearanceObject, buildAppearanceBody(item.appearance) });
     }
-    if (previousXref <= 0) {
-        result.error = QStringLiteral("startxref 数值无效");
+
+    if (appearanceBodies.isEmpty()) {
+        result.error = QStringLiteral("所有外观流都为空，没有可写的内容");
         return result;
     }
-
-    Target target;
-    if (!findTarget(pdf, marker, &target)) {
-        result.error = QStringLiteral("找不到带该标记的批注对象");
-        return result;
-    }
-
-    const int appearanceObject = std::max(maxObject, declaredSize > 0 ? declaredSize - 1 : 0) + 1;
-    result.rewrittenObject = target.object;
-    result.appearanceObject = appearanceObject;
-
-    // 重写承载注释的对象，在字典闭合前插入 /AP。
-    QByteArray objectBody = pdf.mid(target.bodyBegin, target.bodyEnd - target.bodyBegin);
-    objectBody.insert(target.insertAt - target.bodyBegin,
-                      "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> ");
 
     QByteArray tail;
-    const qsizetype objectOffset = pdf.size() + tail.size();
-    tail += QByteArray::number(target.object) + " 0 obj\n" + objectBody + "\nendobj\n";
+    QVector<QPair<int, qsizetype>> offsets;
 
-    QByteArray appearanceBody =
-        "<< /Type /XObject /Subtype /Form /FormType 1 /BBox [0 0 " +
-        QByteArray::number(appearance.bbox.width(), 'f', 3) + " " +
-        QByteArray::number(appearance.bbox.height(), 'f', 3) + "] ";
-    if (!appearance.resources.isEmpty()) {
-        appearanceBody += "/Resources << " + appearance.resources + " >> ";
+    for (auto& entry : pending) {
+        PendingObject& object = entry.second;
+        QByteArray body =
+            pdf.mid(object.target.bodyBegin, object.target.bodyEnd - object.target.bodyBegin);
+        // 从后往前插：偏移才不会被前一次插入打乱。
+        std::sort(object.inserts.begin(), object.inserts.end(),
+                  [](const auto& a, const auto& b) { return a.first > b.first; });
+        for (const auto& insert : object.inserts) {
+            const qsizetype relative = insert.first - object.target.bodyBegin;
+            if (relative < 0 || relative > body.size()) {
+                result.error = QStringLiteral("插入点越界，放弃写入");
+                return result;
+            }
+            body.insert(relative, insert.second);
+        }
+        offsets.append({ entry.first, pdf.size() + tail.size() });
+        tail += QByteArray::number(entry.first) + " 0 obj\n" + body + "\nendobj\n";
     }
-    appearanceBody += "/Length " + QByteArray::number(appearance.content.size()) + " >>\nstream\n";
-    appearanceBody += appearance.content;
-    appearanceBody += "endstream";
 
-    const qsizetype appearanceOffset = pdf.size() + tail.size();
-    tail += QByteArray::number(appearanceObject) + " 0 obj\n" + appearanceBody + "\nendobj\n";
+    for (const auto& appearance : appearanceBodies) {
+        offsets.append({ appearance.first, pdf.size() + tail.size() });
+        tail += QByteArray::number(appearance.first) + " 0 obj\n" + appearance.second +
+                "\nendobj\n";
+    }
+
+    std::sort(offsets.begin(), offsets.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
 
     const qsizetype xrefOffset = pdf.size() + tail.size();
     tail += "xref\n";
-    tail += QByteArray::number(target.object) + " 1\n" + padded(objectOffset) + " 00000 n \n";
-    tail += QByteArray::number(appearanceObject) + " 1\n" + padded(appearanceOffset) +
-            " 00000 n \n";
-    tail += "trailer\n<< /Size " + QByteArray::number(appearanceObject + 1) + " /Root " +
+    for (const auto& offset : offsets) {
+        tail += QByteArray::number(offset.first) + " 1\n" + padded(offset.second) + " 00000 n \n";
+    }
+    const int newSize = std::max(offsets.last().first, declaredSize) + 1;
+    tail += "trailer\n<< /Size " + QByteArray::number(newSize) + " /Root " +
             QByteArray::number(root.object) + " " + QByteArray::number(root.generation) +
             " R /Prev " + QByteArray::number(previousXref) + " >>\n";
     tail += "startxref\n" + QByteArray::number(xrefOffset) + "\n%%EOF\n";
 
     result.bytes = pdf + tail;
     result.ok = true;
+    result.appearanceCount = appearanceBodies.size();
+    result.rewrittenObjects = static_cast<int>(pending.size());
     return result;
+}
+
+IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
+                                            const QByteArray& marker,
+                                            const Appearance& appearance) {
+    if (marker.isEmpty()) {
+        IncrementalWrite result;
+        result.error = QStringLiteral("缺少批注标记，无法定位注释");
+        return result;
+    }
+    return appendAnnotationAppearances(pdf, { AppearanceAttachment{ marker, appearance } });
 }
 
 }  // namespace aipdf::pdf

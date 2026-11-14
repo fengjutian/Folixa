@@ -54,12 +54,21 @@ function Get-MenuItemElement {
     $condition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::MenuItem)
-    foreach ($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
+    # UIA 在窗口销毁/重绘的瞬间会抛 E_FAIL：这是环境噪声，不是验收失败，
+    # 重试几次即可，不要让它变成「红一次绿一次」的假信号。
+    for ($attempt = 0; $attempt -lt 5; $attempt++) {
         try {
-            if ($item.Current.Name -match $NamePattern) {
-                return $item
+            foreach ($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
+                try {
+                    if ($item.Current.Name -match $NamePattern) {
+                        return $item
+                    }
+                } catch {
+                }
             }
+            return $null
         } catch {
+            Start-Sleep -Milliseconds 250
         }
     }
     return $null

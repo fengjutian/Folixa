@@ -314,6 +314,42 @@ aipdf_deploy_pdfium(IncrementalWriterTests)
 
 add_test(NAME IncrementalWriterTests COMMAND IncrementalWriterTests)
 
+# -------------------------------------------------------- 保存路径（外观流） ----
+
+qt_add_executable(DocumentWriterTests
+    DocumentWriterTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(DocumentWriterTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(DocumentWriterTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(DocumentWriterTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(DocumentWriterTests PROPERTIES WIN32_EXECUTABLE FALSE)
+add_dependencies(DocumentWriterTests pdf-fixtures)
+aipdf_deploy_qt_runtime(DocumentWriterTests)
+aipdf_deploy_pdfium(DocumentWriterTests)
+
+add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
+
 # ---------------------------------------------------- 页面管理与安全保存 ----
 
 qt_add_executable(PageOperationTests

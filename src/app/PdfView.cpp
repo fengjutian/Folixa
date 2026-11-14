@@ -12,6 +12,7 @@
 #include "doc/RecoveryLog.h"
 #include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
+#include "pdf/DocumentWriter.h"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -1125,14 +1126,18 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
         return false;
     }
 
-    // 先把当前状态（含内存里的批注与页面改动）序列化成 PDF 字节。
-    QString serializeError;
-    const QByteArray bytes = document_.serialize(&serializeError);
+    // 先把当前状态（含内存里的批注与页面改动）序列化成 PDF 字节，并给本程序写的
+    // 批注补上 /AP 外观流——少了这一步，文件在福昕/Acrobat 里打开时批注是隐形的。
+    const pdf::SaveBytes prepared = pdf::serializeForSave(document_);
+    const QByteArray& bytes = prepared.bytes;
     if (bytes.isEmpty()) {
         if (errorMessage != nullptr) {
-            *errorMessage = serializeError.isEmpty() ? tr("文档序列化失败") : serializeError;
+            *errorMessage = prepared.error.isEmpty() ? tr("文档序列化失败") : prepared.error;
         }
         return false;
+    }
+    if (!prepared.warning.isEmpty()) {
+        trace(QStringLiteral("appearance not written: %1").arg(prepared.warning));
     }
 
     // 写临时文件 → 重新打开校验 → 原子替换。失败时原文件不动。

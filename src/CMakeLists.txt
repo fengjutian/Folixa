@@ -56,6 +56,12 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/PdfiumAdapter.h
     pdf/Annotation.cpp
     pdf/Annotation.h
+    pdf/AppearanceStream.cpp
+    pdf/AppearanceStream.h
+    pdf/IncrementalWriter.cpp
+    pdf/IncrementalWriter.h
+    pdf/DocumentWriter.cpp
+    pdf/DocumentWriter.h
     pdf/Navigation.cpp
     pdf/Navigation.h
     pdf/TextPage.cpp

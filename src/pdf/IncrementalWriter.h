@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QVector>
 
 #include "pdf/AppearanceStream.h"
 
@@ -13,24 +14,36 @@ struct IncrementalWrite {
     bool ok = false;
     QString error;
 
-    // 外观流对象的编号（调试与后续复用外观流时用）。
-    int appearanceObject = 0;
-    // 被重写的对象编号（页面或独立注释对象）。
-    int rewrittenObject = 0;
+    // 写入的外观流数量与被重写的对象数量（调试与测试用）。
+    int appearanceCount = 0;
+    int rewrittenObjects = 0;
 };
 
-// 给「/NM 等于 marker」的批注补上外观流（/AP）。
+// 一条待写入的外观流：用 marker 找到批注，把 appearance 写成它的 /AP。
+struct AppearanceAttachment {
+    QByteArray marker;  // 批注的 /NM，本程序写的是 "Folixa:<id>"
+    Appearance appearance;
+};
+
+// 给一批批注补上外观流（/AP），**一次写入**完成。
 //
-// 为什么需要它：PDFium 只会渲染自带 /AP 的注释，而它的公开 API 不能创建
-// XObject（FPDFAnnot_SetAP 只写字典、不建对象）。不补这一步，我们写进文件的
-// 批注在福昕、Acrobat 里就是不可见的。
+// 为什么必须批量：同一页上的多条批注常常内联在**同一个页面对象**里。
+// 逐条调用会把这个页面对象重写多次，只有最后一次生效——前面几条的外观流凭空消失。
+// 批量版本按「承载对象」分组，同一个对象只重写一次，把所有 /AP 一起插进去。
 //
-// 输入必须是 **PDFium 保存出来的字节**（FPDF_SaveAsCopy 的输出）：这里做的是
-// 在文件尾部追加「重写的对象 + 外观流对象 + 新 xref」，原有字节一个都不动。
-// 解析器故意做得极窄——只认线性扫描得到的对象与经典 xref 表，遇到对象流、
-// 加密文件直接返回失败，交给后续的完整对象层处理。
+// 为什么需要它：PDFium 只会渲染自带 /AP 的注释，而它的公开 API 不能创建 XObject
+// （FPDFAnnot_SetAP 只写字典、不建对象）。不补这一步，我们写进文件的批注在福昕、
+// Acrobat 里就是不可见的。
+//
+// 输入必须是 **PDFium 保存出来的字节**（FPDF_SaveAsCopy 的输出）：这里做的是在文件
+// 尾部追加「重写的对象 + 外观流对象 + 新 xref」，原有字节一个都不动。解析器故意做得
+// 极窄——只认经典 xref 表与直接对象，遇到对象流、交叉引用流、加密文件直接失败。
 //
 // 失败时 bytes 为空，调用方应当**放弃这次写入**，不要落盘半成品。
+IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
+                                             const QVector<AppearanceAttachment>& attachments);
+
+// 单条版本：内部转调批量版本。
 IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
                                             const QByteArray& marker,
                                             const Appearance& appearance);
