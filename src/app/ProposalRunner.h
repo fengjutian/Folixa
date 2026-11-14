@@ -6,6 +6,7 @@
 #include <QString>
 #include <vector>
 
+#include <functional>
 #include <memory>
 
 namespace aipdf::doc {
@@ -32,9 +33,10 @@ public:
 
     // 逐条执行并压入撤销栈。返回成功执行的条数；失败时 error 说明原因。
     // 只在用户确认后调用——这一步没有内置的确认，调用方负责。
-    // 执行会把命令移交给撤销栈（执行一次就消费掉）。
-    static int execute(CommandList* commands, doc::EditContext* context,
-                       doc::UndoStack* stack, QString* error);
+    // 每条命令交给 apply 执行（应用层传 AnnotationController::applyCommand）。
+    // 命令的所有权随之移交；失败即停，返回成功条数。
+    using Applier = std::function<bool(std::unique_ptr<doc::EditCommand>)>;
+    static int execute(CommandList* commands, const Applier& apply, QString* error);
 };
 
 }  // namespace aipdf::app

@@ -129,6 +129,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/ProposalRunner.h
     app/EditProposalDialog.cpp
     app/EditProposalDialog.h
+    app/BlankPageDetector.cpp
+    app/BlankPageDetector.h
     doc/VectorIndex.h
 )
 

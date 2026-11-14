@@ -8,6 +8,10 @@
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
 #include "app/OcrController.h"
+#include "tools/ProposalValidator.h"
+#include "app/ProposalRunner.h"
+#include "app/EditProposalDialog.h"
+#include "app/BlankPageDetector.h"
 #include "app/BrandMark.h"
 #include "app/WelcomePage.h"
 #include "ipc/WorkerClient.h"
@@ -294,6 +298,83 @@ void MainWindow::buildUi() {
         statusBar()->showMessage(
             tr("第 %1 页 OCR 完成：%2 块已加入索引").arg(page + 1).arg(chunks), 10000);
         trace(QStringLiteral("ocr applied page=%1 chunks=%2").arg(page + 1).arg(chunks));
+    });
+    // AI 文档操作（v0.14.0）：只读扫描 → 生成提案 → 用户确认 → 走命令系统。
+    // 这条路径上没有任何一步能绕过确认框。
+    auto* blankAction = appMenu->addAction(tr("AI：找出空白页并提议删除"));
+    blankAction->setObjectName(QStringLiteral("aiFindBlankPages"));
+    connect(blankAction, &QAction::triggered, this, [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("先打开一份 PDF"), 5000);
+            return;
+        }
+        const int pageCount = view->pageCount();
+        const int limit = qMin(pageCount, 200);
+        QVector<int> blankPages;
+        for (int page = 0; page < limit; ++page) {
+            const QImage thumb = view->renderThumbnail(page, 100);
+            if (app::looksBlank(thumb)) {
+                blankPages.append(page);
+            }
+        }
+        trace(QStringLiteral("ai blank scan pages=%1 blank=%2")
+                  .arg(limit)
+                  .arg(blankPages.size()));
+        if (blankPages.isEmpty()) {
+            statusBar()->showMessage(
+                tr("扫描了 %1 页，没有发现空白页").arg(limit), 8000);
+            return;
+        }
+
+        QJsonArray pages;
+        for (const int page : blankPages) {
+            pages.append(page + 1);
+        }
+        QJsonArray raw;
+        raw.append(QJsonObject{{QStringLiteral("tool"), QStringLiteral("doc.delete_pages")},
+                               {QStringLiteral("args"),
+                                QJsonObject{{QStringLiteral("pages"), pages}}}});
+        const tools::Proposal proposal =
+            tools::validateProposal(raw, tools::DocumentSnapshot{pageCount, 0});
+        if (!proposal.ok()) {
+            statusBar()->showMessage(tr("提案没有通过校验：%1")
+                                         .arg(proposal.issues.first().message),
+                                     10000);
+            return;
+        }
+
+        app::EditProposalDialog dialog(proposal, this);
+        if (dialog.exec() != QDialog::Accepted) {
+            trace(QStringLiteral("ai proposal cancelled blank=%1").arg(blankPages.size()));
+            statusBar()->showMessage(tr("已取消，文档没有任何改动"), 6000);
+            return;
+        }
+
+        ProposalRunner::CommandList commands;
+        QString error;
+        if (!ProposalRunner::buildCommands(proposal, &commands, &error)) {
+            statusBar()->showMessage(tr("无法执行：%1").arg(error), 10000);
+            return;
+        }
+        AnnotationController* annotations = view->annotationController();
+        const int applied = ProposalRunner::execute(
+            &commands,
+            [annotations](std::unique_ptr<doc::EditCommand> command) {
+                return annotations != nullptr && annotations->applyCommand(std::move(command));
+            },
+            &error);
+        trace(QStringLiteral("ai proposal applied ops=%1 blank=%2 pages=%3 error=%4")
+                  .arg(applied)
+                  .arg(blankPages.size())
+                  .arg(view->pageCount())
+                  .arg(error));
+        if (applied == 0) {
+            statusBar()->showMessage(tr("执行失败：%1").arg(error), 10000);
+        } else {
+            statusBar()->showMessage(
+                tr("已删除 %1 个空白页，可用 Ctrl+Z 撤销").arg(applied), 10000);
+        }
     });
     connect(ocrController_, &OcrController::failed, this, [this](int page, const QString& reason) {
         statusBar()->showMessage(tr("第 %1 页 OCR 失败：%2").arg(page + 1).arg(reason), 10000);

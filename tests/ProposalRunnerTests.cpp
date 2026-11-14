@@ -3,6 +3,7 @@
 // 守两件事：
 //   1. 翻译出来的命令顺序正确（删多页必须从后往前，否则第二次删错位置）；
 //   2. 确认框的默认按钮是「取消」——回车不等于同意。
+#include "app/BlankPageDetector.h"
 #include "app/EditProposalDialog.h"
 #include "app/ProposalRunner.h"
 
@@ -42,6 +43,9 @@ private slots:
     void unsupportedToolIsReported();
     void dialogDefaultButtonIsCancel();
     void dialogListsEveryOperation();
+    void blankPageIsDetectedByInkRatio();
+    void pageWithTextIsNotEmpty();
+    void failedRenderIsNotBlank();
 };
 
 void ProposalRunnerTests::deletesPagesFromTheEnd() {
@@ -153,6 +157,38 @@ void ProposalRunnerTests::dialogListsEveryOperation() {
     QCOMPARE(list->count(), 2);
     QVERIFY(list->item(0)->text().contains(QStringLiteral("删除")));
     QVERIFY(list->item(1)->text().contains(QStringLiteral("移动")));
+}
+
+void ProposalRunnerTests::blankPageIsDetectedByInkRatio() {
+    QImage white(200, 280, QImage::Format_Grayscale8);
+    white.fill(255);
+    QVERIFY(aipdf::app::looksBlank(white));
+    QCOMPARE(aipdf::app::inkRatio(white), 0.0);
+
+    // 一点点扫描噪声不该把空白页判成有内容。
+    QImage noisy = white;
+    for (int i = 0; i < 20; ++i) {
+        noisy.setPixel(i * 3, i * 2, 235);
+    }
+    QVERIFY(aipdf::app::looksBlank(noisy));
+}
+
+void ProposalRunnerTests::pageWithTextIsNotEmpty() {
+    QImage page(200, 280, QImage::Format_Grayscale8);
+    page.fill(255);
+    // 画一块 40×10 的「字」：占比 200/56000 ≈ 0.36%，明显高于空白阈值。
+    for (int y = 40; y < 50; ++y) {
+        for (int x = 20; x < 60; ++x) {
+            page.setPixel(x, y, 10);
+        }
+    }
+    QVERIFY(aipdf::app::inkRatio(page) > aipdf::app::kBlankInkRatio);
+    QVERIFY(!aipdf::app::looksBlank(page));
+}
+
+void ProposalRunnerTests::failedRenderIsNotBlank() {
+    // 渲染失败（空图）不能当成空白页：那会删掉用户真正的内容页。
+    QVERIFY(!aipdf::app::looksBlank(QImage()));
 }
 
 QTEST_MAIN(ProposalRunnerTests)

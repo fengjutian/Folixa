@@ -260,6 +260,26 @@ aipdf_deploy_pdfium(PdfAnnotationTests)
 
 add_test(NAME PdfAnnotationTests COMMAND PdfAnnotationTests)
 
+# ------------------------------------------------------------ 批注外观流 ----
+#
+# 纯函数：不吃文档、不碰 PDFium，测的是"生成的 content stream 会不会越界、
+# 该透明的透没透、该描边的有没有描"。
+
+qt_add_executable(AppearanceStreamTests
+    AppearanceStreamTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(AppearanceStreamTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(AppearanceStreamTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AppearanceStreamTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AppearanceStreamTests)
+
+add_test(NAME AppearanceStreamTests COMMAND AppearanceStreamTests)
+
 # ---------------------------------------------------- 页面管理与安全保存 ----
 
 qt_add_executable(PageOperationTests
@@ -746,6 +766,8 @@ qt_add_executable(ProposalRunnerTests
     ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.h
     ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp

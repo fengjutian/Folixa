@@ -92,14 +92,10 @@ bool ProposalRunner::buildCommands(const tools::Proposal& proposal, CommandList*
     return true;
 }
 
-int ProposalRunner::execute(CommandList* commands, doc::EditContext* context,
-                            doc::UndoStack* stack, QString* error) {
-    if (commands == nullptr) {
-        return 0;
-    }
-    if (context == nullptr || stack == nullptr) {
+int ProposalRunner::execute(CommandList* commands, const Applier& apply, QString* error) {
+    if (commands == nullptr || !apply) {
         if (error != nullptr) {
-            *error = QStringLiteral("没有可用的编辑上下文");
+            *error = QStringLiteral("没有可用的执行入口");
         }
         return 0;
     }
@@ -108,10 +104,9 @@ int ProposalRunner::execute(CommandList* commands, doc::EditContext* context,
         if (command == nullptr) {
             continue;
         }
-        // 名字要先取出来：push 之后 command 已经为空。
+        // 名字要先取出来：移动之后 command 已经为空。
         const QString name = command->displayName();
-        // push 会执行并入栈：失败时不会留下半条命令。
-        if (!stack->push(std::move(command), context)) {
+        if (!apply(std::move(command))) {
             if (error != nullptr) {
                 *error = QStringLiteral("第 %1 条「%2」执行失败").arg(applied + 1).arg(name);
             }
@@ -121,5 +116,4 @@ int ProposalRunner::execute(CommandList* commands, doc::EditContext* context,
     }
     return applied;
 }
-
 }  // namespace aipdf::app
