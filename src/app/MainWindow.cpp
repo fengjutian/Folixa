@@ -1635,14 +1635,28 @@ void MainWindow::openPdfFile(const QString& filePath) {
     connect(view, &PdfView::textCopied, this, [this](int characters) {
         statusBar()->showMessage(tr("已复制 %1 个字符到剪贴板").arg(characters), 3000);
     });
-    connect(view, &PdfView::currentPageChanged, this, [this](int index) {
+    connect(view, &PdfView::currentPageChanged, this, [this, view](int index) {
         highlightThumbnail(index);
         updatePageActionState();
+        // 翻到没有文本层的页时自动识别一次（每页每次会话只试一次）。
+        if (ocrController_ != nullptr) {
+            ocrController_->handlePageShown(view, index);
+        }
         // AI 面板要知道当前页：摘要与提问都只送当前页。
         if (aiPanel_ != nullptr) {
             aiPanel_->setCurrentPage(index);
         }
     });
+    // 打开文档后也自动看一眼当前页：扫描件不必先翻页才识别。
+    // 等一会儿是为了让文本层先落地——否则会给正常的文字页也做一遍 OCR。
+    QTimer::singleShot(1200, this, [this, view] {
+        if (ocrController_ == nullptr) {
+            return;
+        }
+        ocrController_->resetAttempts();
+        ocrController_->handlePageShown(view, view->currentPage());
+    });
+
     // 页面结构变了：缩略图列表与页面按钮都要跟着更新。
     connect(view, &PdfView::pageStructureChanged, this, [this]() {
         refreshThumbnails(currentView());

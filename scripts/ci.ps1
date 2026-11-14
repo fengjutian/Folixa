@@ -124,6 +124,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/privacy.png'
     )
+    Invoke-Script '扫描件 OCR 验收' (Join-Path $PSScriptRoot 'verify-ocr.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/ocr.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
