@@ -162,6 +162,10 @@ try {
     }
 
     Write-Host '=== 敏感日志扫描 ===' -ForegroundColor Cyan
+    Invoke-Script '性能基线' (Join-Path $PSScriptRoot 'perf.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin'
+    )
+
     Invoke-Script '敏感日志扫描' (Join-Path $PSScriptRoot 'verify-logs.ps1') @('-SelfTest')
 
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan

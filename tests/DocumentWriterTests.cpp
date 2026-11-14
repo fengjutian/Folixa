@@ -70,6 +70,7 @@ private slots:
     void saveWritesFileWithAppearance();
     void saveCreatesBackupAndLeavesNoTempFile();
     void saveFailsWhenTargetDirectoryIsMissing();
+    void inMemoryAnnotationHasNoAppearance();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -202,6 +203,22 @@ void DocumentWriterTests::saveWritesFileWithAppearance() {
     auto reopenedPage = reopened.document.page(0);
     QVERIFY(reopenedPage.has_value());
     QCOMPARE(reopenedPage->annotations().size(), 1);
+    // 读回来要能看出"这条已经带外观流"，界面据此不再叠加绘制。
+    QVERIFY(reopenedPage->annotations().first().hasAppearance);
+}
+
+void DocumentWriterTests::inMemoryAnnotationHasNoAppearance() {
+    // 刚写进文档的批注还没有 /AP（要等保存时才补）：界面必须继续自己画。
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->setAnnotations(
+        { makeAnnotation(5, AnnotationType::Highlight, QRectF(60.0, 200.0, 200.0, 18.0)) }));
+
+    const auto annotations = page->annotations();
+    QCOMPARE(annotations.size(), 1);
+    QVERIFY(!annotations.first().hasAppearance);
 }
 
 void DocumentWriterTests::saveCreatesBackupAndLeavesNoTempFile() {

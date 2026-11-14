@@ -40,6 +40,12 @@ struct Annotation {
     // 墨迹笔画（user space）：每条笔画是一串点。
     QVector<QVector<QPointF>> strokes;
     QColor color;
+    // 这条批注在文档里是否已带外观流（/AP）。
+    //
+    // 读文件时从注释字典里探测；内存里新建或改过的批注没有 /AP。
+    // 用途只有一个：**避免同一层画两遍**。PDFium 会把带 /AP 的注释自己画出来，
+    // 界面再按模型画一遍，结果就是高亮颜色深一倍（外部软件写的批注也会中招）。
+    bool hasAppearance = false;
     // 便签正文与备注。
     QString contents;
     QString author;

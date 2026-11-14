@@ -243,6 +243,11 @@ void PageCanvas::paintAnnotations(QPainter& painter,
     }
 
     for (const pdf::Annotation& annotation : annotations) {
+        // 带 /AP 的批注已经由 PDFium 画进页面位图了，这里再画一遍就是两层叠加
+        // （高亮颜色深一倍）。外部软件写的批注同样会被 PDFium 绘制，所以这条对所有批注生效。
+        if (annotation.hasAppearance) {
+            continue;
+        }
         switch (annotation.type) {
             case pdf::AnnotationType::Highlight: {
                 // 高亮：逐行铺一层半透明底色。

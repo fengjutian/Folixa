@@ -863,3 +863,30 @@ set_target_properties(ProposalRunnerTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(ProposalRunnerTests)
 
 add_test(NAME ProposalRunnerTests COMMAND ProposalRunnerTests)
+
+# ------------------------------------------------- 性能基线（v0.15.0） ----
+
+qt_add_executable(PerfTests
+    PerfTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
+)
+
+target_link_libraries(PerfTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(PerfTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(PerfTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PerfTests)
+
+add_test(NAME PerfTests COMMAND PerfTests)
+set_tests_properties(PerfTests PROPERTIES LABELS "perf")

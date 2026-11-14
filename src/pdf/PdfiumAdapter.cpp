@@ -643,6 +643,9 @@ QVector<Annotation> PdfPage::annotations() const {
             item.color = defaultAnnotationColor(item.type);
         }
 
+        // 文档里已经带外观流：PDFium 会自己把它画出来，界面就别再画一遍。
+        item.hasAppearance = FPDFAnnot_HasKey(annot, "AP") != 0;
+
         // 批注正文（Contents）。
         const unsigned long needed =
             FPDFAnnot_GetStringValue(annot, "Contents", nullptr, 0);
