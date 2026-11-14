@@ -98,6 +98,13 @@ qt_add_executable(AiPdfEditor WIN32
     doc/UndoStack.cpp
     doc/UndoStack.h
     doc/VectorIndex.cpp
+
+    ocr/OcrEngine.h
+    ocr/OcrTypes.h
+    ocr/OcrGeometry.cpp
+    ocr/OcrGeometry.h
+    ocr/ScannedPageDetector.cpp
+    ocr/ScannedPageDetector.h
     doc/VectorIndex.h
 )
 

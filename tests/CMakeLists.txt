@@ -613,3 +613,20 @@ set_target_properties(PromptInjectionTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(PromptInjectionTests)
 
 add_test(NAME PromptInjectionTests COMMAND PromptInjectionTests)
+
+# ------------------------------------------------- OCR 基础（v0.13.0） ----
+
+qt_add_executable(OcrTests
+    OcrTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/ScannedPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/ScannedPageDetector.h
+)
+
+target_link_libraries(OcrTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(OcrTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(OcrTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(OcrTests)
+
+add_test(NAME OcrTests COMMAND OcrTests)
