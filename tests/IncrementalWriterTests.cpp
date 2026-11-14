@@ -1,4 +1,4 @@
-// 增量写入的测试：给批注补 /AP 之后，文件还在不在、原字节动没动、别人看不看得见。
+﻿// 增量写入的测试：给批注补 /AP 之后，文件还在不在、原字节动没动、别人看不看得见。
 //
 // 这条路径最怕两件事：把文件写坏（打不开），或者写完只有自己认（别的阅读器看不见）。
 // 所以四类断言缺一不可：
@@ -20,6 +20,9 @@
 using aipdf::pdf::Annotation;
 using aipdf::pdf::AnnotationType;
 using aipdf::pdf::appendAnnotationAppearance;
+using aipdf::pdf::appendAnnotationAppearances;
+using aipdf::pdf::Appearance;
+using aipdf::pdf::AppearanceAttachment;
 using aipdf::pdf::buildAnnotationAppearance;
 using aipdf::pdf::openDocumentFromBytes;
 using aipdf::pdf::openDocument;
@@ -67,6 +70,37 @@ int fixturePageCount() {
     return result.document.isValid() ? result.document.pageCount() : -1;
 }
 
+struct PixelDiff {
+    int count = 0;
+    QRect bounds;
+};
+
+PixelDiff comparePixels(const QImage& before, const QImage& after) {
+    PixelDiff diff;
+    if (before.size() != after.size() || before.isNull()) {
+        return diff;
+    }
+    int minX = before.width(), maxX = -1, minY = before.height(), maxY = -1;
+    for (int y = 0; y < before.height(); ++y) {
+        for (int x = 0; x < before.width(); ++x) {
+            const QRgb a = before.pixel(x, y);
+            const QRgb b = after.pixel(x, y);
+            if (qAbs(qRed(a) - qRed(b)) > 2 || qAbs(qGreen(a) - qGreen(b)) > 2 ||
+                qAbs(qBlue(a) - qBlue(b)) > 2) {
+                ++diff.count;
+                minX = std::min(minX, x);
+                maxX = std::max(maxX, x);
+                minY = std::min(minY, y);
+                maxY = std::max(maxY, y);
+            }
+        }
+    }
+    if (diff.count > 0) {
+        diff.bounds = QRect(QPoint(minX, minY), QPoint(maxX, maxY));
+    }
+    return diff;
+}
+
 }  // namespace
 
 class IncrementalWriterTests : public QObject {
@@ -78,6 +112,9 @@ private slots:
     void appearanceChangesPixelsInsideRectOnly();
     void unknownMarkerIsRejected();
     void emptyAppearanceIsRejected();
+    void truncatedPdfIsRejected();
+    void duplicateMarkerProducesSingleAppearance();
+    void appearanceContentIsActuallyDrawn();
 };
 
 void IncrementalWriterTests::appendedFileKeepsOriginalBytesIntact() {
@@ -138,29 +175,81 @@ void IncrementalWriterTests::appearanceChangesPixelsInsideRectOnly() {
     QCOMPARE(imageBefore.size(), imageAfter.size());
     QVERIFY(!imageBefore.isNull());
 
-    int differing = 0;
-    int minX = imageBefore.width(), maxX = -1, minY = imageBefore.height(), maxY = -1;
-    for (int y = 0; y < imageBefore.height(); ++y) {
-        for (int x = 0; x < imageBefore.width(); ++x) {
-            const QRgb a = imageBefore.pixel(x, y);
-            const QRgb b = imageAfter.pixel(x, y);
-            if (qAbs(qRed(a) - qRed(b)) > 2 || qAbs(qGreen(a) - qGreen(b)) > 2 ||
-                qAbs(qBlue(a) - qBlue(b)) > 2) {
-                ++differing;
-                minX = std::min(minX, x);
-                maxX = std::max(maxX, x);
-                minY = std::min(minY, y);
-                maxY = std::max(maxY, y);
-            }
-        }
-    }
-
+    const PixelDiff diff = comparePixels(imageBefore, imageAfter);
     // 光栅化会有 1px 边缘误差，给 ±2 的余量；面积对不上说明外观流被缩放或裁剪了。
-    QVERIFY2(differing > 0, "补了 /AP 却什么都没画出来");
-    const int width = maxX - minX + 1;
-    const int height = maxY - minY + 1;
-    QVERIFY2(qAbs(width - 200) <= 2, qPrintable(QStringLiteral("差异宽 %1").arg(width)));
-    QVERIFY2(qAbs(height - 18) <= 2, qPrintable(QStringLiteral("差异高 %1").arg(height)));
+    QVERIFY2(diff.count > 0, "补了 /AP 却什么都没画出来");
+    QVERIFY2(qAbs(diff.bounds.width() - 200) <= 2,
+             qPrintable(QStringLiteral("差异宽 %1").arg(diff.bounds.width())));
+    QVERIFY2(qAbs(diff.bounds.height() - 18) <= 2,
+             qPrintable(QStringLiteral("差异高 %1").arg(diff.bounds.height())));
+}
+
+void IncrementalWriterTests::truncatedPdfIsRejected() {
+    const QByteArray original = documentWithHighlight(7);
+    // 砍掉尾部：没有 trailer、没有 startxref，写入器必须拒绝而不是猜着写。
+    const QByteArray truncated = original.left(original.size() / 2);
+
+    const auto write = appendAnnotationAppearance(truncated, markerFor(7),
+                                                  buildAnnotationAppearance(makeHighlight(7)));
+    QVERIFY(!write.ok);
+    QVERIFY(write.bytes.isEmpty());
+    QVERIFY(!write.error.isEmpty());
+}
+
+void IncrementalWriterTests::duplicateMarkerProducesSingleAppearance() {
+    const QByteArray original = documentWithHighlight(7);
+    const auto appearance = buildAnnotationAppearance(makeHighlight(7));
+
+    const auto write = appendAnnotationAppearances(
+        original, { { markerFor(7), appearance }, { markerFor(7), appearance } });
+
+    QVERIFY(write.ok);
+    // 同一个标记补两次会在字典里插出两个 /AP 键，谁生效取决于阅读器——必须去重。
+    QCOMPARE(write.appearanceCount, 1);
+    QCOMPARE(write.bytes.count("/AP << /N"), 1);
+}
+
+void IncrementalWriterTests::appearanceContentIsActuallyDrawn() {
+    // 一条正例 + 一条反例，合起来才算守卫：
+    //   正例：把整块外观填成纯蓝，矩形中心必须变蓝 → 证明画的是我们的流；
+    //   反例：content 为空时中心不能是蓝 → 证明上一条不是"怎么改都成立"。
+    const QByteArray original = documentWithHighlight(7);
+    const auto originalPage = openDocumentFromBytes(original).document.page(0);
+    QVERIFY(originalPage.has_value());
+    const QImage baseline = originalPage->render(1.0);
+
+    auto centerAfterPatching = [&](const QByteArray& content) {
+        Appearance appearance = buildAnnotationAppearance(makeHighlight(7));
+        appearance.content = content;
+        const auto write = appendAnnotationAppearance(original, markerFor(7), appearance);
+        if (!write.ok) {
+            return QColor();
+        }
+        const auto patchedPage = openDocumentFromBytes(write.bytes).document.page(0);
+        if (!patchedPage.has_value()) {
+            return QColor();
+        }
+        const QImage image = patchedPage->render(1.0);
+        // 矩形中心在页面坐标 (160, 209)，图像 y 要翻转。
+        return image.pixelColor(160, image.height() - 209);
+    };
+
+    const QColor blue = centerAfterPatching("q\n0 0 1 rg\n0 0 200 18 re\nf\nQ\n");
+    QVERIFY2(blue.isValid(), "补外观失败");
+    QVERIFY2(blue.blue() > 200 && blue.red() < 60,
+             qPrintable(QStringLiteral("中心颜色 rgb(%1,%2,%3)，期望蓝")
+                            .arg(blue.red())
+                            .arg(blue.green())
+                            .arg(blue.blue())));
+
+    const QColor empty = centerAfterPatching("q\nQ\n");
+    QVERIFY2(empty.isValid(), "补外观失败");
+    // 空白外观时 PDFium 仍会按 /QuadPoints 合成高亮底色，所以这里只能断言"不是我们那层蓝"。
+    QVERIFY2(!(empty.blue() > 200 && empty.red() < 60),
+             qPrintable(QStringLiteral("空内容也画出了蓝，守卫失效：rgb(%1,%2,%3)")
+                            .arg(empty.red())
+                            .arg(empty.green())
+                            .arg(empty.blue())));
 }
 
 void IncrementalWriterTests::unknownMarkerIsRejected() {

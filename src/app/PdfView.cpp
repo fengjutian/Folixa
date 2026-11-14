@@ -10,7 +10,6 @@
 #include "app/PageTransform.h"
 #include "doc/DocumentChunk.h"
 #include "doc/RecoveryLog.h"
-#include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
 #include "pdf/DocumentWriter.h"
 
@@ -1126,32 +1125,21 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
         return false;
     }
 
-    // 先把当前状态（含内存里的批注与页面改动）序列化成 PDF 字节，并给本程序写的
-    // 批注补上 /AP 外观流——少了这一步，文件在福昕/Acrobat 里打开时批注是隐形的。
-    const pdf::SaveBytes prepared = pdf::serializeForSave(document_);
-    const QByteArray& bytes = prepared.bytes;
-    if (bytes.isEmpty()) {
+    // 保存只有一个入口：序列化 + 补外观流 + 写临时文件 + 重开校验 + 备份 + 原子替换。
+    // 分步调用会绕过后半段，"保存失败不破坏原文件"的保证就没了。
+    const pdf::SaveOutcome saved = pdf::DocumentWriter::save(document_, targetPath, true);
+    if (!saved.ok) {
         if (errorMessage != nullptr) {
-            *errorMessage = prepared.error.isEmpty() ? tr("文档序列化失败") : prepared.error;
-        }
-        return false;
-    }
-    if (!prepared.warning.isEmpty()) {
-        trace(QStringLiteral("appearance not written: %1").arg(prepared.warning));
-    }
-
-    // 写临时文件 → 重新打开校验 → 原子替换。失败时原文件不动。
-    const doc::SaveResult result =
-        doc::SafeSave::writeAtomically(targetPath, bytes, document_.pageCount(), true);
-    if (!result.ok) {
-        if (errorMessage != nullptr) {
-            *errorMessage = result.errorMessage;
+            *errorMessage = saved.error;
         }
         trace(QStringLiteral("save failed path=%1").arg(targetPath));
         return false;
     }
+    if (!saved.warning.isEmpty()) {
+        trace(QStringLiteral("appearance not written: %1").arg(saved.warning));
+    }
     if (backupPath != nullptr) {
-        *backupPath = result.backupPath;
+        *backupPath = saved.backupPath;
     }
 
     // 另存为之后文档换了路径：旧的恢复日志用不上了。

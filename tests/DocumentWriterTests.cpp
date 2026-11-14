@@ -7,7 +7,10 @@
 #include "pdf/DocumentWriter.h"
 #include "pdf/PdfiumAdapter.h"
 
+#include <QFile>
+#include <QFileInfo>
 #include <QImage>
+#include <QTemporaryDir>
 #include <QTest>
 
 #include <algorithm>
@@ -16,7 +19,8 @@ using aipdf::pdf::Annotation;
 using aipdf::pdf::AnnotationType;
 using aipdf::pdf::openDocument;
 using aipdf::pdf::openDocumentFromBytes;
-using aipdf::pdf::serializeForSave;
+using aipdf::pdf::DocumentWriter;
+using aipdf::pdf::SaveOutcome;
 
 namespace {
 
@@ -50,7 +54,7 @@ aipdf::pdf::SaveBytes saveBytesWith(const QVector<QVector<Annotation>>& perPage)
             return {};
         }
     }
-    return serializeForSave(opened.document);
+    return DocumentWriter::serializeForSave(opened.document);
 }
 
 }  // namespace
@@ -63,6 +67,9 @@ private slots:
     void appearanceChangesPixelsOnSave();
     void noteOnlyDocumentIsLeftUntouched();
     void annotationsOnEveryPageAreCovered();
+    void saveWritesFileWithAppearance();
+    void saveCreatesBackupAndLeavesNoTempFile();
+    void saveFailsWhenTargetDirectoryIsMissing();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -158,6 +165,87 @@ void DocumentWriterTests::annotationsOnEveryPageAreCovered() {
         QVERIFY(page.has_value());
         QCOMPARE(page->annotations().size(), 1);
     }
+}
+
+void DocumentWriterTests::saveWritesFileWithAppearance() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("out.pdf"));
+
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->setAnnotations(
+        { makeAnnotation(1, AnnotationType::Highlight, QRectF(60.0, 200.0, 200.0, 18.0)) }));
+
+    const SaveOutcome outcome = DocumentWriter::save(opened.document, path, true);
+    QVERIFY2(outcome.ok, qPrintable(outcome.error));
+    QVERIFY2(outcome.warning.isEmpty(), qPrintable(outcome.warning));
+    QCOMPARE(outcome.appearanceCount, 1);
+
+    QVERIFY(QFileInfo::exists(path));
+    // 临时文件不能留在用户目录里。
+    QVERIFY(!QFileInfo::exists(path + QStringLiteral(".folixa.tmp")));
+    // 目标原本不存在，不该凭空多出备份。
+    QVERIFY(!QFileInfo::exists(path + QStringLiteral(".folixa.bak")));
+
+    QFile written(path);
+    QVERIFY(written.open(QIODevice::ReadOnly));
+    const QByteArray bytes = written.readAll();
+    written.close();
+    QVERIFY(bytes.contains("/AP << /N"));
+
+    const auto reopened = openDocumentFromBytes(bytes);
+    QVERIFY(reopened.document.isValid());
+    QCOMPARE(reopened.document.pageCount(), 2);
+    auto reopenedPage = reopened.document.page(0);
+    QVERIFY(reopenedPage.has_value());
+    QCOMPARE(reopenedPage->annotations().size(), 1);
+}
+
+void DocumentWriterTests::saveCreatesBackupAndLeavesNoTempFile() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("doc.pdf"));
+
+    // 先存一份没有批注的，作为"原文件"。
+    {
+        const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+        QVERIFY(opened.document.isValid());
+        const SaveOutcome first = DocumentWriter::save(opened.document, path, false);
+        QVERIFY2(first.ok, qPrintable(first.error));
+    }
+    QVERIFY(QFileInfo::exists(path));
+
+    // 再带着批注覆盖保存：应当留下 .folixa.bak，并且不残留临时文件。
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->setAnnotations(
+        { makeAnnotation(2, AnnotationType::Square, QRectF(100.0, 120.0, 80.0, 40.0)) }));
+
+    const SaveOutcome second = DocumentWriter::save(opened.document, path, true);
+    QVERIFY2(second.ok, qPrintable(second.error));
+    QCOMPARE(second.backupPath, path + QStringLiteral(".folixa.bak"));
+    QVERIFY(QFileInfo::exists(second.backupPath));
+    QVERIFY(!QFileInfo::exists(path + QStringLiteral(".folixa.tmp")));
+}
+
+void DocumentWriterTests::saveFailsWhenTargetDirectoryIsMissing() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    const QString path = dir.filePath(QStringLiteral("missing/out.pdf"));
+    const SaveOutcome outcome = DocumentWriter::save(opened.document, path, true);
+
+    QVERIFY(!outcome.ok);
+    QVERIFY(!outcome.error.isEmpty());
+    QVERIFY(!QFileInfo::exists(path));
 }
 
 QTEST_MAIN(DocumentWriterTests)

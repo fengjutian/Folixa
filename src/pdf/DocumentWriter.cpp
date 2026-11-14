@@ -1,5 +1,6 @@
-#include "pdf/DocumentWriter.h"
+﻿#include "pdf/DocumentWriter.h"
 
+#include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
 #include "pdf/AppearanceStream.h"
 #include "pdf/IncrementalWriter.h"
@@ -7,7 +8,7 @@
 
 namespace aipdf::pdf {
 
-SaveBytes serializeForSave(const PdfDocument& document) {
+SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document) {
     SaveBytes result;
 
     QString serializeError;
@@ -54,6 +55,27 @@ SaveBytes serializeForSave(const PdfDocument& document) {
     result.bytes = write.bytes;
     result.appearanceCount = write.appearanceCount;
     return result;
+}
+
+SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& targetPath, bool createBackup) {
+    SaveOutcome outcome;
+
+    const SaveBytes prepared = serializeForSave(document);
+    if (!prepared.ok) {
+        outcome.error = prepared.error;
+        return outcome;
+    }
+    outcome.warning = prepared.warning;
+    outcome.appearanceCount = prepared.appearanceCount;
+
+    // 文件层的保证（临时文件、重开校验、备份、原子替换）仍在 SafeSave 里：
+    // 那是经过缺陷修复的代码，重写一遍只会引入新问题。这里只是把它收进唯一的入口。
+    const doc::SaveResult written = doc::SafeSave::writeAtomically(
+        targetPath, prepared.bytes, document.pageCount(), createBackup);
+    outcome.ok = written.ok;
+    outcome.error = written.errorMessage;
+    outcome.backupPath = written.backupPath;
+    return outcome;
 }
 
 }  // namespace aipdf::pdf

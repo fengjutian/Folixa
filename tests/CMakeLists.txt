@@ -320,6 +320,8 @@ qt_add_executable(DocumentWriterTests
     DocumentWriterTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
