@@ -1187,6 +1187,24 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
         return result;
     }
 
+    // 「能加载」不等于「能用」：坏文件的页面树可能整个烂掉，
+    // 表现为打开了却没有一页能显示。这种文档宁可当成打开失败，
+    // 给一句可读原因，也不要把一个空壳交给界面。
+    {
+        const detail::PdfiumGuard guard;
+        const int pages = FPDF_GetPageCount(impl->handle);
+        FPDF_PAGE probe = pages > 0 ? FPDF_LoadPage(impl->handle, 0) : nullptr;
+        if (probe == nullptr) {
+            FPDF_CloseDocument(impl->handle);
+            impl->handle = nullptr;
+            result.errorMessage = pages > 0
+                                      ? QStringLiteral("文档的页面无法加载（文件可能已损坏）")
+                                      : QStringLiteral("文档里没有任何页面（文件可能已损坏）");
+            return result;
+        }
+        FPDF_ClosePage(probe);
+    }
+
     result.document = PdfDocument(impl);
     return result;
 }

@@ -890,3 +890,36 @@ aipdf_deploy_qt_runtime(PerfTests)
 
 add_test(NAME PerfTests COMMAND PerfTests)
 set_tests_properties(PerfTests PROPERTIES LABELS "perf")
+
+# ------------------------------------------------- 模糊测试（v0.15.0） ----
+
+qt_add_executable(FuzzTests
+    FuzzTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
+    ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
+    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(FuzzTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(FuzzTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(FuzzTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(FuzzTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FuzzTests)
+
+add_test(NAME FuzzTests COMMAND FuzzTests)
+set_tests_properties(FuzzTests PROPERTIES LABELS "fuzz")

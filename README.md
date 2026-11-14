@@ -265,6 +265,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [版本与任务管理规范](docs/VERSIONING.md)
 - [版本任务索引](docs/versions/README.md)
 - [依赖与许可证政策](docs/DEPENDENCY_POLICY.md)
+- [qpdf 引入提案（未批准）](docs/QPDF_ADOPTION.md)
 - [OCR 妥协清单](docs/OCR_LIMITATIONS.md)
 - [IPC 协议](docs/IPC_PROTOCOL.md)
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)

@@ -13,6 +13,11 @@
 
 ## Proposed change: PDF object layer (not yet approved)
 
+[QPDF_ADOPTION.md](QPDF_ADOPTION.md) is the full proposal: why the current
+hand-written incremental writer is not enough, the alternatives compared, the
+impact on build/packaging/SBOM/size, the migration steps, and the three
+decisions that need an owner's approval.
+
 [v1.3.0](versions/v1.3.0.md) proposes adding `qpdf` (Apache-2.0) as the first
 source-built third-party dependency, to obtain object-level writes and
 incremental updates that PDFium does not expose.
