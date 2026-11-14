@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMetaType>
 #include <QRectF>
 #include <QString>
 #include <QStringList>
@@ -43,3 +44,5 @@ struct OcrPageResult {
 };
 
 }  // namespace aipdf::ocr
+
+Q_DECLARE_METATYPE(aipdf::ocr::OcrPageResult)
