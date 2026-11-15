@@ -23,7 +23,7 @@
       "Drag with the ink tool to draw a stroke."14pt 基线 164 → 显示 y 236
 
     批注的证据来自两条轨迹：
-      - annotation add type=N page=P id=I     模型里加了一条批注
+      - annotation add type=Name page=P id=I 模型里加了一条批注（Name 是稳定的英文类型名）
       - annotation doc sync page=P count=N    批注已投影进 PDFium 文档
     批注面板的条目数由应用写进轨迹（面板内容不进 UIA 文本）。
 
@@ -221,13 +221,47 @@ function Click-AiPdfElement {
     return $true
 }
 
-# 批注工具栏上的按钮（AutomationId 形如 annotation.highlight）。
+# 切到 Ribbon 的某个标签页。
+#
+# 批注工具已经折进 Ribbon 的「注释」页；非当前页的按钮虽然建好了，但不在
+# UI Automation 树里。不先切页，Get-AiPdfToolButton 会一个都找不到。
+function Select-AiPdfRibbonTab {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+            try {
+                if ($element.Current.ControlType.ProgrammaticName -eq 'ControlType.TabItem' -and
+                    $element.Current.Name -eq $Name) {
+                    Prepare-AiPdfWindow -Process $Process | Out-Null
+                    Click-AiPdfElement -Process $Process -Element $element | Out-Null
+                    Start-Sleep -Milliseconds 400
+                    return $true
+                }
+            } catch {
+                # 元素可能在遍历时失效，跳过。
+            }
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    return $false
+}
+
+# 批注工具按钮（AutomationId 形如 annotation.highlight），都在 Ribbon「注释」页。
 function Get-AiPdfToolButton {
     param(
         [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
         [Parameter(Mandatory = $true)][string]$IdPattern
     )
-    $button = Wait-AiPdfElementById -Process $Process -IdPattern $IdPattern -TimeoutSeconds 10
+    $button = Wait-AiPdfElementById -Process $Process -IdPattern $IdPattern -TimeoutSeconds 2
+    if (-not $button) {
+        # 当前停在别的标签页：切到「注释」再等一次。
+        Select-AiPdfRibbonTab -Process $Process -Name '注释' | Out-Null
+        $button = Wait-AiPdfElementById -Process $Process -IdPattern $IdPattern -TimeoutSeconds 10
+    }
     if ($button) {
         return $button
     }
@@ -281,7 +315,7 @@ try {
     }
 
     Test-Check '高亮批注已创建' `
-        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=0 page=0' -TimeoutSeconds 5) `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=Highlight page=0' -TimeoutSeconds 5) `
         (Get-AiPdfTraceText -Path $tracePath)
     Test-Check '高亮批注已写进文档' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation doc sync page=0 count=1' -TimeoutSeconds 5) `
@@ -368,7 +402,7 @@ try {
     Invoke-AiPdfPageDrag -Process $app -FromX 70.0 -FromY 180.0 -ToX 320.0 -ToY 200.0 | Out-Null
     Start-Sleep -Milliseconds 800
     Test-Check '矩形批注已创建' `
-        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=4 page=0' -TimeoutSeconds 5) `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=Square page=0' -TimeoutSeconds 5) `
         (Get-AiPdfTraceText -Path $tracePath)
 
     # 墨迹工具：拖一笔（第 4 行附近，显示空间 y ≈ 233）。
@@ -382,7 +416,7 @@ try {
     Invoke-AiPdfPageDrag -Process $app -FromX 80.0 -FromY 233.0 -ToX 300.0 -ToY 240.0 | Out-Null
     Start-Sleep -Milliseconds 800
     Test-Check '墨迹批注已创建' `
-        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=5 page=0' -TimeoutSeconds 5) `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=Ink page=0' -TimeoutSeconds 5) `
         (Get-AiPdfTraceText -Path $tracePath)
 
     Test-Check '两条批注都写进了文档' `
@@ -414,7 +448,7 @@ try {
     Start-Sleep -Milliseconds 800
 
     Test-Check '便签批注已创建' `
-        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=3 page=0' -TimeoutSeconds 5) `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation add type=Note page=0' -TimeoutSeconds 5) `
         (Get-AiPdfTraceText -Path $tracePath)
     Test-Check '便签写进了文档' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'annotation doc sync page=0 count=1' -TimeoutSeconds 5) `

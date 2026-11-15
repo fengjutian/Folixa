@@ -6,6 +6,46 @@
 
 namespace aipdf::pdf {
 
+QString annotationTypeKey(AnnotationType type) {
+    switch (type) {
+        case AnnotationType::Highlight:
+            return QStringLiteral("Highlight");
+        case AnnotationType::Underline:
+            return QStringLiteral("Underline");
+        case AnnotationType::StrikeOut:
+            return QStringLiteral("StrikeOut");
+        case AnnotationType::Squiggly:
+            return QStringLiteral("Squiggly");
+        case AnnotationType::Note:
+            return QStringLiteral("Note");
+        case AnnotationType::Square:
+            return QStringLiteral("Square");
+        case AnnotationType::Ellipse:
+            return QStringLiteral("Ellipse");
+        case AnnotationType::Line:
+            return QStringLiteral("Line");
+        case AnnotationType::Arrow:
+            return QStringLiteral("Arrow");
+        case AnnotationType::Polygon:
+            return QStringLiteral("Polygon");
+        case AnnotationType::Cloud:
+            return QStringLiteral("Cloud");
+        case AnnotationType::FreeText:
+            return QStringLiteral("FreeText");
+        case AnnotationType::Stamp:
+            return QStringLiteral("Stamp");
+        case AnnotationType::Measure:
+            return QStringLiteral("Measure");
+        case AnnotationType::FileAttachment:
+            return QStringLiteral("FileAttachment");
+        case AnnotationType::Sound:
+            return QStringLiteral("Sound");
+        case AnnotationType::Ink:
+            return QStringLiteral("Ink");
+    }
+    return QStringLiteral("Unknown");
+}
+
 QString annotationTypeName(AnnotationType type) {
     switch (type) {
         case AnnotationType::Highlight:

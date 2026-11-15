@@ -92,6 +92,9 @@ struct Annotation {
 
 // 类型的显示名（界面与轨迹用）。
 QString annotationTypeName(AnnotationType type);
+// 稳定的英文类型标识：只给轨迹/日志用，不随界面语言变化，
+// 也不怕枚举里插入新类型把数字全部顶掉。
+QString annotationTypeKey(AnnotationType type);
 
 // 各类型的默认颜色。
 QColor defaultAnnotationColor(AnnotationType type);

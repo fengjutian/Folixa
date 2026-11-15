@@ -92,7 +92,7 @@ quint64 AnnotationController::addMarkAnnotation(pdf::AnnotationType type,
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(type))
+              .arg(pdf::annotationTypeKey(type))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -128,7 +128,7 @@ quint64 AnnotationController::addLine(pdf::AnnotationType type, int pageIndex, c
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(type))
+              .arg(pdf::annotationTypeKey(type))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -162,7 +162,7 @@ quint64 AnnotationController::addPolygon(pdf::AnnotationType type, int pageIndex
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(type))
+              .arg(pdf::annotationTypeKey(type))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -203,7 +203,7 @@ quint64 AnnotationController::addMeasureShape(MeasureMode mode, int pageIndex,
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 measure=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Measure))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Measure))
               .arg(pageIndex)
               .arg(id)
               .arg(label));
@@ -233,7 +233,7 @@ quint64 AnnotationController::addAttachment(int pageIndex, const QPointF& point,
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 size=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::FileAttachment))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::FileAttachment))
               .arg(pageIndex)
               .arg(id)
               .arg(data.size()));
@@ -270,7 +270,7 @@ quint64 AnnotationController::addMeasure(int pageIndex, const QPointF& from, con
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 length=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Measure))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Measure))
               .arg(pageIndex)
               .arg(id)
               .arg(length, 0, 'f', 2));
@@ -296,7 +296,7 @@ quint64 AnnotationController::addStamp(int pageIndex, const QRectF& rect, const 
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(pdf::AnnotationType::Stamp))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Stamp))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -323,7 +323,7 @@ quint64 AnnotationController::addImageStamp(int pageIndex, const QRectF& rect,
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 image=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Stamp))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Stamp))
               .arg(pageIndex)
               .arg(id)
               .arg(imageBytes.size()));
@@ -360,7 +360,7 @@ quint64 AnnotationController::addSoundFromWav(int pageIndex, const QRectF& rect,
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 wav=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::FileAttachment))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::FileAttachment))
               .arg(pageIndex)
               .arg(id)
               .arg(wav.size()));
@@ -399,7 +399,7 @@ quint64 AnnotationController::addSound(int pageIndex, const QRectF& rect, const 
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 pcm=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Sound))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Sound))
               .arg(pageIndex)
               .arg(id)
               .arg(pcm.size()));
@@ -427,7 +427,7 @@ quint64 AnnotationController::addFreeText(int pageIndex, const QRectF& rect, con
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(pdf::AnnotationType::FreeText))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::FreeText))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -453,7 +453,7 @@ quint64 AnnotationController::addNote(int pageIndex, const QRectF& rect, const Q
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 chars=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Note))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Note))
               .arg(pageIndex)
               .arg(id)
               .arg(contents.size()));
@@ -485,7 +485,7 @@ quint64 AnnotationController::addShape(pdf::AnnotationType type, int pageIndex, 
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(type))
+              .arg(pdf::annotationTypeKey(type))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();
@@ -514,7 +514,7 @@ quint64 AnnotationController::addInk(int pageIndex, const QVector<QPointF>& stro
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 points=%4")
-              .arg(static_cast<int>(pdf::AnnotationType::Ink))
+              .arg(pdf::annotationTypeKey(pdf::AnnotationType::Ink))
               .arg(pageIndex)
               .arg(id)
               .arg(stroke.size()));

@@ -647,9 +647,17 @@ bool PageCanvas::pagePointAt(const QPoint& viewportPos,
         return false;
     }
     const double scrollTop = verticalScrollBar()->value();
+    const double contentY = scrollTop + viewportPos.y();
+    // 页面在视口里是整行居中的：pageRect() 用的是行内坐标（x 从 0 起），
+    // 而鼠标给的是视口坐标。不先减掉行左边距，页面右半边会整片命中失败
+    // （窗口越宽、右边距越大，失效范围越大）。
+    const int rowPage = layout_.pageAt(contentY);
+    if (rowPage < 0 || rowPage >= layout_.pageCount()) {
+        return false;
+    }
+    const double rowLeft = pageLeft(rowPage) - layout_.pageRect(rowPage).left();
     // 双页模式下同一纵坐标会落在左右两页上，必须带上 x 才能判对。
-    const int index =
-        layout_.pageAtPoint(QPointF(viewportPos.x(), scrollTop + viewportPos.y()));
+    const int index = layout_.pageAtPoint(QPointF(viewportPos.x() - rowLeft, contentY));
     if (index < 0 || index >= layout_.pageCount()) {
         return false;
     }

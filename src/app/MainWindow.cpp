@@ -1757,7 +1757,9 @@ QWidget* MainWindow::createAnnotationTab() {
     layout->setSpacing(0);
     annotationList_->setObjectName(QStringLiteral("annotationList"));
     annotationList_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    layout->addWidget(annotationList_, 1);
+    // 列表必须留在堆叠页里（空状态 / 列表二选一）。
+    // 之前这里又把它 addWidget 到下面的控件列，等于把列表从 stack 里抢走：
+    // 堆叠页永远显示空状态，列表被挤成 0 高，批注面板什么都看不到。
     // 外观属性：颜色 / 线宽 / 不透明度。多选后一次改完。
     auto* appearanceRow = new QHBoxLayout();
     appearanceRow->setSpacing(6);
