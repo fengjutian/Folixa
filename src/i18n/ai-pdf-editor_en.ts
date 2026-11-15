@@ -1678,6 +1678,11 @@
     <context>
         <name>aipdf::app::PdfView</name>
         <message>
+            <source>已用 %1 的第 %2 页替换第 %3 页（可撤销）</source>
+            <translation>Replaced page %3 with page %2 of %1 (undoable)</translation>
+        </message>
+
+        <message>
             <source>提取页面</source>
             <translation>Extract pages</translation>
         </message>
@@ -2895,6 +2900,11 @@
     </context>
     <context>
         <name>aipdf::doc::PageCommand</name>
+        <message>
+            <source>替换页面</source>
+            <translation>Replace page</translation>
+        </message>
+
         <message>
             <source>删除页</source>
             <translation>Delete page</translation>
