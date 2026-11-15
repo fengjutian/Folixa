@@ -712,6 +712,7 @@ void MainWindow::buildUi() {
     for (const FutureCommand& entry : futureCommands) {
         QAction* action = commandBar->addAction(commandIcon(entry.icon), QString());
         action->setEnabled(false);
+        action->setVisible(false);
         texts_.bind([this, action, source = entry.label] {
             action->setText(tr(source));
             action->setToolTip(tr("将在后续版本中提供"));
@@ -724,6 +725,14 @@ void MainWindow::buildUi() {
     texts_.bind([this, aiAction] { aiAction->setText(tr("✦ AI 助手")); });
     aiAction->setObjectName(QStringLiteral("aiCommand"));
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
+    // 顶部只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
+    // 注意不能遍历 commandBar->actions() 全隐藏——菜单按钮与品牌是 QWidgetAction，
+    // 一起隐藏会把主菜单也弄没。
+    homeAction->setVisible(false);
+    annotationAction->setVisible(false);
+    pageAction->setVisible(false);
+    indexAction->setVisible(false);
+    aiAction->setVisible(false);
         aiButton->setObjectName(QStringLiteral("aiCommandButton"));
     }
 
