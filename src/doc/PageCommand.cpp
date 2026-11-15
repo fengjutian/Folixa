@@ -1,4 +1,4 @@
-#include "doc/PageCommand.h"
+﻿#include "doc/PageCommand.h"
 
 #include "doc/AnnotationModel.h"
 #include "doc/EditContext.h"
@@ -406,6 +406,71 @@ int MovePageCommand::from() const {
 
 int MovePageCommand::to() const {
     return to_;
+}
+
+
+// --------------------------------------------------- ReplacePageCommand ----
+
+ReplacePageCommand::ReplacePageCommand(int index, std::shared_ptr<PageBackup> replacement)
+    : index_(index), replacement_(std::move(replacement)) {}
+
+QString ReplacePageCommand::typeName() const {
+    return QStringLiteral("page.replace");
+}
+
+QString ReplacePageCommand::displayName() const {
+    return i18n::tr("aipdf::doc::PageCommand", "替换页面");
+}
+
+QByteArray ReplacePageCommand::serialize() const {
+    QJsonObject object;
+    object.insert(QStringLiteral("type"), typeName());
+    object.insert(QStringLiteral("index"), index_);
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+bool ReplacePageCommand::deserialize(const QByteArray& data, QString* error) {
+    QJsonObject object;
+    if (!parseCommandJson(data, typeName(), &object, error)) {
+        return false;
+    }
+    index_ = object.value(QStringLiteral("index")).toInt(-1);
+    return index_ >= 0;
+}
+
+bool ReplacePageCommand::apply(EditContext* context) const {
+    PageOperations* pages = (context != nullptr) ? context->pages() : nullptr;
+    if (pages == nullptr || replacement_ == nullptr) {
+        return false;
+    }
+    if (removed_ == nullptr && !pages->backupPage(index_, &removed_)) {
+        return false;
+    }
+    QVector<int> mapping;
+    if (!pages->deletePage(index_, &mapping)) {
+        return false;
+    }
+    if (!pages->restorePage(index_, *replacement_)) {
+        return false;
+    }
+    context->pageStructureChanged(identityMapping(pages->pageCount()));
+    return true;
+}
+
+bool ReplacePageCommand::revert(EditContext* context) const {
+    PageOperations* pages = (context != nullptr) ? context->pages() : nullptr;
+    if (pages == nullptr || removed_ == nullptr) {
+        return false;
+    }
+    QVector<int> mapping;
+    if (!pages->deletePage(index_, &mapping)) {
+        return false;
+    }
+    if (!pages->restorePage(index_, *removed_)) {
+        return false;
+    }
+    context->pageStructureChanged(identityMapping(pages->pageCount()));
+    return true;
 }
 
 }  // namespace aipdf::doc

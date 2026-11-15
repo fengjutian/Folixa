@@ -931,6 +931,12 @@ public static class AiPdfKeyboard {
         '7'        = 0x37
         '8'        = 0x38
         '9'        = 0x39
+        'W'        = 0x57
+        'H'        = 0x48
+        'N'        = 0x4E
+        'M'        = 0x4D
+        'E'        = 0x45
+        'F9'       = 0x78
         'Equal'    = 0xBB
         'Add'      = 0x6B
     }

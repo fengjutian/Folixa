@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
 #include <QString>
@@ -120,6 +120,28 @@ public:
 private:
     int from_ = 0;
     int to_ = 0;
+};
+
+// 用另一页替换当前页。
+//
+// 替换 = 备份原页 + 删除 + 恢复新页；撤销做反向三步。
+// 新页来自另一份文档，备份是运行时数据，不参与序列化。
+class ReplacePageCommand final : public EditCommand {
+public:
+    ReplacePageCommand() = default;
+    ReplacePageCommand(int index, std::shared_ptr<PageBackup> replacement);
+
+    QString typeName() const override;
+    QString displayName() const override;
+    QByteArray serialize() const override;
+    bool deserialize(const QByteArray& data, QString* error) override;
+    bool apply(EditContext* context) const override;
+    bool revert(EditContext* context) const override;
+
+private:
+    int index_ = 0;
+    std::shared_ptr<PageBackup> replacement_;
+    mutable std::shared_ptr<PageBackup> removed_;
 };
 
 }  // namespace aipdf::doc
