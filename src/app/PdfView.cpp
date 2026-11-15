@@ -1760,6 +1760,111 @@ void PdfView::setPageBackgroundDialog() {
     emit statusMessage(tr("已给第 %1 页加背景").arg(pageIndex + 1));
 }
 
+
+namespace {
+
+// 把 source 的第 index 页追加到 target 末尾。target 必须已经有一页。
+bool appendPageFrom(pdf::PdfDocument& target, const pdf::PdfDocument& source, int index) {
+    const pdf::PdfDocument backup = source.backupPage(index);
+    return backup.isValid() && target.restorePageFrom(backup, target.pageCount());
+}
+
+}  // namespace
+
+void PdfView::replaceCurrentPageDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("替换页面"), QString(),
+                                                      tr("PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    const auto opened = pdf::openDocument(path);
+    if (!opened.document.isValid()) {
+        QMessageBox::warning(this, tr("替换页面"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+        return;
+    }
+    bool accepted = false;
+    const int sourcePage = QInputDialog::getInt(this, tr("替换页面"),
+                                                tr("用源文件的第几页替换当前页:"), 1, 1,
+                                                opened.document.pageCount(), 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int targetIndex = currentPage();
+    const int count = document_.pageCount();
+    pdf::PdfDocument result;
+    bool seeded = false;
+    auto appendAny = [&](const pdf::PdfDocument& source, int pageIndex) {
+        if (!seeded) {
+            result = source.backupPage(pageIndex);
+            seeded = result.isValid();
+            return seeded;
+        }
+        return appendPageFrom(result, source, pageIndex);
+    };
+    for (int index = 0; index < count; ++index) {
+        const bool replaced = index == targetIndex;
+        const bool ok = replaced ? appendAny(opened.document, sourcePage - 1)
+                                 : appendAny(document_, index);
+        if (!ok) {
+            QMessageBox::warning(this, tr("替换页面"), tr("替换失败。"));
+            return;
+        }
+    }
+    setDocument(std::move(result), filePath_);
+    setModified(true);
+    goToPage(targetIndex);
+    emit statusMessage(tr("已用 %1 的第 %2 页替换第 %3 页")
+                           .arg(QFileInfo(path).fileName())
+                           .arg(sourcePage)
+                           .arg(targetIndex + 1));
+}
+
+void PdfView::crossMergeDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("交叉合并"), QString(),
+                                                      tr("PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    const auto opened = pdf::openDocument(path);
+    if (!opened.document.isValid()) {
+        QMessageBox::warning(this, tr("交叉合并"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+        return;
+    }
+    const int mine = document_.pageCount();
+    const int theirs = opened.document.pageCount();
+    pdf::PdfDocument result;
+    bool seeded = false;
+    auto appendAny = [&](const pdf::PdfDocument& source, int pageIndex) {
+        if (!seeded) {
+            result = source.backupPage(pageIndex);
+            seeded = result.isValid();
+            return seeded;
+        }
+        return appendPageFrom(result, source, pageIndex);
+    };
+    const int total = std::max(mine, theirs);
+    for (int index = 0; index < total; ++index) {
+        if (index < mine && !appendAny(document_, index)) {
+            QMessageBox::warning(this, tr("交叉合并"), tr("合并失败。"));
+            return;
+        }
+        if (index < theirs && !appendAny(opened.document, index)) {
+            QMessageBox::warning(this, tr("交叉合并"), tr("合并失败。"));
+            return;
+        }
+    }
+    setDocument(std::move(result), filePath_);
+    setModified(true);
+    emit statusMessage(tr("已与 %1 交叉合并：共 %2 页")
+                           .arg(QFileInfo(path).fileName())
+                           .arg(pageCount()));
+}
 void PdfView::refreshAfterDecoration() {
     QString error;
     const QByteArray bytes = document_.serialize(&error);

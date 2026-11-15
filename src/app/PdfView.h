@@ -121,6 +121,8 @@ public slots:
     void reversePages();
     void swapCurrentWithNext();
     void splitDocumentDialog();
+    void replaceCurrentPageDialog();
+    void crossMergeDialog();
     void resizeCurrentPageDialog();
     void setPageBackgroundDialog();
 

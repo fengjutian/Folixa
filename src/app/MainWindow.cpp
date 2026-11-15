@@ -848,7 +848,12 @@ void MainWindow::buildUi() {
     addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
     });
-    addRibbonCommand(assemblyGroup, "调整大小", "调整页面尺寸", ":/icons/fit-page.svg", [this] {
+    addRibbonCommand(assemblyGroup, "替换", "用另一份 PDF 的页面替换当前页", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->replaceCurrentPageDialog(); }
+    }, true, "ribbonReplace");
+    addRibbonCommand(assemblyGroup, "交叉合并", "与另一份 PDF 逐页交叉合并", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->crossMergeDialog(); }
+    }, true, "ribbonCrossMerge");    addRibbonCommand(assemblyGroup, "调整大小", "调整页面尺寸", ":/icons/fit-page.svg", [this] {
         if (auto* view = currentView()) { view->resizeCurrentPageDialog(); }
     }, true, "ribbonResize");    addRibbonCommand(assemblyGroup, "拆分", "按每 N 页拆分文档", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->splitDocumentDialog(); }

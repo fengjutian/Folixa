@@ -808,6 +808,14 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>替换</source>
+            <translation>Replace</translation>
+        </message>
+        <message>
+            <source>交叉合并</source>
+            <translation>Cross-merge</translation>
+        </message>
+        <message>
             <source>调整大小</source>
             <translation>Resize</translation>
         </message>
@@ -1660,6 +1668,39 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>PDF 文件 (*.pdf)</source>
+            <translation>PDF files (*.pdf)</translation>
+        </message>
+
+        <message>
+            <source>替换页面</source>
+            <translation>Replace page</translation>
+        </message>
+        <message>
+            <source>用源文件的第几页替换当前页:</source>
+            <translation>Which page of the source file replaces the current page:</translation>
+        </message>
+        <message>
+            <source>替换失败。</source>
+            <translation>Replace failed.</translation>
+        </message>
+        <message>
+            <source>已用 %1 的第 %2 页替换第 %3 页</source>
+            <translation>Replaced page %3 with page %2 of %1</translation>
+        </message>
+        <message>
+            <source>交叉合并</source>
+            <translation>Cross-merge</translation>
+        </message>
+        <message>
+            <source>合并失败。</source>
+            <translation>Merge failed.</translation>
+        </message>
+        <message>
+            <source>已与 %1 交叉合并：共 %2 页</source>
+            <translation>Cross-merged with %1: %2 pages total</translation>
+        </message>
         <message>
             <source>调整页面大小</source>
             <translation>Resize page</translation>
