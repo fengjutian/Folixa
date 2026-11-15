@@ -770,7 +770,7 @@ void MainWindow::buildUi() {
     addRibbonCommand(fileGroup, "打开", "打开 PDF 文件", ":/icons/book.svg",
                      [this] { openPdfDialog(); }, true, "ribbonOpen");
     addRibbonCommand(fileGroup, "保存", "保存当前文档", ":/icons/save.svg",
-                     [this] { saveDocument(); }, true, "ribbonSave");
+                     [this] { saveDocument(); }, true, "document.save");
     addRibbonCommand(fileGroup, "另存为", "另存为新的 PDF", ":/icons/save.svg",
                      [this] { saveDocumentAs(); }, true, "ribbonSaveAs");
     auto* exportGroup = ribbonBar_->addGroup(fileTab, tr("导出"));
@@ -819,7 +819,45 @@ void MainWindow::buildUi() {
                      "ribbonEncryption");
 
     const int commentTab = ribbonBar_->addTab(tr("注释"));
-    auto* panelGroup = ribbonBar_->addGroup(commentTab, tr("面板"));
+    auto addToolCommand = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
+                                                   const char* tip, const QString& icon,
+                                                   const char* id) {
+        const QString objectName = QStringLiteral("annotation.") + QString::fromLatin1(id);
+        addRibbonCommand(group, label, tip, icon, [this, id] {
+            if (auto* view = currentView()) {
+                view->activateAnnotationTool(QString::fromLatin1(id));
+            }
+        }, true, objectName);
+    };
+    auto* markGroup = ribbonBar_->addGroup(commentTab, tr("标记"));
+    addToolCommand(markGroup, "高亮", "拖选文字后高亮", ":/icons/highlight.svg", "highlight");
+    addToolCommand(markGroup, "下划线", "文字下划线", ":/icons/underline.svg", "underline");
+    addToolCommand(markGroup, "删除线", "文字删除线", ":/icons/strikethrough.svg", "strikethrough");
+    addToolCommand(markGroup, "波浪线", "文字波浪线", ":/icons/annotation.svg", "squiggly");
+    auto* textGroup = ribbonBar_->addGroup(commentTab, tr("文本"));
+    addToolCommand(textGroup, "便签", "在页面上放一个便签", ":/icons/note.svg", "note");
+    addToolCommand(textGroup, "文本框", "在页面上写一段文字", ":/icons/edit.svg", "freetext");
+    addToolCommand(textGroup, "图章", "放置文字图章", ":/icons/annotation.svg", "stamp");
+    addToolCommand(textGroup, "图片图章", "用图片做图章", ":/icons/annotation.svg", "imagestamp");
+    auto* shapeGroup = ribbonBar_->addGroup(commentTab, tr("图形"));
+    addToolCommand(shapeGroup, "矩形", "拖出一个矩形", ":/icons/square.svg", "square");
+    addToolCommand(shapeGroup, "椭圆", "拖出一个椭圆", ":/icons/square.svg", "ellipse");
+    addToolCommand(shapeGroup, "直线", "拖出一条直线", ":/icons/square.svg", "line");
+    addToolCommand(shapeGroup, "箭头", "拖出一个箭头", ":/icons/square.svg", "arrow");
+    addToolCommand(shapeGroup, "多边形", "画一个多边形", ":/icons/square.svg", "polygon");
+    addToolCommand(shapeGroup, "云线", "画一个云线", ":/icons/square.svg", "cloud");
+    auto* inkGroup = ribbonBar_->addGroup(commentTab, tr("手写"));
+    addToolCommand(inkGroup, "墨迹", "自由绘制", ":/icons/ink.svg", "ink");
+    addToolCommand(inkGroup, "橡皮", "擦掉整笔", ":/icons/annotation.svg", "eraser");
+    auto* measureGroup = ribbonBar_->addGroup(commentTab, tr("测量与附件"));
+    addToolCommand(measureGroup, "测量", "量距离", ":/icons/annotation.svg", "measure");
+    addToolCommand(measureGroup, "周长", "量周长", ":/icons/annotation.svg", "perimeter");
+    addToolCommand(measureGroup, "面积", "量面积", ":/icons/annotation.svg", "area");
+    addToolCommand(measureGroup, "附件", "添加文件附件", ":/icons/annotation.svg", "attachment");
+    addToolCommand(measureGroup, "声音", "录制声音批注", ":/icons/annotation.svg", "sound");
+    auto* undoGroup = ribbonBar_->addGroup(commentTab, tr("历史"));
+    addToolCommand(undoGroup, "撤销", "撤销批注操作", ":/icons/undo.svg", "undo");
+    addToolCommand(undoGroup, "重做", "重做批注操作", ":/icons/redo.svg", "redo");    auto* panelGroup = ribbonBar_->addGroup(commentTab, tr("面板"));
     addRibbonCommand(panelGroup, "批注", "打开批注面板", ":/icons/annotation.svg", [this] {
         navigationDock_->setVisible(true);
         showNavigationPage(4);
@@ -2650,6 +2688,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
 
     auto* view = new PdfView(this);
     view->setDocument(result.document, filePath);
+    // 文档/批注/图形工具条已经收进 Ribbon，释放垂直空间给画布与状态栏。
+    view->setToolBarsVisible(false);
     // 打开成功才记：密码错、文件损坏的不该出现在「最近文档」里。
     rememberRecentFile(filePath);
     const QString title = QFileInfo(filePath).fileName();

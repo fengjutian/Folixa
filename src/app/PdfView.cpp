@@ -2304,6 +2304,51 @@ void PdfView::recordSoundAnnotationDialog() {
     emit statusMessage(tr("已插入录音批注"));
 }
 
+
+void PdfView::setToolBarsVisible(bool visible) {
+    for (const char* name : {"documentToolBar", "annotationToolBar", "shapeToolBar"}) {
+        if (auto* bar = findChild<QToolBar*>(QString::fromLatin1(name))) {
+            bar->setVisible(visible);
+        }
+    }
+}
+
+void PdfView::activateAnnotationTool(const QString& id) {
+    if (id == QStringLiteral("undo")) {
+        undoAnnotation();
+        return;
+    }
+    if (id == QStringLiteral("redo")) {
+        redoAnnotation();
+        return;
+    }
+    QToolButton* target = nullptr;
+    if (id == QStringLiteral("highlight")) target = highlightButton_;
+    else if (id == QStringLiteral("underline")) target = underlineButton_;
+    else if (id == QStringLiteral("strikethrough")) target = strikeOutButton_;
+    else if (id == QStringLiteral("squiggly")) target = squigglyButton_;
+    else if (id == QStringLiteral("note")) target = noteButton_;
+    else if (id == QStringLiteral("freetext")) target = freeTextButton_;
+    else if (id == QStringLiteral("stamp")) target = stampButton_;
+    else if (id == QStringLiteral("imagestamp")) target = imageStampButton_;
+    else if (id == QStringLiteral("sound")) target = soundButton_;
+    else if (id == QStringLiteral("attachment")) target = attachmentButton_;
+    else if (id == QStringLiteral("measure")) target = measureButton_;
+    else if (id == QStringLiteral("perimeter")) target = perimeterButton_;
+    else if (id == QStringLiteral("area")) target = areaButton_;
+    else if (id == QStringLiteral("square")) target = squareButton_;
+    else if (id == QStringLiteral("ellipse")) target = ellipseButton_;
+    else if (id == QStringLiteral("line")) target = lineButton_;
+    else if (id == QStringLiteral("arrow")) target = arrowButton_;
+    else if (id == QStringLiteral("polygon")) target = polygonButton_;
+    else if (id == QStringLiteral("cloud")) target = cloudButton_;
+    else if (id == QStringLiteral("ink")) target = inkButton_;
+    else if (id == QStringLiteral("eraser")) target = eraserButton_;
+    if (target != nullptr) {
+        target->click();
+    }
+}
+
 void PdfView::startPresentation() {
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("放映"), tr("先打开一份 PDF。"));

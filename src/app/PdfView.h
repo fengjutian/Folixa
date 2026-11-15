@@ -131,6 +131,10 @@ public slots:
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;
     void configureEncryptionDialog();
+    // Ribbon 与验收脚本用的批注工具入口：id 与按钮对象名一致（highlight/square/ink…）。
+    void activateAnnotationTool(const QString& id);
+    // 把文档/批注/图形三条工具条收起来（工具已进 Ribbon）。
+    void setToolBarsVisible(bool visible);
 
     // 表单（v1.5.0）：字段列表、写值、扁平化。
     QVector<pdf::FormField> formFields() const;
