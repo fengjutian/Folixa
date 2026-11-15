@@ -1,4 +1,4 @@
-#include "app/Theme.h"
+﻿#include "app/Theme.h"
 
 #include <QApplication>
 #include <QFont>
@@ -59,7 +59,7 @@ QTabBar#ribbonTabs::tab:hover:!selected { color: #3555B7; background: #F5F8FD; }
 QTabBar#ribbonTabs::tab:selected { color: #202A3A; border-bottom: 2px solid #5277E8; }
 QStackedWidget#ribbonPages { background: #FFFFFF; }
 QFrame#ribbonGroup { border: 0; border-right: 1px solid #EDF0F5; background: transparent; }
-QLabel#ribbonGroupTitle { color: #8792A3; font-size: 11px; padding-top: 1px; }
+QLabel#ribbonGroupTitle { color: #8792A3; font-size: 10px; padding-top: 0; }
 QToolButton[ribbonCommand="true"] {
     min-height: 52px; padding: 4px 8px; border: 1px solid transparent;
     border-radius: 8px; background: transparent; color: #3C485C; font-weight: 500;

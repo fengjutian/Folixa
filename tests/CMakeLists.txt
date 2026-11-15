@@ -103,6 +103,23 @@ qt_add_resources(EncryptionDialogTests "encryption_dialog_catalogs"
 aipdf_deploy_qt_runtime(EncryptionDialogTests)
 add_test(NAME EncryptionDialogTests COMMAND EncryptionDialogTests)
 
+# Ribbon 中央布局：固定 96 高度、标签条可见、窗口不被撑宽。
+qt_add_executable(RibbonLayoutTests
+    RibbonLayoutTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.h
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
+)
+target_link_libraries(RibbonLayoutTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+target_include_directories(RibbonLayoutTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(RibbonLayoutTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(RibbonLayoutTests)
+add_test(NAME RibbonLayoutTests COMMAND RibbonLayoutTests)
+set_tests_properties(RibbonLayoutTests PROPERTIES
+    ENVIRONMENT "AIPDF_UI_SNAPSHOT_DIR=${CMAKE_CURRENT_BINARY_DIR}/ui-snapshots"
+)
+
 qt_add_executable(WorkerIntegrationTests
     WorkerIntegrationTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
