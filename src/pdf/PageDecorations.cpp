@@ -1,4 +1,4 @@
-#include "pdf/PageDecorations.h"
+﻿#include "pdf/PageDecorations.h"
 
 #include <algorithm>
 #include <cmath>
@@ -96,6 +96,23 @@ bool applyPageNumbers(PdfDocument& document, const PageNumberOptions& options) {
         const double x = width - estimatedWidth(text, options.fontSize) - options.fontSize;
         return page.addTextLayer(text, std::max(options.fontSize, x), options.fontSize * 0.9,
                                  options.fontSize, options.color, 0.0, 1.0);
+    });
+}
+
+
+bool applyBatesNumbering(PdfDocument& document, const BatesOptions& options) {
+    if (!canRenderWithStandardFont(options.prefix) || options.digits <= 0 || options.digits > 12) {
+        return false;
+    }
+    return allPages(document, [&](PdfPage& page, int index, int) {
+        const QString number = QString::number(options.start + index).rightJustified(
+            options.digits, QLatin1Char('0'));
+        const QString text = options.prefix + number;
+        const double width = page.widthPoints();
+        const double x = width - estimatedWidth(text, options.fontSize) - options.fontSize;
+        return page.addTextLayer(text, std::max(options.fontSize, x),
+                                 options.fontSize * 0.9, options.fontSize,
+                                 options.color, 0.0, 1.0);
     });
 }
 

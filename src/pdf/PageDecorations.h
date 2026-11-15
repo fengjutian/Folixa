@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QColor>
 #include <QString>
@@ -46,5 +46,15 @@ bool applyPageNumbers(PdfDocument& document, const PageNumberOptions& options);
 // 只支持标准 14 字体（Helvetica）能编码的字符：中文需要嵌入字体，暂不支持。
 // 返回 false 表示这段文字里含有画不出来的字符。
 bool canRenderWithStandardFont(const QString& text);
+struct BatesOptions {
+    QString prefix = QStringLiteral("BATES");
+    int start = 1;
+    int digits = 6;
+    double fontSize = 8.0;
+    QColor color = QColor(90, 96, 108);
+};
+
+// 贝茨编号：右下角逐页递增的档案编号（前缀 + 定长序号）。
+bool applyBatesNumbering(PdfDocument& document, const BatesOptions& options);
 
 }  // namespace aipdf::pdf

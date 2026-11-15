@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QByteArray>
 #include <QImage>
@@ -61,6 +61,9 @@ public:
     // rectPoints 是 PDF 用户空间的矩形；图片被拉伸铺满它。
     bool addImageLayer(const QRectF& rectPoints, const QImage& image);
 
+    // 删除与 rectPoints 重叠过半的图片对象（图像删除，E2）。
+    bool removeImagesInRect(const QRectF& rectPoints);
+
     // 文本替换（行级）：
     //   1. 删掉与 rectPoints 相交面积过半的文本对象；
     //   2. 用一个白色矩形盖住原位置（防止残留的图形干扰阅读）；
@@ -85,6 +88,11 @@ public:
     // 页面的有效盒子：优先 CropBox，没有 CropBox 时退回 MediaBox。
     // PDFium 渲染的就是这个区域，字符框相对它才能和页面图像对齐。
     MediaBox contentBox() const;
+
+    // 设置页面的 CropBox（PDF user space，左下原点）。裁剪只改可见区域，
+    // 不动页面内容：被裁掉的文字仍然可以搜索、也可以再恢复。
+    // 矩形必须在 MediaBox 内，且宽高大于 0；否则返回 false。
+    bool setCropBox(const MediaBox& box);
 
     // 本页的链接注释（内部跳转与外部 URI）。
     //
@@ -163,6 +171,10 @@ public:
     bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
     // 扁平化：把字段外观烧进页面内容，之后就是普通图形，不能再编辑。
     bool flattenPage(int pageIndex);
+
+    // 是否是 XFA 动态表单。PDFium 没有 XFA 引擎，这类文档只能显式告知用户，
+    // 不能静默显示成空白页（F6 的要求）。
+    bool hasXfaForm() const;
 
     // 文档拼装：把另一份文档的页面全部追加到本文件末尾。
     bool appendDocumentPages(const PdfDocument& source);

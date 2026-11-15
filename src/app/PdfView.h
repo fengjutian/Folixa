@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QWidget>
 #include <QImage>
@@ -114,6 +114,9 @@ public slots:
     void applyWatermarkDialog();
     void applyHeaderFooterDialog();
     void applyPageNumbersDialog();
+    // 页面组装（对齐福昕页面管理）：裁剪与贝茨编号。
+    void cropCurrentPageDialog();
+    void applyBatesNumberingDialog();
 
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;
@@ -128,6 +131,7 @@ public slots:
     void mergeDocumentDialog();
     void extractCurrentPageDialog();
     void replaceSelectionWithImageDialog();
+    void deleteSelectionImagesDialog();
     void replaceSelectionTextDialog();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();

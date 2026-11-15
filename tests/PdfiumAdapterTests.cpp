@@ -60,6 +60,7 @@ private slots:
     void formWidgetsAreRendered();
     void mergeAndExtractPages();
     void imageLayerCoversRect();
+    void imageCanBeRemovedAgain();
     void textReplacementSwapsContent();
     void formValuesSurviveSaveAndReopen();
 
@@ -407,6 +408,23 @@ void PdfiumAdapterTests::formValuesSurviveSaveAndReopen() {
              "填写的值没有随文档保存");
     reopened.document.flattenPage(0);
     QVERIFY(reopened.document.formFields().isEmpty());
+}
+
+void PdfiumAdapterTests::imageCanBeRemovedAgain() {
+    auto opened = openDocument(fixturePath(QStringLiteral("empty.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    const int before = countInkedPixels(page->render(1.0));
+
+    QImage patch(20, 20, QImage::Format_RGB888);
+    patch.fill(QColor(0, 0, 255));
+    QVERIFY(page->addImageLayer(QRectF(20.0, 40.0, 60.0, 60.0), patch));
+    QVERIFY(countInkedPixels(page->render(1.0)) > before);
+
+    QVERIFY(page->removeImagesInRect(QRectF(20.0, 40.0, 60.0, 60.0)));
+    QCOMPARE(countInkedPixels(page->render(1.0)), before);
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

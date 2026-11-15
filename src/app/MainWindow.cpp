@@ -850,7 +850,12 @@ void MainWindow::buildUi() {
     addRibbonCommand(decorationGroup, "页眉页脚", "添加页眉页脚", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->applyHeaderFooterDialog(); }
     });
-    addRibbonCommand(decorationGroup, "页码", "添加页码", ":/icons/edit.svg", [this] {
+    addRibbonCommand(decorationGroup, "裁剪", "裁剪当前页", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->cropCurrentPageDialog(); }
+    }, true, "ribbonCrop");
+    addRibbonCommand(decorationGroup, "贝茨编号", "添加贝茨编号", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->applyBatesNumberingDialog(); }
+    }, true, "ribbonBates");    addRibbonCommand(decorationGroup, "页码", "添加页码", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->applyPageNumbersDialog(); }
     });
 

@@ -1637,6 +1637,22 @@
     <context>
         <name>aipdf::app::PdfView</name>
         <message>
+            <source>删除图片</source>
+            <translation>Delete image</translation>
+        </message>
+        <message>
+            <source>先框选要删除的图片。</source>
+            <translation>Select the image to delete first.</translation>
+        </message>
+        <message>
+            <source>选区里没有可以删除的图片。</source>
+            <translation>There is no deletable image in the selection.</translation>
+        </message>
+        <message>
+            <source>已删除选区内的图片</source>
+            <translation>Deleted the image in the selection</translation>
+        </message>
+        <message>
             <source>加密与权限</source>
             <translation>Encryption and permissions</translation>
         </message>

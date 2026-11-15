@@ -571,6 +571,26 @@ MediaBox PdfPage::contentBox() const {
     return MediaBox{0.0, 0.0, widthPoints(), heightPoints()};
 }
 
+bool PdfPage::setCropBox(const MediaBox& box) {
+    if (!isValid()) {
+        return false;
+    }
+    if (box.right <= box.left || box.top <= box.bottom) {
+        return false;
+    }
+    const MediaBox media = mediaBox();
+    if (box.left < media.left - 0.01 || box.right > media.right + 0.01 ||
+        box.bottom < media.bottom - 0.01 || box.top > media.top + 0.01) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDFPage_SetCropBox(impl_->page,
+                        static_cast<float>(box.left),
+                        static_cast<float>(box.bottom),
+                        static_cast<float>(box.right),
+                        static_cast<float>(box.top));
+    return true;
+}
 QVector<PageLink> PdfPage::links() const {
     if (!isValid()) {
         return {};
@@ -1117,6 +1137,15 @@ bool PdfDocument::setFormFieldValue(int pageIndex, const QString& name, const QS
     return changed;
 }
 
+bool PdfDocument::hasXfaForm() const {
+    if (!impl_ || impl_->fileData.isEmpty()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    // 直接扫原始字节：XFA 是 AcroForm 里的 /XFA 键，PDFium 不给我们读它的接口。
+    return impl_->fileData.contains("/XFA");
+}
+
 bool PdfDocument::appendDocumentPages(const PdfDocument& source) {
     if (!isValid() || !source.isValid()) {
         return false;
@@ -1169,6 +1198,41 @@ bool PdfDocument::flattenPage(int pageIndex) {
     FPDF_ClosePage(page);
     return result == FLATTEN_SUCCESS;
 }
+bool PdfPage::removeImagesInRect(const QRectF& rectPoints) {
+    if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    QVector<FPDF_PAGEOBJECT> victims;
+    for (int i = 0; i < count; ++i) {
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, i);
+        if (object == nullptr || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_IMAGE) {
+            continue;
+        }
+        float left = 0.0F;
+        float bottom = 0.0F;
+        float right = 0.0F;
+        float top = 0.0F;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) {
+            continue;
+        }
+        const QRectF objectRect(left, bottom, right - left, top - bottom);
+        const QRectF overlap = objectRect.intersected(rectPoints);
+        const double area = objectRect.width() * objectRect.height();
+        if (area > 0.0 && overlap.width() * overlap.height() >= area * 0.5) {
+            victims.append(object);
+        }
+    }
+    if (victims.isEmpty()) {
+        return false;
+    }
+    for (FPDF_PAGEOBJECT object : victims) {
+        FPDFPage_RemoveObject(impl_->page, object);
+    }
+    return FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
 bool PdfPage::addImageLayer(const QRectF& rectPoints, const QImage& image) {
     if (!impl_ || impl_->page == nullptr || image.isNull() || rectPoints.isEmpty()) {
         return false;

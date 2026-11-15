@@ -621,6 +621,17 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     cache_.clear();
     modified_ = false;
 
+    // XFA 表单：PDFium 没有 XFA 引擎，页面会是空白的。必须当面说清楚，
+    // 不能让用户以为文件坏了（F6）。
+    if (document_.hasXfaForm()) {
+        trace(QStringLiteral("document xfa form detected"));
+        emit statusMessage(tr("这是 XFA 动态表单：本程序不支持 XFA，页面内容可能显示为空白。"));
+        QMessageBox::information(
+            this, tr("XFA 表单"),
+            tr("这份 PDF 使用 XFA 动态表单。PDFium 没有 XFA 引擎，所以页面内容可能显示为空白。\n"
+               "可以用其他阅读器打开填写，或者请提供者导出成静态 PDF。"));
+    }
+
     // 文本控制器与导航控制器：各自开一份独立句柄，在后台线程干活。
     setupControllers();
 
@@ -733,9 +744,9 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 constexpr double kSize = 24.0;
                 const QRectF rect(userPoint.x() - kSize / 2.0, userPoint.y() - kSize / 2.0, kSize,
                                   kSize);
-                annotationController_->addSound(pageIndex, rect, QFileInfo(path).fileName(),
-                                                payload.pcm, payload.rate, payload.channels,
-                                                payload.bits);
+                // 走原生 /Sound 通路：保存时注入页面 /Annots，别的阅读器认得出。
+                annotationController_->addSoundFromWav(pageIndex, rect, QFileInfo(path).fileName(),
+                                                       bytes);
             });
     connect(canvas_, &PageCanvas::attachmentRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
@@ -1473,6 +1484,81 @@ void PdfView::configureEncryptionDialog() {
 }
 
 // 装饰写进页面内容后，渲染线程手里的文档副本已经过期，必须换一份。
+
+void PdfView::cropCurrentPageDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    const pdf::MediaBox box = page->contentBox();
+    const double minSide = std::min(box.right - box.left, box.top - box.bottom);
+    bool accepted = false;
+    const double margin = QInputDialog::getDouble(
+        this, tr("裁剪页面"), tr("四边各裁掉多少点（72 点 = 1 英寸）:"), 18.0,
+        0.0, std::max(0.0, minSide / 2.0 - 1.0), 1, &accepted);
+    if (!accepted || margin <= 0.0) {
+        return;
+    }
+    pdf::MediaBox cropped = box;
+    cropped.left += margin;
+    cropped.bottom += margin;
+    cropped.right -= margin;
+    cropped.top -= margin;
+    if (!page->setCropBox(cropped)) {
+        QMessageBox::warning(this, tr("裁剪页面"), tr("裁剪范围无效。"));
+        return;
+    }
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    rebuildLayout();
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
+    modified_ = true;
+    emit statusMessage(tr("已裁剪第 %1 页").arg(pageIndex + 1));
+}
+
+void PdfView::applyBatesNumberingDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const QString prefix = QInputDialog::getText(
+        this, tr("贝茨编号"), tr("前缀（仅支持西文）:"), QLineEdit::Normal,
+        QStringLiteral("BATES"), &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int start = QInputDialog::getInt(this, tr("贝茨编号"), tr("起始编号:"), 1, 0,
+                                           999999, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    pdf::BatesOptions options;
+    options.prefix = prefix.trimmed();
+    options.start = start;
+    if (!pdf::canRenderWithStandardFont(options.prefix)) {
+        QMessageBox::warning(this, tr("贝茨编号"),
+                             tr("贝茨编号目前只支持西文：中文需要嵌入字体，暂不支持。"));
+        return;
+    }
+    if (!pdf::applyBatesNumbering(document_, options)) {
+        QMessageBox::warning(this, tr("贝茨编号"), tr("编号没有写进去。"));
+        return;
+    }
+    modified_ = true;
+    refreshAfterDecoration();
+    emit statusMessage(tr("已添加贝茨编号"));
+}
+
 void PdfView::refreshAfterDecoration() {
     QString error;
     const QByteArray bytes = document_.serialize(&error);
@@ -1617,6 +1703,35 @@ void PdfView::replaceSelectionWithImageDialog() {
     refreshAfterDecoration();
     modified_ = true;
     emit statusMessage(tr("已用图片替换选区"));
+}
+
+void PdfView::deleteSelectionImagesDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("删除图片"), tr("先框选要删除的图片。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(
+            QRectF(displayToUser(pageIndex, rect.topLeft()),
+                   displayToUser(pageIndex, rect.bottomRight())).normalized());
+    }
+    if (!page->removeImagesInRect(userRect)) {
+        QMessageBox::information(this, tr("删除图片"), tr("选区里没有可以删除的图片。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已删除选区内的图片"));
 }
 
 void PdfView::replaceSelectionTextDialog() {
