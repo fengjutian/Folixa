@@ -53,14 +53,31 @@ try {
     $env:AIPDF_SKIP_RECOVERY_PROMPT = '1'
     Reset-AiPdfTrace -Path $tracePath
 
+    # 上一轮残留的实例会抢前台：先清掉，否则"窗口就绪"会随机失败。
+    Get-Process -Name AiPdfEditor -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+
     $process = Start-Process -FilePath $exe -ArgumentList ('"' + $fixture + '"') -PassThru
     Test-Check '主程序已启动' ($null -ne $process)
 
-    $deadline = (Get-Date).AddSeconds(60)
+    $started = Get-Date
+    $deadline = (Get-Date).AddSeconds(90)
     $ready = $false
     while ((Get-Date) -lt $deadline) {
-        if (Test-AiPdfForeground -Process $process) { $ready = $true; break }
-        Start-Sleep -Milliseconds 300
+        if ($process.HasExited) { break }
+        $process.Refresh()
+        if ($process.MainWindowHandle -ne [IntPtr]::Zero) {
+            Set-AiPdfWindowTopmost -Process $process -Enable $true -ErrorAction SilentlyContinue | Out-Null
+            if (Test-AiPdfForeground -Process $process) { $ready = $true; break }
+            # 前台切换被系统拒绝时（同机有别的程序在抢焦点），点一下标题栏把它顶上来。
+            if (((Get-Date) - $started).TotalSeconds -gt 6) {
+                $bounds = Get-AiPdfWindowRect -Process $process
+                if ($null -ne $bounds) {
+                    Invoke-AiPdfMouseClick -X ($bounds.Left + 400) -Y ($bounds.Top + 8)
+                }
+            }
+        }
+        Start-Sleep -Milliseconds 400
     }
     Test-Check '主窗口就绪并可切到前台' $ready
 
@@ -115,6 +132,9 @@ try {
     if ($null -ne $process -and -not $process.HasExited) {
         $process.Kill()
         $process.WaitForExit(5000) | Out-Null
+    }
+    if ($null -ne $process) {
+        Set-AiPdfWindowTopmost -Process $process -Enable $false -ErrorAction SilentlyContinue | Out-Null
     }
     Stop-AiPdfOrphanWorker -ErrorAction SilentlyContinue
     if ($null -ne $cursor) { Restore-AiPdfCursorPosition -Position $cursor }

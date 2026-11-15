@@ -2,6 +2,10 @@
 
 #include <QMainWindow>
 
+#include "i18n/Translate.h"
+
+class QAction;
+class QActionGroup;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -116,6 +120,15 @@ private:
     void setNavigationExpanded(bool expanded);
     // 按当前文档与选区状态刷新 AI 快捷卡的动作与说明。
     void updateAiQuickActions();
+    // ---------------------------------------------------------- 语言 ----
+    // 切换界面语言：交给 LanguageManager，重译由 languageChanged 信号驱动。
+    void applyLanguage(const QString& preference);
+    // 就地重译：重跑登记的文案，并把随状态变化的标签也刷一遍。
+    void retranslateUi();
+    // 语言菜单的勾选状态跟当前选择同步。
+    void syncLanguageMenu();
+    // 欢迎页标签的文案跟着语言走（标签页是动态建的，单独登记）。
+    void bindWelcomeTab(QWidget* page);
 
     ipc::WorkerClient* workerClient_ = nullptr;
     // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
@@ -176,6 +189,11 @@ private:
     bool navigationUserVisible_ = true;
     // 欢迎页临时收起了导航栏；打开文档时要把它放回来。
     bool navHiddenForWelcome_ = false;
+
+    // 一次设定、长期显示的界面文案：切换语言时按登记顺序重跑。
+    i18n::TextBindings texts_;
+    QActionGroup* languageActions_ = nullptr;
+    QAction* followSystemAction_ = nullptr;
 };
 
 }  // namespace aipdf::app

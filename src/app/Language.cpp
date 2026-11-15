@@ -24,6 +24,30 @@ void skipElement(QXmlStreamReader& reader) {
     reader.skipCurrentElement();
 }
 
+// 读 <translation> 的内容。
+//
+// 不能直接用 readElementText()：复数词条的 <translation> 里套着
+// <numerusform> 子元素，默认行为遇到子元素会判成格式错误。这里手动走一遍，
+// 文本拼成单数/无复数文案，<numerusform> 按顺序收进形式表。
+void readTranslationElement(QXmlStreamReader& reader, QString* text,
+                            QStringList* numerusForms) {
+    QString buffer;
+    while (!reader.atEnd()) {
+        const QXmlStreamReader::TokenType token = reader.readNext();
+        if (token == QXmlStreamReader::EndElement && reader.name() == u"translation") {
+            break;
+        }
+        if (token == QXmlStreamReader::Characters) {
+            buffer += reader.text();
+        } else if (token == QXmlStreamReader::StartElement && reader.name() == u"numerusform") {
+            numerusForms->append(reader.readElementText(QXmlStreamReader::SkipChildElements));
+        } else if (token == QXmlStreamReader::StartElement) {
+            reader.skipCurrentElement();
+        }
+    }
+    *text = buffer;
+}
+
 // 读一条 <message>，读完后 reader 停在 </message> 上。
 void readMessage(QXmlStreamReader& reader, const QString& context,
                  QHash<QString, CatalogMessage>& out) {
@@ -55,7 +79,7 @@ void readMessage(QXmlStreamReader& reader, const QString& context,
             if (type == u"unfinished" || type == u"obsolete" || type == u"vanished") {
                 dropped = true;
             }
-            translation = reader.readElementText();
+            readTranslationElement(reader, &translation, &numerusForms);
         } else if (name == u"numerusform") {
             numerusForms.append(reader.readElementText());
         } else {

@@ -339,16 +339,44 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
                     const QByteArray raw(reinterpret_cast<const char*>(rgb.constBits()),
                                          static_cast<qsizetype>(rgb.sizeInBytes()));
                     const QByteArray compressed = qCompress(raw, 6);
+
+                    // 有透明像素就再写一张灰度蒙版（/SMask），否则透明区域会渲染成黑色。
+                    QByteArray mask;
+                    const bool hasAlpha = image.hasAlphaChannel();
+                    if (hasAlpha) {
+                        const QImage alpha = image.convertToFormat(QImage::Format_Alpha8);
+                        const QByteArray maskRaw(
+                            reinterpret_cast<const char*>(alpha.constBits()),
+                            static_cast<qsizetype>(alpha.sizeInBytes()));
+                        mask = qCompress(maskRaw, 6);
+                    }
+
                     QByteArray body = "<< /Type /XObject /Subtype /Image /Width ";
                     body += QByteArray::number(rgb.width());
                     body += " /Height ";
                     body += QByteArray::number(rgb.height());
                     body += " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ";
                     body += QByteArray::number(compressed.size());
+                    if (hasAlpha) {
+                        body += " /SMask @EXTRA1 0 R";
+                    }
                     body += " >>\nstream\n";
                     body += compressed;
                     body += "\nendstream";
-                    appearance.imageObjectBody = body;
+                    appearance.extraObjectBodies.append(body);
+
+                    if (hasAlpha) {
+                        QByteArray maskBody = "<< /Type /XObject /Subtype /Image /Width ";
+                        maskBody += QByteArray::number(rgb.width());
+                        maskBody += " /Height ";
+                        maskBody += QByteArray::number(rgb.height());
+                        maskBody += " /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ";
+                        maskBody += QByteArray::number(mask.size());
+                        maskBody += " >>\nstream\n";
+                        maskBody += mask;
+                        maskBody += "\nendstream";
+                        appearance.extraObjectBodies.append(maskBody);
+                    }
 
                     out += "q\n";
                     out += num(mapped.width()) + " 0 0 " + num(mapped.height()) + ' ' +

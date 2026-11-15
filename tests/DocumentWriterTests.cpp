@@ -396,9 +396,9 @@ void DocumentWriterTests::imageStampAndSoundAreEmbedded() {
     auto page = opened.document.page(0);
     QVERIFY(page.has_value());
 
-    // 造一张 4x4 的红图当作图章。
-    QImage image(4, 4, QImage::Format_RGB888);
-    image.fill(QColor(200, 30, 30));
+    // 造一张 4x4 的**半透明**红图当作图章：顺带验证 /SMask 真的写进了文件。
+    QImage image(4, 4, QImage::Format_ARGB32);
+    image.fill(QColor(200, 30, 30, 128));
     QByteArray png;
     {
         QBuffer buffer(&png);
@@ -434,6 +434,8 @@ void DocumentWriterTests::imageStampAndSoundAreEmbedded() {
     QVERIFY2(saved.ok, qPrintable(saved.error));
     QVERIFY2(saved.bytes.contains("/Subtype /Image"), "图章图片没有写成 Image XObject");
     QVERIFY(saved.bytes.contains("/Im0"));
+    QVERIFY2(saved.bytes.contains("/SMask"), "透明图章没有写软蒙版，透明区会变黑");
+    QVERIFY(saved.bytes.contains("/DeviceGray"));
 
     QString qpdfError;
     if (aipdf::pdf::qpdfBackendAvailable()) {

@@ -1,4 +1,4 @@
-﻿qt_add_executable(IpcProtocolTests
+qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -10,6 +10,32 @@ set_target_properties(IpcProtocolTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(IpcProtocolTests)
 
 add_test(NAME IpcProtocolTests COMMAND IpcProtocolTests)
+
+# ------------------------------------------------------------ 国际化底座 ----
+#
+# .ts 目录在主程序里是资源，测试要自己再打一份，才能验证「目录真的进包了」。
+
+qt_add_executable(I18nTests
+    I18nTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
+)
+
+target_link_libraries(I18nTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(I18nTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(I18nTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+file(GLOB AIPDF_TEST_I18N_CATALOGS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/i18n/*.ts")
+qt_add_resources(I18nTests "i18n_test_catalogs"
+    PREFIX "/i18n"
+    BASE "${CMAKE_SOURCE_DIR}/src/i18n"
+    FILES ${AIPDF_TEST_I18N_CATALOGS}
+)
+
+aipdf_deploy_qt_runtime(I18nTests)
+
+add_test(NAME I18nTests COMMAND I18nTests)
 
 qt_add_executable(WorkerIntegrationTests
     WorkerIntegrationTests.cpp

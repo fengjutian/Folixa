@@ -25,9 +25,10 @@ struct Appearance {
     QByteArray resources;
     // 用了 ExtGState 就必须写 /Resources，否则透明度会被忽略。
     bool usesTransparency = false;
-    // 图片图章：要把这张图作为独立的 XObject 对象写进文件，
+    // 图片图章：图像（以及可选的透明蒙版）要作为独立对象写进文件，
     // 外观流里只用 `q w 0 0 h 0 0 cm /Im0 Do Q` 把它铺满 bbox。
-    QByteArray imageObjectBody;
+    // 顺序即 @EXTRA0、@EXTRA1… 的编号顺序。
+    QVector<QByteArray> extraObjectBodies;
 
     bool isEmpty() const { return content.isEmpty(); }
 };

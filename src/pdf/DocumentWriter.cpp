@@ -55,9 +55,9 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
             const Appearance appearance = buildAnnotationAppearance(annotation);
             AnnotationDictionaryParts parts = annotationDictionaryParts(annotation);
 
-            if (!appearance.imageObjectBody.isEmpty()) {
-                // 图片图章的画面在独立对象里，外观流用 @EXTRA0 引用它。
-                parts.objects.append(appearance.imageObjectBody);
+            for (const QByteArray& body : appearance.extraObjectBodies) {
+                // 图片图章的画面在独立对象里，外观流用 @EXTRA0 / @EXTRA1 引用。
+                parts.objects.append(body);
             }
             // 附件这类批注可能没有可画的外观，但有额外对象要建；
             // 回复（/IRT）与审阅状态也可能挂在没有外观的便签上。

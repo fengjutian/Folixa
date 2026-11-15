@@ -1,5 +1,6 @@
 ﻿#include "app/MainWindow.h"
 
+#include "app/Language.h"
 #include "app/TextController.h"
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
@@ -21,6 +22,8 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
 #include "pdf/Navigation.h"
+
+#include "i18n/Translate.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -126,10 +129,10 @@ void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem
         node->setText(0, item.title);
         node->setData(0, Qt::UserRole, item.pageIndex);
         if (item.pageIndex < 0) {
-            node->setToolTip(0, QCoreApplication::translate("MainWindow", "该条目没有可跳转的目标"));
+            node->setToolTip(0, i18n::tr("aipdf::app::MainWindow", "该条目没有可跳转的目标"));
         } else {
-            node->setToolTip(0, QCoreApplication::translate("MainWindow", "跳转到第 %1 页")
-                                       .arg(item.pageIndex + 1));
+            node->setToolTip(0, i18n::tr("aipdf::app::MainWindow", "跳转到第 %1 页")
+                                   .arg(item.pageIndex + 1));
         }
         addOutlineItems(node, item.children);
     }
@@ -177,6 +180,10 @@ MainWindow::MainWindow(QWidget* parent)
     setAcceptDrops(true);
     buildUi();
 
+    // 切换语言后所有登记过的文案就地重译：不重建窗口，文档与面板状态都留着。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &MainWindow::retranslateUi);
+
     connect(workerClient_, &ipc::WorkerClient::stateChanged,
             this, [this](const QString& state) {
                 // Worker 状态记进轨迹：验收脚本靠它断言「Worker 就绪」。
@@ -214,7 +221,8 @@ void MainWindow::buildUi() {
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
     welcome->setProperty("welcomePage", true);
-    tabs->addTab(welcome, tr("欢迎页"));
+    tabs->addTab(welcome, QString());
+    bindWelcomeTab(welcome);
     tabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
     syncTabBar();
     connect(tabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
@@ -227,30 +235,36 @@ void MainWindow::buildUi() {
         if (tabs_->count() == 0) {
             auto* welcomePage = createWelcomePage();
             welcomePage->setProperty("welcomePage", true);
-            tabs_->addTab(welcomePage, tr("欢迎页"));
+            tabs_->addTab(welcomePage, QString());
+            bindWelcomeTab(welcomePage);
             tabs_->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
         }
         syncTabBar();
     });
     setCentralWidget(tabs);
 
-    auto* fileMenu = menuBar()->addMenu(tr("文件(&F)"));
-    auto* openAction = fileMenu->addAction(tr("打开 PDF…"));
+    auto* fileMenu = menuBar()->addMenu(QString());
+    texts_.bind([this, fileMenu] { fileMenu->setTitle(tr("文件(&F)")); });
+    auto* openAction = fileMenu->addAction(QString());
+    texts_.bind([this, openAction] { openAction->setText(tr("打开 PDF…")); });
     openAction->setShortcut(QKeySequence::Open);
     connect(openAction, &QAction::triggered, this, &MainWindow::openPdfDialog);
     fileMenu->addSeparator();
     // 保存与另存为（v0.8.0）：写临时文件、校验、原子替换，失败不动原文件。
-    auto* saveAction = fileMenu->addAction(tr("保存"));
+    auto* saveAction = fileMenu->addAction(QString());
+    texts_.bind([this, saveAction] { saveAction->setText(tr("保存")); });
     saveAction->setShortcut(QKeySequence::Save);
     saveAction->setObjectName(QStringLiteral("fileSave"));
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveDocument);
-    auto* saveAsAction = fileMenu->addAction(tr("另存为…"));
+    auto* saveAsAction = fileMenu->addAction(QString());
+    texts_.bind([this, saveAsAction] { saveAsAction->setText(tr("另存为…")); });
     saveAsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+S")));
     saveAsAction->setObjectName(QStringLiteral("fileSaveAs"));
     connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveDocumentAs);
 
     // 打印与导出：都作用在当前标签页，没有文档时什么也不做。
-    auto* printAction = fileMenu->addAction(tr("打印…"));
+    auto* printAction = fileMenu->addAction(QString());
+    texts_.bind([this, printAction] { printAction->setText(tr("打印…")); });
     printAction->setShortcut(QKeySequence::Print);
     printAction->setObjectName(QStringLiteral("filePrint"));
     connect(printAction, &QAction::triggered, this, [this]() {
@@ -258,14 +272,18 @@ void MainWindow::buildUi() {
             view->printDocument();
         }
     });
-    auto* exportImagesAction = fileMenu->addAction(tr("导出页面为图片…"));
+    auto* exportImagesAction = fileMenu->addAction(QString());
+    texts_.bind([this, exportImagesAction] {
+        exportImagesAction->setText(tr("导出页面为图片…"));
+    });
     exportImagesAction->setObjectName(QStringLiteral("fileExportImages"));
     connect(exportImagesAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
             view->exportPageImages();
         }
     });
-    auto* exportTextAction = fileMenu->addAction(tr("导出文本…"));
+    auto* exportTextAction = fileMenu->addAction(QString());
+    texts_.bind([this, exportTextAction] { exportTextAction->setText(tr("导出文本…")); });
     exportTextAction->setObjectName(QStringLiteral("fileExportText"));
     connect(exportTextAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
@@ -274,16 +292,23 @@ void MainWindow::buildUi() {
     });
 
     fileMenu->addSeparator();
-    fileMenu->addAction(tr("退出"), QKeySequence::Quit, this, &QWidget::close);
+    auto* quitAction = fileMenu->addAction(QString());
+    quitAction->setShortcut(QKeySequence::Quit);
+    connect(quitAction, &QAction::triggered, this, &QWidget::close);
+    texts_.bind([this, quitAction] { quitAction->setText(tr("退出")); });
 
-    auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
+    auto* viewMenu = menuBar()->addMenu(QString());
+    texts_.bind([this, viewMenu] { viewMenu->setTitle(tr("视图(&V)")); });
     // 排布方式：三选一，互斥。切换后由 PdfView 重算布局与适配缩放。
     auto* layoutGroup = new QActionGroup(this);
     layoutGroup->setExclusive(true);
-    auto addLayoutMode = [&](const QString& text, PageLayout::LayoutMode mode) {
-        auto* action = viewMenu->addAction(text);
+    // 排布方式三选一。名称用 QT_TRANSLATE_NOOP 把源文案带下来：
+    // 动作是这里新建的，切换语言时要按同一份源文案再翻一次。
+    auto addLayoutMode = [&](const char* source, PageLayout::LayoutMode mode) {
+        auto* action = viewMenu->addAction(QString());
         action->setCheckable(true);
         layoutGroup->addAction(action);
+        texts_.bind([this, action, source] { action->setText(tr(source)); });
         connect(action, &QAction::triggered, this, [this, mode]() {
             if (auto* view = currentView()) {
                 view->setLayoutMode(mode);
@@ -291,33 +316,49 @@ void MainWindow::buildUi() {
         });
         return action;
     };
-    addLayoutMode(tr("单页"), PageLayout::LayoutMode::Continuous)->setChecked(true);
-    addLayoutMode(tr("双页"), PageLayout::LayoutMode::Facing);
-    addLayoutMode(tr("双页（封面）"), PageLayout::LayoutMode::FacingCover);
+    addLayoutMode(QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "单页"),
+                  PageLayout::LayoutMode::Continuous)
+        ->setChecked(true);
+    addLayoutMode(QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "双页"),
+                  PageLayout::LayoutMode::Facing);
+    addLayoutMode(QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "双页（封面）"),
+                  PageLayout::LayoutMode::FacingCover);
     viewMenu->addSeparator();
 
-    auto* exportXfdfAction = viewMenu->addAction(tr("导出批注（XFDF）…"));
+    auto* exportXfdfAction = viewMenu->addAction(QString());
+    texts_.bind([this, exportXfdfAction] {
+        exportXfdfAction->setText(tr("导出批注（XFDF）…"));
+    });
     exportXfdfAction->setObjectName(QStringLiteral("annotationsExportXfdf"));
     connect(exportXfdfAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
             view->exportAnnotationsXfdf();
         }
     });
-    auto* summaryExportAction = viewMenu->addAction(tr("导出批注摘要（HTML）…"));
+    auto* summaryExportAction = viewMenu->addAction(QString());
+    texts_.bind([this, summaryExportAction] {
+        summaryExportAction->setText(tr("导出批注摘要（HTML）…"));
+    });
     summaryExportAction->setObjectName(QStringLiteral("annotationsSummaryExport"));
     connect(summaryExportAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
             view->exportAnnotationSummary();
         }
     });
-    auto* summaryPrintAction = viewMenu->addAction(tr("打印批注摘要…"));
+    auto* summaryPrintAction = viewMenu->addAction(QString());
+    texts_.bind([this, summaryPrintAction] {
+        summaryPrintAction->setText(tr("打印批注摘要…"));
+    });
     summaryPrintAction->setObjectName(QStringLiteral("annotationsSummaryPrint"));
     connect(summaryPrintAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
             view->printAnnotationSummary();
         }
     });
-    auto* importXfdfAction = viewMenu->addAction(tr("导入批注（XFDF）…"));
+    auto* importXfdfAction = viewMenu->addAction(QString());
+    texts_.bind([this, importXfdfAction] {
+        importXfdfAction->setText(tr("导入批注（XFDF）…"));
+    });
     importXfdfAction->setObjectName(QStringLiteral("annotationsImportXfdf"));
     connect(importXfdfAction, &QAction::triggered, this, [this]() {
         if (auto* view = currentView()) {
@@ -326,7 +367,8 @@ void MainWindow::buildUi() {
     });
     viewMenu->addSeparator();
 
-    auto* presentationAction = viewMenu->addAction(tr("放映"));
+    auto* presentationAction = viewMenu->addAction(QString());
+    texts_.bind([this, presentationAction] { presentationAction->setText(tr("放映")); });
     presentationAction->setShortcut(QKeySequence(Qt::Key_F5));
     presentationAction->setObjectName(QStringLiteral("viewPresentation"));
     connect(presentationAction, &QAction::triggered, this, [this]() {
@@ -337,7 +379,8 @@ void MainWindow::buildUi() {
     menuBar()->hide();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
-    auto* commandBar = addToolBar(tr("功能导航"));
+    auto* commandBar = addToolBar(QString());
+    texts_.bind([this, commandBar] { commandBar->setWindowTitle(tr("功能导航")); });
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
@@ -345,7 +388,7 @@ void MainWindow::buildUi() {
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setText(QStringLiteral("☰"));
-    appMenuButton->setToolTip(tr("主菜单"));
+    texts_.bind([this, appMenuButton] { appMenuButton->setToolTip(tr("主菜单")); });
     // 必须走 setMenu：菜单里的「查找…」靠 QAction 快捷键（Ctrl+F）生效，
     // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
     // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
@@ -357,14 +400,17 @@ void MainWindow::buildUi() {
     appMenu->addAction(saveAction);
     appMenu->addAction(saveAsAction);
     appMenu->addSeparator();
-    auto* findAction = appMenu->addAction(tr("查找…"));
+    auto* findAction = appMenu->addAction(QString());
+    texts_.bind([this, findAction] { findAction->setText(tr("查找…")); });
     findAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
     appMenu->addSeparator();
-    appMenu->addAction(navigationDock_ == nullptr ? tr("导航面板") : QString());
+    // 先占位，等导航面板建好再把开关接上：按文本找动作太脆。
+    auto* navigationPanelAction = appMenu->addAction(QString());
     appMenu->addSeparator();
     // OCR（v0.13.0）：把当前页的扫描图识别成文字并入索引。
     ocrController_ = new OcrController(this);
-    auto* ocrAction = appMenu->addAction(tr("识别当前页（OCR）"));
+    auto* ocrAction = appMenu->addAction(QString());
+    texts_.bind([this, ocrAction] { ocrAction->setText(tr("识别当前页（OCR）")); });
     ocrAction->setObjectName(QStringLiteral("ocrCurrentPage"));
     connect(ocrAction, &QAction::triggered, this, [this] {
         PdfView* view = currentView();
@@ -389,7 +435,10 @@ void MainWindow::buildUi() {
     });
     // AI 文档操作（v0.14.0）：只读扫描 → 生成提案 → 用户确认 → 走命令系统。
     // 这条路径上没有任何一步能绕过确认框。
-    auto* blankAction = appMenu->addAction(tr("AI：找出空白页并提议删除"));
+    auto* blankAction = appMenu->addAction(QString());
+    texts_.bind([this, blankAction] {
+        blankAction->setText(tr("AI：找出空白页并提议删除"));
+    });
     blankAction->setObjectName(QStringLiteral("aiFindBlankPages"));
     connect(blankAction, &QAction::triggered, this, [this] {
         PdfView* view = currentView();
@@ -484,12 +533,14 @@ void MainWindow::buildUi() {
         trace(QStringLiteral("ocr failed page=%1 reason=%2").arg(page + 1).arg(reason));
     });
     appMenu->addSeparator();
-    appMenu->addAction(tr("退出"), this, &QWidget::close);
+    auto* appQuitAction = appMenu->addAction(QString());
+    connect(appQuitAction, &QAction::triggered, this, &QWidget::close);
+    texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
     // 品牌标记：图标 + 文字，让窗口第一眼有名字，而不是一个孤零零的色块。
     auto* brandMark = new BrandMark(24, commandBar);
-    brandMark->setToolTip(tr("Folixa 文档工作区"));
+    texts_.bind([this, brandMark] { brandMark->setToolTip(tr("Folixa 文档工作区")); });
     commandBar->addWidget(brandMark);
     auto* brandWordmark = new QLabel(QStringLiteral("Folixa"), commandBar);
     brandWordmark->setObjectName(QStringLiteral("brandWordmark"));
@@ -511,16 +562,20 @@ void MainWindow::buildUi() {
     // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
     // 未交付的保持纯文字并用分隔线隔开，一眼能看出「这些还不能点」。
     commandBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    auto* homeAction = commandBar->addAction(tr("阅读"));
+    auto* homeAction = commandBar->addAction(QString());
     homeAction->setIcon(QIcon(QStringLiteral(":/icons/book.svg")));
-    homeAction->setToolTip(tr("阅读视图"));
+    texts_.bind([this, homeAction] { homeAction->setText(tr("阅读")); });
+    texts_.bind([this, homeAction] { homeAction->setToolTip(tr("阅读视图")); });
     homeAction->setCheckable(true);
     homeAction->setChecked(true);
     // 批注已交付（v0.7.0）：点开就是批注面板。
-    auto* annotationAction = commandBar->addAction(tr("批注"));
+    auto* annotationAction = commandBar->addAction(QString());
     annotationAction->setIcon(QIcon(QStringLiteral(":/icons/annotation.svg")));
     annotationAction->setObjectName(QStringLiteral("commandAnnotation"));
-    annotationAction->setToolTip(tr("查看与删除批注"));
+    texts_.bind([this, annotationAction] { annotationAction->setText(tr("批注")); });
+    texts_.bind([this, annotationAction] {
+        annotationAction->setToolTip(tr("查看与删除批注"));
+    });
     connect(annotationAction, &QAction::triggered, this, [this]() {
         navigationDock_->setVisible(true);
         // 切到导航栏的批注页（第五个按钮）。
@@ -540,10 +595,13 @@ void MainWindow::buildUi() {
     });
 
     // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
-    auto* pageAction = commandBar->addAction(tr("页面"));
+    auto* pageAction = commandBar->addAction(QString());
     pageAction->setIcon(QIcon(QStringLiteral(":/icons/pages.svg")));
     pageAction->setObjectName(QStringLiteral("commandPages"));
-    pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
+    texts_.bind([this, pageAction] { pageAction->setText(tr("页面")); });
+    texts_.bind([this, pageAction] {
+        pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
+    });
     connect(pageAction, &QAction::triggered, this, [this]() {
         navigationDock_->setVisible(true);
         // 切到导航栏的页面页（第一个按钮）。
@@ -551,10 +609,13 @@ void MainWindow::buildUi() {
         trace(QStringLiteral("open page panel"));
     });
     // 本地索引已交付（v0.9.0）：点开就是索引页（状态、检索、结果）。
-    auto* indexAction = commandBar->addAction(tr("索引"));
+    auto* indexAction = commandBar->addAction(QString());
     indexAction->setIcon(QIcon(QStringLiteral(":/icons/index.svg")));
     indexAction->setObjectName(QStringLiteral("commandIndex"));
-    indexAction->setToolTip(tr("建立文档索引并按关键词检索"));
+    texts_.bind([this, indexAction] { indexAction->setText(tr("索引")); });
+    texts_.bind([this, indexAction] {
+        indexAction->setToolTip(tr("建立文档索引并按关键词检索"));
+    });
     connect(indexAction, &QAction::triggered, this, [this]() {
         navigationDock_->setVisible(true);
         // 切到导航栏的索引页（最后一个按钮）。
@@ -578,31 +639,37 @@ void MainWindow::buildUi() {
     // 是状态异常；图标统一取中性灰的禁用态，仍然一眼看得出「还不能点」。
     commandBar->addSeparator();
     struct FutureCommand {
-        QString label;
+        const char* label;
         QString icon;
     };
+    // 未交付的能力：名称用 QT_TRANSLATE_NOOP 带下来，切换语言时就地重译。
     const QVector<FutureCommand> futureCommands = {
-        {tr("编辑"), QStringLiteral("edit")},
-        {tr("转换"), QStringLiteral("convert")},
-        {tr("保护"), QStringLiteral("protect")},
-        {tr("表单"), QStringLiteral("form")},
-        {tr("工具"), QStringLiteral("tools")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "编辑"), QStringLiteral("edit")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "转换"), QStringLiteral("convert")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "保护"), QStringLiteral("protect")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "表单"), QStringLiteral("form")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "工具"), QStringLiteral("tools")},
     };
     for (const FutureCommand& entry : futureCommands) {
-        QAction* action = commandBar->addAction(commandIcon(entry.icon), entry.label);
+        QAction* action = commandBar->addAction(commandIcon(entry.icon), QString());
         action->setEnabled(false);
-        action->setToolTip(tr("将在后续版本中提供"));
+        texts_.bind([this, action, source = entry.label] {
+            action->setText(tr(source));
+            action->setToolTip(tr("将在后续版本中提供"));
+        });
     }
     auto* commandSpacer = new QWidget(commandBar);
     commandSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     commandBar->addWidget(commandSpacer);
-    auto* aiAction = commandBar->addAction(tr("✦ AI 助手"));
+    auto* aiAction = commandBar->addAction(QString());
+    texts_.bind([this, aiAction] { aiAction->setText(tr("✦ AI 助手")); });
     aiAction->setObjectName(QStringLiteral("aiCommand"));
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
         aiButton->setObjectName(QStringLiteral("aiCommandButton"));
     }
 
-    navigationDock_ = new QDockWidget(tr("导航"), this);
+    navigationDock_ = new QDockWidget(QString(), this);
+    texts_.bind([this] { navigationDock_->setWindowTitle(tr("导航")); });
     navigationDock_->setObjectName(QStringLiteral("navigationDock"));
     navigationDock_->setMinimumWidth(52);
     navigationDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
@@ -626,30 +693,36 @@ void MainWindow::buildUi() {
     // 点「搜索」打开的是批注页，Ctrl+F 也跟着失灵。
     struct RailEntry {
         QString icon;
-        QString tip;
+        const char* tip;
         // 每个按钮给一个独立的对象名：验收脚本靠它定位「目录」「书签」页签，
         // 靠按钮文字（图标按钮没有文字）会随主题改版一起失效。
         QString id;
         QWidget* page = nullptr;
     };
     QVector<RailEntry> railEntries;
-    railEntries.append({QStringLiteral(":/icons/pages.svg"), tr("页面"),
+    railEntries.append({QStringLiteral(":/icons/pages.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "页面"),
                          QStringLiteral("railButton.pages"), createPagesTab()});
     // 目录页与书签页：同一份大纲的两种看法（树 / 扁平列表）。
-    railEntries.append({QStringLiteral(":/icons/outline.svg"), tr("目录"),
+    railEntries.append({QStringLiteral(":/icons/outline.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "目录"),
                          QStringLiteral("railButton.outline"), createOutlineTab()});
-    railEntries.append({QStringLiteral(":/icons/bookmark.svg"), tr("书签"),
+    railEntries.append({QStringLiteral(":/icons/bookmark.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "书签"),
                          QStringLiteral("railButton.bookmarks"), createBookmarkTab()});
     // 搜索页：全文搜索（v0.5.0）。
     searchPanel_ = new SearchPanel(navigationPages);
-    railEntries.append({QStringLiteral(":/icons/search.svg"), tr("搜索"),
+    railEntries.append({QStringLiteral(":/icons/search.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "搜索"),
                          QStringLiteral("railButton.search"), searchPanel_});
     // 批注页：批注列表（v0.7.0）。
-    railEntries.append({QStringLiteral(":/icons/annotation.svg"), tr("批注"),
+    railEntries.append({QStringLiteral(":/icons/annotation.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "批注"),
                          QStringLiteral("railButton.annotations"), createAnnotationTab()});
     // 索引页：本地索引与检索（v0.9.0）。放在最后，页签下标不变。
     indexPanel_ = new IndexPanel(navigationPages);
-    railEntries.append({QStringLiteral(":/icons/index.svg"), tr("索引"),
+    railEntries.append({QStringLiteral(":/icons/index.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "索引"),
                          QStringLiteral("railButton.index"), indexPanel_});
 
     // 页签顺序 = 按钮下标：按钮 i 对应第 i 个页签。
@@ -671,7 +744,9 @@ void MainWindow::buildUi() {
         button->setProperty("railButton", true);
         button->setIcon(QIcon(entry.icon));
         button->setIconSize(QSize(20, 20));
-        button->setToolTip(entry.tip);
+        texts_.bind([this, button, source = entry.tip] {
+            button->setToolTip(tr(source));
+        });
         button->setCheckable(true);
         button->setAutoExclusive(true);
         button->setChecked(index == 0);
@@ -748,23 +823,25 @@ void MainWindow::buildUi() {
     navigationLayout->addWidget(navigationPages, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
-    // 菜单在导航面板创建后补齐切换动作。
-    // 按文本找而不是按下标：菜单里增删条目会挪动下标。
-    const QList<QAction*> appMenuActions = appMenu->actions();
-    for (QAction* action : appMenuActions) {
-        if (action->text() != tr("导航面板")) {
-            continue;
-        }
-        action->setText(tr("显示导航面板"));
-        action->setCheckable(true);
-        action->setChecked(true);
-        connect(action, &QAction::toggled, navigationDock_, &QDockWidget::setVisible);
-        connect(navigationDock_, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
-        break;
-    }
-    viewMenu->addAction(navigationDock_->toggleViewAction());
+    // 导航面板建好了，占位动作现在才有开关可接。
+    navigationPanelAction->setCheckable(true);
+    navigationPanelAction->setChecked(true);
+    texts_.bind([this, navigationPanelAction] {
+        navigationPanelAction->setText(tr("显示导航面板"));
+    });
+    connect(navigationPanelAction, &QAction::toggled, navigationDock_,
+            &QDockWidget::setVisible);
+    connect(navigationDock_, &QDockWidget::visibilityChanged, navigationPanelAction,
+            &QAction::setChecked);
+    // 视图菜单里的开关文案跟着 dock 标题走（Qt 只给一次初值）。
+    QAction* navigationToggleAction = navigationDock_->toggleViewAction();
+    texts_.bind([this, navigationToggleAction] {
+        navigationToggleAction->setText(tr("导航"));
+    });
+    viewMenu->addAction(navigationToggleAction);
 
-    aiDock_ = new QDockWidget(tr("AI 助手"), this);
+    aiDock_ = new QDockWidget(QString(), this);
+    texts_.bind([this] { aiDock_->setWindowTitle(tr("AI 助手")); });
     aiDock_->setObjectName(QStringLiteral("aiDock"));
     aiDock_->setMinimumWidth(280);
     aiDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
@@ -775,7 +852,9 @@ void MainWindow::buildUi() {
     aiDock_->setWidget(aiPanel_);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
     resizeDocks({navigationDock_, aiDock_}, {52, 340}, Qt::Horizontal);
-    viewMenu->addAction(aiDock_->toggleViewAction());
+    QAction* aiToggleAction = aiDock_->toggleViewAction();
+    texts_.bind([this, aiToggleAction] { aiToggleAction->setText(tr("AI 助手")); });
+    viewMenu->addAction(aiToggleAction);
 
     // AI 回答里的引用 → 跳到那一页并高亮那一块。
     connect(aiPanel_, &AiPanel::citationActivated, this,
@@ -803,23 +882,37 @@ void MainWindow::buildUi() {
     quickCardLayout->addSpacing(4);
 
     struct QuickAction {
-        QString label;
+        const char* label;
         QString icon;
-        QString tip;
+        const char* tip;
     };
+    // 快捷卡是常驻的：名称与提示都带源文案下来，切换语言时就地重译。
     const QuickAction quickActions[] = {
-        {tr("开始聊天"), QStringLiteral(":/icons/chat.svg"), tr("打开完整对话面板，自己提问")},
-        {tr("改写"), QStringLiteral(":/icons/rewrite.svg"), tr("将在后续版本中提供")},
-        {tr("校对"), QStringLiteral(":/icons/proofread.svg"), tr("将在后续版本中提供")},
-        {tr("解释"), QStringLiteral(":/icons/explain.svg"), tr("解释页面上选中的文字")},
-        {tr("总结"), QStringLiteral(":/icons/summarize.svg"), tr("总结当前页")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "开始聊天"),
+         QStringLiteral(":/icons/chat.svg"),
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "打开完整对话面板，自己提问")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "改写"),
+         QStringLiteral(":/icons/rewrite.svg"),
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "将在后续版本中提供")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "校对"),
+         QStringLiteral(":/icons/proofread.svg"),
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "将在后续版本中提供")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "解释"),
+         QStringLiteral(":/icons/explain.svg"),
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "解释页面上选中的文字")},
+        {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "总结"),
+         QStringLiteral(":/icons/summarize.svg"),
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "总结当前页")},
     };
     for (int index = 0; index < static_cast<int>(std::size(quickActions)); ++index) {
         const QuickAction& action = quickActions[index];
-        auto* button = new QPushButton(QIcon(action.icon), action.label, aiQuickCard_);
+        auto* button = new QPushButton(QIcon(action.icon), QString(), aiQuickCard_);
         button->setObjectName(QStringLiteral("aiQuickAction"));
         button->setIconSize(QSize(16, 16));
-        button->setToolTip(action.tip);
+        texts_.bind([this, button, label = action.label, tip = action.tip] {
+            button->setText(tr(label));
+            button->setToolTip(tr(tip));
+        });
         button->setCursor(Qt::PointingHandCursor);
         if (index == 0) {
             // 主操作：整张卡里只有它现在就能用，给一点 AI 辅助色把它拎出来。
@@ -866,7 +959,7 @@ void MainWindow::buildUi() {
     aiFloatingButton_ = new QPushButton(QStringLiteral("✦"), tabs_);
     aiFloatingButton_->setObjectName(QStringLiteral("aiFloatingButton"));
     aiFloatingButton_->setFixedSize(44, 44);
-    aiFloatingButton_->setToolTip(tr("AI 快捷操作"));
+    texts_.bind([this] { aiFloatingButton_->setToolTip(tr("AI 快捷操作")); });
     connect(aiFloatingButton_, &QPushButton::clicked, this, [this] {
         const bool show = !aiQuickCard_->isVisible();
         // 每次展开前按当前文档/选区重新算一遍可用状态：
@@ -885,7 +978,8 @@ void MainWindow::buildUi() {
         }
     });
 
-    auto* focusAction = viewMenu->addAction(tr("专注模式"));
+    auto* focusAction = viewMenu->addAction(QString());
+    texts_.bind([this, focusAction] { focusAction->setText(tr("专注模式")); });
     focusAction->setCheckable(true);
     focusAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+F")));
     connect(focusAction, &QAction::toggled, this, [this](bool enabled) {
@@ -973,8 +1067,16 @@ void MainWindow::buildUi() {
     statusBar()->showMessage(tr("就绪"));
     // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
     // 触发工具栏溢出，导致画布高度变化、滚动范围漂移。
-    metricsLabel_ = new QLabel(QStringLiteral("缓存 0 MiB · 待渲染 0"), this);
-    metricsLabel_->setToolTip(QStringLiteral("页面缓存占用与待完成渲染任务数"));
+    metricsLabel_ = new QLabel(QString(), this);
+    // 指标文字由文档视图按需发过来；切换语言后让它按新语言再报一次。
+    texts_.bind([this] {
+        metricsLabel_->setToolTip(tr("页面缓存占用与待完成渲染任务数"));
+        if (auto* view = currentView()) {
+            view->refreshMetrics();
+        } else {
+            metricsLabel_->setText(tr("缓存 0 MiB · 待渲染 0"));
+        }
+    });
     statusBar()->addPermanentWidget(metricsLabel_);
     // 验收探针通过 trace 文件运行；正式用户只有显式开启诊断时才看到指标。
     metricsLabel_->setVisible(qEnvironmentVariableIsSet("AIPDF_DIAGNOSTICS") ||

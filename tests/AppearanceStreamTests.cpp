@@ -73,6 +73,7 @@ private slots:
     void cloudDrawsScallops();
     void customLineWidthAndOpacityWin();
     void imageStampProducesImageObject();
+    void transparentImageGetsSoftMask();
     void stampDrawsBorderAndLabel();
     void freeTextDrawsLatinText();
     void freeTextSkipsUnencodableScript();
@@ -378,10 +379,35 @@ void AppearanceStreamTests::imageStampProducesImageObject() {
     annotation.imageData = png;
 
     const Appearance appearance = buildAnnotationAppearance(annotation);
-    QVERIFY2(!appearance.imageObjectBody.isEmpty(), "图片没被编码成对象");
-    QVERIFY(appearance.imageObjectBody.contains("/Subtype /Image"));
+    QVERIFY2(!appearance.extraObjectBodies.isEmpty(), "图片没被编码成对象");
+    QVERIFY(appearance.extraObjectBodies.first().contains("/Subtype /Image"));
     QVERIFY(appearance.content.contains("/Im0 Do"));
     QVERIFY(appearance.resources.contains("@EXTRA0"));
+    // 这张图是不透明的 RGB：不该生成蒙版对象。
+    QCOMPARE(appearance.extraObjectBodies.size(), 1);
+}
+
+void AppearanceStreamTests::transparentImageGetsSoftMask() {
+    QImage image(8, 8, QImage::Format_ARGB32);
+    image.fill(QColor(0, 0, 0, 0));  // 全透明
+    QByteArray png;
+    {
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        QVERIFY(image.save(&buffer, "PNG"));
+    }
+
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Stamp;
+    annotation.quads.clear();
+    annotation.rect = QRectF(100.0, 100.0, 80.0, 80.0);
+    annotation.imageData = png;
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    // 透明图章要有两张对象：彩色图 + 灰度蒙版，且图像字典引用蒙版。
+    QCOMPARE(appearance.extraObjectBodies.size(), 2);
+    QVERIFY(appearance.extraObjectBodies.at(0).contains("/SMask @EXTRA1 0 R"));
+    QVERIFY(appearance.extraObjectBodies.at(1).contains("/ColorSpace /DeviceGray"));
 }
 
 QTEST_MAIN(AppearanceStreamTests)
