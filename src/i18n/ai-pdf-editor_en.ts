@@ -1637,6 +1637,58 @@
     <context>
         <name>aipdf::app::PdfView</name>
         <message>
+            <source>这是 XFA 动态表单：PDFium 没有 XFA 引擎，页面可能显示为空白。</source>
+            <translation>This is an XFA dynamic form: PDFium has no XFA engine, so the page may appear blank.</translation>
+        </message>
+        <message>
+            <source>XFA 表单</source>
+            <translation>XFA form</translation>
+        </message>
+        <message>
+            <source>前缀（仅支持西文）:</source>
+            <translation>Prefix (Latin only):</translation>
+        </message>
+        <message>
+            <source>四边各裁掉多少点（72 点 = 1 英寸）:</source>
+            <translation>Points to crop on each side (72 pt = 1 inch):</translation>
+        </message>
+        <message>
+            <source>已添加贝茨编号</source>
+            <translation>Bates numbering added</translation>
+        </message>
+        <message>
+            <source>已裁剪第 %1 页</source>
+            <translation>Cropped page %1</translation>
+        </message>
+        <message>
+            <source>编号没有写进去。</source>
+            <translation>The numbers were not written.</translation>
+        </message>
+        <message>
+            <source>裁剪范围无效。</source>
+            <translation>The crop range is invalid.</translation>
+        </message>
+        <message>
+            <source>裁剪页面</source>
+            <translation>Crop page</translation>
+        </message>
+        <message>
+            <source>贝茨编号</source>
+            <translation>Bates numbering</translation>
+        </message>
+        <message>
+            <source>贝茨编号目前只支持西文：中文需要嵌入字体，暂不支持。</source>
+            <translation>Bates numbering only supports Latin text: Chinese requires an embedded font.</translation>
+        </message>
+        <message>
+            <source>起始编号:</source>
+            <translation>Starting number:</translation>
+        </message>
+        <message>
+            <source>这是 XFA 动态表单：本程序不支持 XFA，页面内容可能显示为空白。</source>
+            <translation>This is an XFA dynamic form: XFA is not supported, so the page may appear blank.</translation>
+        </message>
+        <message>
             <source>删除图片</source>
             <translation>Delete image</translation>
         </message>

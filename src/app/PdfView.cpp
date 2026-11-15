@@ -628,8 +628,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
         emit statusMessage(tr("这是 XFA 动态表单：本程序不支持 XFA，页面内容可能显示为空白。"));
         QMessageBox::information(
             this, tr("XFA 表单"),
-            tr("这份 PDF 使用 XFA 动态表单。PDFium 没有 XFA 引擎，所以页面内容可能显示为空白。\n"
-               "可以用其他阅读器打开填写，或者请提供者导出成静态 PDF。"));
+            tr("这是 XFA 动态表单：PDFium 没有 XFA 引擎，页面可能显示为空白。"));
     }
 
     // 文本控制器与导航控制器：各自开一份独立句柄，在后台线程干活。
