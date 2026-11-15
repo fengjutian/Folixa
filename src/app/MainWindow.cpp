@@ -749,6 +749,7 @@ void MainWindow::buildUi() {
     ribbonScroll->setFixedHeight(150);
     ribbonToolBar->addWidget(ribbonScroll);
     ribbonScroll->verticalScrollBar()->setValue(0);
+    ribbonToolBar->hide();
     // 先隐藏：Ribbon 的宽度/高度还在收敛，隐藏后主窗口与画布保持原来的稳定布局。
 
     auto addRibbonCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
