@@ -993,6 +993,26 @@ void MainWindow::buildUi() {
     auto* aiOpsGroup = ribbonBar_->addGroup(aiTab, tr("文档操作"));
     addRibbonCommand(aiOpsGroup, "找空白页", "找出空白页并提议删除", ":/icons/annotation.svg",
                      [blankAction] { blankAction->trigger(); });
+    // 未实现的标签页：按钮全部禁用并写明原因，不伪装为可用。
+    struct PlaceholderTab {
+        const char* title;
+        const char* group;
+        const char* commands[3];
+    };
+    const PlaceholderTab placeholders[] = {
+        {"转换", "输出", {"到 Word", "到 Excel", "到 HTML"}},
+        {"编辑", "内容", {"编辑文本", "编辑对象", "查找替换"}},
+        {"表单", "表单", {"填写表单", "表单数据", "表单模板"}},
+        {"共享", "协作", {"邮件发送", "共享审阅", "追踪器"}},
+    };
+    for (const PlaceholderTab& spec : placeholders) {
+        const int tab = ribbonBar_->addTab(tr(spec.title));
+        QHBoxLayout* group = ribbonBar_->addGroup(tab, tr(spec.group));
+        for (const char* command : spec.commands) {
+            addRibbonCommand(group, command, "将在后续版本中提供", ":/icons/convert.svg",
+                             [] {}, false);
+        }
+    }
 
 
     navigationDock_ = new QDockWidget(QString(), this);

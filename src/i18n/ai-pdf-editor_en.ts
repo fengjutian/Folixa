@@ -808,6 +808,109 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>标记</source>
+            <translation>Markup</translation>
+        </message>
+        <message>
+            <source>文本</source>
+            <translation>Text</translation>
+        </message>
+        <message>
+            <source>图形</source>
+            <translation>Shapes</translation>
+        </message>
+        <message>
+            <source>手写</source>
+            <translation>Ink</translation>
+        </message>
+        <message>
+            <source>测量与附件</source>
+            <translation>Measure and attachments</translation>
+        </message>
+        <message>
+            <source>历史</source>
+            <translation>History</translation>
+        </message>
+        <message>
+            <source>第</source>
+            <translation>Page</translation>
+        </message>
+
+        <message>
+            <source>/ %1</source>
+            <translation>/ %1</translation>
+        </message>
+        <message>
+            <source>/ 0</source>
+            <translation>/ 0</translation>
+        </message>
+
+        <message>
+            <source>共享</source>
+            <translation>Share</translation>
+        </message>
+        <message>
+            <source>输出</source>
+            <translation>Output</translation>
+        </message>
+        <message>
+            <source>内容</source>
+            <translation>Content</translation>
+        </message>
+        <message>
+            <source>到 Word</source>
+            <translation>To Word</translation>
+        </message>
+        <message>
+            <source>到 Excel</source>
+            <translation>To Excel</translation>
+        </message>
+        <message>
+            <source>到 HTML</source>
+            <translation>To HTML</translation>
+        </message>
+        <message>
+            <source>编辑文本</source>
+            <translation>Edit text</translation>
+        </message>
+        <message>
+            <source>编辑对象</source>
+            <translation>Edit objects</translation>
+        </message>
+        <message>
+            <source>查找替换</source>
+            <translation>Find and replace</translation>
+        </message>
+        <message>
+            <source>填写表单</source>
+            <translation>Fill forms</translation>
+        </message>
+        <message>
+            <source>表单数据</source>
+            <translation>Form data</translation>
+        </message>
+        <message>
+            <source>表单模板</source>
+            <translation>Form templates</translation>
+        </message>
+        <message>
+            <source>协作</source>
+            <translation>Collaboration</translation>
+        </message>
+        <message>
+            <source>邮件发送</source>
+            <translation>Send by email</translation>
+        </message>
+        <message>
+            <source>共享审阅</source>
+            <translation>Shared review</translation>
+        </message>
+        <message>
+            <source>追踪器</source>
+            <translation>Tracker</translation>
+        </message>
+
+        <message>
             <source>插入文件</source>
             <translation>Insert file</translation>
         </message>
