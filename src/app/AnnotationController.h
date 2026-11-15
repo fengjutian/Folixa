@@ -53,6 +53,7 @@ public:
         Arrow,   // 箭头：拖出两点
         Polygon, // 多边形：逐点点击，双击结束
         Cloud,   // 云线：同多边形，边框画成扇贝
+        FreeText, // 文本框：拖出一块再输入文字
         Ink,     // 墨迹：拖出一笔
         Eraser,  // 橡皮：划过的墨迹整笔删掉
     };
@@ -84,6 +85,9 @@ public:
     quint64 addLine(pdf::AnnotationType type, int pageIndex, const QPointF& from,
                     const QPointF& to);
     // 多边形 / 云线：顶点序列，/Vertices 与 /BE 由写入器补齐。
+    // 文本框：拖出一块，再把文字放进去。
+    quint64 addFreeText(int pageIndex, const QRectF& rect, const QString& text,
+                        double fontSize = 12.0);
     quint64 addPolygon(pdf::AnnotationType type, int pageIndex,
                        const QVector<QPointF>& vertices);
     // 墨迹：一笔（user space 的一串点）。

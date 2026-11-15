@@ -168,6 +168,33 @@ quint64 AnnotationController::addPolygon(pdf::AnnotationType type, int pageIndex
     return id;
 }
 
+quint64 AnnotationController::addFreeText(int pageIndex, const QRectF& rect, const QString& text,
+                                         double fontSize) {
+    if (rect.width() <= 0.0 || rect.height() <= 0.0 || text.trimmed().isEmpty()) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::FreeText;
+    annotation.rect = rect;
+    annotation.contents = text;
+    annotation.fontSize = (fontSize > 0.0) ? fontSize : 12.0;
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::FreeText);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
+              .arg(static_cast<int>(pdf::AnnotationType::FreeText))
+              .arg(pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
 quint64 AnnotationController::addNote(int pageIndex, const QRectF& rect, const QString& contents) {
     if (rect.width() <= 0.0 || rect.height() <= 0.0) {
         return 0;
