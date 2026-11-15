@@ -121,6 +121,8 @@ public slots:
     void reversePages();
     void swapCurrentWithNext();
     void splitDocumentDialog();
+    void resizeCurrentPageDialog();
+    void setPageBackgroundDialog();
 
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;

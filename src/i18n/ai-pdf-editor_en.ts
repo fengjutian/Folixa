@@ -808,6 +808,14 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>调整大小</source>
+            <translation>Resize</translation>
+        </message>
+        <message>
+            <source>背景</source>
+            <translation>Background</translation>
+        </message>
+        <message>
             <source>复制页</source>
             <translation>Duplicate page</translation>
         </message>
@@ -1652,6 +1660,54 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>调整页面大小</source>
+            <translation>Resize page</translation>
+        </message>
+        <message>
+            <source>目标尺寸:</source>
+            <translation>Target size:</translation>
+        </message>
+        <message>
+            <source>A4（595 × 842 点）</source>
+            <translation>A4 (595 × 842 pt)</translation>
+        </message>
+        <message>
+            <source>Letter（612 × 792 点）</source>
+            <translation>Letter (612 × 792 pt)</translation>
+        </message>
+        <message>
+            <source>自定义…</source>
+            <translation>Custom…</translation>
+        </message>
+        <message>
+            <source>宽度（点）:</source>
+            <translation>Width (pt):</translation>
+        </message>
+        <message>
+            <source>高度（点）:</source>
+            <translation>Height (pt):</translation>
+        </message>
+        <message>
+            <source>调整失败。</source>
+            <translation>Resizing failed.</translation>
+        </message>
+        <message>
+            <source>已把第 %1 页调整为 %2 × %3 点</source>
+            <translation>Resized page %1 to %2 × %3 pt</translation>
+        </message>
+        <message>
+            <source>页面背景</source>
+            <translation>Page background</translation>
+        </message>
+        <message>
+            <source>背景没有写进去。</source>
+            <translation>The background was not written.</translation>
+        </message>
+        <message>
+            <source>已给第 %1 页加背景</source>
+            <translation>Added a background to page %1</translation>
+        </message>
         <message>
             <source>交换页面失败</source>
             <translation>Failed to swap pages</translation>

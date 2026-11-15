@@ -848,7 +848,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
     });
-    addRibbonCommand(assemblyGroup, "拆分", "按每 N 页拆分文档", ":/icons/convert.svg", [this] {
+    addRibbonCommand(assemblyGroup, "调整大小", "调整页面尺寸", ":/icons/fit-page.svg", [this] {
+        if (auto* view = currentView()) { view->resizeCurrentPageDialog(); }
+    }, true, "ribbonResize");    addRibbonCommand(assemblyGroup, "拆分", "按每 N 页拆分文档", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->splitDocumentDialog(); }
     }, true, "ribbonSplit");
     addRibbonCommand(assemblyGroup, "合并", "合并另一份 PDF", ":/icons/pages.svg", [this] {
@@ -861,6 +863,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(decorationGroup, "页眉页脚", "添加页眉页脚", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->applyHeaderFooterDialog(); }
     });
+    addRibbonCommand(decorationGroup, "背景", "设置页面背景色", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->setPageBackgroundDialog(); }
+    }, true, "ribbonBackground");
     addRibbonCommand(decorationGroup, "裁剪", "裁剪当前页", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->cropCurrentPageDialog(); }
     }, true, "ribbonCrop");

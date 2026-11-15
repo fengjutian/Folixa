@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
 #include <QImage>
@@ -93,6 +93,13 @@ public:
     // 不动页面内容：被裁掉的文字仍然可以搜索、也可以再恢复。
     // 矩形必须在 MediaBox 内，且宽高大于 0；否则返回 false。
     bool setCropBox(const MediaBox& box);
+
+    // 页面背景：在内容最底层插入一个铺满页面的纯色矩形。
+    bool setPageBackground(const QColor& color);
+
+    // 调整页面尺寸。scaleContent 为真时按新尺寸等比缩放页面内容；
+    // 为假时只换页面盒子，内容保持原始物理尺寸（可能被裁掉或留白）。
+    bool resizePage(double widthPoints, double heightPoints, bool scaleContent);
 
     // 本页的链接注释（内部跳转与外部 URI）。
     //

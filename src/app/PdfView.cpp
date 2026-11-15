@@ -25,6 +25,7 @@
 #include "pdf/Annotation.h"
 #include "pdf/DocumentWriter.h"
 
+#include <QColorDialog>
 #include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -1677,6 +1678,86 @@ void PdfView::splitDocumentDialog() {
     trace(QStringLiteral("split pages=%1 perFile=%2 written=%3")
               .arg(count).arg(perFile).arg(written));
     emit statusMessage(tr("已拆分出 %1 个文件").arg(written));
+}
+
+
+void PdfView::resizeCurrentPageDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QStringList presets = {tr("A4（595 × 842 点）"), tr("Letter（612 × 792 点）"),
+                                 tr("自定义…")};
+    bool accepted = false;
+    const QString choice = QInputDialog::getItem(this, tr("调整页面大小"), tr("目标尺寸:"),
+                                                 presets, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    double width = 595.0;
+    double height = 842.0;
+    if (choice == presets.at(1)) {
+        width = 612.0;
+        height = 792.0;
+    } else if (choice == presets.at(2)) {
+        width = QInputDialog::getDouble(this, tr("调整页面大小"), tr("宽度（点）:"), 595.0,
+                                        36.0, 14400.0, 0, &accepted);
+        if (!accepted) {
+            return;
+        }
+        height = QInputDialog::getDouble(this, tr("调整页面大小"), tr("高度（点）:"), 842.0,
+                                         36.0, 14400.0, 0, &accepted);
+        if (!accepted) {
+            return;
+        }
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page.has_value() || !page->resizePage(width, height, true)) {
+        QMessageBox::warning(this, tr("调整页面大小"), tr("调整失败。"));
+        return;
+    }
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    rebuildLayout();
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
+    modified_ = true;
+    emit statusMessage(tr("已把第 %1 页调整为 %2 × %3 点")
+                           .arg(pageIndex + 1)
+                           .arg(qRound(width))
+                           .arg(qRound(height)));
+}
+
+void PdfView::setPageBackgroundDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QColor color = QColorDialog::getColor(QColor(255, 249, 224), this, tr("页面背景"));
+    if (!color.isValid()) {
+        return;
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page.has_value() || !page->setPageBackground(color)) {
+        QMessageBox::warning(this, tr("页面背景"), tr("背景没有写进去。"));
+        return;
+    }
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
+    modified_ = true;
+    emit statusMessage(tr("已给第 %1 页加背景").arg(pageIndex + 1));
 }
 
 void PdfView::refreshAfterDecoration() {

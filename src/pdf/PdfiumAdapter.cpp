@@ -591,6 +591,61 @@ bool PdfPage::setCropBox(const MediaBox& box) {
                         static_cast<float>(box.top));
     return true;
 }
+
+bool PdfPage::setPageBackground(const QColor& color) {
+    if (!isValid() || !color.isValid()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    const MediaBox box = contentBox();
+    FPDF_PAGEOBJECT rect = FPDFPageObj_CreateNewRect(
+        static_cast<float>(box.left), static_cast<float>(box.bottom),
+        static_cast<float>(box.right), static_cast<float>(box.top));
+    if (rect == nullptr) {
+        return false;
+    }
+    FPDFPageObj_SetFillColor(rect, color.red(), color.green(), color.blue(), color.alpha());
+    if (!FPDFPage_InsertObjectAtIndex(impl_->page, rect, 0)) {
+        FPDFPageObj_Destroy(rect);
+        return false;
+    }
+    FPDFPage_GenerateContent(impl_->page);
+    return true;
+}
+
+bool PdfPage::resizePage(double widthPoints, double heightPoints, bool scaleContent) {
+    if (!isValid() || widthPoints <= 0.0 || heightPoints <= 0.0) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    const MediaBox box = contentBox();
+    const double sourceWidth = box.right - box.left;
+    const double sourceHeight = box.top - box.bottom;
+    if (sourceWidth <= 0.0 || sourceHeight <= 0.0) {
+        return false;
+    }
+    const double scaleX = widthPoints / sourceWidth;
+    const double scaleY = heightPoints / sourceHeight;
+    if (scaleContent) {
+        // 以内容盒左下角为原点缩放：变换所有页面对象，再把盒子挪回 (0,0)。
+        const int count = FPDFPage_CountObjects(impl_->page);
+        for (int index = 0; index < count; ++index) {
+            FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+            if (object == nullptr) {
+                continue;
+            }
+            FPDFPageObj_Transform(object, scaleX, 0.0, 0.0, scaleY,
+                                  -box.left * scaleX, -box.bottom * scaleY);
+        }
+    }
+    FPDFPage_SetMediaBox(impl_->page, 0.0F, 0.0F,
+                         static_cast<float>(widthPoints), static_cast<float>(heightPoints));
+    FPDFPage_SetCropBox(impl_->page, 0.0F, 0.0F,
+                        static_cast<float>(widthPoints), static_cast<float>(heightPoints));
+    FPDFPage_GenerateContent(impl_->page);
+    return true;
+}
+
 QVector<PageLink> PdfPage::links() const {
     if (!isValid()) {
         return {};
