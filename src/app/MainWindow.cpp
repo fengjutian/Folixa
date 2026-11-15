@@ -749,7 +749,7 @@ void MainWindow::buildUi() {
     // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
     // Ribbon 放进顶部 Dock：不动中央 QTabWidget，避免换中央控件时的生命周期问题。
     ribbonBar_ = new RibbonBar(this);
-    ribbonBar_->setFixedHeight(118);
+    ribbonBar_->setFixedHeight(96);
     auto* ribbonDock = new QDockWidget(QString(), this);
     ribbonDock->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock->setFeatures(QDockWidget::NoDockWidgetFeatures);

@@ -21,7 +21,7 @@ QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
 
 /* ---------------------------------------------------------- 顶部命令栏 -- */
 QToolBar#commandBar {
-    min-height: 50px; padding: 0 12px; spacing: 2px;
+    min-height: 40px; padding: 0 12px; spacing: 2px;
     background: #FFFFFF; border: 0; border-bottom: 1px solid #E8ECF3;
 }
 QToolBar::separator { background: #E8ECF3; width: 1px; margin: 11px 9px; }
@@ -58,6 +58,8 @@ QTabBar#ribbonTabs::tab {
 QTabBar#ribbonTabs::tab:hover:!selected { color: #3555B7; background: #F5F8FD; }
 QTabBar#ribbonTabs::tab:selected { color: #202A3A; border-bottom: 2px solid #5277E8; }
 QStackedWidget#ribbonPages { background: #FFFFFF; }
+QScrollArea#ribbonPageScroll QScrollBar:horizontal { height: 6px; margin: 0; background: #F5F7FA; }
+QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal { background: #D5DCE8; border-radius: 3px; min-width: 40px; }
 QFrame#ribbonGroup { border: 0; border-right: 1px solid #EDF0F5; background: transparent; }
 QLabel#ribbonGroupTitle { color: #8792A3; font-size: 10px; padding-top: 0; }
 QToolButton[ribbonCommand="true"] {
