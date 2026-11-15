@@ -1,4 +1,4 @@
-qt_add_executable(AiPdfEditor WIN32
+﻿qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
@@ -79,6 +79,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/Xfdf.h
     pdf/AnnotationSummary.h
     pdf/SoundFormat.h
+    pdf/PageDecorations.h
+    pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
     pdf/Xfdf.cpp

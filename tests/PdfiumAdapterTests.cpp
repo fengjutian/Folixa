@@ -1,4 +1,4 @@
-﻿#include "pdf/PdfiumAdapter.h"
+#include "pdf/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QImage>
@@ -56,6 +56,7 @@ private slots:
     void formFieldsAreEnumerated();
     void formFieldValueCanBeSet();
     void flattenRemovesFormFields();
+    void textLayerChangesPixelsAndExtracts();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -279,6 +280,27 @@ void PdfiumAdapterTests::flattenRemovesFormFields() {
     QVERIFY(!document.formFields().isEmpty());
     QVERIFY(document.flattenPage(0));
     QVERIFY2(document.formFields().isEmpty(), "扁平化之后不该再有可填字段");
+}
+
+void PdfiumAdapterTests::textLayerChangesPixelsAndExtracts() {
+    auto opened = openDocument(fixturePath(QStringLiteral("empty.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+
+    const QImage before = page->render(1.0);
+    QVERIFY(!before.isNull());
+    QVERIFY(page->addTextLayer(QStringLiteral("CONFIDENTIAL"), 40.0, 60.0, 18.0,
+                               QColor(200, 0, 0), 30.0, 0.5));
+    const QImage after = page->render(1.0);
+    QVERIFY(!after.isNull());
+    QVERIFY(countInkedPixels(after) > countInkedPixels(before));
+
+    // 文字层也该能被提取出来（这也解释了为什么水印会进搜索索引）。
+    const auto text = page->extractText();
+    QVERIFY(text.has_value());
+    QVERIFY(text->plainText().contains(QStringLiteral("CONFIDENTIAL")));
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

@@ -1,4 +1,4 @@
-﻿qt_add_executable(IpcProtocolTests
+qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -38,7 +38,9 @@ aipdf_deploy_qt_runtime(I18nTests)
 add_test(NAME I18nTests COMMAND I18nTests)
 
 # 覆盖率守卫：源码里每一条 tr()/translate()/QT_TRANSLATE_NOOP 都要有英文翻译。
-# 用 CMake 已经找到的 Python 跑，CI 与本地一条命令都能复现。
+# 用 Python 跑，CI 与本地一条命令都能复现。Python3 在这里单独找一次：
+# 文件后半段（PDF 夹具）才 find_package，此处用得到这个变量。
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(NAME I18nCoverageTests
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check-i18n.py
             --src ${CMAKE_SOURCE_DIR}/src
@@ -47,6 +49,39 @@ add_test(NAME I18nCoverageTests
 set_tests_properties(I18nCoverageTests PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# 窗口级：真建一个控件、切语言、看文字有没有就地变（不重建窗口）。
+qt_add_executable(I18nWidgetTests
+    I18nWidgetTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/WelcomePage.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/WelcomePage.h
+    ${CMAKE_SOURCE_DIR}/src/app/BrandMark.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/BrandMark.h
+    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
+)
+
+target_link_libraries(I18nWidgetTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+target_include_directories(I18nWidgetTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(I18nWidgetTests PROPERTIES WIN32_EXECUTABLE FALSE)
+
+file(GLOB AIPDF_WIDGET_TEST_ICON_SVGS CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/src/app/icons/*.svg")
+qt_add_resources(I18nWidgetTests "i18n_widget_test_icons"
+    PREFIX "/icons"
+    BASE "${CMAKE_SOURCE_DIR}/src/app/icons"
+    FILES ${AIPDF_WIDGET_TEST_ICON_SVGS}
+)
+qt_add_resources(I18nWidgetTests "i18n_widget_test_catalogs"
+    PREFIX "/i18n"
+    BASE "${CMAKE_SOURCE_DIR}/src/i18n"
+    FILES ${AIPDF_TEST_I18N_CATALOGS}
+)
+
+aipdf_deploy_qt_runtime(I18nWidgetTests)
+
+add_test(NAME I18nWidgetTests COMMAND I18nWidgetTests)
 
 qt_add_executable(WorkerIntegrationTests
     WorkerIntegrationTests.cpp
@@ -88,6 +123,8 @@ qt_add_executable(PdfiumAdapterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(PdfiumAdapterTests PRIVATE
@@ -242,6 +279,8 @@ qt_add_executable(AnnotationTests
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(AnnotationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -309,6 +348,8 @@ qt_add_executable(AppearanceStreamTests
     ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(AppearanceStreamTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -404,6 +445,38 @@ endif()
 
 add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
 
+# ------------------------------------------------------------ 页面装饰 ----
+
+qt_add_executable(PageDecorationsTests
+    PageDecorationsTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(PageDecorationsTests PRIVATE
+    Qt6::Gui
+    Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PageDecorationsTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tools/pdfium/include
+)
+target_compile_definitions(PageDecorationsTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PageDecorationsTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PageDecorationsTests)
+aipdf_deploy_pdfium(PageDecorationsTests)
+add_dependencies(PageDecorationsTests pdf-fixtures)
+
+add_test(NAME PageDecorationsTests COMMAND PageDecorationsTests)
 # ------------------------------------------------------------ WAV 解析 ----
 
 qt_add_executable(SoundFormatTests
@@ -426,6 +499,8 @@ qt_add_executable(AnnotationSummaryTests
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationSummary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(AnnotationSummaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -456,6 +531,8 @@ qt_add_executable(XfdfTests
     ${CMAKE_SOURCE_DIR}/src/pdf/Xfdf.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(XfdfTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -472,6 +549,8 @@ qt_add_executable(AnnotationDictionaryTests
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(AnnotationDictionaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -743,6 +822,8 @@ qt_add_executable(RenderThreadTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(RenderThreadTests PRIVATE
@@ -1116,6 +1197,8 @@ qt_add_executable(ProposalRunnerTests
     ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(ProposalRunnerTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
@@ -1166,6 +1249,8 @@ qt_add_executable(FuzzTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )
 
 target_link_libraries(FuzzTests PRIVATE

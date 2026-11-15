@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AI PDF Editor 验收共用探针：读取主窗口文本与截图。
 

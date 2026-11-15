@@ -1,8 +1,9 @@
-#include "app/PdfView.h"
+﻿#include "app/PdfView.h"
 
 #include "app/DocumentOutput.h"
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
+#include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
 #include "app/PresentationWindow.h"
@@ -1350,6 +1351,96 @@ void PdfView::printAnnotationSummary() {
                                                    document_.pageCount(), title));
     document.print(&printer);
     emit statusMessage(tr("批注摘要已发送到打印机"));
+}
+
+void PdfView::applyWatermarkDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const QString text = QInputDialog::getText(this, tr("添加水印"), tr("水印文字（仅支持西文）:"),
+                                               QLineEdit::Normal, QStringLiteral("DRAFT"),
+                                               &accepted);
+    if (!accepted || text.trimmed().isEmpty()) {
+        return;
+    }
+    pdf::WatermarkOptions options;
+    options.text = text.trimmed();
+    if (!pdf::canRenderWithStandardFont(options.text)) {
+        QMessageBox::warning(this, tr("添加水印"),
+                             tr("水印目前只支持西文：中文需要嵌入字体，暂不支持。"));
+        return;
+    }
+    if (!pdf::applyWatermark(document_, options)) {
+        QMessageBox::warning(this, tr("添加水印"), tr("水印没有写进去。"));
+        return;
+    }
+    modified_ = true;
+    refreshAfterDecoration();
+    emit statusMessage(tr("已给每页添加水印"));
+}
+
+void PdfView::applyHeaderFooterDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const QString header = QInputDialog::getText(this, tr("页眉页脚"), tr("页眉文字（留空不加）:"),
+                                                 QLineEdit::Normal, QString(), &accepted);
+    if (!accepted) {
+        return;
+    }
+    const QString footer = QInputDialog::getText(this, tr("页眉页脚"), tr("页脚文字（留空不加）:"),
+                                                 QLineEdit::Normal, QString(), &accepted);
+    if (!accepted) {
+        return;
+    }
+    pdf::HeaderFooterOptions options;
+    options.header = header.trimmed();
+    options.footer = footer.trimmed();
+    if (!pdf::canRenderWithStandardFont(options.header) ||
+        !pdf::canRenderWithStandardFont(options.footer)) {
+        QMessageBox::warning(this, tr("页眉页脚"),
+                             tr("页眉页脚目前只支持西文：中文需要嵌入字体，暂不支持。"));
+        return;
+    }
+    if (!pdf::applyHeaderFooter(document_, options)) {
+        QMessageBox::warning(this, tr("页眉页脚"), tr("没有写入内容。"));
+        return;
+    }
+    modified_ = true;
+    refreshAfterDecoration();
+    emit statusMessage(tr("已添加页眉页脚"));
+}
+
+void PdfView::applyPageNumbersDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    pdf::PageNumberOptions options;
+    if (!pdf::applyPageNumbers(document_, options)) {
+        QMessageBox::warning(this, tr("页码"), tr("页码没有写进去。"));
+        return;
+    }
+    modified_ = true;
+    refreshAfterDecoration();
+    emit statusMessage(tr("已添加页码"));
+}
+
+// 装饰写进页面内容后，渲染线程手里的文档副本已经过期，必须换一份。
+void PdfView::refreshAfterDecoration() {
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    if (layout_.pageCount() != document_.pageCount()) {
+        rebuildLayout();
+    }
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
 }
 
 void PdfView::startPresentation() {

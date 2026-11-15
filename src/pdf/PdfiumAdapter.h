@@ -52,6 +52,14 @@ public:
     // 超出安全上限时返回空图。
     QImage render(double zoom = 1.0, int rotateQuarterTurns = 0) const;
 
+    // 往页面内容里加一段文字（页眉页脚、页码、水印都走这一条）。
+    //
+    // xPoints/yPoints 是**基线起点**的 PDF 用户空间坐标（左下原点，y 向上）。
+    // rotationDegrees 逆时针为正；opacity 取 0..1。
+    // 只支持标准 14 字体里的 Helvetica：中文需要嵌入字体，暂时不支持。
+    bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
+                      const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0);
+
     // 提取本页文本层。页面没有文本层时返回空值。
     //
     // 字符框是 **PDF user space**（左下原点），不含页面 /Rotate，

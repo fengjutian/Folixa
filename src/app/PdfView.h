@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QWidget>
 #include <QImage>
@@ -108,6 +108,17 @@ public slots:
     // 批注摘要：导出 HTML / 直接打印。
     void exportAnnotationSummary();
     void printAnnotationSummary();
+
+    // 页面装饰（v1.5）.0：水印、页眉页脚、页码。
+    void applyWatermarkDialog();
+    void applyHeaderFooterDialog();
+    void applyPageNumbersDialog();
+
+private:
+    // 页面内容变了之后刷新渲染缓存与布局。
+    void refreshAfterDecoration();
+
+public:
     // 把当前选中的文字复制到剪贴板。
     void copySelection();
     // 撤销 / 重做批注操作。

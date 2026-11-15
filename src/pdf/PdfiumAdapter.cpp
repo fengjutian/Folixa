@@ -1119,6 +1119,43 @@ bool PdfDocument::flattenPage(int pageIndex) {
     FPDF_ClosePage(page);
     return result == FLATTEN_SUCCESS;
 }
+bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
+                           const QColor& color, double rotationDegrees, double opacity) {
+    if (!impl_ || impl_->page == nullptr || text.isEmpty() || fontSize <= 0.0) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_DOCUMENT document = impl_->document ? impl_->document->handle : nullptr;
+    if (document == nullptr) {
+        return false;
+    }
+    FPDF_FONT font = FPDFText_LoadStandardFont(document, "Helvetica");
+    if (font == nullptr) {
+        return false;
+    }
+    FPDF_PAGEOBJECT object = FPDFPageObj_NewTextObj(document, "Helvetica", fontSize);
+    if (object == nullptr) {
+        FPDFFont_Close(font);
+        return false;
+    }
+    const std::u16string wide = text.toStdU16String();
+    FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str()));
+    FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(),
+                             static_cast<unsigned int>(std::clamp(opacity, 0.0, 1.0) * 255.0));
+    // 先平移到基线起点，再绕该点旋转。
+    FPDFPageObj_Transform(object, 1.0, 0.0, 0.0, 1.0, xPoints, yPoints);
+    if (std::abs(rotationDegrees) > 0.001) {
+        const double radians = rotationDegrees * M_PI / 180.0;
+        const double c = std::cos(radians);
+        const double s = std::sin(radians);
+        FPDFPageObj_Transform(object, c, s, -s, c, 0.0, 0.0);
+    }
+    FPDFPage_InsertObject(impl_->page, object);
+    const bool ok = FPDFPage_GenerateContent(impl_->page) != 0;
+    FPDFFont_Close(font);
+    return ok;
+}
+
 std::vector<OutlineItem> PdfDocument::outline() const {
     if (!isValid()) {
         return {};
