@@ -3,6 +3,10 @@
 #include "app/PdfView.h"
 #include "app/Theme.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
@@ -13,6 +17,11 @@
 #include <memory>
 
 int main(int argc, char* argv[]) {
+#ifdef Q_OS_WIN
+    // 必须在 QApplication 之前：否则 Windows 按 125% 放大窗口，
+    // 1440×900 会变成 1800×1125，状态栏被顶到屏幕外。
+    SetProcessDPIAware();
+#endif
     QApplication application(argc, argv);
     QCoreApplication::setApplicationName("AI PDF Editor");
     QCoreApplication::setOrganizationName("AI PDF Editor Project");

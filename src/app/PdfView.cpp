@@ -258,7 +258,7 @@ void PdfView::buildUi() {
 
     canvas_ = new PageCanvas(this);
     // 画布允许压缩到 200 高：小屏上把垂直空间让给 Ribbon 与状态栏。
-    canvas_->setMinimumHeight(200);
+    canvas_->setMinimumHeight(150);
     canvas_->setTileCache(&cache_);
     connect(canvas_, &PageCanvas::renderRequested, this, &PdfView::requestVisiblePages);
     connect(canvas_, &PageCanvas::currentPageChanged, this, [this](int index) {
