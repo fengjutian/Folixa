@@ -50,6 +50,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QIntValidator>
 #include <QJsonDocument>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -1369,6 +1370,65 @@ void MainWindow::buildUi() {
         }
     });
 
+    // 底部页码与缩放（福昕：左下 1 / 12，右下 − 100% +）。
+    auto* pagePrefix = new QLabel(this);
+    texts_.bind([this, pagePrefix] { pagePrefix->setText(tr("第")); });
+    statusPageEdit_ = new QLineEdit(this);
+    statusPageEdit_->setObjectName(QStringLiteral("statusPageInput"));
+    statusPageEdit_->setFixedWidth(44);
+    statusPageEdit_->setAlignment(Qt::AlignCenter);
+    statusPageEdit_->setValidator(new QIntValidator(1, 99999, statusPageEdit_));
+    statusPageTotal_ = new QLabel(this);
+    statusPageTotal_->setObjectName(QStringLiteral("secondaryText"));
+    statusPageTotal_->setText(tr("/ 0"));
+    statusBar()->addWidget(pagePrefix);
+    statusBar()->addWidget(statusPageEdit_);
+    statusBar()->addWidget(statusPageTotal_);
+    connect(statusPageEdit_, &QLineEdit::returnPressed, this, [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            return;
+        }
+        bool ok = false;
+        const int page = statusPageEdit_->text().toInt(&ok);
+        if (ok) {
+            view->goToPage(page - 1);
+        }
+    });
+
+    auto* zoomOutButton = new QToolButton(this);
+    zoomOutButton->setObjectName(QStringLiteral("statusZoomOut"));
+    zoomOutButton->setText(QStringLiteral("−"));
+    auto* zoomInButton = new QToolButton(this);
+    zoomInButton->setObjectName(QStringLiteral("statusZoomIn"));
+    zoomInButton->setText(QStringLiteral("+"));
+    statusZoomLabel_ = new QLabel(QStringLiteral("100%"), this);
+    statusZoomLabel_->setObjectName(QStringLiteral("statusZoomLabel"));
+    statusZoomLabel_->setMinimumWidth(44);
+    statusZoomLabel_->setAlignment(Qt::AlignCenter);
+    statusZoomSlider_ = new QSlider(Qt::Horizontal, this);
+    statusZoomSlider_->setObjectName(QStringLiteral("statusZoomSlider"));
+    statusZoomSlider_->setRange(25, 400);
+    statusZoomSlider_->setValue(100);
+    statusZoomSlider_->setFixedWidth(110);
+    statusBar()->addPermanentWidget(zoomOutButton);
+    statusBar()->addPermanentWidget(statusZoomSlider_);
+    statusBar()->addPermanentWidget(zoomInButton);
+    statusBar()->addPermanentWidget(statusZoomLabel_);
+    connect(zoomOutButton, &QToolButton::clicked, this, [this] {
+        if (auto* view = currentView()) { view->zoomOut(); }
+    });
+    connect(zoomInButton, &QToolButton::clicked, this, [this] {
+        if (auto* view = currentView()) { view->zoomIn(); }
+    });
+    connect(statusZoomSlider_, &QSlider::valueChanged, this, [this](int value) {
+        if (updatingStatusZoom_) {
+            return;
+        }
+        if (auto* view = currentView()) {
+            view->setZoom(value / 100.0);
+        }
+    });
     statusBar()->showMessage(tr("就绪"));
     // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
     // 触发工具栏溢出，导致画布高度变化、滚动范围漂移。
@@ -2508,6 +2568,9 @@ void MainWindow::setNavigationExpanded(bool expanded) {
         return;
     }
     navigationPages_->setVisible(expanded);
+    if (navigationHeader_ != nullptr) {
+        navigationHeader_->setVisible(expanded);
+    }
     // 收起时把 dock 连同内容一起钉在 rail 的宽度上。只调 resizeDocks 不够：
     // QMainWindow 在窗口尺寸变化/布局重算时会重新分配，空面板又会被撑开，
     // rail 就飘在一条 300 多像素的空条中间。
@@ -2602,6 +2665,15 @@ void MainWindow::openPdfFile(const QString& filePath) {
     bindNavigation(view);
     bindAnnotations(view);
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
+    connect(view, &PdfView::currentPageChanged, this, &MainWindow::updateStatusPage);
+    connect(view, &PdfView::zoomChanged, this, &MainWindow::updateStatusZoom);
+    connect(view, &PdfView::pageStructureChanged, this, [this] {
+        if (auto* current = currentView()) {
+            updateStatusPage(current->currentPage());
+        }
+    });
+    updateStatusPage(view->currentPage());
+    updateStatusZoom(view->zoom());
     connect(view, &PdfView::saveRequested, this, &MainWindow::saveDocument);
     connect(view, &PdfView::statusMessage, this, [this](const QString& text) {
         statusBar()->showMessage(text, 3000);
@@ -2707,6 +2779,33 @@ void MainWindow::updateNavigationHeader(int index) {
         case 6: navigationHeader_->setText(tr("索引")); break;
         default: navigationHeader_->setText(tr("导航")); break;
     }
+}
+
+
+void MainWindow::updateStatusPage(int pageIndex) {
+    if (statusPageEdit_ == nullptr || statusPageTotal_ == nullptr) {
+        return;
+    }
+    PdfView* view = currentView();
+    const int total = (view != nullptr) ? view->pageCount() : 0;
+    if (total <= 0) {
+        statusPageEdit_->clear();
+        statusPageTotal_->setText(tr("/ 0"));
+        return;
+    }
+    statusPageEdit_->setText(QString::number(qBound(1, pageIndex + 1, total)));
+    statusPageTotal_->setText(tr("/ %1").arg(total));
+}
+
+void MainWindow::updateStatusZoom(double factor) {
+    if (statusZoomLabel_ == nullptr || statusZoomSlider_ == nullptr) {
+        return;
+    }
+    const int percent = qBound(25, qRound(factor * 100.0), 400);
+    updatingStatusZoom_ = true;
+    statusZoomLabel_->setText(QStringLiteral("%1%").arg(percent));
+    statusZoomSlider_->setValue(percent);
+    updatingStatusZoom_ = false;
 }
 
 void MainWindow::retranslateUi() {

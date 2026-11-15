@@ -141,6 +141,8 @@ private:
     void retranslateUi();
     // 左侧面板顶部的标题（页面/目录/书签/搜索/批注/表单/索引）。
     void updateNavigationHeader(int index);
+    void updateStatusPage(int pageIndex);
+    void updateStatusZoom(double factor);
     // 语言菜单的勾选状态跟当前选择同步。
     void syncLanguageMenu();
     // 欢迎页标签的文案跟着语言走（标签页是动态建的，单独登记）。
@@ -150,6 +152,12 @@ private:
     // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
     QLabel* metricsLabel_ = nullptr;
     QLabel* navigationHeader_ = nullptr;
+    // 底部页码/缩放控件（对齐福昕）。
+    QLineEdit* statusPageEdit_ = nullptr;
+    QLabel* statusPageTotal_ = nullptr;
+    QLabel* statusZoomLabel_ = nullptr;
+    QSlider* statusZoomSlider_ = nullptr;
+    bool updatingStatusZoom_ = false;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;
     // 顶部 Ribbon（文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI）。
