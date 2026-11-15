@@ -867,6 +867,21 @@ bool AnnotationController::rotatePage(int index, int quarterTurns) {
     return true;
 }
 
+
+bool AnnotationController::replacePageWithBackup(int index,
+                                                std::shared_ptr<doc::PageBackup> backup) {
+    if (!document_.isValid() || backup == nullptr || index < 0 ||
+        index >= document_.pageCount()) {
+        return false;
+    }
+    auto command = std::make_unique<doc::ReplacePageCommand>(index, std::move(backup));
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    emit undoStateChanged();
+    return true;
+}
+
 bool AnnotationController::movePage(int from, int to) {
     if (!document_.isValid()) {
         return false;

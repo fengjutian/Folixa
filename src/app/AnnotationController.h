@@ -171,6 +171,8 @@ public:
     bool rotatePage(int index, int quarterTurns);
     // 把第 from 页移动到第 to 页（to 是移动之后的目标下标）。
     bool movePage(int from, int to);
+    // 用另一份文档里备份的一页替换当前页（可撤销）。
+    bool replacePageWithBackup(int index, std::shared_ptr<doc::PageBackup> backup);
 
     // 当前页数。
     int pageCount() const;
