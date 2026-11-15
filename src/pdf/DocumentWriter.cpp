@@ -1,6 +1,7 @@
 ﻿#include "pdf/DocumentWriter.h"
 
 #include "doc/SafeSave.h"
+#include "i18n/Translate.h"
 #include "pdf/Annotation.h"
 #include "pdf/AnnotationDictionary.h"
 #include "pdf/AppearanceStream.h"
@@ -17,7 +18,9 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
     QString serializeError;
     result.bytes = document.serialize(&serializeError);
     if (result.bytes.isEmpty()) {
-        result.error = serializeError.isEmpty() ? QStringLiteral("文档序列化失败") : serializeError;
+        result.error = serializeError.isEmpty()
+                           ? i18n::tr("aipdf::pdf::DocumentWriter", "文档序列化失败")
+                           : serializeError;
         return result;
     }
     result.ok = true;

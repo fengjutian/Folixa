@@ -2,6 +2,8 @@
 
 #include "ai/CredentialStore.h"
 
+#include "i18n/Translate.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -124,7 +126,7 @@ bool ProviderConfig::hasCredential() const {
 
 QString ProviderConfig::validationError(const ProviderConfig& config) {
     if (config.providerId.trimmed().isEmpty()) {
-        return QStringLiteral("没有选服务商");
+        return i18n::tr("aipdf::ai::ProviderConfig", "没有选服务商");
     }
     // 演示模式不联网，地址、模型、密钥都不需要。
     if (config.providerId == QLatin1String("demo")) {
@@ -132,25 +134,26 @@ QString ProviderConfig::validationError(const ProviderConfig& config) {
     }
     const QString url = config.baseUrl.trimmed();
     if (url.isEmpty()) {
-        return QStringLiteral("服务地址不能为空");
+        return i18n::tr("aipdf::ai::ProviderConfig", "服务地址不能为空");
     }
     const QUrl parsed(url);
     const QString scheme = parsed.scheme().toLower();
     if (!parsed.isValid() ||
         (scheme != QLatin1String("http") && scheme != QLatin1String("https"))) {
-        return QStringLiteral("服务地址必须以 http:// 或 https:// 开头");
+        return i18n::tr("aipdf::ai::ProviderConfig",
+                        "服务地址必须以 http:// 或 https:// 开头");
     }
     if (parsed.host().isEmpty()) {
-        return QStringLiteral("服务地址里没有主机名");
+        return i18n::tr("aipdf::ai::ProviderConfig", "服务地址里没有主机名");
     }
     if (config.model.trimmed().isEmpty()) {
-        return QStringLiteral("模型名不能为空");
+        return i18n::tr("aipdf::ai::ProviderConfig", "模型名不能为空");
     }
     if (config.timeoutMs < 1000) {
-        return QStringLiteral("超时时间不能小于 1 秒");
+        return i18n::tr("aipdf::ai::ProviderConfig", "超时时间不能小于 1 秒");
     }
     if (config.inputPricePerMillion < 0.0 || config.outputPricePerMillion < 0.0) {
-        return QStringLiteral("单价不能是负数");
+        return i18n::tr("aipdf::ai::ProviderConfig", "单价不能是负数");
     }
     return QString();
 }

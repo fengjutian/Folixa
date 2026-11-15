@@ -58,8 +58,10 @@ void SearchPanel::buildUi() {
 
     queryEdit_ = new QLineEdit(this);
     queryEdit_->setObjectName(QStringLiteral("searchQueryInput"));
-    queryEdit_->setPlaceholderText(QStringLiteral("搜索文档…"));
-    queryEdit_->setAccessibleName(QStringLiteral("搜索关键词"));
+    texts_.bind([this] {
+        queryEdit_->setPlaceholderText(tr("搜索文档…"));
+        queryEdit_->setAccessibleName(tr("搜索关键词"));
+    });
     queryEdit_->setClearButtonEnabled(true);
     layout->addWidget(queryEdit_);
 
@@ -67,31 +69,44 @@ void SearchPanel::buildUi() {
     // 让用户改完还得再敲一次回车，等于把"选项"变成了"提示"。
     auto* optionsRow = new QHBoxLayout();
     optionsRow->setSpacing(12);
-    caseSensitiveBox_ = new QCheckBox(QStringLiteral("区分大小写"), this);
+    caseSensitiveBox_ = new QCheckBox(this);
     caseSensitiveBox_->setObjectName(QStringLiteral("searchCaseSensitive"));
-    wholeWordBox_ = new QCheckBox(QStringLiteral("全字匹配"), this);
+    wholeWordBox_ = new QCheckBox(this);
     wholeWordBox_->setObjectName(QStringLiteral("searchWholeWord"));
-    regexBox_ = new QCheckBox(QStringLiteral("正则"), this);
+    regexBox_ = new QCheckBox(this);
     regexBox_->setObjectName(QStringLiteral("searchRegex"));
+    texts_.bind([this] {
+        caseSensitiveBox_->setText(tr("区分大小写"));
+        wholeWordBox_->setText(tr("全字匹配"));
+        regexBox_->setText(tr("正则"));
+    });
     optionsRow->addWidget(caseSensitiveBox_);
     optionsRow->addWidget(wholeWordBox_);
     optionsRow->addWidget(regexBox_);
 
     // 页码范围：0 表示"不限"，用户改完立刻重搜。
     optionsRow->addSpacing(8);
-    optionsRow->addWidget(new QLabel(QStringLiteral("第"), this));
+    auto* fromPageLabel = new QLabel(QString(), this);
+    optionsRow->addWidget(fromPageLabel);
     fromPageSpin_ = new QSpinBox(this);
     fromPageSpin_->setObjectName(QStringLiteral("searchFromPage"));
     fromPageSpin_->setRange(0, 99999);
-    fromPageSpin_->setSpecialValueText(QStringLiteral("不限"));
     optionsRow->addWidget(fromPageSpin_);
-    optionsRow->addWidget(new QLabel(QStringLiteral("至"), this));
+    auto* toPageLabel = new QLabel(QString(), this);
+    optionsRow->addWidget(toPageLabel);
     toPageSpin_ = new QSpinBox(this);
     toPageSpin_->setObjectName(QStringLiteral("searchToPage"));
     toPageSpin_->setRange(0, 99999);
-    toPageSpin_->setSpecialValueText(QStringLiteral("不限"));
     optionsRow->addWidget(toPageSpin_);
-    optionsRow->addWidget(new QLabel(QStringLiteral("页"), this));
+    auto* pageLabel = new QLabel(QString(), this);
+    optionsRow->addWidget(pageLabel);
+    texts_.bind([this, fromPageLabel, toPageLabel, pageLabel] {
+        fromPageLabel->setText(tr("第"));
+        toPageLabel->setText(tr("至"));
+        pageLabel->setText(tr("页"));
+        fromPageSpin_->setSpecialValueText(tr("不限"));
+        toPageSpin_->setSpecialValueText(tr("不限"));
+    });
     optionsRow->addStretch(1);
     layout->addLayout(optionsRow);
 
@@ -112,22 +127,28 @@ void SearchPanel::buildUi() {
     buttons->setSpacing(6);
     previousButton_ = new QPushButton(this);
     previousButton_->setObjectName(QStringLiteral("searchPreviousButton"));
-    previousButton_->setAccessibleName(QStringLiteral("上一处结果"));
     makeIconButton(previousButton_, QStringLiteral(":/icons/chevron-up.svg"),
-                   QStringLiteral("上一处"));
+                   QT_TRANSLATE_NOOP("aipdf::app::SearchPanel", "上一处"));
     nextButton_ = new QPushButton(this);
     nextButton_->setObjectName(QStringLiteral("searchNextButton"));
-    nextButton_->setAccessibleName(QStringLiteral("下一处结果"));
     makeIconButton(nextButton_, QStringLiteral(":/icons/chevron-down.svg"),
-                   QStringLiteral("下一处"));
+                   QT_TRANSLATE_NOOP("aipdf::app::SearchPanel", "下一处"));
     // 清除与停止是动词，图标猜不准：它们短，留着文字反而更好认。
-    clearButton_ = new QPushButton(QStringLiteral("清除"), this);
+    clearButton_ = new QPushButton(this);
     clearButton_->setObjectName(QStringLiteral("searchClearButton"));
-    clearButton_->setAccessibleName(QStringLiteral("清除搜索"));
-    stopButton_ = new QPushButton(QStringLiteral("停止"), this);
+    stopButton_ = new QPushButton(this);
     stopButton_->setObjectName(QStringLiteral("searchStopButton"));
-    stopButton_->setAccessibleName(QStringLiteral("停止搜索"));
     stopButton_->setEnabled(false);
+    texts_.bind([this] {
+        previousButton_->setToolTip(tr("上一处"));
+        previousButton_->setAccessibleName(tr("上一处结果"));
+        nextButton_->setToolTip(tr("下一处"));
+        nextButton_->setAccessibleName(tr("下一处结果"));
+        clearButton_->setText(tr("清除"));
+        clearButton_->setAccessibleName(tr("清除搜索"));
+        stopButton_->setText(tr("停止"));
+        stopButton_->setAccessibleName(tr("停止搜索"));
+    });
     buttons->addWidget(previousButton_);
     buttons->addWidget(nextButton_);
     buttons->addWidget(clearButton_);
@@ -135,7 +156,8 @@ void SearchPanel::buildUi() {
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
-    statusLabel_ = new QLabel(QStringLiteral("输入关键词开始搜索"), this);
+    // 状态行是随搜索状态变化的动态文案：这里先给初始提示，之后由 updateStatus() 重算。
+    statusLabel_ = new QLabel(tr("输入关键词开始搜索"), this);
     // objectName 沿用 secondaryText：主题里用它定义次要文字的颜色。
     // 不设 accessibleName：设了之后 UI Automation 的 Name 就是它，
     // 真正的状态文本只能走 TextPattern 读，验收脚本取不到。
@@ -144,9 +166,9 @@ void SearchPanel::buildUi() {
 
     results_ = new QListWidget(this);
     results_->setObjectName(QStringLiteral("searchResults"));
-    results_->setAccessibleName(QStringLiteral("搜索结果"));
     results_->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(results_, 1);
+    texts_.bind([this] { results_->setAccessibleName(tr("搜索结果")); });
 
     debounceTimer_ = new QTimer(this);
     debounceTimer_->setSingleShot(true);
@@ -165,7 +187,8 @@ void SearchPanel::buildUi() {
                 controller_->cancelSearch();
             }
             stopButton_->setEnabled(false);
-            statusLabel_->setText(QStringLiteral("输入关键词开始搜索"));
+            statusMode_ = StatusMode::Prompt;
+            updateStatus();
             return;
         }
         debounceTimer_->start();
@@ -198,7 +221,8 @@ void SearchPanel::setController(TextController* controller) {
     }
     controller_ = controller;
     clearResults();
-    statusLabel_->setText(QStringLiteral("输入关键词开始搜索"));
+    statusMode_ = StatusMode::Prompt;
+    updateStatus();
 
     if (controller_ == nullptr) {
         return;
@@ -211,7 +235,8 @@ void SearchPanel::setController(TextController* controller) {
     });
     connect(controller_, &TextController::searchStarted, this, [this]() {
         stopButton_->setEnabled(true);
-        statusLabel_->setText(QStringLiteral("正在搜索…"));
+        statusMode_ = StatusMode::Live;
+        statusLabel_->setText(tr("正在搜索…"));
     });
     connect(controller_, &TextController::searchHitsFound, this, [this](int count) {
         Q_UNUSED(count);
@@ -219,11 +244,9 @@ void SearchPanel::setController(TextController* controller) {
     });
     connect(controller_, &TextController::searchFinished, this, [this](bool cancelled) {
         stopButton_->setEnabled(false);
+        // 取消后的汇总文案也交给 updateStatus() 生成，切换语言时能原样重译。
+        statusMode_ = cancelled ? StatusMode::Cancelled : StatusMode::Live;
         refreshResults();
-        if (cancelled) {
-            statusLabel_->setText(QStringLiteral("搜索已取消（共 %1 处结果）")
-                                      .arg(results_->count()));
-        }
     });
 }
 
@@ -275,7 +298,7 @@ void SearchPanel::refreshResults() {
     while (results_->count() < hits.size()) {
         const SearchHit& hit = hits.at(results_->count());
         auto* item = new QListWidgetItem(
-            QStringLiteral("第 %1 页 · %2").arg(hit.pageIndex + 1).arg(hit.snippet), results_);
+            tr("第 %1 页 · %2").arg(hit.pageIndex + 1).arg(hit.snippet), results_);
         item->setData(Qt::UserRole, hit.pageIndex);
         item->setToolTip(hit.snippet);
     }
@@ -293,19 +316,47 @@ void SearchPanel::refreshResults() {
     updateStatus();
 }
 
+void SearchPanel::refreshResultTexts() {
+    if (controller_ == nullptr) {
+        return;
+    }
+    const QVector<SearchHit> hits = controller_->searchHits();
+    const int count = qMin(results_->count(), static_cast<int>(hits.size()));
+    for (int i = 0; i < count; ++i) {
+        const SearchHit& hit = hits.at(i);
+        results_->item(i)->setText(
+            tr("第 %1 页 · %2").arg(hit.pageIndex + 1).arg(hit.snippet));
+    }
+}
+
 void SearchPanel::updateStatus() {
+    if (statusMode_ == StatusMode::Prompt) {
+        statusLabel_->setText(tr("输入关键词开始搜索"));
+        return;
+    }
     const int count = results_->count();
+    if (statusMode_ == StatusMode::Cancelled) {
+        statusLabel_->setText(tr("搜索已取消（共 %1 处结果）").arg(count));
+        return;
+    }
     // 搜索还在跑的时候，状态要一直显示「正在搜索」，
     // 否则长文档搜索刚开始就被「共 N 处」盖掉，用户以为已经搜完了。
     if (controller_ != nullptr && controller_->isSearching()) {
-        statusLabel_->setText(QStringLiteral("正在搜索…（已找到 %1 处）").arg(count));
+        statusLabel_->setText(tr("正在搜索…（已找到 %1 处）").arg(count));
         return;
     }
     if (count == 0) {
-        statusLabel_->setText(QStringLiteral("未找到匹配结果"));
+        statusLabel_->setText(tr("未找到匹配结果"));
     } else {
-        statusLabel_->setText(QStringLiteral("共 %1 处结果").arg(count));
+        statusLabel_->setText(tr("共 %1 处结果").arg(count));
     }
+}
+
+void SearchPanel::retranslateUi() {
+    texts_.retranslate();
+    // 结果项前缀与状态行是随搜索状态变化的文案：按当前语言重新生成。
+    refreshResultTexts();
+    updateStatus();
 }
 
 int SearchPanel::pageOfResult(int index) const {

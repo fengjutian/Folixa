@@ -1,5 +1,7 @@
 #include "ai/MockProvider.h"
 
+#include "i18n/Translate.h"
+
 #include <QTimer>
 
 namespace aipdf::ai {
@@ -27,7 +29,7 @@ QString MockProvider::id() const {
 }
 
 QString MockProvider::displayName() const {
-    return QStringLiteral("演示模式（本地应答，未接入模型）");
+    return i18n::tr("aipdf::ai::MockProvider", "演示模式（本地应答，未接入模型）");
 }
 
 bool MockProvider::isConfigured() const {
@@ -41,7 +43,8 @@ bool MockProvider::isRunning() const {
 
 void MockProvider::startChat(const ChatRequest& request) {
     if (running_) {
-        emit streamFailed(QStringLiteral("busy"), QStringLiteral("上一次请求还没结束。"));
+        emit streamFailed(QStringLiteral("busy"),
+                          i18n::tr("aipdf::ai::MockProvider", "上一次请求还没结束。"));
         return;
     }
     cancelled_ = false;
@@ -93,10 +96,12 @@ QString MockProvider::buildQaAnswer(const ChatRequest& request) const {
     // 而演示模式本来永远引真块，这条路走不到——
     // 所以留一个只在演示模式生效的开关，让验收能真的走一遍负例。
     const bool fabricate = qEnvironmentVariableIsSet("AIPDF_AI_MOCK_FAKE_CITATION");
-    const QString fabricatedQuote = QStringLiteral("这一句是演示模式伪造的，原文里并没有它。");
+    const QString fabricatedQuote =
+        i18n::tr("aipdf::ai::MockProvider", "这一句是演示模式伪造的，原文里并没有它。");
 
     QStringList body;
-    body.append(QStringLiteral(
+    body.append(i18n::tr(
+        "aipdf::ai::MockProvider",
         "【演示模式】下面是按检索到的材料拼出的回答示例（没有真正调用模型）。"));
 
     QStringList citationLines;
@@ -110,10 +115,13 @@ QString MockProvider::buildQaAnswer(const ChatRequest& request) const {
         if (fabricate) {
             quote = fabricatedQuote;
         }
-        body.append(QStringLiteral("· 第 %1 页的材料说：%2 [%3]")
+        body.append(i18n::tr("aipdf::ai::MockProvider", "· 第 %1 页的材料说：%2 [%3]")
                         .arg(block.pageNumber)
                         .arg(quote)
                         .arg(block.number));
+        // 这一行是 CitationVerifier 解析的固定格式：它只认中文的「第 N 页」与
+        // 「引文」标记（英文只认 quote 关键字，页码位置仍是中文），
+        // 翻译会直接让演示模式的引用核验失效，所以保持原样。
         citationLines.append(QStringLiteral("[%1] 第 %2 页 | 引文：%3")
                                  .arg(block.number)
                                  .arg(block.pageNumber)
@@ -121,9 +129,11 @@ QString MockProvider::buildQaAnswer(const ChatRequest& request) const {
     }
 
     if (citationLines.isEmpty()) {
-        body.append(QStringLiteral("· 没有检索到可引用的材料。"));
+        body.append(i18n::tr("aipdf::ai::MockProvider", "· 没有检索到可引用的材料。"));
     }
 
+    // 「引用：」这个标题同样属于 CitationVerifier 的引用段格式（它认中英文标题），
+    // 与引文列表保持一致，整体不翻译。
     return body.join(QLatin1Char('\n')) + QStringLiteral("\n\n引用：\n") +
            citationLines.join(QLatin1Char('\n'));
 }
@@ -150,33 +160,24 @@ QString MockProvider::buildAnswer(const ChatRequest& request) const {
     const QString excerpt = material.left(80).trimmed();
 
     if (request.task == Task::Summary) {
-        return QStringLiteral(
-                   "【演示模式】下面是按当前页文本拼出的摘要示例（没有真正调用模型）。\n"
-                   "· 材料开头：%1\n"
-                   "· 材料长度：%2 字\n"
-                   "· 要真正的模型摘要，请在设置里填 API 密钥。")
-            .arg(excerpt.isEmpty() ? QStringLiteral("（空）") : excerpt)
+        return i18n::tr("aipdf::ai::MockProvider",
+                        "【演示模式】下面是按当前页文本拼出的摘要示例（没有真正调用模型）。\n· 材料开头：%1\n· 材料长度：%2 字\n· 要真正的模型摘要，请在设置里填 API 密钥。")
+            .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt)
             .arg(material.size());
     }
     if (request.task == Task::Explain) {
-        return QStringLiteral(
-                   "【演示模式】下面是按选中文字拼出的解释示例（没有真正调用模型）。\n"
-                   "· 选中内容：%1\n"
-                   "· 要真正的模型解释，请在设置里填 API 密钥。")
-            .arg(excerpt.isEmpty() ? QStringLiteral("（空）") : excerpt);
+        return i18n::tr("aipdf::ai::MockProvider",
+                        "【演示模式】下面是按选中文字拼出的解释示例（没有真正调用模型）。\n· 选中内容：%1\n· 要真正的模型解释，请在设置里填 API 密钥。")
+            .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt);
     }
     if (request.task == Task::Translate) {
-        return QStringLiteral(
-                   "【演示模式】下面是按选中文字拼出的翻译示例（没有真正调用模型）。\n"
-                   "· 原文：%1\n"
-                   "· 要真正的模型翻译，请在设置里填 API 密钥。")
-            .arg(excerpt.isEmpty() ? QStringLiteral("（空）") : excerpt);
+        return i18n::tr("aipdf::ai::MockProvider",
+                        "【演示模式】下面是按选中文字拼出的翻译示例（没有真正调用模型）。\n· 原文：%1\n· 要真正的模型翻译，请在设置里填 API 密钥。")
+            .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt);
     }
-    return QStringLiteral(
-               "【演示模式】收到你的问题，下面是本地拼出的示例回答（没有真正调用模型）。\n"
-               "· 材料开头：%1\n"
-               "· 材料长度：%2 字")
-        .arg(excerpt.isEmpty() ? QStringLiteral("（空）") : excerpt)
+    return i18n::tr("aipdf::ai::MockProvider",
+                    "【演示模式】收到你的问题，下面是本地拼出的示例回答（没有真正调用模型）。\n· 材料开头：%1\n· 材料长度：%2 字")
+        .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt)
         .arg(material.size());
 }
 

@@ -1,5 +1,7 @@
 #include "pdf/SoundFormat.h"
 
+#include "i18n/Translate.h"
+
 namespace aipdf::pdf {
 
 namespace {
@@ -21,11 +23,11 @@ quint16 readU16(const QByteArray& data, int offset) {
 SoundPayload parseWav(const QByteArray& bytes) {
     SoundPayload payload;
     if (bytes.size() < 44) {
-        payload.error = QStringLiteral("文件太小，不是 WAV");
+        payload.error = i18n::tr("aipdf::pdf::SoundFormat", "文件太小，不是 WAV");
         return payload;
     }
     if (!bytes.startsWith("RIFF") || bytes.mid(8, 4) != "WAVE") {
-        payload.error = QStringLiteral("不是 RIFF/WAVE 文件");
+        payload.error = i18n::tr("aipdf::pdf::SoundFormat", "不是 RIFF/WAVE 文件");
         return payload;
     }
 
@@ -37,12 +39,14 @@ SoundPayload parseWav(const QByteArray& bytes) {
         const int chunkStart = offset + 8;
         if (chunkId == "fmt ") {
             if (chunkSize < 16 || chunkStart + 16 > bytes.size()) {
-                payload.error = QStringLiteral("fmt 块不完整");
+                payload.error = i18n::tr("aipdf::pdf::SoundFormat", "fmt 块不完整");
                 return payload;
             }
             const quint16 format = readU16(bytes, chunkStart);
             if (format != 1) {
-                payload.error = QStringLiteral("只支持 PCM（format=1），当前是 %1").arg(format);
+                payload.error =
+                    i18n::tr("aipdf::pdf::SoundFormat", "只支持 PCM（format=1），当前是 %1")
+                        .arg(format);
                 return payload;
             }
             payload.channels = readU16(bytes, chunkStart + 2);
@@ -51,14 +55,14 @@ SoundPayload parseWav(const QByteArray& bytes) {
             sawFormat = true;
         } else if (chunkId == "data") {
             if (!sawFormat) {
-                payload.error = QStringLiteral("data 块出现在 fmt 之前");
+                payload.error = i18n::tr("aipdf::pdf::SoundFormat", "data 块出现在 fmt 之前");
                 return payload;
             }
             const int available = bytes.size() - chunkStart;
             const int length = static_cast<int>(qMin<quint32>(chunkSize, static_cast<quint32>(available)));
             payload.pcm = bytes.mid(chunkStart, length);
             if (payload.rate <= 0 || payload.channels <= 0 || payload.bits <= 0) {
-                payload.error = QStringLiteral("格式参数非法");
+                payload.error = i18n::tr("aipdf::pdf::SoundFormat", "格式参数非法");
                 payload.pcm.clear();
             }
             return payload;
@@ -67,7 +71,7 @@ SoundPayload parseWav(const QByteArray& bytes) {
         offset = chunkStart + static_cast<int>(chunkSize) + (chunkSize % 2);
     }
 
-    payload.error = QStringLiteral("没有找到 data 块");
+    payload.error = i18n::tr("aipdf::pdf::SoundFormat", "没有找到 data 块");
     return payload;
 }
 

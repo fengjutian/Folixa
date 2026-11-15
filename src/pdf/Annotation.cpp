@@ -1,4 +1,6 @@
-﻿#include "pdf/Annotation.h"
+#include "pdf/Annotation.h"
+
+#include "i18n/Translate.h"
 
 #include <QJsonArray>
 
@@ -7,42 +9,42 @@ namespace aipdf::pdf {
 QString annotationTypeName(AnnotationType type) {
     switch (type) {
         case AnnotationType::Highlight:
-            return QStringLiteral("高亮");
+            return i18n::tr("aipdf::pdf::Annotation", "高亮");
         case AnnotationType::Underline:
-            return QStringLiteral("下划线");
+            return i18n::tr("aipdf::pdf::Annotation", "下划线");
         case AnnotationType::StrikeOut:
-            return QStringLiteral("删除线");
+            return i18n::tr("aipdf::pdf::Annotation", "删除线");
         case AnnotationType::Squiggly:
-            return QStringLiteral("波浪线");
+            return i18n::tr("aipdf::pdf::Annotation", "波浪线");
         case AnnotationType::Note:
-            return QStringLiteral("便签");
+            return i18n::tr("aipdf::pdf::Annotation", "便签");
         case AnnotationType::Square:
-            return QStringLiteral("矩形");
+            return i18n::tr("aipdf::pdf::Annotation", "矩形");
         case AnnotationType::Ellipse:
-            return QStringLiteral("椭圆");
+            return i18n::tr("aipdf::pdf::Annotation", "椭圆");
         case AnnotationType::Line:
-            return QStringLiteral("直线");
+            return i18n::tr("aipdf::pdf::Annotation", "直线");
         case AnnotationType::Arrow:
-            return QStringLiteral("箭头");
+            return i18n::tr("aipdf::pdf::Annotation", "箭头");
         case AnnotationType::Polygon:
-            return QStringLiteral("多边形");
+            return i18n::tr("aipdf::pdf::Annotation", "多边形");
         case AnnotationType::Cloud:
-            return QStringLiteral("云线");
+            return i18n::tr("aipdf::pdf::Annotation", "云线");
         case AnnotationType::FreeText:
-            return QStringLiteral("文本框");
+            return i18n::tr("aipdf::pdf::Annotation", "文本框");
         case AnnotationType::Stamp:
-            return QStringLiteral("图章");
+            return i18n::tr("aipdf::pdf::Annotation", "图章");
         case AnnotationType::Measure:
-            return QStringLiteral("测量");
+            return i18n::tr("aipdf::pdf::Annotation", "测量");
         case AnnotationType::FileAttachment:
-            return QStringLiteral("附件");
+            return i18n::tr("aipdf::pdf::Annotation", "附件");
         case AnnotationType::Sound:
-            return QStringLiteral("声音");
+            return i18n::tr("aipdf::pdf::Annotation", "声音");
 
         case AnnotationType::Ink:
-            return QStringLiteral("墨迹");
+            return i18n::tr("aipdf::pdf::Annotation", "墨迹");
     }
-    return QStringLiteral("批注");
+    return i18n::tr("aipdf::pdf::Annotation", "批注");
 }
 
 QColor defaultAnnotationColor(AnnotationType type) {

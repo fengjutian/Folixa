@@ -2,6 +2,8 @@
 
 #include "ipc/IpcProtocol.h"
 
+#include "i18n/Translate.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -123,7 +125,8 @@ QString WorkerClient::sendRequest(const QString& operation,
                                   int timeoutMs) {
     const QString requestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     if (socket_.state() != QLocalSocket::ConnectedState) {
-        emit requestFailed(requestId, "AI Worker 未连接，请稍后再试。");
+        emit requestFailed(requestId,
+                           i18n::tr("aipdf::ipc::WorkerClient", "AI Worker 未连接，请稍后再试。"));
         return requestId;
     }
 
@@ -132,7 +135,8 @@ QString WorkerClient::sendRequest(const QString& operation,
     connect(timer, &QTimer::timeout, this, [this, requestId, timer] {
         pendingTimers_.remove(requestId);
         timer->deleteLater();
-        emit requestFailed(requestId, "AI Worker 请求超时。");
+        emit requestFailed(requestId,
+                           i18n::tr("aipdf::ipc::WorkerClient", "AI Worker 请求超时。"));
     });
     pendingTimers_.insert(requestId, timer);
     timer->start(timeoutMs);
@@ -145,7 +149,8 @@ QString WorkerClient::sendStreamRequest(const QString& operation,
                                          const QJsonObject& payload) {
     const QString requestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     if (socket_.state() != QLocalSocket::ConnectedState) {
-        emit requestFailed(requestId, "AI Worker 未连接，请稍后再试。");
+        emit requestFailed(requestId,
+                           i18n::tr("aipdf::ipc::WorkerClient", "AI Worker 未连接，请稍后再试。"));
         return requestId;
     }
     // 流式请求不挂超时定时器：一次回答可能比普通请求久得多，
@@ -235,7 +240,8 @@ void WorkerClient::readFrames() {
             const QString message = error.value("message").toString();
             emit requestFailed(requestId,
                                message.isEmpty()
-                                   ? QStringLiteral("AI Worker 请求失败。")
+                                   ? i18n::tr("aipdf::ipc::WorkerClient",
+                                              "AI Worker 请求失败。")
                                    : message);
         }
         emit responseReceived(requestId, response);

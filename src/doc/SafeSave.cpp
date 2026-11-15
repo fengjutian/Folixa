@@ -2,6 +2,8 @@
 
 #include "pdf/PdfiumAdapter.h"
 
+#include "i18n/Translate.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -35,11 +37,11 @@ QString systemErrorMessage(unsigned long code) {
         LocalFree(buffer);
     }
     if (text.isEmpty()) {
-        text = QStringLiteral("系统错误 %1").arg(code);
+        text = i18n::tr("aipdf::doc::SafeSave", "系统错误 %1").arg(code);
     }
     return text;
 #else
-    return QStringLiteral("系统错误 %1").arg(code);
+    return i18n::tr("aipdf::doc::SafeSave", "系统错误 %1").arg(code);
 #endif
 }
 
@@ -61,7 +63,8 @@ bool replaceFileAtomically(const QString& temporaryPath, const QString& targetPa
         return true;
     }
     if (error != nullptr) {
-        *error = QStringLiteral("无法替换原文件：%1").arg(systemErrorMessage(GetLastError()));
+        *error = i18n::tr("aipdf::doc::SafeSave", "无法替换原文件：%1")
+                     .arg(systemErrorMessage(GetLastError()));
     }
     return false;
 #else
@@ -70,7 +73,7 @@ bool replaceFileAtomically(const QString& temporaryPath, const QString& targetPa
         return true;
     }
     if (error != nullptr) {
-        *error = QStringLiteral("无法替换原文件");
+        *error = i18n::tr("aipdf::doc::SafeSave", "无法替换原文件");
     }
     return false;
 #endif
@@ -89,21 +92,22 @@ QString SafeSave::temporaryPathFor(const QString& targetPath) {
 bool SafeSave::verify(const QByteArray& bytes, int expectedPageCount, QString* error) {
     if (bytes.isEmpty()) {
         if (error != nullptr) {
-            *error = QStringLiteral("内容为空");
+            *error = i18n::tr("aipdf::doc::SafeSave", "内容为空");
         }
         return false;
     }
     const pdf::PdfOpenResult result = pdf::openDocumentFromBytes(bytes);
     if (!result.document.isValid()) {
         if (error != nullptr) {
-            *error = QStringLiteral("写出的文件打不开：%1").arg(result.errorMessage);
+            *error = i18n::tr("aipdf::doc::SafeSave", "写出的文件打不开：%1")
+                         .arg(result.errorMessage);
         }
         return false;
     }
     const int pages = result.document.pageCount();
     if (expectedPageCount > 0 && pages != expectedPageCount) {
         if (error != nullptr) {
-            *error = QStringLiteral("写出的文件页数不对：期望 %1 页，实际 %2 页")
+            *error = i18n::tr("aipdf::doc::SafeSave", "写出的文件页数不对：期望 %1 页，实际 %2 页")
                          .arg(expectedPageCount)
                          .arg(pages);
         }
@@ -119,14 +123,15 @@ SaveResult SafeSave::writeAtomically(const QString& targetPath,
     SaveResult result;
 
     if (targetPath.isEmpty()) {
-        result.errorMessage = QStringLiteral("没有目标路径");
+        result.errorMessage = i18n::tr("aipdf::doc::SafeSave", "没有目标路径");
         return result;
     }
 
     const QFileInfo targetInfo(targetPath);
     const QDir directory = targetInfo.absoluteDir();
     if (!directory.exists()) {
-        result.errorMessage = QStringLiteral("目标目录不存在：%1").arg(directory.path());
+        result.errorMessage =
+            i18n::tr("aipdf::doc::SafeSave", "目标目录不存在：%1").arg(directory.path());
         return result;
     }
 
@@ -136,20 +141,24 @@ SaveResult SafeSave::writeAtomically(const QString& targetPath,
         QFile temporary(temporaryPath);
         if (!temporary.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             result.errorMessage =
-                QStringLiteral("无法写入临时文件：%1").arg(temporary.errorString());
+                i18n::tr("aipdf::doc::SafeSave", "无法写入临时文件：%1")
+                    .arg(temporary.errorString());
             return result;
         }
         const qint64 written = temporary.write(bytes);
         if (written != bytes.size()) {
             temporary.close();
             QFile::remove(temporaryPath);
-            result.errorMessage = QStringLiteral("写入临时文件失败：磁盘可能已满");
+            result.errorMessage =
+                i18n::tr("aipdf::doc::SafeSave", "写入临时文件失败：磁盘可能已满");
             return result;
         }
         if (!temporary.flush()) {
             temporary.close();
             QFile::remove(temporaryPath);
-            result.errorMessage = QStringLiteral("写入临时文件失败：%1").arg(temporary.errorString());
+            result.errorMessage =
+                i18n::tr("aipdf::doc::SafeSave", "写入临时文件失败：%1")
+                    .arg(temporary.errorString());
             return result;
         }
         temporary.close();
@@ -162,7 +171,8 @@ SaveResult SafeSave::writeAtomically(const QString& targetPath,
         if (!temporary.open(QIODevice::ReadOnly)) {
             QFile::remove(temporaryPath);
             result.errorMessage =
-                QStringLiteral("无法读取临时文件：%1").arg(temporary.errorString());
+                i18n::tr("aipdf::doc::SafeSave", "无法读取临时文件：%1")
+                    .arg(temporary.errorString());
             return result;
         }
         const QByteArray written = temporary.readAll();

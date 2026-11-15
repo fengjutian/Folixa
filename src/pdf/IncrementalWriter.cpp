@@ -1,5 +1,7 @@
 ﻿#include "pdf/IncrementalWriter.h"
 
+#include "i18n/Translate.h"
+
 #include <algorithm>
 #include <map>
 #include <utility>
@@ -221,18 +223,20 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
                                              const QVector<AppearanceAttachment>& attachments) {
     IncrementalWrite result;
     if (attachments.isEmpty()) {
-        result.error = QStringLiteral("没有要写入的外观流");
+        result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "没有要写入的外观流");
         return result;
     }
 
     const qsizetype startxrefAt = pdf.lastIndexOf("startxref");
     if (startxrefAt < 0) {
-        result.error = QStringLiteral("找不到 startxref：输入不是完整的 PDF");
+        result.error =
+            i18n::tr("aipdf::pdf::IncrementalWriter", "找不到 startxref：输入不是完整的 PDF");
         return result;
     }
     const qsizetype trailerAt = pdf.lastIndexOf("trailer", startxrefAt);
     if (trailerAt < 0) {
-        result.error = QStringLiteral("找不到 trailer：可能是交叉引用流，暂不支持");
+        result.error =
+            i18n::tr("aipdf::pdf::IncrementalWriter", "找不到 trailer：可能是交叉引用流，暂不支持");
         return result;
     }
     const QByteArray trailerDict = pdf.mid(trailerAt, startxrefAt - trailerAt);
@@ -240,7 +244,7 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
     const qsizetype rootAt = trailerDict.indexOf("/Root");
     ObjectRef root;
     if (rootAt < 0 || !parseObjectRef(trailerDict, rootAt + 5, &root)) {
-        result.error = QStringLiteral("trailer 里没有可解析的 /Root");
+        result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "trailer 里没有可解析的 /Root");
         return result;
     }
 
@@ -271,7 +275,7 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         previousXref = pdf.mid(begin, i - begin).toLongLong();
     }
     if (previousXref <= 0) {
-        result.error = QStringLiteral("startxref 数值无效");
+        result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "startxref 数值无效");
         return result;
     }
 
@@ -319,7 +323,7 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         }
         Target target;
         if (!findTarget(pdf, item.marker, &target)) {
-            result.error = QStringLiteral("找不到带标记 %1 的批注对象")
+            result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "找不到带标记 %1 的批注对象")
                                .arg(QString::fromUtf8(item.marker));
             result.bytes.clear();
             return result;
@@ -382,8 +386,9 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         if (inserted.contains("@ANNOT")) {
             // 占位符没被替换掉说明父批注不在这次写入里：宁可失败，
             // 也不要把一个指向不存在对象的 /IRT 写进文件。
-            result.error = QStringLiteral("回复引用的父批注不在本次写入中：") +
-                           QByteArray(item.marker);
+            result.error =
+                i18n::tr("aipdf::pdf::IncrementalWriter", "回复引用的父批注不在本次写入中：") +
+                QByteArray(item.marker);
             return result;
         }
         it->second.inserts.append({ target.insertAt, inserted });
@@ -393,7 +398,7 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
     }
 
     if (appearanceBodies.isEmpty()) {
-        result.error = QStringLiteral("所有外观流都为空，没有可写的内容");
+        result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "所有外观流都为空，没有可写的内容");
         return result;
     }
 
@@ -410,7 +415,7 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         for (const auto& insert : object.inserts) {
             const qsizetype relative = insert.first - object.target.bodyBegin;
             if (relative < 0 || relative > body.size()) {
-                result.error = QStringLiteral("插入点越界，放弃写入");
+                result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "插入点越界，放弃写入");
                 return result;
             }
             body.insert(relative, insert.second);
@@ -451,7 +456,7 @@ IncrementalWrite appendAnnotationAppearance(const QByteArray& pdf,
                                             const Appearance& appearance) {
     if (marker.isEmpty()) {
         IncrementalWrite result;
-        result.error = QStringLiteral("缺少批注标记，无法定位注释");
+        result.error = i18n::tr("aipdf::pdf::IncrementalWriter", "缺少批注标记，无法定位注释");
         return result;
     }
     return appendAnnotationAppearances(pdf, { AppearanceAttachment{ marker, appearance } });

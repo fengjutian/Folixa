@@ -1,5 +1,6 @@
 #include "ocr/WindowsOcrEngine.h"
 
+#include "i18n/Translate.h"
 #include "ocr/ImagePreprocess.h"
 #include "ocr/OcrGeometry.h"
 #include "ocr/OcrTextUtils.h"
@@ -108,11 +109,12 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
     result.engineId = id();
 
     if (!powershellAvailable_) {
-        result.error = QStringLiteral("找不到 powershell，无法调用系统 OCR");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine",
+                                "找不到 powershell，无法调用系统 OCR");
         return result;
     }
     if (job.image.isNull()) {
-        result.error = QStringLiteral("页面图像为空");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "页面图像为空");
         return result;
     }
     if (cancelled_.load()) {
@@ -122,14 +124,14 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
 
     QTemporaryDir workDir;
     if (!workDir.isValid()) {
-        result.error = QStringLiteral("无法创建临时目录");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "无法创建临时目录");
         return result;
     }
     const QString scriptPath = workDir.filePath(QStringLiteral("ocr.ps1"));
     {
         QFile script(scriptPath);
         if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            result.error = QStringLiteral("OCR 脚本写入失败");
+            result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "OCR 脚本写入失败");
             return result;
         }
         script.write(scriptText().toUtf8());
@@ -138,7 +140,7 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
     const QString imagePath = workDir.filePath(QStringLiteral("page.png"));
     const QImage input = preprocessForOcr(job.image);
     if (!input.save(imagePath, "PNG")) {
-        result.error = QStringLiteral("页面图像写盘失败");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "页面图像写盘失败");
         return result;
     }
 
@@ -151,13 +153,13 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
                    QDir::toNativeSeparators(scriptPath), QStringLiteral("-ImagePath"),
                    QDir::toNativeSeparators(imagePath)});
     if (!process.waitForStarted(10'000)) {
-        result.error = QStringLiteral("powershell 启动失败");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "powershell 启动失败");
         return result;
     }
     if (!process.waitForFinished(120'000)) {
         process.kill();
         process.waitForFinished(2000);
-        result.error = QStringLiteral("识别超时");
+        result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "识别超时");
         return result;
     }
     if (cancelled_.load()) {
@@ -180,7 +182,8 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
         }
         const QString stderrText = QString::fromUtf8(process.readAllStandardError()).trimmed();
         result.error = stderrText.isEmpty()
-                           ? QStringLiteral("系统 OCR 退出码 %1").arg(process.exitCode())
+                           ? i18n::tr("aipdf::ocr::WindowsOcrEngine", "系统 OCR 退出码 %1")
+                                 .arg(process.exitCode())
                            : stderrText;
         return result;
     }

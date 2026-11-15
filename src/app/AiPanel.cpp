@@ -2,6 +2,7 @@
 
 #include "app/AiSettingsDialog.h"
 #include "app/DocumentQaController.h"
+#include "app/Language.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
 #include "app/UploadPreviewDialog.h"
@@ -12,6 +13,7 @@
 #include "ai/ProviderFactory.h"
 #include "ai/UploadPreview.h"
 #include "ipc/WorkerClient.h"
+#include "i18n/Translate.h"
 
 #include <QButtonGroup>
 #include <QDateTime>
@@ -66,6 +68,9 @@ QString formatCost(double cost) {
 
 AiPanel::AiPanel(QWidget* parent) : QWidget(parent) {
     buildUi();
+    // 切换语言后常驻文案就地重译，状态行按缓存重算；对话记录保持原样。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &AiPanel::retranslateUi);
 }
 
 void AiPanel::buildUi() {
@@ -75,16 +80,19 @@ void AiPanel::buildUi() {
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(12);
 
-    auto* title = new QLabel(tr("✦  Folixa AI"), this);
+    auto* title = new QLabel(QString(), this);
     title->setObjectName(QStringLiteral("aiTitle"));
-    auto* subtitle = new QLabel(tr("阅读、理解并定位当前文档内容"), this);
+    texts_.bind([this, title] { title->setText(tr("✦  Folixa AI")); });
+    auto* subtitle = new QLabel(QString(), this);
     subtitle->setObjectName(QStringLiteral("aiSubtitle"));
+    texts_.bind([this, subtitle] { subtitle->setText(tr("阅读、理解并定位当前文档内容")); });
 
     providerLabel_ = new QLabel(tr("AI 服务：正在启动"), this);
     providerLabel_->setObjectName(QStringLiteral("aiProviderLabel"));
-    settingsButton_ = new QPushButton(tr("设置"), this);
+    settingsButton_ = new QPushButton(QString(), this);
     settingsButton_->setObjectName(QStringLiteral("aiSettingsButton"));
-    settingsButton_->setToolTip(tr("设置服务商与 API 密钥"));
+    texts_.bind([this] { settingsButton_->setText(tr("设置")); });
+    texts_.bind([this] { settingsButton_->setToolTip(tr("设置服务商与 API 密钥")); });
     scopeLabel_ = new QLabel(QString(), this);
     scopeLabel_->setObjectName(QStringLiteral("aiScopeLabel"));
     scopeLabel_->setWordWrap(true);
@@ -94,15 +102,19 @@ void AiPanel::buildUi() {
     // 为什么不用下拉框：范围是这个面板最要紧的一个选择（「送什么给模型」），
     // 用两个能同时看见当前状态的按钮，用户一眼就知道现在送的是哪半边；
     // 下拉框把当前选择藏起来，得点开才知道。
-    scopePageButton_ = new QPushButton(tr("当前页"), this);
+    scopePageButton_ = new QPushButton(QString(), this);
     scopePageButton_->setObjectName(QStringLiteral("aiScopePageButton"));
     scopePageButton_->setCheckable(true);
     scopePageButton_->setChecked(true);
-    scopePageButton_->setToolTip(tr("只送当前页文本或当前选区"));
-    scopeDocumentButton_ = new QPushButton(tr("整篇文档"), this);
+    texts_.bind([this] { scopePageButton_->setText(tr("当前页")); });
+    texts_.bind([this] { scopePageButton_->setToolTip(tr("只送当前页文本或当前选区")); });
+    scopeDocumentButton_ = new QPushButton(QString(), this);
     scopeDocumentButton_->setObjectName(QStringLiteral("aiScopeDocumentButton"));
     scopeDocumentButton_->setCheckable(true);
-    scopeDocumentButton_->setToolTip(tr("检索整篇文档，只送最相关的几块，并给出可核对的引用"));
+    texts_.bind([this] { scopeDocumentButton_->setText(tr("整篇文档")); });
+    texts_.bind([this] {
+        scopeDocumentButton_->setToolTip(tr("检索整篇文档，只送最相关的几块，并给出可核对的引用"));
+    });
     scopeGroup_ = new QButtonGroup(this);
     scopeGroup_->setExclusive(true);
     scopeGroup_->addButton(scopePageButton_);
@@ -110,22 +122,27 @@ void AiPanel::buildUi() {
 
     auto* scopeRow = new QHBoxLayout();
     scopeRow->setSpacing(6);
-    scopeRow->addWidget(new QLabel(tr("范围"), this));
+    auto* scopeTitle = new QLabel(QString(), this);
+    texts_.bind([this, scopeTitle] { scopeTitle->setText(tr("范围")); });
+    scopeRow->addWidget(scopeTitle);
     scopeRow->addWidget(scopePageButton_);
     scopeRow->addWidget(scopeDocumentButton_);
     scopeRow->addStretch(1);
 
     auto* actions = new QHBoxLayout();
     actions->setSpacing(6);
-    summaryButton_ = new QPushButton(tr("总结"), this);
+    summaryButton_ = new QPushButton(QString(), this);
     summaryButton_->setObjectName(QStringLiteral("aiSummaryButton"));
-    summaryButton_->setToolTip(tr("总结当前页"));
-    explainButton_ = new QPushButton(tr("解释"), this);
+    texts_.bind([this] { summaryButton_->setText(tr("总结")); });
+    texts_.bind([this] { summaryButton_->setToolTip(tr("总结当前页")); });
+    explainButton_ = new QPushButton(QString(), this);
     explainButton_->setObjectName(QStringLiteral("aiExplainButton"));
-    explainButton_->setToolTip(tr("解释选中的文字"));
-    translateButton_ = new QPushButton(tr("翻译"), this);
+    texts_.bind([this] { explainButton_->setText(tr("解释")); });
+    texts_.bind([this] { explainButton_->setToolTip(tr("解释选中的文字")); });
+    translateButton_ = new QPushButton(QString(), this);
     translateButton_->setObjectName(QStringLiteral("aiTranslateButton"));
-    translateButton_->setToolTip(tr("翻译选中的文字"));
+    texts_.bind([this] { translateButton_->setText(tr("翻译")); });
+    texts_.bind([this] { translateButton_->setToolTip(tr("翻译选中的文字")); });
     actions->addWidget(summaryButton_);
     actions->addWidget(explainButton_);
     actions->addWidget(translateButton_);
@@ -150,12 +167,19 @@ void AiPanel::buildUi() {
         ".bad{color:#C0562F;}"
         "a{color:#765ECC;text-decoration:none;}"
         "a:hover{text-decoration:underline;}"));
-    conversation_->setHtml(tr(
-        "<div class='welcome'><div class='eyebrow'>FOLIXA AI</div>"
-        "<h3>从当前文档开始</h3>"
-        "<p>我可以帮你总结当前页、解释选中的文字、翻译选中的文字。</p>"
-        "<p>切到「整篇文档」范围，我会先检索最相关的几块，再回答并给出<strong>可核对的引用</strong>。</p>"
-        "<p class='muted'>每次只会送出当前页、当前选区或检索到的几块，发送前会先告诉你范围。</p></div>"));
+    texts_.bind([this] {
+        // 欢迎语是常驻说明；已经开聊后不能再覆盖对话记录。
+        if (conversationStarted_) {
+            return;
+        }
+        conversation_->setHtml(
+            QStringLiteral("<div class='welcome'><div class='eyebrow'>FOLIXA AI</div>") +
+            tr("<h3>从当前文档开始</h3>") +
+            tr("<p>我可以帮你总结当前页、解释选中的文字、翻译选中的文字。</p>") +
+            tr("<p>切到「整篇文档」范围，我会先检索最相关的几块，再回答并给出<strong>可核对的引用</strong>。</p>") +
+            tr("<p class='muted'>每次只会送出当前页、当前选区或检索到的几块，发送前会先告诉你范围。</p>") +
+            QStringLiteral("</div>"));
+    });
 
     usageLabel_ = new QLabel(QString(), this);
     usageLabel_->setObjectName(QStringLiteral("aiUsageLabel"));
@@ -167,21 +191,23 @@ void AiPanel::buildUi() {
     citationList_ = new QListWidget(this);
     citationList_->setObjectName(QStringLiteral("aiCitationList"));
     citationList_->setMaximumHeight(132);
-    citationList_->setToolTip(tr("点一条引用，跳到原文并高亮那一块"));
+    texts_.bind([this] { citationList_->setToolTip(tr("点一条引用，跳到原文并高亮那一块")); });
 
     prompt_ = new QLineEdit(this);
     prompt_->setObjectName(QStringLiteral("aiPromptInput"));
-    prompt_->setPlaceholderText(tr("就当前页提问…"));
-    prompt_->setAccessibleName(tr("向 AI 提问"));
-    sendButton_ = new QPushButton(tr("发送"), this);
+    texts_.bind([this] { prompt_->setPlaceholderText(tr("就当前页提问…")); });
+    texts_.bind([this] { prompt_->setAccessibleName(tr("向 AI 提问")); });
+    sendButton_ = new QPushButton(QString(), this);
     sendButton_->setObjectName(QStringLiteral("aiButton"));
     sendButton_->setIcon(QIcon(QStringLiteral(":/icons/send.svg")));
     sendButton_->setIconSize(QSize(18, 18));
-    sendButton_->setToolTip(tr("发送"));
+    texts_.bind([this] { sendButton_->setText(tr("发送")); });
+    texts_.bind([this] { sendButton_->setToolTip(tr("发送")); });
     sendButton_->setEnabled(false);
-    cancelButton_ = new QPushButton(tr("停止"), this);
+    cancelButton_ = new QPushButton(QString(), this);
     cancelButton_->setObjectName(QStringLiteral("aiCancelButton"));
-    cancelButton_->setToolTip(tr("停止这次生成"));
+    texts_.bind([this] { cancelButton_->setText(tr("停止")); });
+    texts_.bind([this] { cancelButton_->setToolTip(tr("停止这次生成")); });
     cancelButton_->setEnabled(false);
 
     auto* composer = new QHBoxLayout();
@@ -285,11 +311,10 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
 
     connect(workerClient_, &ipc::WorkerClient::stateChanged, this,
             [this](const QString& state) {
-                const QString label = state == QStringLiteral("ready") ? tr("已就绪")
-                    : state == QStringLiteral("starting") ? tr("正在启动")
-                    : state == QStringLiteral("stopped") ? tr("已停止")
-                    : state;
-                updateStatus(tr("AI 服务：%1").arg(label));
+                // Worker 状态变了：之前拿到的 Provider 状态已经过期，先回到状态行。
+                workerState_ = state;
+                providerStatusKnown_ = false;
+                refreshStatusLabel();
                 const bool ready = state == QLatin1String("ready");
                 workerReady_ = ready;
                 sendButton_->setEnabled(ready && !busy_);
@@ -315,8 +340,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     lastAnswer_ += text;
                     if (documentQaActive_) {
                         // 整篇问答：先攒着，等回答收完再连同引用一起渲染。
-                        usageLabel_->setText(
-                            tr("正在生成…已收到 %1 字").arg(lastAnswer_.size()));
+                        refreshUsageLabel();
                         return;
                     }
                     answerCursor_.insertText(text);
@@ -326,11 +350,10 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     const int inputTokens = payload.value("input_tokens").toInt();
                     const int outputTokens = payload.value("output_tokens").toInt();
                     const double cost = payload.value("estimated_cost").toDouble();
-                    usageLabel_->setText(
-                        tr("本次：输入 %1 tokens · 输出 %2 tokens · 约 %3")
-                            .arg(inputTokens)
-                            .arg(outputTokens)
-                            .arg(formatCost(cost)));
+                    lastInputTokens_ = inputTokens;
+                    lastOutputTokens_ = outputTokens;
+                    lastCost_ = cost;
+                    usageKnown_ = true;
                     trace(QStringLiteral("ai usage input=%1 output=%2 cost=%3")
                               .arg(inputTokens)
                               .arg(outputTokens)
@@ -340,6 +363,8 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                         finishDocumentQa();
                     }
                     setBusy(false);
+                    // 收完后才把「正在生成…」换成费用行；顺序反了会停在进度文案上。
+                    refreshUsageLabel();
                     return;
                 }
                 if (event == QLatin1String("ai.stream.error")) {
@@ -372,25 +397,20 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     // Provider 状态：现在是哪个服务、是不是演示模式。
                     const bool demo = payload.value("demo").toBool();
                     const QString mode = payload.value("data_mode").toString();
-                    QString name;
-                    if (mode == QLatin1String("local")) {
-                        // 本地模式比「没配密钥」更强：这里不是降级，而是策略。
-                        // 只写「演示模式」会让用户以为配了密钥就能发出去。
-                        name = tr("本地模式 · 文档内容不出本机（回答由本地演示模型生成）");
-                    } else if (demo) {
-                        name = tr("演示模式（未配置密钥）· 回答由本地拼出，不会发到网络");
-                    } else {
-                        name = tr("%1 · %2")
-                                   .arg(payload.value("provider").toString(),
-                                        payload.value("model").toString());
-                    }
-                    updateStatus(tr("AI 服务：%1").arg(name));
+                    // 缓存原始状态：切换语言时按同一份状态重算状态行，
+                    // 不能把上一轮翻好的字符串再翻一遍。
+                    providerStatusKnown_ = true;
+                    providerName_ = payload.value("provider").toString();
+                    providerModel_ = payload.value("model").toString();
+                    providerMode_ = mode;
+                    providerDemo_ = demo;
+                    refreshStatusLabel();
                     trace(QStringLiteral("ai provider mode=%1 demo=%2")
                               .arg(mode.isEmpty() ? QStringLiteral("unknown") : mode)
                               .arg(demo ? 1 : 0));
                     // 演示模式的说明放在服务状态行，不放在发送范围行：
                     // 范围行要留给用户看「这一趟送了什么」。
-                    emit providerChanged(name, demo);
+                    emit providerChanged(providerDisplayName(), demo);
                     return;
                 }
                 Q_UNUSED(requestId);
@@ -568,11 +588,11 @@ void AiPanel::sendDocumentQa(const QString& question) {
     for (const ai::ContextBlock& block : context) {
         characters += block.text.size();
     }
-    const QString scope = tr("整篇文档 · 检索到 %1 块 · %2 字")
-                              .arg(context.size())
-                              .arg(characters);
-    lastDataScope_ = scope;
-    scopeLabel_->setText(tr("本次发送：%1").arg(scope));
+    sentBlockCount_ = static_cast<int>(context.size());
+    sentCharCount_ = characters;
+    scopeLabelState_ = ScopeLabelState::SentDocument;
+    refreshScopeLabel();
+    const QString scope = lastDataScope_;
     appendMessage(tr("<div class='scope'>▸ 本次发送：%1</div>").arg(scope.toHtmlEscaped()));
     trace(QStringLiteral("ai qa scope blocks=%1 chars=%2").arg(context.size()).arg(characters));
 
@@ -625,6 +645,7 @@ void AiPanel::sendDocumentQa(const QString& question) {
 
     lastAnswer_.clear();
     lastCitationReport_ = doc::CitationReport();
+    citationStatusVisible_ = false;
     citationStatusLabel_->clear();
     citationList_->clear();
     documentQaActive_ = true;
@@ -756,12 +777,12 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     }
 
     // 用户可见的数据范围：送了什么、送了多少。
-    const QString scope = tr("第 %1 页 · %2 字%3")
-                              .arg(currentPage_ + 1)
-                              .arg(material.size())
-                              .arg(truncated ? tr("（已截断）") : QString());
-    lastDataScope_ = scope;
-    scopeLabel_->setText(tr("本次发送：%1").arg(scope));
+    sentPageNumber_ = currentPage_ + 1;
+    sentCharCount_ = static_cast<int>(material.size());
+    sentTruncated_ = truncated;
+    scopeLabelState_ = ScopeLabelState::SentPage;
+    refreshScopeLabel();
+    const QString scope = lastDataScope_;
     appendMessage(tr("<div class='scope'>▸ 本次发送：%1</div>").arg(scope.toHtmlEscaped()));
     trace(QStringLiteral("ai scope page=%1 chars=%2 task=%3")
               .arg(currentPage_ + 1)
@@ -802,6 +823,7 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     lastAnswer_.clear();
     answerCursor_ = conversation_->textCursor();
     answerCursor_.movePosition(QTextCursor::End);
+    conversationStarted_ = true;
     answerCursor_.insertText(QStringLiteral("\n"));
     activeRequestId_ = workerClient_->sendStreamRequest(
         QStringLiteral("ai.chat.stream"), payload);
@@ -897,46 +919,13 @@ void AiPanel::finishDocumentQa() {
 
     // 核验：编号存在性 + 引文逐字核对 + 页码一致。全部离线、确定性。
     lastCitationReport_ = qaController_->verify(lastAnswer_, qaContext_);
+    citationStatusVisible_ = true;
+    refreshCitationView();
     const doc::CitationReport& report = lastCitationReport_;
-
-    QString status;
-    if (report.citations.isEmpty()) {
-        status = tr("引用核验：回答里没有给出引用");
-    } else if (report.validCount == 0) {
-        status = tr("引用核验：%1 条引用全部无法核实").arg(report.citations.size());
-    } else {
-        status = tr("引用核验：%1 条中 %2 条已核实")
-                     .arg(report.citations.size())
-                     .arg(report.validCount);
-        if (report.invalidCount > 0) {
-            status += tr("，%1 条无法核实").arg(report.invalidCount);
-        }
-    }
-    if (report.hasUnsupportedMarker) {
-        status += tr("；有标记指向无效引用");
-    }
-    citationStatusLabel_->setText(status);
     trace(QStringLiteral("ai citation check valid=%1 invalid=%2 unsupported=%3")
               .arg(report.validCount)
               .arg(report.invalidCount)
               .arg(report.hasUnsupportedMarker ? 1 : 0));
-
-    // 引用清单：每条引用一行，带核验结果。
-    citationList_->clear();
-    for (const doc::ParsedCitation& citation : report.citations) {
-        auto* item = new QListWidgetItem(citationListText(citation), citationList_);
-        item->setData(Qt::UserRole, citation.number);
-        // 核验不通过的引用不给跳：点了也跳不出一个可信的出处。
-        if (!citation.valid) {
-            item->setToolTip(citation.reason);
-            item->setForeground(QColor(QStringLiteral("#C0562F")));
-        } else {
-            const ai::ContextBlock* block = contextByNumber(citation.number);
-            item->setToolTip(block != nullptr
-                                 ? tr("跳到第 %1 页").arg(block->pageNumber)
-                                 : QString());
-        }
-    }
 
     appendMessage(renderQaAnswer());
 }
@@ -960,23 +949,27 @@ QString AiPanel::renderQaAnswer() const {
     html += QStringLiteral("</div>");
 
     if (!lastCitationReport_.citations.isEmpty()) {
-        html += QStringLiteral("<div class='citations'><div class='eyebrow'>引用</div>");
+        html += QStringLiteral("<div class='citations'><div class='eyebrow'>") + tr("引用") +
+                QStringLiteral("</div>");
         for (const doc::ParsedCitation& citation : lastCitationReport_.citations) {
             const ai::ContextBlock* block = contextByNumber(citation.number);
             // 页码显示**实际的**那一页：模型写错了页，引用就该指到真的地方。
             const int page = block != nullptr ? block->pageNumber : citation.pageNumber;
             const QString label =
                 citation.valid
-                    ? QStringLiteral("<span class='ok'>已核实</span>")
-                    : QStringLiteral("<span class='bad'>无法核实：%1</span>")
-                          .arg(citation.reason.toHtmlEscaped());
+                    ? QStringLiteral("<span class='ok'>") + tr("已核实") +
+                          QStringLiteral("</span>")
+                    : QStringLiteral("<span class='bad'>") +
+                          tr("无法核实：%1").arg(citation.reason.toHtmlEscaped()) +
+                          QStringLiteral("</span>");
             // 只有核验通过的引用才可点：点一个查不到出处的引用没有意义。
             const QString link =
                 citation.valid
                     ? QStringLiteral("<a href=\"citation://%1\">[%1]</a>").arg(citation.number)
                     : QStringLiteral("[%1]").arg(citation.number);
-            html += QStringLiteral("<div class='citation'>%1 第 %2 页 · %3</div>")
-                        .arg(link, QString::number(page), label);
+            html += QStringLiteral("<div class='citation'>") +
+                    tr("%1 第 %2 页 · %3").arg(link, QString::number(page), label) +
+                    QStringLiteral("</div>");
         }
         html += QStringLiteral("</div>");
     }
@@ -1018,23 +1011,149 @@ void AiPanel::setScope(Scope scope) {
     scope_ = scope;
     scopePageButton_->setChecked(scope == Scope::CurrentPage);
     scopeDocumentButton_->setChecked(scope == Scope::WholeDocument);
+    citationStatusVisible_ = false;
     citationStatusLabel_->clear();
-    if (scope == Scope::WholeDocument) {
-        scopeLabel_->setText(
-            tr("本次将问整篇文档：先检索最相关的几块，回答里带可核对的引用。"));
-    } else {
-        scopeLabel_->clear();
-    }
+    scopeLabelState_ = scope == Scope::WholeDocument ? ScopeLabelState::DocumentHint
+                                                    : ScopeLabelState::Empty;
+    refreshScopeLabel();
 }
 
 void AiPanel::appendMessage(const QString& html) {
+    conversationStarted_ = true;
     conversation_->append(html);
     conversation_->verticalScrollBar()->setValue(
         conversation_->verticalScrollBar()->maximum());
 }
 
-void AiPanel::updateStatus(const QString& text) {
-    providerLabel_->setText(text);
+QString AiPanel::providerDisplayName() const {
+    if (providerMode_ == QLatin1String("local")) {
+        // 本地模式比「没配密钥」更强：这里不是降级，而是策略。
+        // 只写「演示模式」会让用户以为配了密钥就能发出去。
+        return tr("本地模式 · 文档内容不出本机（回答由本地演示模型生成）");
+    }
+    if (providerDemo_) {
+        return tr("演示模式（未配置密钥）· 回答由本地拼出，不会发到网络");
+    }
+    return tr("%1 · %2").arg(providerName_, providerModel_);
+}
+
+void AiPanel::refreshStatusLabel() {
+    if (providerLabel_ == nullptr) {
+        return;
+    }
+    if (providerStatusKnown_) {
+        providerLabel_->setText(tr("AI 服务：%1").arg(providerDisplayName()));
+        return;
+    }
+    if (workerState_.isEmpty()) {
+        providerLabel_->setText(tr("AI 服务：正在启动"));
+        return;
+    }
+    const QString label = workerState_ == QStringLiteral("ready") ? tr("已就绪")
+        : workerState_ == QStringLiteral("starting") ? tr("正在启动")
+        : workerState_ == QStringLiteral("stopped") ? tr("已停止")
+        : workerState_;
+    providerLabel_->setText(tr("AI 服务：%1").arg(label));
+}
+
+void AiPanel::refreshUsageLabel() {
+    if (usageLabel_ == nullptr) {
+        return;
+    }
+    if (documentQaActive_ && busy_) {
+        usageLabel_->setText(tr("正在生成…已收到 %1 字").arg(lastAnswer_.size()));
+        return;
+    }
+    if (!usageKnown_) {
+        usageLabel_->clear();
+        return;
+    }
+    usageLabel_->setText(tr("本次：输入 %1 tokens · 输出 %2 tokens · 约 %3")
+                             .arg(lastInputTokens_)
+                             .arg(lastOutputTokens_)
+                             .arg(formatCost(lastCost_)));
+}
+
+void AiPanel::refreshScopeLabel() {
+    if (scopeLabel_ == nullptr) {
+        return;
+    }
+    switch (scopeLabelState_) {
+    case ScopeLabelState::Empty:
+        scopeLabel_->clear();
+        break;
+    case ScopeLabelState::DocumentHint:
+        scopeLabel_->setText(
+            tr("本次将问整篇文档：先检索最相关的几块，回答里带可核对的引用。"));
+        break;
+    case ScopeLabelState::SentPage:
+        lastDataScope_ = tr("第 %1 页 · %2 字%3")
+                             .arg(sentPageNumber_)
+                             .arg(sentCharCount_)
+                             .arg(sentTruncated_ ? tr("（已截断）") : QString());
+        scopeLabel_->setText(tr("本次发送：%1").arg(lastDataScope_));
+        break;
+    case ScopeLabelState::SentDocument:
+        lastDataScope_ = tr("整篇文档 · 检索到 %1 块 · %2 字")
+                             .arg(sentBlockCount_)
+                             .arg(sentCharCount_);
+        scopeLabel_->setText(tr("本次发送：%1").arg(lastDataScope_));
+        break;
+    }
+}
+
+void AiPanel::refreshCitationView() {
+    if (citationStatusLabel_ == nullptr || citationList_ == nullptr) {
+        return;
+    }
+    const doc::CitationReport& report = lastCitationReport_;
+    if (!citationStatusVisible_) {
+        citationStatusLabel_->clear();
+    } else {
+        QString status;
+        if (report.citations.isEmpty()) {
+            status = tr("引用核验：回答里没有给出引用");
+        } else if (report.validCount == 0) {
+            status = tr("引用核验：%1 条引用全部无法核实").arg(report.citations.size());
+        } else {
+            status = tr("引用核验：%1 条中 %2 条已核实")
+                         .arg(report.citations.size())
+                         .arg(report.validCount);
+            if (report.invalidCount > 0) {
+                status += tr("，%1 条无法核实").arg(report.invalidCount);
+            }
+        }
+        if (report.hasUnsupportedMarker) {
+            status += tr("；有标记指向无效引用");
+        }
+        citationStatusLabel_->setText(status);
+    }
+
+    // 引用清单：每条引用一行，带核验结果。
+    citationList_->clear();
+    for (const doc::ParsedCitation& citation : report.citations) {
+        auto* item = new QListWidgetItem(citationListText(citation), citationList_);
+        item->setData(Qt::UserRole, citation.number);
+        // 核验不通过的引用不给跳：点了也跳不出一个可信的出处。
+        if (!citation.valid) {
+            item->setToolTip(citation.reason);
+            item->setForeground(QColor(QStringLiteral("#C0562F")));
+        } else {
+            const ai::ContextBlock* block = contextByNumber(citation.number);
+            item->setToolTip(block != nullptr
+                                 ? tr("跳到第 %1 页").arg(block->pageNumber)
+                                 : QString());
+        }
+    }
+}
+
+void AiPanel::retranslateUi() {
+    texts_.retranslate();
+    // 随状态变化的文案按缓存的原始状态重算，不把已翻译过的字符串再翻一遍。
+    refreshStatusLabel();
+    refreshScopeLabel();
+    refreshUsageLabel();
+    refreshCitationView();
 }
 
 void AiPanel::setBusy(bool busy) {

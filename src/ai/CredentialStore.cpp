@@ -1,5 +1,7 @@
 #include "ai/CredentialStore.h"
 
+#include "i18n/Translate.h"
+
 #include <QString>
 
 #ifdef Q_OS_WIN
@@ -40,7 +42,7 @@ bool CredentialStore::store(const QString& targetName,
 #ifdef Q_OS_WIN
     if (targetName.isEmpty()) {
         if (errorMessage != nullptr) {
-            *errorMessage = QStringLiteral("凭据名称为空");
+            *errorMessage = i18n::tr("aipdf::ai::CredentialStore", "凭据名称为空");
         }
         return false;
     }
@@ -68,8 +70,10 @@ bool CredentialStore::store(const QString& targetName,
 
     if (!CredWriteW(&credential, 0)) {
         if (errorMessage != nullptr) {
-            *errorMessage = QStringLiteral("写入 Windows 凭据管理器失败（错误码 %1）")
-                               .arg(static_cast<quint32>(GetLastError()));
+            *errorMessage =
+                i18n::tr("aipdf::ai::CredentialStore",
+                         "写入 Windows 凭据管理器失败（错误码 %1）")
+                    .arg(static_cast<quint32>(GetLastError()));
         }
         return false;
     }
@@ -78,7 +82,7 @@ bool CredentialStore::store(const QString& targetName,
     Q_UNUSED(targetName);
     Q_UNUSED(secret);
     if (errorMessage != nullptr) {
-        *errorMessage = QStringLiteral("当前系统不支持 Windows 凭据管理器");
+        *errorMessage = i18n::tr("aipdf::ai::CredentialStore", "当前系统不支持 Windows 凭据管理器");
     }
     return false;
 #endif
@@ -125,14 +129,15 @@ bool CredentialStore::remove(const QString& targetName, QString* errorMessage) {
         return true;
     }
     if (errorMessage != nullptr) {
-        *errorMessage = QStringLiteral("删除 Windows 凭据失败（错误码 %1）")
-                           .arg(static_cast<quint32>(code));
+        *errorMessage = i18n::tr("aipdf::ai::CredentialStore",
+                                 "删除 Windows 凭据失败（错误码 %1）")
+                            .arg(static_cast<quint32>(code));
     }
     return false;
 #else
     Q_UNUSED(targetName);
     if (errorMessage != nullptr) {
-        *errorMessage = QStringLiteral("当前系统不支持 Windows 凭据管理器");
+        *errorMessage = i18n::tr("aipdf::ai::CredentialStore", "当前系统不支持 Windows 凭据管理器");
     }
     return false;
 #endif

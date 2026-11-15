@@ -2,6 +2,8 @@
 
 #include "doc/LocalIndex.h"
 
+#include "i18n/Translate.h"
+
 #include <QVector>
 #include <QWidget>
 
@@ -49,7 +51,13 @@ private:
     void goToResult(int row);
     void clearResults();
 
+    // 切换语言后重译常驻文案，并重写结果项前缀与状态行。
+    void retranslateUi();
+
     IndexController* controller_ = nullptr;
+    // 是否已经绑定过控制器：没绑定过时状态行保持初始提示，
+    // 而不是显示「尚未打开文档」。
+    bool controllerAssigned_ = false;
     QLabel* statusLabel_ = nullptr;
     QPushButton* buildButton_ = nullptr;
     QPushButton* cancelButton_ = nullptr;
@@ -58,6 +66,8 @@ private:
     QVector<doc::IndexHit> hits_;
     // 重建结果列表时不要触发跳转。
     bool suppressNavigation_ = false;
+    // 一次设定、长期显示的界面文案：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

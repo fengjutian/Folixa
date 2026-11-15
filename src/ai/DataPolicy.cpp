@@ -1,5 +1,7 @@
 #include "ai/DataPolicy.h"
 
+#include "i18n/Translate.h"
+
 namespace aipdf::ai {
 
 QString dataModeId(DataMode mode) {
@@ -44,35 +46,39 @@ PolicyDecision evaluate(DataMode mode, const DataScope& scope) {
 
     if (mode == DataMode::LocalOnly) {
         decision.allowed = false;
-        decision.reason = QStringLiteral("本地模式：文档内容不会离开本机");
+        decision.reason =
+            i18n::tr("aipdf::ai::DataPolicy", "本地模式：文档内容不会离开本机");
         return decision;
     }
 
     if (scope.charCount <= 0) {
         decision.allowed = false;
-        decision.reason = QStringLiteral("没有可发送的内容");
+        decision.reason = i18n::tr("aipdf::ai::DataPolicy", "没有可发送的内容");
         return decision;
     }
 
     if (mode == DataMode::SelectedPages && !scope.hasExplicitPageSelection) {
         decision.allowed = false;
-        decision.reason = QStringLiteral("选定页面模式需要先勾选要发送的页面");
+        decision.reason = i18n::tr("aipdf::ai::DataPolicy",
+                                   "选定页面模式需要先勾选要发送的页面");
         return decision;
     }
 
     if (scope.chunkCount > kMaxChunksPerRequest) {
         decision.allowed = false;
-        decision.reason = QStringLiteral("一次最多发送 %1 块，本次 %2 块")
-                              .arg(kMaxChunksPerRequest)
-                              .arg(scope.chunkCount);
+        decision.reason =
+            i18n::tr("aipdf::ai::DataPolicy", "一次最多发送 %1 块，本次 %2 块")
+                .arg(kMaxChunksPerRequest)
+                .arg(scope.chunkCount);
         return decision;
     }
 
     if (scope.charCount > kMaxCharsPerRequest) {
         decision.allowed = false;
-        decision.reason = QStringLiteral("一次最多发送 %1 字，本次 %2 字")
-                              .arg(kMaxCharsPerRequest)
-                              .arg(scope.charCount);
+        decision.reason =
+            i18n::tr("aipdf::ai::DataPolicy", "一次最多发送 %1 字，本次 %2 字")
+                .arg(kMaxCharsPerRequest)
+                .arg(scope.charCount);
         return decision;
     }
 

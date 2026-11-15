@@ -1,4 +1,4 @@
-#include "pdf/PdfiumAdapter.h"
+﻿#include "pdf/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QImage>
@@ -52,6 +52,10 @@ private slots:
     void oversizedRenderIsRejected();
     void renderScalesWithZoom();
     void goldenImageMatches();
+
+    void formFieldsAreEnumerated();
+    void formFieldValueCanBeSet();
+    void flattenRemovesFormFields();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -233,6 +237,48 @@ void PdfiumAdapterTests::renderScalesWithZoom() {
 
     // 放大不能绕过安全上限。
     QVERIFY(page->render(200.0).isNull());
+}
+
+using aipdf::pdf::FormField;
+using aipdf::pdf::openDocument;
+
+
+void PdfiumAdapterTests::formFieldsAreEnumerated() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    const auto& document = opened.document;
+    QVERIFY(document.isValid());
+
+    const QVector<FormField> fields = document.formFields();
+    QCOMPARE(fields.size(), 3);
+    QCOMPARE(fields.at(0).name, QStringLiteral("fullName"));
+    QCOMPARE(fields.at(0).type, 6);   // FPDF_FORMFIELD_TEXTFIELD
+    QCOMPARE(fields.at(1).name, QStringLiteral("agree"));
+    QCOMPARE(fields.at(1).type, 2);   // FPDF_FORMFIELD_CHECKBOX
+    QCOMPARE(fields.at(2).name, QStringLiteral("country"));
+    QCOMPARE(fields.at(2).type, 4);   // FPDF_FORMFIELD_COMBOBOX
+    QCOMPARE(fields.at(2).options,
+             (QVector<QString>{ QStringLiteral("China"), QStringLiteral("Other") }));
+    QVERIFY(fields.at(0).rect.width() > 0.0);
+}
+
+void PdfiumAdapterTests::formFieldValueCanBeSet() {
+    auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    QVERIFY(document.setFormFieldValue(0, QStringLiteral("fullName"), QStringLiteral("张三")));
+    QVERIFY(document.setFormFieldValue(0, QStringLiteral("agree"), QStringLiteral("Yes")));
+
+    const QVector<FormField> fields = document.formFields();
+    QCOMPARE(fields.at(0).value, QStringLiteral("张三"));
+}
+
+void PdfiumAdapterTests::flattenRemovesFormFields() {
+    auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    QVERIFY(!document.formFields().isEmpty());
+    QVERIFY(document.flattenPage(0));
+    QVERIFY2(document.formFields().isEmpty(), "扁平化之后不该再有可填字段");
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

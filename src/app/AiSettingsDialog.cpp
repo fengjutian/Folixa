@@ -1,6 +1,8 @@
 #include "app/AiSettingsDialog.h"
 
+#include "app/Language.h"
 #include "ai/ProviderConfig.h"
+#include "i18n/Translate.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -24,33 +26,42 @@ constexpr auto kProviderOpenAi = "openai";
 }  // namespace
 
 AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
-    setWindowTitle(tr("AI 服务设置"));
+    texts_.bind([this] { setWindowTitle(tr("AI 服务设置")); });
     setObjectName(QStringLiteral("aiSettingsDialog"));
     setMinimumWidth(520);
 
     auto* layout = new QVBoxLayout(this);
     layout->setSpacing(10);
 
-    auto* intro = new QLabel(
-        tr("密钥保存在 Windows 凭据管理器里，不写进配置文件。\n"
-           "留空密钥表示不修改已保存的值。"),
-        this);
+    auto* intro = new QLabel(this);
     intro->setObjectName(QStringLiteral("aiSettingsIntro"));
     intro->setWordWrap(true);
+    texts_.bind([this, intro] {
+        intro->setText(tr("密钥保存在 Windows 凭据管理器里，不写进配置文件。") +
+                       QStringLiteral("\n") +
+                       tr("留空密钥表示不修改已保存的值。"));
+    });
 
     providerCombo_ = new QComboBox(this);
     providerCombo_->setObjectName(QStringLiteral("aiSettingsProvider"));
-    providerCombo_->addItem(tr("演示模式（本地生成，不联网）"),
-                            QString::fromLatin1(kProviderDemo));
-    providerCombo_->addItem(tr("OpenAI 兼容（云端模型）"),
-                            QString::fromLatin1(kProviderOpenAi));
+    providerCombo_->addItem(QString(), QString::fromLatin1(kProviderDemo));
+    providerCombo_->addItem(QString(), QString::fromLatin1(kProviderOpenAi));
+    texts_.bind([this] {
+        providerCombo_->setItemText(0, tr("演示模式（本地生成，不联网）"));
+        providerCombo_->setItemText(1, tr("OpenAI 兼容（云端模型）"));
+    });
 
     // 数据策略（v0.12.0）：决定文档内容能不能离开本机、离开多少。
     dataModeCombo_ = new QComboBox(this);
     dataModeCombo_->setObjectName(QStringLiteral("aiSettingsDataMode"));
-    dataModeCombo_->addItem(tr("本地（文档内容不出本机）"), QStringLiteral("local"));
-    dataModeCombo_->addItem(tr("片段云端（只送当前页/选区或检索块）"), QStringLiteral("chunks"));
-    dataModeCombo_->addItem(tr("选定页面（只送勾选的页）"), QStringLiteral("pages"));
+    dataModeCombo_->addItem(QString(), QStringLiteral("local"));
+    dataModeCombo_->addItem(QString(), QStringLiteral("chunks"));
+    dataModeCombo_->addItem(QString(), QStringLiteral("pages"));
+    texts_.bind([this] {
+        dataModeCombo_->setItemText(0, tr("本地（文档内容不出本机）"));
+        dataModeCombo_->setItemText(1, tr("片段云端（只送当前页/选区或检索块）"));
+        dataModeCombo_->setItemText(2, tr("选定页面（只送勾选的页）"));
+    });
     dataModeHint_ = new QLabel(this);
     dataModeHint_->setObjectName(QStringLiteral("aiSettingsDataModeHint"));
     dataModeHint_->setWordWrap(true);
@@ -65,52 +76,68 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     apiKeyEdit_ = new QLineEdit(this);
     apiKeyEdit_->setObjectName(QStringLiteral("aiSettingsApiKey"));
     apiKeyEdit_->setEchoMode(QLineEdit::Password);
-    apiKeyEdit_->setPlaceholderText(tr("粘贴 API 密钥"));
-    apiKeyEdit_->setAccessibleName(tr("API 密钥"));
+    texts_.bind([this] { apiKeyEdit_->setPlaceholderText(tr("粘贴 API 密钥")); });
+    texts_.bind([this] { apiKeyEdit_->setAccessibleName(tr("API 密钥")); });
 
     keyHint_ = new QLabel(this);
     keyHint_->setObjectName(QStringLiteral("aiSettingsKeyHint"));
     keyHint_->setWordWrap(true);
 
-    clearKeyBox_ = new QCheckBox(tr("清除已保存的密钥"), this);
+    clearKeyBox_ = new QCheckBox(this);
     clearKeyBox_->setObjectName(QStringLiteral("aiSettingsClearKey"));
+    texts_.bind([this] { clearKeyBox_->setText(tr("清除已保存的密钥")); });
 
     inputPrice_ = new QDoubleSpinBox(this);
     inputPrice_->setObjectName(QStringLiteral("aiSettingsInputPrice"));
     inputPrice_->setRange(0.0, 100000.0);
     inputPrice_->setDecimals(4);
     inputPrice_->setSingleStep(0.01);
-    inputPrice_->setSuffix(tr(" / 百万 tokens"));
+    texts_.bind([this] { inputPrice_->setSuffix(tr(" / 百万 tokens")); });
 
     outputPrice_ = new QDoubleSpinBox(this);
     outputPrice_->setObjectName(QStringLiteral("aiSettingsOutputPrice"));
     outputPrice_->setRange(0.0, 100000.0);
     outputPrice_->setDecimals(4);
     outputPrice_->setSingleStep(0.01);
-    outputPrice_->setSuffix(tr(" / 百万 tokens"));
+    texts_.bind([this] { outputPrice_->setSuffix(tr(" / 百万 tokens")); });
 
     timeout_ = new QSpinBox(this);
     timeout_->setObjectName(QStringLiteral("aiSettingsTimeout"));
     timeout_->setRange(1, 3600);
-    timeout_->setSuffix(tr(" 秒"));
+    texts_.bind([this] { timeout_->setSuffix(tr(" 秒")); });
 
     auto* form = new QFormLayout;
-    form->addRow(tr("服务商"), providerCombo_);
-    form->addRow(tr("数据模式"), dataModeCombo_);
+    // 表单行标签也是常驻文案：源文案作为参数带进来，收的一侧用 tr(source) 现翻。
+    auto addFormLabel = [&](const char* source, QWidget* field) {
+        auto* label = new QLabel(this);
+        form->addRow(label, field);
+        texts_.bind([this, label, source] { label->setText(tr(source)); });
+    };
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "服务商"),
+                 providerCombo_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "数据模式"),
+                 dataModeCombo_);
     form->addRow(QString(), dataModeHint_);
-    form->addRow(tr("服务地址"), baseUrlEdit_);
-    form->addRow(tr("模型"), modelEdit_);
-    form->addRow(tr("API 密钥"), apiKeyEdit_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "服务地址"),
+                 baseUrlEdit_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "模型"),
+                 modelEdit_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "API 密钥"),
+                 apiKeyEdit_);
     form->addRow(QString(), keyHint_);
     form->addRow(QString(), clearKeyBox_);
-    form->addRow(tr("输入单价"), inputPrice_);
-    form->addRow(tr("输出单价"), outputPrice_);
-    form->addRow(tr("超时"), timeout_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "输入单价"),
+                 inputPrice_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "输出单价"),
+                 outputPrice_);
+    addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "超时"), timeout_);
 
     auto* buttons = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-    buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
-    buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
+    texts_.bind([this, buttons] {
+        buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
+        buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
+    });
 
     layout->addWidget(intro);
     layout->addLayout(form);
@@ -138,6 +165,15 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(dataModeCombo_, &QComboBox::currentIndexChanged, this,
             [this](int) { updateDataModeHint(); });
     updateDataModeHint();
+    // 切换语言后常驻文案就地重译，随模式变化的说明重新算一遍。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &AiSettingsDialog::retranslateUi);
+}
+
+void AiSettingsDialog::retranslateUi() {
+    texts_.retranslate();
+    updateDataModeHint();
+    updateEnabledState();
 }
 
 void AiSettingsDialog::applyConfig(const QString& providerId,

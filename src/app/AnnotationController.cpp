@@ -1,4 +1,4 @@
-#include "app/AnnotationController.h"
+﻿#include "app/AnnotationController.h"
 
 #include "app/PdfPageOperations.h"
 #include "doc/EditCommand.h"

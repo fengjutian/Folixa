@@ -1,5 +1,7 @@
 ﻿#include "pdf/QpdfBackend.h"
 
+#include "i18n/Translate.h"
+
 #ifdef AIPDF_WITH_QPDF
 
 #include <qpdf/QPDF.hh>
@@ -24,7 +26,7 @@ bool verifyWithQpdf(const QByteArray& bytes, QString* error) {
 #ifdef AIPDF_WITH_QPDF
     if (bytes.isEmpty()) {
         if (error != nullptr) {
-            *error = QStringLiteral("没有可校验的内容");
+            *error = i18n::tr("aipdf::pdf::QpdfBackend", "没有可校验的内容");
         }
         return false;
     }
@@ -37,18 +39,19 @@ bool verifyWithQpdf(const QByteArray& bytes, QString* error) {
             const std::vector<QPDFExc> warnings = pdf.getWarnings();
             if (!warnings.empty()) {
                 if (error != nullptr) {
-                    *error = QStringLiteral("qpdf 报告结构问题：%1")
+                    *error = i18n::tr("aipdf::pdf::QpdfBackend", "qpdf 报告结构问题：%1")
                                  .arg(QString::fromStdString(warnings.front().what()));
                 }
             } else if (error != nullptr) {
-                *error = QStringLiteral("qpdf 报告了结构问题但没有给出细节");
+                *error = i18n::tr("aipdf::pdf::QpdfBackend", "qpdf 报告了结构问题但没有给出细节");
             }
             return false;
         }
         return true;
     } catch (const std::exception& exception) {
         if (error != nullptr) {
-            *error = QStringLiteral("qpdf 解析失败：%1").arg(QString::fromUtf8(exception.what()));
+            *error = i18n::tr("aipdf::pdf::QpdfBackend", "qpdf 解析失败：%1")
+                         .arg(QString::fromUtf8(exception.what()));
         }
         return false;
     }

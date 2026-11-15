@@ -3,6 +3,7 @@
 #include "ai/ChatTypes.h"
 #include "ai/DataPolicy.h"
 #include "doc/CitationVerifier.h"
+#include "i18n/Translate.h"
 
 #include <QObject>
 #include <QString>
@@ -103,6 +104,18 @@ signals:
 
 private:
     void buildUi();
+    // 切换语言后就地重译：常驻文案走 texts_，状态行按缓存重算。
+    void retranslateUi();
+    // 按缓存的 Worker / Provider 状态重算服务状态行。
+    void refreshStatusLabel();
+    // 按缓存的 token 用量重算费用行。
+    void refreshUsageLabel();
+    // 按缓存的范围重算「本次发送」说明。
+    void refreshScopeLabel();
+    // 按最近一次核验报告重算引用状态行与引用清单。
+    void refreshCitationView();
+    // 当前服务状态的展示名（本地 / 演示 / 服务商 · 模型）。
+    QString providerDisplayName() const;
     // 文本还没抽出来时：记下要做的任务，等 textPageReady 到了再发。
     void ensureTextThenRun(const QString& task, const QString& question);
     void sendTask(const QString& task, const QString& question);
@@ -118,7 +131,6 @@ private:
     QString currentPageText() const;
     QString currentSelection() const;
     void appendMessage(const QString& html);
-    void updateStatus(const QString& text);
     void setBusy(bool busy);
     void refreshProviderStatus();
     // 把正文里的 [n] 变成可点击的引用链接。
@@ -155,6 +167,33 @@ private:
     QPushButton* scopePageButton_ = nullptr;
     QPushButton* scopeDocumentButton_ = nullptr;
     QButtonGroup* scopeGroup_ = nullptr;
+
+    // 常驻文案的登记表：切换语言时统一点重译。
+    i18n::TextBindings texts_;
+
+    // 服务状态缓存：切换语言时按同一份状态重算文案。
+    QString workerState_;
+    bool providerStatusKnown_ = false;
+    QString providerName_;
+    QString providerModel_;
+    QString providerMode_;
+    bool providerDemo_ = false;
+    // 最近一次用量：费用行要能按新语言重算。
+    bool usageKnown_ = false;
+    int lastInputTokens_ = 0;
+    int lastOutputTokens_ = 0;
+    double lastCost_ = 0.0;
+    // 「本次发送」范围缓存：换语言时重新拼一遍，不留在旧语言里。
+    enum class ScopeLabelState { Empty, DocumentHint, SentPage, SentDocument };
+    ScopeLabelState scopeLabelState_ = ScopeLabelState::Empty;
+    int sentPageNumber_ = 0;
+    int sentCharCount_ = 0;
+    bool sentTruncated_ = false;
+    int sentBlockCount_ = 0;
+    // 引用状态行该不该显示：换范围或发新请求时清掉。
+    bool citationStatusVisible_ = false;
+    // 对话里已经有消息：欢迎语只在还没开聊时重译，不能覆盖聊天记录。
+    bool conversationStarted_ = false;
 
     // 正在进行的流式请求。
     QString activeRequestId_;

@@ -708,7 +708,7 @@ def form_pdf():
             b"/Rect [130 620 340 644] /DA (/Helv 12 Tf 0 g) >>"),
         (6, b"<< /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /V /Off /AS /Off /F 4 "
             b"/Rect [88 552 104 568] >>"),
-        (7, b"<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Opt [(China) (Other)] "
+        (7, b"<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Ff 131072 /Opt [(China) (Other)] "
             b"/V (China) /F 4 /Rect [130 512 300 536] /DA (/Helv 12 Tf 0 g) >>"),
         (8, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
     ]

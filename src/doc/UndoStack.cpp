@@ -2,6 +2,7 @@
 
 #include "doc/EditCommand.h"
 #include "doc/EditContext.h"
+#include "i18n/Translate.h"
 
 namespace aipdf::doc {
 
@@ -61,14 +62,14 @@ QString UndoStack::undoText() const {
     if (undoStack_.isEmpty()) {
         return {};
     }
-    return QStringLiteral("撤销 %1").arg(undoStack_.last()->displayName());
+    return i18n::tr("aipdf::doc::UndoStack", "撤销 %1").arg(undoStack_.last()->displayName());
 }
 
 QString UndoStack::redoText() const {
     if (redoStack_.isEmpty()) {
         return {};
     }
-    return QStringLiteral("重做 %1").arg(redoStack_.last()->displayName());
+    return i18n::tr("aipdf::doc::UndoStack", "重做 %1").arg(redoStack_.last()->displayName());
 }
 
 int UndoStack::undoCount() const {

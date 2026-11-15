@@ -1,5 +1,6 @@
 #include "ocr/TesseractCliEngine.h"
 
+#include "i18n/Translate.h"
 #include "ocr/ImagePreprocess.h"
 #include "ocr/OcrGeometry.h"
 #include "ocr/OcrTextUtils.h"
@@ -110,11 +111,12 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
     result.engineId = id();
 
     if (!isAvailable()) {
-        result.error = QStringLiteral("没有找到 tesseract 可执行文件");
+        result.error = i18n::tr("aipdf::ocr::TesseractCliEngine",
+                                "没有找到 tesseract 可执行文件");
         return result;
     }
     if (job.image.isNull()) {
-        result.error = QStringLiteral("页面图像为空");
+        result.error = i18n::tr("aipdf::ocr::TesseractCliEngine", "页面图像为空");
         return result;
     }
     if (cancelled_.load()) {
@@ -125,13 +127,13 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
     // 临时目录：识别完就删，不在用户磁盘上留页面截图。
     QTemporaryDir workDir;
     if (!workDir.isValid()) {
-        result.error = QStringLiteral("无法创建临时目录");
+        result.error = i18n::tr("aipdf::ocr::TesseractCliEngine", "无法创建临时目录");
         return result;
     }
     const QString imagePath = workDir.filePath(QStringLiteral("page.png"));
     const QImage input = usePreprocessing_ ? preprocessForOcr(job.image) : job.image;
     if (!input.save(imagePath, "PNG")) {
-        result.error = QStringLiteral("页面图像写盘失败");
+        result.error = i18n::tr("aipdf::ocr::TesseractCliEngine", "页面图像写盘失败");
         return result;
     }
 
@@ -152,13 +154,14 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
               << QStringLiteral("-c") << QStringLiteral("tessedit_create_tsv=1");
     process.start(executable_, arguments);
     if (!process.waitForStarted(10'000)) {
-        result.error = QStringLiteral("tesseract 启动失败");
+        result.error = i18n::tr("aipdf::ocr::TesseractCliEngine", "tesseract 启动失败");
         return result;
     }
     if (!process.waitForFinished(timeoutMs_)) {
         process.kill();
         process.waitForFinished(2000);
-        result.error = QStringLiteral("识别超时（%1 ms）").arg(timeoutMs_);
+        result.error =
+            i18n::tr("aipdf::ocr::TesseractCliEngine", "识别超时（%1 ms）").arg(timeoutMs_);
         return result;
     }
     if (cancelled_.load()) {
@@ -167,8 +170,10 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         const QString stderrText = QString::fromUtf8(process.readAllStandardError()).trimmed();
-        result.error = stderrText.isEmpty() ? QStringLiteral("tesseract 退出码 %1").arg(process.exitCode())
-                                            : stderrText;
+        result.error = stderrText.isEmpty()
+                           ? i18n::tr("aipdf::ocr::TesseractCliEngine", "tesseract 退出码 %1")
+                                 .arg(process.exitCode())
+                           : stderrText;
         return result;
     }
 

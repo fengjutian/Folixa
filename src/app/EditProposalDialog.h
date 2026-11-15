@@ -1,5 +1,6 @@
 #pragma once
 
+#include "i18n/Translate.h"
 #include "tools/ProposalValidator.h"
 
 #include <QDialog>
@@ -15,6 +16,12 @@ class EditProposalDialog : public QDialog {
 
 public:
     explicit EditProposalDialog(const tools::Proposal& proposal, QWidget* parent = nullptr);
+
+private:
+    // 切换语言后就地重译。
+    void retranslateUi();
+
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

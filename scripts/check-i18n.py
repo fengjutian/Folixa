@@ -35,8 +35,12 @@ TRANSLATE_RE = re.compile(
 NOOP_RE = re.compile(r'QT_TRANSLATE_NOOP\(\s*"([^"]+)"\s*,\s*"((?:[^"\\]|\\.)*)"')
 
 NAMESPACE_RE = re.compile(r'\bnamespace\s+([A-Za-z_][\w:]*)\s*\{')
-CLASS_DECL_RE = re.compile(r'\b(?:class|struct)\s+([A-Z]\w*)\b')
-CLASS_METHOD_RE = re.compile(r'\b([A-Z]\w*)::(\w+)\s*\(')
+CLASS_DECL_RE = re.compile(r'^(?:class|struct)\s+([A-Z]\w*)\b', re.MULTILINE)
+# 函数定义写在行首（本仓库的代码风格）：`void MainWindow::saveDocument() {`。
+# 只认行首的 `Class::method(`，避免把表达式里的 `QString::fromUtf8(`、
+# `QTimer::singleShot(` 当成"当前类"。
+CLASS_METHOD_RE = re.compile(r'^[A-Za-z_][\w:<>,*&\s]*?\b([A-Z]\w*)::(~?\w+)\s*\(',
+                             re.MULTILINE)
 
 
 def strip_comments(text: str) -> str:
@@ -110,6 +114,10 @@ def collect_usages(src: Path) -> tuple[dict[tuple[str, str], list[str]], list[st
         for match in NOOP_RE.finditer(text):
             usages[(match.group(1), match.group(2))].append(f"{path}:{line_of(text, match.start())}")
         for match in TR_RE.finditer(text):
+            # `i18n::tr("上下文", …)` 会被 TR_RE 匹配到里面的 `tr(`，
+            # 但它的第一个参数是上下文、不是文案：这种写法由 I18N_TR_RE 处理。
+            if text[max(0, match.start() - 6):match.start()] == "i18n::":
+                continue
             context = context_at(text, match.start(), prefix)
             location = f"{path}:{line_of(text, match.start())}"
             if context is None:

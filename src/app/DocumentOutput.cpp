@@ -2,6 +2,8 @@
 
 #include "pdf/DocumentWriter.h"
 
+#include "i18n/Translate.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -42,7 +44,8 @@ pdf::PdfDocument documentForOutput(const pdf::PdfDocument& document, QString* wa
             return reopened.document;
         }
         if (warning != nullptr) {
-            *warning = QStringLiteral("输出副本打不开：%1").arg(reopened.errorMessage);
+            *warning = i18n::tr("aipdf::app::DocumentOutput", "输出副本打不开：%1")
+                           .arg(reopened.errorMessage);
         }
         return document;
     }
@@ -50,8 +53,9 @@ pdf::PdfDocument documentForOutput(const pdf::PdfDocument& document, QString* wa
     // 退回原文档：正文还在，只是本程序写的批注可能不出现。调用方要提示用户。
     if (warning != nullptr) {
         *warning = prepared.error.isEmpty()
-                      ? QStringLiteral("输出副本创建失败，批注可能不可见")
-                      : QStringLiteral("输出副本创建失败：%1").arg(prepared.error);
+                      ? i18n::tr("aipdf::app::DocumentOutput", "输出副本创建失败，批注可能不可见")
+                      : i18n::tr("aipdf::app::DocumentOutput", "输出副本创建失败：%1")
+                            .arg(prepared.error);
     }
     return document;
 }
@@ -62,12 +66,12 @@ OutputResult exportPageImages(const pdf::PdfDocument& document,
                               const ImageExportOptions& options) {
     OutputResult result;
     if (!document.isValid()) {
-        result.error = QStringLiteral("没有可导出的文档");
+        result.error = i18n::tr("aipdf::app::DocumentOutput", "没有可导出的文档");
         return result;
     }
     const QDir dir(directory);
     if (!dir.exists()) {
-        result.error = QStringLiteral("目录不存在：%1").arg(directory);
+        result.error = i18n::tr("aipdf::app::DocumentOutput", "目录不存在：%1").arg(directory);
         return result;
     }
     const int dpi = std::clamp(options.dpi, 72, 600);
@@ -81,19 +85,19 @@ OutputResult exportPageImages(const pdf::PdfDocument& document,
     for (int pageIndex = range.firstPage; pageIndex <= range.lastPage; ++pageIndex) {
         const auto page = source.page(pageIndex);
         if (!page.has_value()) {
-            result.error = QStringLiteral("第 %1 页打不开").arg(pageIndex + 1);
+            result.error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页打不开").arg(pageIndex + 1);
             return result;
         }
         const QImage image = page->render(zoom);
         if (image.isNull()) {
-            result.error = QStringLiteral("第 %1 页渲染失败").arg(pageIndex + 1);
+            result.error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页渲染失败").arg(pageIndex + 1);
             return result;
         }
         const QString fileName =
             QStringLiteral("%1-p%2.%3").arg(baseName, paddedPage(pageIndex), format);
         const QString path = dir.filePath(fileName);
         if (!image.save(path, nullptr, format == QStringLiteral("jpg") ? options.jpegQuality : -1)) {
-            result.error = QStringLiteral("写入失败：%1").arg(path);
+            result.error = i18n::tr("aipdf::app::DocumentOutput", "写入失败：%1").arg(path);
             return result;
         }
         result.files.append(path);
@@ -108,11 +112,11 @@ OutputResult exportPlainText(const pdf::PdfDocument& document,
                              const TextExportOptions& options) {
     OutputResult result;
     if (!document.isValid()) {
-        result.error = QStringLiteral("没有可导出的文档");
+        result.error = i18n::tr("aipdf::app::DocumentOutput", "没有可导出的文档");
         return result;
     }
     if (filePath.isEmpty()) {
-        result.error = QStringLiteral("没有目标路径");
+        result.error = i18n::tr("aipdf::app::DocumentOutput", "没有目标路径");
         return result;
     }
 
@@ -124,7 +128,7 @@ OutputResult exportPlainText(const pdf::PdfDocument& document,
     for (int pageIndex = range.firstPage; pageIndex <= range.lastPage; ++pageIndex) {
         const auto page = source.page(pageIndex);
         if (!page.has_value()) {
-            result.error = QStringLiteral("第 %1 页打不开").arg(pageIndex + 1);
+            result.error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页打不开").arg(pageIndex + 1);
             return result;
         }
         const auto textPage = page->extractText();
@@ -139,7 +143,7 @@ OutputResult exportPlainText(const pdf::PdfDocument& document,
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        result.error = QStringLiteral("无法写入：%1").arg(file.errorString());
+        result.error = i18n::tr("aipdf::app::DocumentOutput", "无法写入：%1").arg(file.errorString());
         return result;
     }
     // UTF-8 BOM：Windows 记事本靠它认编码，否则中文会变乱码。
@@ -158,13 +162,13 @@ bool printDocument(const pdf::PdfDocument& document,
                    QString* error) {
     if (printer == nullptr) {
         if (error != nullptr) {
-            *error = QStringLiteral("没有可用的打印机");
+            *error = i18n::tr("aipdf::app::DocumentOutput", "没有可用的打印机");
         }
         return false;
     }
     if (!document.isValid()) {
         if (error != nullptr) {
-            *error = QStringLiteral("没有可打印的文档");
+            *error = i18n::tr("aipdf::app::DocumentOutput", "没有可打印的文档");
         }
         return false;
     }
@@ -192,9 +196,10 @@ bool printDocument(const pdf::PdfDocument& document,
     QPainter painter;
     if (!painter.begin(printer)) {
         if (error != nullptr) {
-            *error = QStringLiteral("无法开始打印：%1").arg(printer->printerState() == QPrinter::Error
-                                                               ? QStringLiteral("打印机错误")
-                                                               : QStringLiteral("设备忙"));
+            *error = i18n::tr("aipdf::app::DocumentOutput", "无法开始打印：%1")
+                         .arg(printer->printerState() == QPrinter::Error
+                                  ? i18n::tr("aipdf::app::DocumentOutput", "打印机错误")
+                                  : i18n::tr("aipdf::app::DocumentOutput", "设备忙"));
         }
         return false;
     }
@@ -224,7 +229,7 @@ bool printDocument(const pdf::PdfDocument& document,
         if (!firstSheet && !printer->newPage()) {
             painter.end();
             if (error != nullptr) {
-                *error = QStringLiteral("换页失败");
+                *error = i18n::tr("aipdf::app::DocumentOutput", "换页失败");
             }
             return false;
         }
@@ -236,7 +241,7 @@ bool printDocument(const pdf::PdfDocument& document,
             if (!page.has_value()) {
                 painter.end();
                 if (error != nullptr) {
-                    *error = QStringLiteral("第 %1 页打不开").arg(pageIndex + 1);
+                    *error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页打不开").arg(pageIndex + 1);
                 }
                 return false;
             }
@@ -246,7 +251,7 @@ bool printDocument(const pdf::PdfDocument& document,
             if (pageWidth <= 0.0 || pageHeight <= 0.0) {
                 painter.end();
                 if (error != nullptr) {
-                    *error = QStringLiteral("第 %1 页尺寸异常").arg(pageIndex + 1);
+                    *error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页尺寸异常").arg(pageIndex + 1);
                 }
                 return false;
             }
@@ -268,7 +273,7 @@ bool printDocument(const pdf::PdfDocument& document,
             if (image.isNull()) {
                 painter.end();
                 if (error != nullptr) {
-                    *error = QStringLiteral("第 %1 页渲染失败").arg(pageIndex + 1);
+                    *error = i18n::tr("aipdf::app::DocumentOutput", "第 %1 页渲染失败").arg(pageIndex + 1);
                 }
                 return false;
             }

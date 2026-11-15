@@ -1,4 +1,4 @@
-﻿#include "app/MainWindow.h"
+#include "app/MainWindow.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -57,6 +57,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPainter>
+#include <QPointer>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -2222,8 +2223,13 @@ void MainWindow::syncLanguageMenu() {
 }
 
 void MainWindow::bindWelcomeTab(QWidget* page) {
-    texts_.bind([this, page] {
-        const int index = tabs_->indexOf(page);
+    // 用 QPointer 兜底：标签页随时可能被关掉并销毁，重译时不能再碰野指针。
+    QPointer<QWidget> guard(page);
+    texts_.bind([this, guard] {
+        if (guard.isNull()) {
+            return;
+        }
+        const int index = tabs_->indexOf(guard);
         if (index >= 0) {
             tabs_->setTabText(index, tr("欢迎页"));
         }

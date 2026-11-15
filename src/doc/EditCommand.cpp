@@ -2,6 +2,7 @@
 
 #include "doc/AnnotationModel.h"
 #include "doc/PageCommand.h"
+#include "i18n/Translate.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -34,7 +35,8 @@ QString AddAnnotationCommand::typeName() const {
 }
 
 QString AddAnnotationCommand::displayName() const {
-    return QStringLiteral("添加%1").arg(pdf::annotationTypeName(annotation_.type));
+    return i18n::tr("aipdf::doc::EditCommand", "添加%1")
+        .arg(pdf::annotationTypeName(annotation_.type));
 }
 
 QByteArray AddAnnotationCommand::serialize() const {
@@ -49,14 +51,15 @@ bool AddAnnotationCommand::deserialize(const QByteArray& data, QString* error) {
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令不是合法的 JSON：%1").arg(parseError.errorString());
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令不是合法的 JSON：%1")
+                         .arg(parseError.errorString());
         }
         return false;
     }
     const QJsonObject object = document.object();
     if (object.value(QString::fromLatin1(kKeyType)).toString() != typeName()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令类型不匹配");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令类型不匹配");
         }
         return false;
     }
@@ -64,7 +67,7 @@ bool AddAnnotationCommand::deserialize(const QByteArray& data, QString* error) {
     if (!pdf::annotationFromJson(object.value(QString::fromLatin1(kKeyAnnotation)).toObject(),
                                  &annotation)) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令里的批注内容不完整");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令里的批注内容不完整");
         }
         return false;
     }
@@ -102,7 +105,8 @@ QString RemoveAnnotationCommand::typeName() const {
 }
 
 QString RemoveAnnotationCommand::displayName() const {
-    return QStringLiteral("删除%1").arg(pdf::annotationTypeName(annotation_.type));
+    return i18n::tr("aipdf::doc::EditCommand", "删除%1")
+        .arg(pdf::annotationTypeName(annotation_.type));
 }
 
 QByteArray RemoveAnnotationCommand::serialize() const {
@@ -117,14 +121,15 @@ bool RemoveAnnotationCommand::deserialize(const QByteArray& data, QString* error
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令不是合法的 JSON：%1").arg(parseError.errorString());
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令不是合法的 JSON：%1")
+                         .arg(parseError.errorString());
         }
         return false;
     }
     const QJsonObject object = document.object();
     if (object.value(QString::fromLatin1(kKeyType)).toString() != typeName()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令类型不匹配");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令类型不匹配");
         }
         return false;
     }
@@ -132,7 +137,7 @@ bool RemoveAnnotationCommand::deserialize(const QByteArray& data, QString* error
     if (!pdf::annotationFromJson(object.value(QString::fromLatin1(kKeyRemoved)).toObject(),
                                  &annotation)) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令里的批注内容不完整");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令里的批注内容不完整");
         }
         return false;
     }
@@ -171,7 +176,8 @@ QString UpdateAnnotationCommand::typeName() const {
 }
 
 QString UpdateAnnotationCommand::displayName() const {
-    return QStringLiteral("修改%1").arg(pdf::annotationTypeName(after_.type));
+    return i18n::tr("aipdf::doc::EditCommand", "修改%1")
+        .arg(pdf::annotationTypeName(after_.type));
 }
 
 QByteArray UpdateAnnotationCommand::serialize() const {
@@ -187,14 +193,15 @@ bool UpdateAnnotationCommand::deserialize(const QByteArray& data, QString* error
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令不是合法的 JSON：%1").arg(parseError.errorString());
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令不是合法的 JSON：%1")
+                         .arg(parseError.errorString());
         }
         return false;
     }
     const QJsonObject object = document.object();
     if (object.value(QString::fromLatin1(kKeyType)).toString() != typeName()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令类型不匹配");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令类型不匹配");
         }
         return false;
     }
@@ -203,13 +210,14 @@ bool UpdateAnnotationCommand::deserialize(const QByteArray& data, QString* error
     if (!pdf::annotationFromJson(object.value(QString::fromLatin1(kKeyBefore)).toObject(), &before) ||
         !pdf::annotationFromJson(object.value(QString::fromLatin1(kKeyAfter)).toObject(), &after)) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令里的批注内容不完整");
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令里的批注内容不完整");
         }
         return false;
     }
     if (before.id != after.id) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令里的前后批注不是同一条");
+            *error =
+                i18n::tr("aipdf::doc::EditCommand", "批注命令里的前后批注不是同一条");
         }
         return false;
     }
@@ -268,7 +276,8 @@ std::unique_ptr<EditCommand> deserializeEditCommand(const QByteArray& data, QStr
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error != nullptr) {
-            *error = QStringLiteral("批注命令不是合法的 JSON：%1").arg(parseError.errorString());
+            *error = i18n::tr("aipdf::doc::EditCommand", "批注命令不是合法的 JSON：%1")
+                         .arg(parseError.errorString());
         }
         return nullptr;
     }
@@ -276,7 +285,7 @@ std::unique_ptr<EditCommand> deserializeEditCommand(const QByteArray& data, QStr
     auto command = createEditCommand(typeName);
     if (command == nullptr) {
         if (error != nullptr) {
-            *error = QStringLiteral("未知的批注命令类型：%1").arg(typeName);
+            *error = i18n::tr("aipdf::doc::EditCommand", "未知的批注命令类型：%1").arg(typeName);
         }
         return nullptr;
     }

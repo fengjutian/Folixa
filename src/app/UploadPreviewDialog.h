@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ai/UploadPreview.h"
+#include "i18n/Translate.h"
 
 #include <QDialog>
 
@@ -18,7 +19,11 @@ public:
     explicit UploadPreviewDialog(const ai::UploadPreview& preview, QWidget* parent = nullptr);
 
 private:
+    // 切换语言后就地重译。
+    void retranslateUi();
+
     ai::UploadPreview preview_;
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

@@ -1,7 +1,9 @@
 ﻿#include "app/PresentationWindow.h"
 
 #include "app/DocumentOutput.h"
+#include "app/Language.h"
 #include "app/ViewFit.h"
+#include "i18n/Translate.h"
 #include <QDateTime>
 #include <QFile>
 #include <QTextStream>
@@ -33,12 +35,16 @@ void trace(const QString& message) {
 
 PresentationWindow::PresentationWindow(pdf::PdfDocument document, QWidget* parent)
     : QWidget(parent), document_(std::move(document)) {
-    setWindowTitle(tr("放映"));
+    texts_.bind([this] { setWindowTitle(tr("放映")); });
     setWindowFlag(Qt::Window, true);
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_DeleteOnClose, true);
     setAutoFillBackground(false);
     setStyleSheet(QStringLiteral("background: #111111;"));
+
+    // 放映期间也可以切换语言：标题跟着新语言走，页码与画面不受影响。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &PresentationWindow::retranslateUi);
 
     // 放映要看到批注：走和打印/导出同一条路（先补 /AP 再渲染）。
     QString warning;
@@ -48,6 +54,10 @@ PresentationWindow::PresentationWindow(pdf::PdfDocument document, QWidget* paren
     }
     pageCount_ = document_.isValid() ? document_.pageCount() : 0;
     page_ = 0;
+}
+
+void PresentationWindow::retranslateUi() {
+    texts_.retranslate();
 }
 
 void PresentationWindow::start() {

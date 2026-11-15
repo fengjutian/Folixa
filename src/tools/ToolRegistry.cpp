@@ -1,5 +1,7 @@
 #include "tools/ToolRegistry.h"
 
+#include "i18n/Translate.h"
+
 #include <QJsonArray>
 #include <QStringList>
 
@@ -57,7 +59,7 @@ ToolRegistry::ToolRegistry() {
     ToolSpec listBlank;
     listBlank.id = QStringLiteral("doc.list_blank_pages");
     listBlank.permission = ToolPermission::ReadOnly;
-    listBlank.displayName = QStringLiteral("找出空白页");
+    listBlank.displayName = i18n::tr("aipdf::tools::ToolRegistry", "找出空白页");
     listBlank.schema = objectSchema(
         {{QStringLiteral("minChars"), intField(0, 100)}}, {});
     tools_.append(listBlank);
@@ -65,7 +67,7 @@ ToolRegistry::ToolRegistry() {
     ToolSpec deletePages;
     deletePages.id = QStringLiteral("doc.delete_pages");
     deletePages.permission = ToolPermission::ProposeOnly;
-    deletePages.displayName = QStringLiteral("删除页面");
+    deletePages.displayName = i18n::tr("aipdf::tools::ToolRegistry", "删除页面");
     deletePages.schema = objectSchema({{QStringLiteral("pages"), pageArrayField()},
                                        {QStringLiteral("reason"), field(QStringLiteral("string"))}},
                                       {QStringLiteral("pages")});
@@ -74,7 +76,7 @@ ToolRegistry::ToolRegistry() {
     ToolSpec insertPage;
     insertPage.id = QStringLiteral("doc.insert_blank_page");
     insertPage.permission = ToolPermission::ProposeOnly;
-    insertPage.displayName = QStringLiteral("插入空白页");
+    insertPage.displayName = i18n::tr("aipdf::tools::ToolRegistry", "插入空白页");
     insertPage.schema = objectSchema({{QStringLiteral("index"), intField(1, 100000)},
                                       {QStringLiteral("width"), field(QStringLiteral("number"))},
                                       {QStringLiteral("height"), field(QStringLiteral("number"))}},
@@ -84,7 +86,7 @@ ToolRegistry::ToolRegistry() {
     ToolSpec movePage;
     movePage.id = QStringLiteral("doc.move_page");
     movePage.permission = ToolPermission::ProposeOnly;
-    movePage.displayName = QStringLiteral("移动页面");
+    movePage.displayName = i18n::tr("aipdf::tools::ToolRegistry", "移动页面");
     movePage.schema = objectSchema({{QStringLiteral("from"), intField(1, 100000)},
                                     {QStringLiteral("to"), intField(1, 100000)}},
                                    {QStringLiteral("from"), QStringLiteral("to")});
@@ -93,7 +95,7 @@ ToolRegistry::ToolRegistry() {
     ToolSpec addNote;
     addNote.id = QStringLiteral("annotation.add_note");
     addNote.permission = ToolPermission::ProposeOnly;
-    addNote.displayName = QStringLiteral("添加批注草稿");
+    addNote.displayName = i18n::tr("aipdf::tools::ToolRegistry", "添加批注草稿");
     QJsonObject rectItems = field(QStringLiteral("number"));
     QJsonObject rectArray = field(QStringLiteral("array"));
     rectArray.insert(QStringLiteral("items"), rectItems);

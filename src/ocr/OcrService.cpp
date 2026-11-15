@@ -1,5 +1,7 @@
 #include "ocr/OcrService.h"
 
+#include "i18n/Translate.h"
+
 #include <QMutex>
 #include <QMutexLocker>
 #include <QSet>
@@ -112,7 +114,8 @@ protected:
                 result = engine_->recognize(job);
             } else {
                 result.pageIndex = job.pageIndex;
-                result.error = QStringLiteral("没有可用的 OCR 引擎");
+                result.error =
+                    i18n::tr("aipdf::ocr::OcrService", "没有可用的 OCR 引擎");
             }
 
             bool isCancelled = false;

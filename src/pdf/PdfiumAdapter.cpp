@@ -1,4 +1,8 @@
 ﻿#include "pdf/PdfiumAdapter.h"
+#include <functional>
+
+#include "i18n/Translate.h"
+
 #include <fpdf_flatten.h>
 #include <fpdf_formfill.h>
 
@@ -59,11 +63,8 @@ struct DocumentImpl {
     ~DocumentImpl() {
         if (handle != nullptr) {
             // 关闭句柄也要上锁：PDFium 的全局状态是共享的。
-            const PdfiumGuard guard;
-            if (form != nullptr) {
-                FPDFDOC_ExitFormFillEnvironment(form);
-                form = nullptr;
-            }
+            const detail::PdfiumGuard guard;
+            // 实验：暂不退出表单环境，看崩溃是否来自这里。
             FPDF_CloseDocument(handle);
         }
     }
@@ -106,7 +107,7 @@ struct PageImpl {
     ~PageImpl() {
         if (page != nullptr) {
             // 关闭页面同样要上锁。
-            const PdfiumGuard guard;
+            const detail::PdfiumGuard guard;
             FPDF_ClosePage(page);
         }
     }
@@ -131,19 +132,19 @@ QString describePdfiumError(unsigned long error) {
         case FPDF_ERR_SUCCESS:
             return {};
         case FPDF_ERR_UNKNOWN:
-            return QStringLiteral("PDFium 未知错误");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "PDFium 未知错误");
         case FPDF_ERR_FILE:
-            return QStringLiteral("文件不存在或无法读取");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "文件不存在或无法读取");
         case FPDF_ERR_FORMAT:
-            return QStringLiteral("文件不是有效的 PDF");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "文件不是有效的 PDF");
         case FPDF_ERR_PASSWORD:
-            return QStringLiteral("需要密码，或密码不正确");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "需要密码，或密码不正确");
         case FPDF_ERR_SECURITY:
-            return QStringLiteral("不支持的安全处理器");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "不支持的安全处理器");
         case FPDF_ERR_PAGE:
-            return QStringLiteral("页码越界");
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "页码越界");
         default:
-            return QStringLiteral("PDFium 错误码 %1").arg(error);
+            return i18n::tr("aipdf::pdf::PdfiumAdapter", "PDFium 错误码 %1").arg(error);
     }
 }
 
@@ -971,6 +972,150 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
     return PdfPage(pageImpl);
 }
 
+
+// ---------------------------------------------------------------- 表单 ----
+
+namespace {
+
+// 读 PDFium 的宽字符串。
+//
+// 不能先用 (nullptr, 0) 探长度：GetFormFieldName 这一类接口在空缓冲上会直接
+// 解引用，实测会以 0xC0000409 崩掉。这里先给一块足够大的缓冲，返回长度超出
+// 再按实际大小重读一次。
+QString readWideString(const std::function<unsigned long(void*, unsigned long)>& read) {
+    // 留足余量：PDFium 会把结尾 NUL 也算进长度，贴着边界分配容易被写坏。
+    std::vector<unsigned short> buffer(4096, 0);
+    unsigned long length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
+    if (length > (buffer.size() - 2) * 2) {
+        buffer.assign(length / 2 + 4, 0);
+        length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
+    }
+    if (length <= 2) {
+        return {};
+    }
+    const int characters = static_cast<int>(qMin<unsigned long>(length / 2 - 1, buffer.size() - 1));
+    return QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), characters);
+}
+
+}  // namespace
+
+QVector<FormField> PdfDocument::formFields() const {
+    QVector<FormField> fields;
+    if (!impl_ || impl_->handle == nullptr) {
+        return fields;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_FORMHANDLE form = impl_->ensureForm();
+    if (form == nullptr) {
+        return fields;
+    }
+
+    qWarning("form: handle ok, pages=%d", FPDF_GetPageCount(impl_->handle));
+    const int pages = FPDF_GetPageCount(impl_->handle);
+    for (int pageIndex = 0; pageIndex < pages; ++pageIndex) {
+        FPDF_PAGE page = FPDF_LoadPage(impl_->handle, pageIndex);
+        if (page == nullptr) {
+            continue;
+        }
+        const int annots = FPDFPage_GetAnnotCount(page);
+        qWarning("form: page %d annots=%d", pageIndex, annots);
+        for (int i = 0; i < annots; ++i) {
+            FPDF_ANNOTATION annot = FPDFPage_GetAnnot(page, i);
+            if (annot == nullptr) {
+                continue;
+            }
+            qWarning("form: annot %d acquired", i);
+            const int type = FPDFAnnot_GetFormFieldType(form, annot);
+            qWarning("form: annot %d type=%d", i, type);
+            if (type <= 0) {
+                FPDFPage_CloseAnnot(annot);
+                continue;
+            }
+            FormField field;
+            field.pageIndex = pageIndex;
+            field.type = type;
+            field.name = readWideString([&](void* buffer, unsigned long size) {
+                return FPDFAnnot_GetFormFieldName(
+                    form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
+            });
+            qWarning("form: name read");
+            field.value = readWideString([&](void* buffer, unsigned long size) {
+                return FPDFAnnot_GetFormFieldValue(
+                    form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
+            });
+            qWarning("form: value read");
+            FS_RECTF rect{};
+            if (FPDFAnnot_GetRect(annot, &rect)) {
+                field.rect = fromFsRect(rect);
+            }
+            qWarning("form: rect read");
+            const int flags = FPDFAnnot_GetFormFieldFlags(form, annot);
+            qWarning("form: flags=%d", flags);
+            field.readOnly = (flags & FPDF_FORMFLAG_READONLY) != 0;
+
+            fields.append(field);
+            FPDFPage_CloseAnnot(annot);
+        }
+        FPDF_ClosePage(page);
+    }
+    return fields;
+}
+
+bool PdfDocument::setFormFieldValue(int pageIndex, const QString& name, const QString& value) {
+    if (!impl_ || impl_->handle == nullptr) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_FORMHANDLE form = impl_->ensureForm();
+    if (form == nullptr) {
+        return false;
+    }
+    FPDF_PAGE page = FPDF_LoadPage(impl_->handle, pageIndex);
+    if (page == nullptr) {
+        return false;
+    }
+    bool changed = false;
+    const int annots = FPDFPage_GetAnnotCount(page);
+    for (int i = 0; i < annots && !changed; ++i) {
+        FPDF_ANNOTATION annot = FPDFPage_GetAnnot(page, i);
+        if (annot == nullptr) {
+            continue;
+        }
+        const QString fieldName = readWideString([&](void* buffer, unsigned long size) {
+            return FPDFAnnot_GetFormFieldName(form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
+        });
+        if (fieldName != name) {
+            FPDFPage_CloseAnnot(annot);
+            continue;
+        }
+        const int type = FPDFAnnot_GetFormFieldType(form, annot);
+        // 勾选/单选改的是"外观状态"（/AS），文本与下拉改的是值（/V）。
+        const char* key = (type == FPDF_FORMFIELD_CHECKBOX || type == FPDF_FORMFIELD_RADIOBUTTON)
+                              ? "AS"
+                              : "V";
+        const std::u16string wide = value.toStdU16String();
+        changed = FPDFAnnot_SetStringValue(
+                      annot, key,
+                      reinterpret_cast<FPDF_WIDESTRING>(wide.c_str())) != 0;
+        FPDFPage_CloseAnnot(annot);
+    }
+    FPDF_ClosePage(page);
+    return changed;
+}
+
+bool PdfDocument::flattenPage(int pageIndex) {
+    if (!impl_ || impl_->handle == nullptr) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_PAGE page = FPDF_LoadPage(impl_->handle, pageIndex);
+    if (page == nullptr) {
+        return false;
+    }
+    const int result = FPDFPage_Flatten(page, FLAT_NORMALDISPLAY);
+    FPDF_ClosePage(page);
+    return result == FLATTEN_SUCCESS;
+}
 std::vector<OutlineItem> PdfDocument::outline() const {
     if (!isValid()) {
         return {};
@@ -1175,7 +1320,7 @@ bool PdfDocument::restorePageFrom(const PdfDocument& backup, int index) {
 QByteArray PdfDocument::serialize(QString* error) const {
     if (!isValid()) {
         if (error != nullptr) {
-            *error = QStringLiteral("文档无效");
+            *error = i18n::tr("aipdf::pdf::PdfiumAdapter", "文档无效");
         }
         return {};
     }
@@ -1192,7 +1337,7 @@ QByteArray PdfDocument::serialize(QString* error) const {
 
     if (!saved) {
         if (error != nullptr) {
-            *error = QStringLiteral("PDFium 保存失败");
+            *error = i18n::tr("aipdf::pdf::PdfiumAdapter", "PDFium 保存失败");
         }
         return {};
     }
@@ -1225,12 +1370,13 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
 
     const QFileInfo info(filePath);
     if (!info.exists() || !info.isFile()) {
-        result.errorMessage = QStringLiteral("文件不存在：%1").arg(filePath);
+        result.errorMessage =
+            i18n::tr("aipdf::pdf::PdfiumAdapter", "文件不存在：%1").arg(filePath);
         return result;
     }
     if (info.size() > kMaxPdfFileSizeBytes) {
         result.errorMessage =
-            QStringLiteral("文件过大：%1 字节，上限 %2 字节")
+            i18n::tr("aipdf::pdf::PdfiumAdapter", "文件过大：%1 字节，上限 %2 字节")
                 .arg(info.size())
                 .arg(kMaxPdfFileSizeBytes);
         return result;
@@ -1238,13 +1384,14 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
 
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        result.errorMessage = QStringLiteral("无法读取文件：%1").arg(file.errorString());
+        result.errorMessage =
+            i18n::tr("aipdf::pdf::PdfiumAdapter", "无法读取文件：%1").arg(file.errorString());
         return result;
     }
     const QByteArray data = file.readAll();
     file.close();
     if (data.size() > kMaxPdfFileSizeBytes) {
-        result.errorMessage = QStringLiteral("文件过大，拒绝加载");
+        result.errorMessage = i18n::tr("aipdf::pdf::PdfiumAdapter", "文件过大，拒绝加载");
         return result;
     }
 
@@ -1281,8 +1428,10 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
             FPDF_CloseDocument(impl->handle);
             impl->handle = nullptr;
             result.errorMessage = pages > 0
-                                      ? QStringLiteral("文档的页面无法加载（文件可能已损坏）")
-                                      : QStringLiteral("文档里没有任何页面（文件可能已损坏）");
+                                      ? i18n::tr("aipdf::pdf::PdfiumAdapter",
+                                                 "文档的页面无法加载（文件可能已损坏）")
+                                      : i18n::tr("aipdf::pdf::PdfiumAdapter",
+                                                 "文档里没有任何页面（文件可能已损坏）");
             return result;
         }
         FPDF_ClosePage(probe);
@@ -1299,11 +1448,11 @@ PdfOpenResult openDocumentFromBytes(const QByteArray& data,
     initializePdfium();
 
     if (data.isEmpty()) {
-        result.errorMessage = QStringLiteral("内容为空");
+        result.errorMessage = i18n::tr("aipdf::pdf::PdfiumAdapter", "内容为空");
         return result;
     }
     if (data.size() > kMaxPdfFileSizeBytes) {
-        result.errorMessage = QStringLiteral("内容过大，拒绝加载");
+        result.errorMessage = i18n::tr("aipdf::pdf::PdfiumAdapter", "内容过大，拒绝加载");
         return result;
     }
 

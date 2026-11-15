@@ -1,5 +1,7 @@
 #include "ai/OpenAiProvider.h"
 
+#include "i18n/Translate.h"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
@@ -17,27 +19,32 @@ namespace {
 // 网络错要检查网络。笼统的「出错了」等于没提示。
 QString messageForCode(const QString& code, const QString& detail) {
     if (code == QLatin1String("invalid_key")) {
-        return QStringLiteral("API 密钥无效或已过期，请在设置里重新填写。");
+        return i18n::tr("aipdf::ai::OpenAiProvider",
+                        "API 密钥无效或已过期，请在设置里重新填写。");
     }
     if (code == QLatin1String("forbidden")) {
-        return QStringLiteral("这个密钥没有权限访问该模型。");
+        return i18n::tr("aipdf::ai::OpenAiProvider", "这个密钥没有权限访问该模型。");
     }
     if (code == QLatin1String("rate_limited")) {
-        return QStringLiteral("请求太频繁，服务商限流了，请稍后再试。");
+        return i18n::tr("aipdf::ai::OpenAiProvider",
+                        "请求太频繁，服务商限流了，请稍后再试。");
     }
     if (code == QLatin1String("timeout")) {
-        return QStringLiteral("请求超时，服务商没有在时限内回应。");
+        return i18n::tr("aipdf::ai::OpenAiProvider",
+                        "请求超时，服务商没有在时限内回应。");
     }
     if (code == QLatin1String("network_error")) {
-        return QStringLiteral("连不上模型服务，请检查网络。");
+        return i18n::tr("aipdf::ai::OpenAiProvider", "连不上模型服务，请检查网络。");
     }
     if (code == QLatin1String("server_error")) {
-        return QStringLiteral("模型服务出错了，请稍后再试。");
+        return i18n::tr("aipdf::ai::OpenAiProvider", "模型服务出错了，请稍后再试。");
     }
     if (code == QLatin1String("bad_request")) {
-        return QStringLiteral("请求被模型服务拒绝：%1").arg(detail);
+        return i18n::tr("aipdf::ai::OpenAiProvider", "请求被模型服务拒绝：%1").arg(detail);
     }
-    return detail.isEmpty() ? QStringLiteral("模型请求失败。") : detail;
+    return detail.isEmpty()
+               ? i18n::tr("aipdf::ai::OpenAiProvider", "模型请求失败。")
+               : detail;
 }
 
 // HTTP 状态码 → 错误码。
@@ -95,7 +102,7 @@ QString OpenAiProvider::id() const {
 }
 
 QString OpenAiProvider::displayName() const {
-    return QStringLiteral("云端模型（OpenAI 兼容）");
+    return i18n::tr("aipdf::ai::OpenAiProvider", "云端模型（OpenAI 兼容）");
 }
 
 bool OpenAiProvider::isConfigured() const {
@@ -108,12 +115,14 @@ bool OpenAiProvider::isRunning() const {
 
 void OpenAiProvider::startChat(const ChatRequest& request) {
     if (running_) {
-        failWith(QStringLiteral("busy"), QStringLiteral("上一次请求还没结束。"));
+        failWith(QStringLiteral("busy"),
+                 i18n::tr("aipdf::ai::OpenAiProvider", "上一次请求还没结束。"));
         return;
     }
     if (!isConfigured()) {
         failWith(QStringLiteral("not_configured"),
-                 QStringLiteral("没有配置 API 密钥，无法调用云端模型。"));
+                 i18n::tr("aipdf::ai::OpenAiProvider",
+                          "没有配置 API 密钥，无法调用云端模型。"));
         return;
     }
     cancelled_ = false;
@@ -297,7 +306,7 @@ void OpenAiProvider::handleFinished() {
 
     if (error == QNetworkReply::TimeoutError) {
         scheduleRetry(lastRequest_, attempt_, QStringLiteral("timeout"),
-                      QStringLiteral("请求超时"));
+                      i18n::tr("aipdf::ai::OpenAiProvider", "请求超时"));
         return;
     }
 

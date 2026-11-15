@@ -2,6 +2,8 @@
 
 #include "tools/ToolRegistry.h"
 
+#include "i18n/Translate.h"
+
 #include <QJsonValue>
 #include <QStringList>
 
@@ -40,19 +42,20 @@ bool typeMatches(const QJsonValue& value, const QString& type) {
 QString checkField(const QString& name, const QJsonValue& value, const QJsonObject& fieldSchema) {
     const QString type = fieldSchema.value(QStringLiteral("type")).toString();
     if (!type.isEmpty() && !typeMatches(value, type)) {
-        return QStringLiteral("参数 %1 类型应为 %2").arg(name, type);
+        return i18n::tr("aipdf::tools::ProposalValidator", "参数 %1 类型应为 %2")
+            .arg(name, type);
     }
     if (value.isDouble()) {
         const double number = value.toDouble();
         if (fieldSchema.contains(QStringLiteral("minimum")) &&
             number < fieldSchema.value(QStringLiteral("minimum")).toDouble()) {
-            return QStringLiteral("参数 %1 小于下限 %2")
+            return i18n::tr("aipdf::tools::ProposalValidator", "参数 %1 小于下限 %2")
                 .arg(name)
                 .arg(fieldSchema.value(QStringLiteral("minimum")).toDouble());
         }
         if (fieldSchema.contains(QStringLiteral("maximum")) &&
             number > fieldSchema.value(QStringLiteral("maximum")).toDouble()) {
-            return QStringLiteral("参数 %1 超过上限 %2")
+            return i18n::tr("aipdf::tools::ProposalValidator", "参数 %1 超过上限 %2")
                 .arg(name)
                 .arg(fieldSchema.value(QStringLiteral("maximum")).toDouble());
         }
@@ -61,11 +64,11 @@ QString checkField(const QString& name, const QJsonValue& value, const QJsonObje
         const QJsonArray array = value.toArray();
         if (fieldSchema.contains(QStringLiteral("minItems")) &&
             array.size() < fieldSchema.value(QStringLiteral("minItems")).toInt()) {
-            return QStringLiteral("参数 %1 元素太少").arg(name);
+            return i18n::tr("aipdf::tools::ProposalValidator", "参数 %1 元素太少").arg(name);
         }
         if (fieldSchema.contains(QStringLiteral("maxItems")) &&
             array.size() > fieldSchema.value(QStringLiteral("maxItems")).toInt()) {
-            return QStringLiteral("参数 %1 元素太多").arg(name);
+            return i18n::tr("aipdf::tools::ProposalValidator", "参数 %1 元素太多").arg(name);
         }
         const QJsonObject items = fieldSchema.value(QStringLiteral("items")).toObject();
         if (!items.isEmpty()) {
@@ -86,19 +89,20 @@ QString summaryFor(const QString& toolId, const QJsonObject& args) {
         for (const QJsonValue& value : args.value(QStringLiteral("pages")).toArray()) {
             pages.append(QString::number(value.toInt()));
         }
-        return QStringLiteral("删除第 %1 页").arg(pages.join(QStringLiteral("、")));
+        return i18n::tr("aipdf::tools::ProposalValidator", "删除第 %1 页")
+            .arg(pages.join(QStringLiteral("、")));
     }
     if (toolId == QLatin1String("doc.insert_blank_page")) {
-        return QStringLiteral("在第 %1 页前插入空白页")
+        return i18n::tr("aipdf::tools::ProposalValidator", "在第 %1 页前插入空白页")
             .arg(args.value(QStringLiteral("index")).toInt());
     }
     if (toolId == QLatin1String("doc.move_page")) {
-        return QStringLiteral("把第 %1 页移动到第 %2 位")
+        return i18n::tr("aipdf::tools::ProposalValidator", "把第 %1 页移动到第 %2 位")
             .arg(args.value(QStringLiteral("from")).toInt())
             .arg(args.value(QStringLiteral("to")).toInt());
     }
     if (toolId == QLatin1String("annotation.add_note")) {
-        return QStringLiteral("在第 %1 页添加批注：%2")
+        return i18n::tr("aipdf::tools::ProposalValidator", "在第 %1 页添加批注：%2")
             .arg(args.value(QStringLiteral("page")).toInt())
             .arg(args.value(QStringLiteral("text")).toString());
     }
@@ -112,27 +116,34 @@ QString checkPageBounds(const QString& toolId, const QJsonObject& args, int page
     if (toolId == QLatin1String("doc.delete_pages")) {
         for (const QJsonValue& value : args.value(QStringLiteral("pages")).toArray()) {
             if (!inRange(value.toInt())) {
-                return QStringLiteral("页码 %1 超出范围（1–%2）").arg(value.toInt()).arg(pageCount);
+                return i18n::tr("aipdf::tools::ProposalValidator", "页码 %1 超出范围（1–%2）")
+                    .arg(value.toInt())
+                    .arg(pageCount);
             }
         }
     }
     if (toolId == QLatin1String("doc.insert_blank_page")) {
         const int index = args.value(QStringLiteral("index")).toInt();
         if (index < 1 || index > pageCount + 1) {
-            return QStringLiteral("插入位置 %1 超出范围（1–%2）").arg(index).arg(pageCount + 1);
+            return i18n::tr("aipdf::tools::ProposalValidator", "插入位置 %1 超出范围（1–%2）")
+                .arg(index)
+                .arg(pageCount + 1);
         }
     }
     if (toolId == QLatin1String("doc.move_page")) {
         const int from = args.value(QStringLiteral("from")).toInt();
         const int to = args.value(QStringLiteral("to")).toInt();
         if (!inRange(from) || !inRange(to)) {
-            return QStringLiteral("页码超出范围（1–%1）").arg(pageCount);
+            return i18n::tr("aipdf::tools::ProposalValidator", "页码超出范围（1–%1）")
+                .arg(pageCount);
         }
     }
     if (toolId == QLatin1String("annotation.add_note")) {
         const int page = args.value(QStringLiteral("page")).toInt();
         if (!inRange(page)) {
-            return QStringLiteral("页码 %1 超出范围（1–%2）").arg(page).arg(pageCount);
+            return i18n::tr("aipdf::tools::ProposalValidator", "页码 %1 超出范围（1–%2）")
+                .arg(page)
+                .arg(pageCount);
         }
     }
     return {};
@@ -143,12 +154,15 @@ QString checkPageBounds(const QString& toolId, const QJsonObject& args, int page
 Proposal validateProposal(const QJsonArray& rawOperations, const DocumentSnapshot& document) {
     Proposal proposal;
     if (rawOperations.isEmpty()) {
-        proposal.issues.append({-1, QStringLiteral("提案里没有任何操作")});
+        proposal.issues.append(
+            {-1, i18n::tr("aipdf::tools::ProposalValidator", "提案里没有任何操作")});
         return proposal;
     }
     if (rawOperations.size() > kMaxOperations) {
         proposal.issues.append(
-            {-1, QStringLiteral("一次最多 %1 条操作").arg(kMaxOperations)});
+            {-1,
+             i18n::tr("aipdf::tools::ProposalValidator", "一次最多 %1 条操作")
+                 .arg(kMaxOperations)});
         return proposal;
     }
 
@@ -156,7 +170,8 @@ Proposal validateProposal(const QJsonArray& rawOperations, const DocumentSnapsho
     for (int index = 0; index < rawOperations.size(); ++index) {
         const QJsonValue raw = rawOperations.at(index);
         if (!raw.isObject()) {
-            proposal.issues.append({index, QStringLiteral("操作必须是对象")});
+            proposal.issues.append(
+                {index, i18n::tr("aipdf::tools::ProposalValidator", "操作必须是对象")});
             continue;
         }
         const QJsonObject object = raw.toObject();
@@ -165,35 +180,46 @@ Proposal validateProposal(const QJsonArray& rawOperations, const DocumentSnapsho
             const int revision = object.value(QStringLiteral("docRevision")).toInt();
             if (revision != document.revision) {
                 proposal.issues.append(
-                    {index, QStringLiteral("文档已被修改，请重新生成提案后再确认")});
+                    {index, i18n::tr("aipdf::tools::ProposalValidator",
+                                     "文档已被修改，请重新生成提案后再确认")});
                 continue;
             }
         }
 
         const QString toolId = object.value(QStringLiteral("tool")).toString();
         if (toolId.isEmpty()) {
-            proposal.issues.append({index, QStringLiteral("缺少 tool 字段")});
+            proposal.issues.append(
+                {index, i18n::tr("aipdf::tools::ProposalValidator", "缺少 tool 字段")});
             continue;
         }
         if (ToolRegistry::isForbidden(toolId)) {
             proposal.issues.append(
-                {index, QStringLiteral("工具 %1 被禁止：AI 不能执行文件、Shell 或网络操作").arg(toolId)});
+                {index,
+                 i18n::tr("aipdf::tools::ProposalValidator",
+                          "工具 %1 被禁止：AI 不能执行文件、Shell 或网络操作")
+                     .arg(toolId)});
             continue;
         }
         const ToolSpec* spec = registry.find(toolId);
         if (spec == nullptr) {
-            proposal.issues.append({index, QStringLiteral("未知工具：%1").arg(toolId)});
+            proposal.issues.append(
+                {index,
+                 i18n::tr("aipdf::tools::ProposalValidator", "未知工具：%1").arg(toolId)});
             continue;
         }
         if (spec->permission == ToolPermission::ReadOnly) {
             proposal.issues.append(
-                {index, QStringLiteral("%1 是只读工具，不能出现在变更提案里").arg(toolId)});
+                {index,
+                 i18n::tr("aipdf::tools::ProposalValidator",
+                          "%1 是只读工具，不能出现在变更提案里")
+                     .arg(toolId)});
             continue;
         }
 
         const QJsonValue argsValue = object.value(QStringLiteral("args"));
         if (!argsValue.isUndefined() && !argsValue.isObject()) {
-            proposal.issues.append({index, QStringLiteral("args 必须是对象")});
+            proposal.issues.append(
+                {index, i18n::tr("aipdf::tools::ProposalValidator", "args 必须是对象")});
             continue;
         }
         const QJsonObject args = argsValue.toObject();
@@ -203,7 +229,9 @@ Proposal validateProposal(const QJsonArray& rawOperations, const DocumentSnapsho
         for (auto it = args.constBegin(); it != args.constEnd(); ++it) {
             if (!properties.contains(it.key())) {
                 proposal.issues.append(
-                    {index, QStringLiteral("%1 不接受参数 %2").arg(toolId, it.key())});
+                    {index,
+                     i18n::tr("aipdf::tools::ProposalValidator", "%1 不接受参数 %2")
+                         .arg(toolId, it.key())});
                 fieldIssue = true;
                 break;
             }
@@ -217,7 +245,9 @@ Proposal validateProposal(const QJsonArray& rawOperations, const DocumentSnapsho
             const QString name = required.toString();
             if (!args.contains(name)) {
                 proposal.issues.append(
-                    {index, QStringLiteral("%1 缺少必填参数 %2").arg(toolId, name)});
+                    {index,
+                     i18n::tr("aipdf::tools::ProposalValidator", "%1 缺少必填参数 %2")
+                         .arg(toolId, name)});
                 fieldIssue = true;
                 break;
             }

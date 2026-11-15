@@ -1,5 +1,7 @@
 #include "pdf/AnnotationSummary.h"
 
+#include "i18n/Translate.h"
+
 #include <QDateTime>
 #include <QHash>
 
@@ -28,23 +30,32 @@ QString annotationsToHtmlSummary(const QVector<Annotation>& annotations, int pag
                            "color:#202a3a;margin:24px;\">");
     html += QStringLiteral("<h1 style=\"font-size:20px;margin:0 0 4px;\">") + escape(title) +
             QStringLiteral("</h1>");
-    html += QStringLiteral("<p style=\"color:#5b6675;margin:0 0 16px;\">共 %1 条批注 · %2 页 · 导出于 %3</p>")
+    html += QStringLiteral("<p style=\"color:#5b6675;margin:0 0 16px;\">") +
+            i18n::tr("aipdf::pdf::AnnotationSummary", "共 %1 条批注 · %2 页 · 导出于 %3")
                 .arg(annotations.size())
                 .arg(pageCount)
-                .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm")));
+                .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"))) +
+            QStringLiteral("</p>");
 
     if (annotations.isEmpty()) {
-        html += QStringLiteral("<p style=\"color:#5b6675;\">这份文档还没有批注。</p>");
+        html += QStringLiteral("<p style=\"color:#5b6675;\">") +
+                i18n::tr("aipdf::pdf::AnnotationSummary", "这份文档还没有批注。") +
+                QStringLiteral("</p>");
     } else {
         html += QStringLiteral("<table style=\"border-collapse:collapse;width:100%;font-size:13px;\">");
         html += QStringLiteral(
-            "<thead><tr style=\"background:#f2f5f9;text-align:left;\">"
-            "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">页</th>"
-            "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">类型</th>"
-            "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">内容</th>"
-            "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">作者</th>"
-            "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">时间</th>"
-            "</tr></thead><tbody>");
+                    "<thead><tr style=\"background:#f2f5f9;text-align:left;\">"
+                    "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">%1</th>"
+                    "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">%2</th>"
+                    "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">%3</th>"
+                    "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">%4</th>"
+                    "<th style=\"padding:6px 8px;border:1px solid #d8dee8;\">%5</th>"
+                    "</tr></thead><tbody>")
+                    .arg(i18n::tr("aipdf::pdf::AnnotationSummary", "页"),
+                         i18n::tr("aipdf::pdf::AnnotationSummary", "类型"),
+                         i18n::tr("aipdf::pdf::AnnotationSummary", "内容"),
+                         i18n::tr("aipdf::pdf::AnnotationSummary", "作者"),
+                         i18n::tr("aipdf::pdf::AnnotationSummary", "时间"));
 
         QVector<Annotation> sorted = annotations;
         std::sort(sorted.begin(), sorted.end(), [](const Annotation& a, const Annotation& b) {

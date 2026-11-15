@@ -2,6 +2,7 @@
 
 #include "doc/AnnotationModel.h"
 #include "doc/EditContext.h"
+#include "i18n/Translate.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -33,14 +34,15 @@ bool parseCommandJson(const QByteArray& data,
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error != nullptr) {
-            *error = QStringLiteral("页面命令不是合法的 JSON：%1").arg(parseError.errorString());
+            *error = i18n::tr("aipdf::doc::PageCommand", "页面命令不是合法的 JSON：%1")
+                         .arg(parseError.errorString());
         }
         return false;
     }
     *object = document.object();
     if (object->value(QString::fromLatin1(kKeyType)).toString() != expectedType) {
         if (error != nullptr) {
-            *error = QStringLiteral("页面命令类型不匹配");
+            *error = i18n::tr("aipdf::doc::PageCommand", "页面命令类型不匹配");
         }
         return false;
     }
@@ -69,7 +71,7 @@ QString InsertBlankPageCommand::typeName() const {
 }
 
 QString InsertBlankPageCommand::displayName() const {
-    return QStringLiteral("插入空白页");
+    return i18n::tr("aipdf::doc::PageCommand", "插入空白页");
 }
 
 QByteArray InsertBlankPageCommand::serialize() const {
@@ -90,7 +92,7 @@ bool InsertBlankPageCommand::deserialize(const QByteArray& data, QString* error)
         !object.value(QString::fromLatin1(kKeyWidth)).isDouble() ||
         !object.value(QString::fromLatin1(kKeyHeight)).isDouble()) {
         if (error != nullptr) {
-            *error = QStringLiteral("插入页命令缺少页序号或尺寸");
+            *error = i18n::tr("aipdf::doc::PageCommand", "插入页命令缺少页序号或尺寸");
         }
         return false;
     }
@@ -99,7 +101,7 @@ bool InsertBlankPageCommand::deserialize(const QByteArray& data, QString* error)
     height_ = object.value(QString::fromLatin1(kKeyHeight)).toDouble();
     if (index_ < 0 || width_ <= 0.0 || height_ <= 0.0) {
         if (error != nullptr) {
-            *error = QStringLiteral("插入页命令的参数不合法");
+            *error = i18n::tr("aipdf::doc::PageCommand", "插入页命令的参数不合法");
         }
         return false;
     }
@@ -154,7 +156,7 @@ QString DeletePageCommand::typeName() const {
 }
 
 QString DeletePageCommand::displayName() const {
-    return QStringLiteral("删除页");
+    return i18n::tr("aipdf::doc::PageCommand", "删除页");
 }
 
 QByteArray DeletePageCommand::serialize() const {
@@ -171,14 +173,14 @@ bool DeletePageCommand::deserialize(const QByteArray& data, QString* error) {
     }
     if (!object.value(QString::fromLatin1(kKeyIndex)).isDouble()) {
         if (error != nullptr) {
-            *error = QStringLiteral("删除页命令缺少页序号");
+            *error = i18n::tr("aipdf::doc::PageCommand", "删除页命令缺少页序号");
         }
         return false;
     }
     index_ = object.value(QString::fromLatin1(kKeyIndex)).toInt();
     if (index_ < 0) {
         if (error != nullptr) {
-            *error = QStringLiteral("删除页命令的页序号不合法");
+            *error = i18n::tr("aipdf::doc::PageCommand", "删除页命令的页序号不合法");
         }
         return false;
     }
@@ -254,7 +256,7 @@ QString RotatePageCommand::typeName() const {
 }
 
 QString RotatePageCommand::displayName() const {
-    return QStringLiteral("旋转页");
+    return i18n::tr("aipdf::doc::PageCommand", "旋转页");
 }
 
 QByteArray RotatePageCommand::serialize() const {
@@ -275,7 +277,7 @@ bool RotatePageCommand::deserialize(const QByteArray& data, QString* error) {
         !object.value(QString::fromLatin1(kKeyBefore)).isDouble() ||
         !object.value(QString::fromLatin1(kKeyAfter)).isDouble()) {
         if (error != nullptr) {
-            *error = QStringLiteral("旋转页命令缺少页序号或角度");
+            *error = i18n::tr("aipdf::doc::PageCommand", "旋转页命令缺少页序号或角度");
         }
         return false;
     }
@@ -284,7 +286,7 @@ bool RotatePageCommand::deserialize(const QByteArray& data, QString* error) {
     afterTurns_ = object.value(QString::fromLatin1(kKeyAfter)).toInt();
     if (index_ < 0) {
         if (error != nullptr) {
-            *error = QStringLiteral("旋转页命令的页序号不合法");
+            *error = i18n::tr("aipdf::doc::PageCommand", "旋转页命令的页序号不合法");
         }
         return false;
     }
@@ -337,7 +339,7 @@ QString MovePageCommand::typeName() const {
 }
 
 QString MovePageCommand::displayName() const {
-    return QStringLiteral("移动页");
+    return i18n::tr("aipdf::doc::PageCommand", "移动页");
 }
 
 QByteArray MovePageCommand::serialize() const {
@@ -356,7 +358,7 @@ bool MovePageCommand::deserialize(const QByteArray& data, QString* error) {
     if (!object.value(QString::fromLatin1(kKeyFrom)).isDouble() ||
         !object.value(QString::fromLatin1(kKeyTo)).isDouble()) {
         if (error != nullptr) {
-            *error = QStringLiteral("移动页命令缺少页序号");
+            *error = i18n::tr("aipdf::doc::PageCommand", "移动页命令缺少页序号");
         }
         return false;
     }
@@ -364,7 +366,7 @@ bool MovePageCommand::deserialize(const QByteArray& data, QString* error) {
     to_ = object.value(QString::fromLatin1(kKeyTo)).toInt();
     if (from_ < 0 || to_ < 0) {
         if (error != nullptr) {
-            *error = QStringLiteral("移动页命令的页序号不合法");
+            *error = i18n::tr("aipdf::doc::PageCommand", "移动页命令的页序号不合法");
         }
         return false;
     }

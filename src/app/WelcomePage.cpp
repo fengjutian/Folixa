@@ -1,6 +1,9 @@
 #include "app/WelcomePage.h"
 
 #include "app/BrandMark.h"
+#include "app/Language.h"
+
+#include "i18n/Translate.h"
 
 #include <QEnterEvent>
 #include <QFileInfo>
@@ -201,10 +204,12 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     columnLayout->addWidget(eyebrow);
     columnLayout->addSpacing(22);
 
-    auto* tagline = new QLabel(tr("专注阅读，也为文档智能留出恰到好处的空间"), column);
+    auto* tagline = new QLabel(QString(), column);
     tagline->setObjectName(QStringLiteral("welcomeTagline"));
     tagline->setAlignment(Qt::AlignCenter);
     tagline->setWordWrap(true);
+    texts_.bind(
+        [this, tagline] { tagline->setText(tr("专注阅读，也为文档智能留出恰到好处的空间")); });
     columnLayout->addWidget(tagline);
     columnLayout->addSpacing(26);
 
@@ -217,35 +222,44 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
         auto* zoneLayout = new QVBoxLayout(dropZone);
         zoneLayout->setContentsMargins(24, 80, 24, 20);
         zoneLayout->setSpacing(0);
-        auto* title = new QLabel(tr("把 PDF 拖到这里"), dropZone);
+        auto* title = new QLabel(QString(), dropZone);
         title->setObjectName(QStringLiteral("dropZoneTitle"));
         title->setAlignment(Qt::AlignCenter);
         zoneLayout->addWidget(title);
         zoneLayout->addSpacing(4);
-        auto* hint = new QLabel(tr("也可以点击下方按钮从本机选择"), dropZone);
+        auto* hint = new QLabel(QString(), dropZone);
         hint->setObjectName(QStringLiteral("dropZoneHint"));
         hint->setAlignment(Qt::AlignCenter);
         zoneLayout->addWidget(hint);
         zoneLayout->addSpacing(14);
-        auto* openButton = new QPushButton(tr("打开 PDF"), dropZone);
+        auto* openButton = new QPushButton(QString(), dropZone);
         openButton->setObjectName(QStringLiteral("primaryButton"));
         openButton->setCursor(Qt::PointingHandCursor);
         openButton->setMinimumSize(148, 42);
         connect(openButton, &QPushButton::clicked, this, &WelcomePage::openPdfRequested);
         zoneLayout->addWidget(openButton, 0, Qt::AlignHCenter);
+        texts_.bind([this, title, hint, openButton] {
+            title->setText(tr("把 PDF 拖到这里"));
+            hint->setText(tr("也可以点击下方按钮从本机选择"));
+            openButton->setText(tr("打开 PDF"));
+        });
     }
     columnLayout->addWidget(dropZone);
     columnLayout->addSpacing(28);
 
     auto* recentHeader = new QHBoxLayout();
     recentHeader->setContentsMargins(4, 0, 4, 0);
-    auto* recentTitle = new QLabel(tr("最近打开"), column);
+    auto* recentTitle = new QLabel(QString(), column);
     recentTitle->setObjectName(QStringLiteral("welcomeSectionTitle"));
+    texts_.bind([this, recentTitle] { recentTitle->setText(tr("最近打开")); });
     recentHeader->addWidget(recentTitle);
     recentHeader->addStretch(1);
     if (!recentFiles.isEmpty()) {
-        auto* recentCount = new QLabel(tr("%1 份文档").arg(recentFiles.size()), column);
+        auto* recentCount = new QLabel(QString(), column);
         recentCount->setObjectName(QStringLiteral("welcomeSectionMeta"));
+        texts_.bind([this, recentCount, count = recentFiles.size()] {
+            recentCount->setText(tr("%1 份文档").arg(count));
+        });
         recentHeader->addWidget(recentCount);
     }
     columnLayout->addLayout(recentHeader);
@@ -253,12 +267,18 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     columnLayout->addWidget(createRecentCard(recentFiles));
     columnLayout->addSpacing(20);
 
-    auto* footnote = new QLabel(tr("Ctrl+O 打开  ·  Ctrl+F 查找  ·  支持多选与拖放"), column);
+    auto* footnote = new QLabel(QString(), column);
     footnote->setObjectName(QStringLiteral("welcomeFootnote"));
     footnote->setAlignment(Qt::AlignCenter);
+    texts_.bind(
+        [this, footnote] { footnote->setText(tr("Ctrl+O 打开  ·  Ctrl+F 查找  ·  支持多选与拖放")); });
     columnLayout->addWidget(footnote);
 
     scroll->setWidget(content);
+
+    // 切换语言后登记过的常驻文案就地重译；最近文档列表本身不用重建。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &WelcomePage::retranslateUi);
 }
 
 QWidget* WelcomePage::createRecentCard(const QStringList& files) {
@@ -275,13 +295,17 @@ QWidget* WelcomePage::createRecentCard(const QStringList& files) {
         auto* emptyLayout = new QVBoxLayout(empty);
         emptyLayout->setContentsMargins(24, 22, 24, 22);
         emptyLayout->setSpacing(3);
-        auto* title = new QLabel(tr("暂无最近文档"), empty);
+        auto* title = new QLabel(QString(), empty);
         title->setObjectName(QStringLiteral("recentEmptyTitle"));
         title->setAlignment(Qt::AlignCenter);
-        auto* hint = new QLabel(tr("打开过的 PDF 会列在这里，方便下次接着读"), empty);
+        auto* hint = new QLabel(QString(), empty);
         hint->setObjectName(QStringLiteral("recentEmptyHint"));
         hint->setAlignment(Qt::AlignCenter);
         hint->setWordWrap(true);
+        texts_.bind([this, title, hint] {
+            title->setText(tr("暂无最近文档"));
+            hint->setText(tr("打开过的 PDF 会列在这里，方便下次接着读"));
+        });
         emptyLayout->addWidget(title);
         emptyLayout->addWidget(hint);
         layout->addWidget(empty);
@@ -347,6 +371,10 @@ QWidget* WelcomePage::createRecentRow(const QString& path, bool isLast) {
 
     connect(row, &QPushButton::clicked, this, [this, path] { emit recentFileRequested(path); });
     return row;
+}
+
+void WelcomePage::retranslateUi() {
+    texts_.retranslate();
 }
 
 void WelcomePage::paintEvent(QPaintEvent*) {

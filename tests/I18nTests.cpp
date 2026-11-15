@@ -66,6 +66,7 @@ private slots:
     void switchBackToChineseUsesSource();
     void unknownPreferenceIsRejected();
     void preferenceIsPersisted();
+    void environmentOverrideWinsWithoutPersisting();
     void textBindingsRetranslate();
 
 private:
@@ -245,6 +246,29 @@ void I18nTests::preferenceIsPersisted() {
     QCOMPARE(settings.value(QStringLiteral("ui/language")).toString(), QStringLiteral("en"));
     QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
     QCOMPARE(settings.value(QStringLiteral("ui/language")).toString(), QStringLiteral("zh_CN"));
+}
+
+void I18nTests::environmentOverrideWinsWithoutPersisting() {
+    // 验收/CI 用 AIPDF_UI_LANGUAGE 钉死界面语言：生效，但不写进用户设置。
+    QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
+    QSettings settings;
+    const QString saved = settings.value(QStringLiteral("ui/language")).toString();
+
+    qputenv("AIPDF_UI_LANGUAGE", "en");
+    LanguageManager::instance().loadSavedPreference();
+    QCOMPARE(LanguageManager::instance().code(), QStringLiteral("en"));
+    QCOMPARE(LanguageManager::instance().preference(), QStringLiteral("en"));
+    QCOMPARE(settings.value(QStringLiteral("ui/language")).toString(), saved);
+    QCOMPARE(QCoreApplication::translate(kMainWindowContext, kSource),
+             QString::fromUtf8(kEnglish));
+
+    // 不认识的值不当回事：回到设置里记的那份选择。
+    qputenv("AIPDF_UI_LANGUAGE", "tlh");
+    LanguageManager::instance().loadSavedPreference();
+    QCOMPARE(LanguageManager::instance().code(), QStringLiteral("zh_CN"));
+
+    qunsetenv("AIPDF_UI_LANGUAGE");
+    QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
 }
 
 void I18nTests::textBindingsRetranslate() {

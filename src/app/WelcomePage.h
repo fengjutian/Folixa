@@ -1,5 +1,7 @@
 #pragma once
 
+#include "i18n/Translate.h"
+
 #include <QStringList>
 #include <QWidget>
 
@@ -26,6 +28,11 @@ protected:
 private:
     QWidget* createRecentCard(const QStringList& files);
     QWidget* createRecentRow(const QString& path, bool isLast);
+    // 切换语言后重译页面上登记过的常驻文案。
+    void retranslateUi();
+
+    // 一次设定、长期显示的界面文案：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

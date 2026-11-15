@@ -45,6 +45,19 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 - IPC 协议单元测试、Worker 集成测试、PDFium 适配层测试、视口/缓存单元测试、
   批注/撤销栈单元测试、页面管理/安全保存单元测试、文档索引单元测试与模型接入单元测试
 - 固定工具链、CI、可重复的打包与自动化验收
+- **中英文界面**：默认跟随系统语言（中文系统用中文，其他回退英文），
+  ☰ 菜单里可手动切换并记住选择；切换后就地生效，不用重启
+
+## 界面语言（中文 / English）
+
+中文是源语言：界面代码里 `tr("…")` 写的就是中文，中文界面不需要翻译文件。
+英文目录是标准的 Qt `.ts`（`src/i18n/ai-pdf-editor_en.ts`），**运行时直接解析**——
+固定工具链里没有 lrelease，程序自己读 `.ts`，构建链不多一步，目录仍是 Qt Linguist
+能打开编辑的格式。新增语言只要放一份 `ai-pdf-editor_<code>.ts` 并在
+`src/app/Language.cpp` 的 `supportedLanguages()` 里登记。
+
+约定与改法见 [`docs/I18N.md`](docs/I18N.md)；覆盖率由 `I18nCoverageTests`
+（`scripts/check-i18n.py`）守住：源码里的每条 `tr()` 都必须有英文翻译。
 
 ## OCR 引擎（可选）
 
@@ -269,6 +282,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [qpdf 引入提案（未批准）](docs/QPDF_ADOPTION.md)
 - [OCR 妥协清单](docs/OCR_LIMITATIONS.md)
 - [IPC 协议](docs/IPC_PROTOCOL.md)
+- [国际化约定（中英文）](docs/I18N.md)
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 - [隐私与许可证审计](docs/PRIVACY_AUDIT.md)
 

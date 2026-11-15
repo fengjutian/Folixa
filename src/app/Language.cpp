@@ -320,6 +320,24 @@ bool LanguageManager::setPreference(const QString& value) {
 }
 
 void LanguageManager::loadSavedPreference() {
+    // 验收脚本与 CI 用环境变量钉死界面语言：断言是按中文文案写的，
+    // 英文系统的 runner 上不能因为「跟随系统」而变成英文。
+    const QString override = qEnvironmentVariable("AIPDF_UI_LANGUAGE").trimmed();
+    if (!override.isEmpty()) {
+        QString resolved;
+        if (override == systemPreference()) {
+            resolved = resolveLanguage(QLocale::system().uiLanguages());
+        } else if (isSupportedLanguage(override)) {
+            resolved = override;
+        }
+        if (!resolved.isEmpty()) {
+            // 只改这次运行的界面语言，不写进用户设置（也不冲掉用户的选择）。
+            preference_ = override;
+            apply(resolved);
+            return;
+        }
+    }
+
     QSettings settings;
     const QString saved =
         settings.value(QString::fromLatin1(kPreferenceKey), systemPreference()).toString();

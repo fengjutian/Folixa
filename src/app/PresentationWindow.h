@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "i18n/Translate.h"
+
 #include <QImage>
 #include <QWidget>
 
@@ -38,11 +40,15 @@ private:
     // 翻页。越界时不动（放映时最烦的就是最后一页按右键跳回第一页）。
     void step(int delta);
     void renderCurrent();
+    // 切换语言后重译窗口标题。
+    void retranslateUi();
 
     pdf::PdfDocument document_;
     int pageCount_ = 0;
     int page_ = 0;
     QImage image_;
+    // 一次设定、长期显示的窗口标题：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

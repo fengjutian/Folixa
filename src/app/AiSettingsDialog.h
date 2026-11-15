@@ -1,5 +1,7 @@
 #pragma once
 
+#include "i18n/Translate.h"
+
 #include <QDialog>
 
 class QCheckBox;
@@ -49,6 +51,8 @@ public:
     int timeoutMs() const;
 
 private:
+    // 切换语言后就地重译。
+    void retranslateUi();
     // 演示模式时把联网相关字段灰掉：填了也没用，容易误导。
     void updateEnabledState();
     // 数据模式下方的说明：每种模式会把什么送出去。
@@ -67,6 +71,7 @@ private:
     QDoubleSpinBox* outputPrice_ = nullptr;
     QSpinBox* timeout_ = nullptr;
     bool hasKey_ = false;
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

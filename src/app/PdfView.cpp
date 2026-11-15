@@ -249,6 +249,7 @@ void PdfView::buildUi() {
     metricsTimer_->start();
 
     updateZoomLabel();
+    updatePageInfo();
     updateMetrics();
 }
 
