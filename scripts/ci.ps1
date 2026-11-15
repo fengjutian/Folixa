@@ -62,6 +62,21 @@ try {
     $version = $versionMatch.Groups[1].Value
     Write-Host "AI PDF Editor $version 流水线开始" -ForegroundColor Cyan
 
+    # 脚本编码自检：PowerShell 5.1 读没有 BOM 的 UTF-8 文件时按 GBK 解析，
+    # 中文注释会把语法搅乱，而且报错位置往往离真正的问题很远。
+    # 这个坑踩过两次（都是编辑器把 BOM 去掉了），所以让流水线直接拦住。
+    $missingBom = @()
+    foreach ($script in Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter *.ps1 -File) {
+        $bytes = [System.IO.File]::ReadAllBytes($script.FullName)
+        $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        if (-not $hasBom) {
+            $missingBom += $script.Name
+        }
+    }
+    if ($missingBom.Count -gt 0) {
+        throw "以下脚本缺少 UTF-8 BOM（PowerShell 5.1 会按 GBK 解析）：$($missingBom -join ', ')"
+    }
+
     if (-not $SkipToolchain) {
         Invoke-Script '安装固定工具链' (Join-Path $PSScriptRoot 'bootstrap-toolchain.ps1')
     }
@@ -77,8 +92,22 @@ try {
         '-RepositoryRoot', $root
     )
 
+    # qpdf 是可选依赖：拿得到就打开结构校验、随包分发；拿不到就按"无 qpdf"继续。
+    # 这里只告警不中止——否则 GitHub 抖动一次，整条流水线就红了，而我们本来就有降级路径。
+    Write-Host '=== qpdf（可选：保存前结构校验）===' -ForegroundColor Cyan
+    $qpdfExe = Join-Path $root 'tools\qpdf\bin\qpdf.exe'
+    if (-not (Test-Path -LiteralPath $qpdfExe)) {
+        & $shellExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'bootstrap-qpdf.ps1')
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'qpdf 获取失败：本次按"无 qpdf"构建（保存路径不变，只是少了结构校验）'
+        }
+    }
+    $qpdfEnabled = Test-Path -LiteralPath $qpdfExe
+    $qpdfFlag = if ($qpdfEnabled) { 'ON' } else { 'OFF' }
+    Write-Host "    AIPDF_WITH_QPDF=$qpdfFlag" -ForegroundColor DarkGray
+
     Write-Host '=== Debug ===' -ForegroundColor Cyan
-    Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
+    Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug', "-DAIPDF_WITH_QPDF=$qpdfFlag")
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')
     Invoke-Native '测试 Debug' 'ctest' @('--preset', 'windows-debug', '--output-on-failure')
 
@@ -137,10 +166,18 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/proposals.png'
     )
+    Invoke-Script '放映验收' (Join-Path $PSScriptRoot 'verify-presentation.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/presentation.png'
+    )
+    Invoke-Script '排布方式验收' (Join-Path $PSScriptRoot 'verify-layout.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/layout.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
-    Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release')
+    Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release', "-DAIPDF_WITH_QPDF=$qpdfFlag")
     Invoke-Native '构建 Release' 'cmake' @('--build', '--preset', 'windows-release')
     Invoke-Native '测试 Release' 'ctest' @('--preset', 'windows-release', '--output-on-failure')
 

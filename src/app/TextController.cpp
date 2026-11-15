@@ -1,4 +1,6 @@
 #include "app/TextController.h"
+
+#include "app/SearchMatcher.h"
 #include "app/TraceText.h"
 
 #include <QDateTime>
@@ -56,13 +58,14 @@ public:
         condition_.wakeOne();
     }
 
-    void startSearch(const QString& query) {
+    void startSearch(const QString& query, const SearchOptions& options) {
         {
             QMutexLocker locker(&mutex_);
             // 换关键词时旧搜索可能还在跑：给每次搜索一个代号，
             // 旧搜索的结果回来时直接作废，否则会把上一个关键词的命中混进来。
             ++searchGeneration_;
             searchQuery_ = query;
+            searchOptions_ = options;
             searchCancelled_ = false;
             searching_ = !query.isEmpty();
             searchHits_.clear();
@@ -176,6 +179,7 @@ private:
         QString query;
         int pageIndex = 0;
         int generation = 0;
+        SearchOptions current;
         {
             QMutexLocker locker(&mutex_);
             if (!searching_ || searchCancelled_) {
@@ -183,6 +187,7 @@ private:
             }
             generation = searchGeneration_;
             query = searchQuery_;
+            current = searchOptions_;
             pageIndex = scannedPages_;
             const int totalPages = document_.pageCount();
             if (pageIndex >= totalPages) {
@@ -195,10 +200,16 @@ private:
             scannedPages_ = pageIndex + 1;
         }
 
+        // 页码范围之外的页直接跳过（scannedPages_ 已经前进过了）。
+        // runSearchStep() 每次只推进一页，所以这里用 return 而不是 continue。
+        if (!current.includesPage(pageIndex)) {
+            return;
+        }
+
         const auto text = extractPage(pageIndex);
         QVector<SearchHit> hits;
         if (text.has_value() && !query.isEmpty()) {
-            hits = findHits(*text, query, pageIndex);
+            hits = findHits(*text, query, current, pageIndex);
         }
 
         bool cancelled = false;
@@ -239,6 +250,7 @@ private:
     // 不是 QString 下标——代理对（UTF-16 两个码元）会让两者错位。
     static QVector<SearchHit> findHits(const pdf::TextPage& page,
                                         const QString& query,
+                                        const SearchOptions& options,
                                         int pageIndex) {
         QVector<SearchHit> hits;
         const QString plain = page.plainText();
@@ -257,22 +269,17 @@ private:
         }
         charOfPosition.append(page.chars.size());  // 末尾哨兵
 
-        int from = 0;
-        while (true) {
-            const int at = plain.indexOf(query, from, Qt::CaseInsensitive);
-            if (at < 0) {
-                break;
-            }
-            const int lastUnit = at + query.size() - 1;
+        for (const TextMatch& match : findTextMatches(plain, query, options)) {
+            const int at = match.at;
+            const int lastUnit = at + match.length - 1;
             if (lastUnit >= 0 && lastUnit < charOfPosition.size() && at < charOfPosition.size()) {
                 SearchHit hit;
                 hit.pageIndex = pageIndex;
                 hit.start = charOfPosition.at(at);
                 hit.end = charOfPosition.at(lastUnit) + 1;
-                hit.snippet = buildSnippet(plain, at, query.size());
+                hit.snippet = buildSnippet(plain, at, match.length);
                 hits.append(hit);
             }
-            from = at + qMax(1, query.size());
         }
         return hits;
     }
@@ -338,6 +345,7 @@ private:
     QVector<int> pendingPages_;
     QSet<int> requestedPages_;
     QString searchQuery_;
+        SearchOptions searchOptions_;
     QVector<SearchHit> searchHits_;
     // 有命中的页的文本，换关键词时可以直接复用。
     QHash<int, pdf::TextPage> hitPageCache_;
@@ -482,9 +490,9 @@ QVector<QRectF> TextController::selectionRects() const {
     return textLayout->highlightRects(selectionStart_, selectionEnd_);
 }
 
-void TextController::startSearch(const QString& query) {
+void TextController::startSearch(const QString& query, const SearchOptions& options) {
     hits_.clear();
-    worker_->startSearch(query);
+    worker_->startSearch(query, options);
     trace(QStringLiteral("search start query=%1").arg(traceText(query)));
     emit searchStarted();
 }

@@ -1,4 +1,4 @@
-#include "pdf/Annotation.h"
+﻿#include "pdf/Annotation.h"
 
 #include <QJsonArray>
 
@@ -12,10 +12,25 @@ QString annotationTypeName(AnnotationType type) {
             return QStringLiteral("下划线");
         case AnnotationType::StrikeOut:
             return QStringLiteral("删除线");
+        case AnnotationType::Squiggly:
+            return QStringLiteral("波浪线");
         case AnnotationType::Note:
             return QStringLiteral("便签");
         case AnnotationType::Square:
             return QStringLiteral("矩形");
+        case AnnotationType::Ellipse:
+            return QStringLiteral("椭圆");
+        case AnnotationType::Line:
+            return QStringLiteral("直线");
+        case AnnotationType::Arrow:
+            return QStringLiteral("箭头");
+        case AnnotationType::Polygon:
+            return QStringLiteral("多边形");
+        case AnnotationType::Cloud:
+            return QStringLiteral("云线");
+        case AnnotationType::FreeText:
+            return QStringLiteral("文本框");
+
         case AnnotationType::Ink:
             return QStringLiteral("墨迹");
     }
@@ -30,10 +45,22 @@ QColor defaultAnnotationColor(AnnotationType type) {
             return QColor(38, 132, 255);
         case AnnotationType::StrikeOut:
             return QColor(226, 62, 62);
+        case AnnotationType::Squiggly:
+            return QColor(226, 62, 62);
         case AnnotationType::Note:
             return QColor(255, 196, 0);
         case AnnotationType::Square:
             return QColor(52, 168, 120);
+        case AnnotationType::Ellipse:
+            return QColor(52, 168, 120);
+        case AnnotationType::Line:
+        case AnnotationType::Arrow:
+        case AnnotationType::Polygon:
+        case AnnotationType::Cloud:
+            return QColor(226, 62, 62);
+        case AnnotationType::FreeText:
+            return QColor(32, 42, 58);
+
         case AnnotationType::Ink:
             return QColor(226, 62, 62);
     }

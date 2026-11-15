@@ -1,4 +1,4 @@
-#include "pdf/PdfiumAdapter.h"
+﻿#include "pdf/PdfiumAdapter.h"
 
 #include <fpdf_annot.h>
 #include <fpdf_doc.h>
@@ -809,6 +809,19 @@ int annotationTypeToPdfium(AnnotationType type) {
             return FPDF_ANNOT_UNDERLINE;
         case AnnotationType::StrikeOut:
             return FPDF_ANNOT_STRIKEOUT;
+        case AnnotationType::Squiggly:
+            return FPDF_ANNOT_SQUIGGLY;
+        case AnnotationType::Ellipse:
+            return FPDF_ANNOT_CIRCLE;
+        case AnnotationType::Line:
+        case AnnotationType::Arrow:
+            return FPDF_ANNOT_LINE;
+        case AnnotationType::Polygon:
+        case AnnotationType::Cloud:
+            return FPDF_ANNOT_POLYGON;
+        case AnnotationType::FreeText:
+            return FPDF_ANNOT_FREETEXT;
+
         case AnnotationType::Note:
             return FPDF_ANNOT_TEXT;
         case AnnotationType::Square:
@@ -833,6 +846,22 @@ bool annotationTypeFromPdfium(int subtype, AnnotationType* out) {
         case FPDF_ANNOT_STRIKEOUT:
             *out = AnnotationType::StrikeOut;
             return true;
+        case FPDF_ANNOT_SQUIGGLY:
+            *out = AnnotationType::Squiggly;
+            return true;
+        case FPDF_ANNOT_CIRCLE:
+            *out = AnnotationType::Ellipse;
+            return true;
+        case FPDF_ANNOT_LINE:
+            *out = AnnotationType::Line;
+            return true;
+        case FPDF_ANNOT_POLYGON:
+            *out = AnnotationType::Polygon;
+            return true;
+        case FPDF_ANNOT_FREETEXT:
+            *out = AnnotationType::FreeText;
+            return true;
+
         case FPDF_ANNOT_TEXT:
             *out = AnnotationType::Note;
             return true;

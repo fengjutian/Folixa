@@ -101,7 +101,9 @@ foreach ($row in $rows) {
     Test-Check "$label 许可证已声明" ($row.License -match '(?i)license|lgpl|gpl|bsd|apache|mit|unicode|public domain|商业') $row.License
     Test-Check "$label 更新路径已声明" ($row.Update -match '(?i)update|bump|follow|move|user-managed|升级|更新|跟随') $row.Update
     if ($isOptional) {
-        Test-Check "$label 可选依赖明确不随包分发" ($row.Version -match '(?i)not bundled|可选|runtime') $row.Version
+        # 可选依赖必须写清"什么时候在、什么时候不在"：完全不分发（not bundled / runtime）
+        # 或只在某个开关打开时随包（when enabled / 可选）都算，含糊其辞才算不合格。
+        Test-Check "$label 可选依赖声明了分发条件" ($row.Version -match '(?i)not bundled|可选|runtime|when enabled') $row.Version
     } else {
         Test-Check "$label 非可选依赖有精确版本" ($row.Version -match '[0-9]') $row.Version
     }
@@ -213,6 +215,9 @@ if ($packageEntries.Count -gt 0) {
         '^AiPdfEditor\.exe$'                                                            = 'project'
         '^PdfAiWorker\.exe$'                                                            = 'project'
         '^pdfium\.dll$'                                                                 = 'PDFium'
+        # qpdf 是可选依赖：只有 -DAIPDF_WITH_QPDF=ON 的包才会带它。
+        # 带上就必须能归到 qpdf（登记表里有对应行与许可证）。
+        '^qpdf[0-9]*\.dll$'                                                             = 'qpdf'
         '^Qt6[A-Za-z0-9_]+\.dll$'                                                       = 'Qt'
         '^(generic|iconengines|imageformats|networkinformation|platforms|styles|tls)/[A-Za-z0-9_]+\.dll$' = 'Qt'
         '^libgcc_s_seh-1\.dll$'                                                         = 'MinGW-w64'

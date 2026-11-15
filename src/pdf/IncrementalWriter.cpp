@@ -323,9 +323,15 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         }
 
         const int appearanceObject = nextObject++;
-        it->second.inserts.append(
-            { target.insertAt,
-              "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> " });
+        QByteArray inserted = "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> ";
+        if (!item.extraEntries.isEmpty()) {
+            // 额外字典项（/L、/BE、/Vertices…）与 /AP 一起插进同一次重写。
+            // 顺序无所谓：PDF 字典按键查找，重复键才是问题——所以调用方必须
+            // 保证这些键原本不存在（PDFium 建出来的注释确实没有它们）。
+            inserted += item.extraEntries;
+            inserted += ' ';
+        }
+        it->second.inserts.append({ target.insertAt, inserted });
         appearanceBodies.append({ appearanceObject, buildAppearanceBody(item.appearance) });
     }
 

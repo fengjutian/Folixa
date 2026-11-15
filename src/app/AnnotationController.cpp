@@ -1,4 +1,4 @@
-#include "app/AnnotationController.h"
+﻿#include "app/AnnotationController.h"
 
 #include "app/PdfPageOperations.h"
 #include "doc/EditCommand.h"
@@ -98,6 +98,76 @@ quint64 AnnotationController::addMarkAnnotation(pdf::AnnotationType type,
     return id;
 }
 
+quint64 AnnotationController::addLine(pdf::AnnotationType type, int pageIndex, const QPointF& from,
+                                      const QPointF& to) {
+    if (type != pdf::AnnotationType::Line && type != pdf::AnnotationType::Arrow) {
+        return 0;
+    }
+    if (QLineF(from, to).length() < 0.5) {
+        return 0;  // 手抖点一下不产生"零长度直线"
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = type;
+    annotation.vertices = { from, to };
+    annotation.rect = QRectF(from, to).normalized();
+    // 线的矩形不能是零高/零宽：水平线的 bounding box 高度为 0，外观流会算不出 bbox。
+    if (annotation.rect.width() < 1.0) {
+        annotation.rect.setWidth(1.0);
+    }
+    if (annotation.rect.height() < 1.0) {
+        annotation.rect.setHeight(1.0);
+    }
+    annotation.color = pdf::defaultAnnotationColor(type);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
+              .arg(static_cast<int>(type))
+              .arg(pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addPolygon(pdf::AnnotationType type, int pageIndex,
+                                         const QVector<QPointF>& vertices) {
+    if (type != pdf::AnnotationType::Polygon && type != pdf::AnnotationType::Cloud) {
+        return 0;
+    }
+    if (vertices.size() < 3) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = type;
+    annotation.vertices = vertices;
+    QRectF rect = QRectF(vertices.first(), vertices.first());
+    for (const QPointF& vertex : vertices) {
+        rect = rect.united(QRectF(vertex, QSizeF(0.0, 0.0)));
+    }
+    // 留出线宽与扇贝的余量，否则外观流 bbox 会把边缘切掉。
+    annotation.rect = rect.adjusted(-3.0, -3.0, 3.0, 3.0);
+    annotation.color = pdf::defaultAnnotationColor(type);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
+              .arg(static_cast<int>(type))
+              .arg(pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
 quint64 AnnotationController::addNote(int pageIndex, const QRectF& rect, const QString& contents) {
     if (rect.width() <= 0.0 || rect.height() <= 0.0) {
         return 0;
@@ -126,15 +196,22 @@ quint64 AnnotationController::addNote(int pageIndex, const QRectF& rect, const Q
 }
 
 quint64 AnnotationController::addSquare(int pageIndex, const QRectF& rect) {
+    return addShape(pdf::AnnotationType::Square, pageIndex, rect);
+}
+
+quint64 AnnotationController::addShape(pdf::AnnotationType type, int pageIndex, const QRectF& rect) {
     if (rect.width() <= 0.0 || rect.height() <= 0.0) {
         return 0;
+    }
+    if (type != pdf::AnnotationType::Square && type != pdf::AnnotationType::Ellipse) {
+        return 0;  // 只有以矩形为界的图形走这条路
     }
     pdf::Annotation annotation;
     annotation.id = model_.allocateId();
     annotation.pageIndex = pageIndex;
-    annotation.type = pdf::AnnotationType::Square;
+    annotation.type = type;
     annotation.rect = rect;
-    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Square);
+    annotation.color = pdf::defaultAnnotationColor(type);
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
     const quint64 id = annotation.id;
@@ -142,7 +219,7 @@ quint64 AnnotationController::addSquare(int pageIndex, const QRectF& rect) {
         return 0;
     }
     trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
-              .arg(static_cast<int>(pdf::AnnotationType::Square))
+              .arg(static_cast<int>(type))
               .arg(pageIndex)
               .arg(id));
     emit undoStateChanged();

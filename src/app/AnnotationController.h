@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QHash>
 #include <QObject>
@@ -48,7 +48,13 @@ public:
         None,    // 不接管鼠标：文字拖选与链接点击照常
         Note,    // 便签：点一下放一个
         Square,  // 矩形：拖出一块
+        Ellipse, // 椭圆：拖出一块
+        Line,    // 直线：拖出两点
+        Arrow,   // 箭头：拖出两点
+        Polygon, // 多边形：逐点点击，双击结束
+        Cloud,   // 云线：同多边形，边框画成扇贝
         Ink,     // 墨迹：拖出一笔
+        Eraser,  // 橡皮：划过的墨迹整笔删掉
     };
     Q_ENUM(Tool)
 
@@ -72,6 +78,14 @@ public:
     quint64 addNote(int pageIndex, const QRectF& rect, const QString& contents);
     // 矩形。
     quint64 addSquare(int pageIndex, const QRectF& rect);
+    // 以矩形为界的图形（矩形 / 椭圆）。
+    quint64 addShape(pdf::AnnotationType type, int pageIndex, const QRectF& rect);
+    // 直线 / 箭头：两点确定，/L 由写入器补齐。
+    quint64 addLine(pdf::AnnotationType type, int pageIndex, const QPointF& from,
+                    const QPointF& to);
+    // 多边形 / 云线：顶点序列，/Vertices 与 /BE 由写入器补齐。
+    quint64 addPolygon(pdf::AnnotationType type, int pageIndex,
+                       const QVector<QPointF>& vertices);
     // 墨迹：一笔（user space 的一串点）。
     quint64 addInk(int pageIndex, const QVector<QPointF>& stroke);
 

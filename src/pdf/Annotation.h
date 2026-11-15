@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QColor>
 #include <QJsonObject>
@@ -18,8 +18,15 @@ enum class AnnotationType {
     Highlight,  // 高亮
     Underline,  // 下划线
     StrikeOut,  // 删除线
+    Squiggly,   // 波浪线
     Note,       // 便签（文本备注）
     Square,     // 矩形
+    Ellipse,    // 椭圆
+    Line,       // 直线
+    Arrow,      // 箭头（直线 + 开口箭头）
+    Polygon,    // 多边形
+    Cloud,      // 云线（多边形 + 弧线边框）
+    FreeText,   // 文本框（打字机）
     Ink,        // 墨迹
 };
 
@@ -39,6 +46,9 @@ struct Annotation {
     QVector<QRectF> quads;
     // 墨迹笔画（user space）：每条笔画是一串点。
     QVector<QVector<QPointF>> strokes;
+    // 多边形的顶点（Line/Arrow 只用前两个）。与 strokes 分开存：
+    // 墨迹是手绘笔画，多边形是顶点序列，写进 PDF 时分别对应 /InkList 与 /Vertices。
+    QVector<QPointF> vertices;
     QColor color;
     // 这条批注在文档里是否已带外观流（/AP）。
     //
@@ -48,6 +58,8 @@ struct Annotation {
     bool hasAppearance = false;
     // 便签正文与备注。
     QString contents;
+    // 文本框的字号（点）。0 表示用默认值。
+    double fontSize = 0.0;
     QString author;
 };
 

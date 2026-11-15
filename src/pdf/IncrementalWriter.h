@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
 #include <QString>
@@ -23,6 +23,12 @@ struct IncrementalWrite {
 struct AppearanceAttachment {
     QByteArray marker;  // 批注的 /NM，本程序写的是 "Folixa:<id>"
     Appearance appearance;
+    // 额外要写进批注字典的条目，原样插入（如 "/L [x1 y1 x2 y2]"、"/BE << /S /C /I 1 >>"）。
+    //
+    // 为什么需要：PDFium 的写接口能改矩形、颜色、正文，却改不了任意字典项。
+    // 直线要 /L、云线要 /BE、多边形要 /Vertices——不写这些键，福昕里只会看到
+    // 一个空矩形，而不是我们外观流里画的那条线。
+    QByteArray extraEntries;
 };
 
 // 给一批批注补上外观流（/AP），**一次写入**完成。

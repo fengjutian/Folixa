@@ -22,6 +22,7 @@ param(
     [string]$QtVersion = '6.8.3',
     [string]$MinGWVersion = '13.1.0',
     [string]$PdfiumVersion = '',
+    [string]$QpdfVersion = '',
     [string]$QtSbomPath = ''
 )
 
@@ -98,6 +99,27 @@ if ($PdfiumVersion) {
     $dependencies.Add([pscustomobject]@{
         ref       = $applicationRef
         dependsOn = @($pdfiumRef)
+    })
+}
+
+if ($QpdfVersion) {
+    $qpdfRef = "pkg:generic/qpdf@$QpdfVersion"
+    $components.Add([pscustomobject]@{
+        type    = 'library'
+        'bom-ref' = $qpdfRef
+        name    = 'qpdf'
+        version = $QpdfVersion
+        purl    = $qpdfRef
+        licenses = @(@{ license = @{ id = 'Apache-2.0' } })
+        description = 'qpdf PDF object layer, Apache-2.0 (optional build: AIPDF_WITH_QPDF)'
+        externalReferences = @(
+            [ordered]@{ type = 'website'; url = 'https://qpdf.readthedocs.io/' },
+            [ordered]@{ type = 'vcs'; url = 'https://github.com/qpdf/qpdf' }
+        )
+    })
+    $dependencies.Add([pscustomobject]@{
+        ref       = $applicationRef
+        dependsOn = @($qpdfRef)
     })
 }
 

@@ -319,7 +319,11 @@ add_test(NAME IncrementalWriterTests COMMAND IncrementalWriterTests)
 qt_add_executable(DocumentWriterTests
     DocumentWriterTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.h
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
@@ -350,7 +354,161 @@ add_dependencies(DocumentWriterTests pdf-fixtures)
 aipdf_deploy_qt_runtime(DocumentWriterTests)
 aipdf_deploy_pdfium(DocumentWriterTests)
 
+# 开了 qpdf 就让这组测试也走真实的 qpdf 校验，否则测的只是空操作。
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(DocumentWriterTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(DocumentWriterTests PRIVATE AIPDF_WITH_QPDF=1)
+    add_custom_command(TARGET DocumentWriterTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:DocumentWriterTests>"
+        COMMENT "Copying qpdf runtime for tests")
+endif()
+
 add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
+
+# ------------------------------------------------------------ 批注字典 ----
+
+qt_add_executable(AnnotationDictionaryTests
+    AnnotationDictionaryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(AnnotationDictionaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(AnnotationDictionaryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AnnotationDictionaryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AnnotationDictionaryTests)
+
+add_test(NAME AnnotationDictionaryTests COMMAND AnnotationDictionaryTests)
+
+# ------------------------------------------------------------ 橡皮几何 ----
+
+qt_add_executable(InkGeometryTests
+    InkGeometryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/InkGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/InkGeometry.h
+)
+
+target_link_libraries(InkGeometryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(InkGeometryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(InkGeometryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(InkGeometryTests)
+
+add_test(NAME InkGeometryTests COMMAND InkGeometryTests)
+
+# ------------------------------------------------------------ 缩放记忆 ----
+
+qt_add_executable(ZoomMemoryTests
+    ZoomMemoryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ZoomMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ZoomMemory.h
+)
+
+target_link_libraries(ZoomMemoryTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(ZoomMemoryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ZoomMemoryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ZoomMemoryTests)
+
+add_test(NAME ZoomMemoryTests COMMAND ZoomMemoryTests)
+
+# ------------------------------------------------------------ 放映适配 ----
+
+qt_add_executable(ViewFitTests
+    ViewFitTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ViewFit.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ViewFit.h
+)
+
+target_link_libraries(ViewFitTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(ViewFitTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ViewFitTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ViewFitTests)
+
+add_test(NAME ViewFitTests COMMAND ViewFitTests)
+
+# ------------------------------------------------------------ 视图历史 ----
+
+qt_add_executable(NavigationHistoryTests
+    NavigationHistoryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/NavigationHistory.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/NavigationHistory.h
+)
+
+target_link_libraries(NavigationHistoryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(NavigationHistoryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(NavigationHistoryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(NavigationHistoryTests)
+
+add_test(NAME NavigationHistoryTests COMMAND NavigationHistoryTests)
+
+# ------------------------------------------------------------ 检索匹配 ----
+
+qt_add_executable(SearchMatcherTests
+    SearchMatcherTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.h
+)
+
+target_link_libraries(SearchMatcherTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(SearchMatcherTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(SearchMatcherTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(SearchMatcherTests)
+
+add_test(NAME SearchMatcherTests COMMAND SearchMatcherTests)
+
+# ------------------------------------------------------------ 导出与打印 ----
+
+qt_add_executable(DocumentOutputTests
+    DocumentOutputTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
+)
+
+target_link_libraries(DocumentOutputTests PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test Qt6::PrintSupport
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(DocumentOutputTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+target_compile_definitions(DocumentOutputTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(DocumentOutputTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(DocumentOutputTests PRIVATE AIPDF_WITH_QPDF=1)
+    add_custom_command(TARGET DocumentOutputTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:DocumentOutputTests>"
+        COMMENT "Copying qpdf runtime for tests")
+endif()
+set_target_properties(DocumentOutputTests PROPERTIES WIN32_EXECUTABLE FALSE)
+add_dependencies(DocumentOutputTests pdf-fixtures)
+aipdf_deploy_qt_runtime(DocumentOutputTests)
+aipdf_deploy_pdfium(DocumentOutputTests)
+
+add_test(NAME DocumentOutputTests COMMAND DocumentOutputTests)
 
 # ---------------------------------------------------- 页面管理与安全保存 ----
 
@@ -588,6 +746,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
     ${CMAKE_SOURCE_DIR}/src/app/TextController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/TextController.h
+    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.h
     ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
     ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp

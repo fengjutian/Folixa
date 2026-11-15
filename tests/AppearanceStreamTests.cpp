@@ -1,4 +1,4 @@
-// 批注外观流生成器的单元测试。
+﻿// 批注外观流生成器的单元测试。
 //
 // 这里只测纯函数：给定批注数据，产出的 content stream 是否满足三条不变量——
 //   1) 内容全部落在 BBox 内（越界会被阅读器裁掉，表现为"批注少了半条"）；
@@ -64,6 +64,12 @@ private slots:
     void underlineStrokesInsteadOfFilling();
     void strikeOutDrawsThroughTheMiddle();
     void squareInsetsTheStroke();
+    void squigglyDrawsZigzag();
+    void ellipseUsesFourBeziers();
+    void lineDrawsStraightStroke();
+    void arrowAddsTwoHeadStrokes();
+    void polygonClosesPath();
+    void cloudDrawsScallops();
     void inkDrawsEveryStroke();
     void noteHasNoAppearance();
     void contentNeverEscapesBbox();
@@ -212,6 +218,81 @@ void AppearanceStreamTests::opacityAndLineWidthAreSharedPerType() {
     QCOMPARE(appearanceLineWidth(AnnotationType::Underline), 1.2);
     QCOMPARE(appearanceLineWidth(AnnotationType::Ink), 1.5);
     QVERIFY(appearanceLineWidth(AnnotationType::Highlight) > 0.0);
+}
+
+void AppearanceStreamTests::squigglyDrawsZigzag() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Squiggly;
+    annotation.quads = { QRectF(60.0, 200.0, 200.0, 18.0) };
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    const QString text = QString::fromLatin1(appearance.content);
+
+    // 描边而不是填充；路径上有多个转折点（至少 5 段 l）。
+    QVERIFY(text.contains("S\n"));
+    QVERIFY(!text.contains(" f\n"));
+    QVERIFY2(text.count(QLatin1String(" l\n")) >= 5, "波浪线的折点太少，画出来是直线");
+    QCOMPARE(appearanceOpacity(AnnotationType::Squiggly), 1.0);
+}
+
+void AppearanceStreamTests::ellipseUsesFourBeziers() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Ellipse;
+    annotation.quads.clear();
+    annotation.rect = QRectF(100.0, 100.0, 200.0, 120.0);
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    const QString text = QString::fromLatin1(appearance.content);
+
+    // 四段贝塞尔 + 一次描边（不是四段各自描边）。
+    QCOMPARE(text.count(QLatin1String(" c\n")), 4);
+    QCOMPARE(text.count(QLatin1String("S\n")), 1);
+    QVERIFY(!text.contains(" f\n"));
+}
+
+void AppearanceStreamTests::lineDrawsStraightStroke() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Line;
+    annotation.quads.clear();
+    annotation.vertices = { QPointF(100.0, 100.0), QPointF(260.0, 160.0) };
+
+    const QString text = QString::fromLatin1(buildAnnotationAppearance(annotation).content);
+    QVERIFY(text.contains(" m\n"));
+    QVERIFY(text.contains(" l\n"));
+    QCOMPARE(text.count(QLatin1String("S\n")), 1);
+}
+
+void AppearanceStreamTests::arrowAddsTwoHeadStrokes() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Arrow;
+    annotation.quads.clear();
+    annotation.vertices = { QPointF(100.0, 100.0), QPointF(260.0, 160.0) };
+
+    const QString text = QString::fromLatin1(buildAnnotationAppearance(annotation).content);
+    // 主线 + 两个箭头侧翼，各自描边。
+    QCOMPARE(text.count(QLatin1String("S\n")), 3);
+}
+
+void AppearanceStreamTests::polygonClosesPath() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Polygon;
+    annotation.quads.clear();
+    annotation.vertices = { QPointF(100.0, 100.0), QPointF(200.0, 100.0), QPointF(150.0, 180.0) };
+
+    const QString text = QString::fromLatin1(buildAnnotationAppearance(annotation).content);
+    // s = 闭合并描边；多边形不该散着边。
+    QVERIFY(text.contains("s\n"));
+    QVERIFY(!text.contains(" f\n"));
+}
+
+void AppearanceStreamTests::cloudDrawsScallops() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Cloud;
+    annotation.quads.clear();
+    annotation.vertices = { QPointF(100.0, 100.0), QPointF(300.0, 100.0), QPointF(300.0, 200.0) };
+
+    const QString text = QString::fromLatin1(buildAnnotationAppearance(annotation).content);
+    QVERIFY2(text.count(QLatin1String(" c\n")) >= 4, "云线没有弧线，看起来就是普通多边形");
 }
 
 QTEST_MAIN(AppearanceStreamTests)

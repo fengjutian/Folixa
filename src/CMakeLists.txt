@@ -1,4 +1,4 @@
-qt_add_executable(AiPdfEditor WIN32
+﻿qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
@@ -44,6 +44,20 @@ qt_add_executable(AiPdfEditor WIN32
     app/IndexPanel.cpp
     app/DocumentQaController.h
     app/DocumentQaController.cpp
+    app/DocumentOutput.h
+    app/SearchMatcher.h
+    app/NavigationHistory.h
+    app/NavigationHistory.cpp
+    app/SearchMatcher.cpp
+    app/PresentationWindow.h
+    app/PresentationWindow.cpp
+    app/ViewFit.h
+    app/ViewFit.cpp
+    app/ZoomMemory.h
+    app/ZoomMemory.cpp
+    app/InkGeometry.h
+    app/InkGeometry.cpp
+    app/DocumentOutput.cpp
     app/RenderThread.h
     app/RenderThread.cpp
     app/TileCache.h
@@ -56,12 +70,16 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/PdfiumAdapter.h
     pdf/Annotation.cpp
     pdf/Annotation.h
+    pdf/AnnotationDictionary.h
+    pdf/AnnotationDictionary.cpp
     pdf/AppearanceStream.cpp
     pdf/AppearanceStream.h
     pdf/IncrementalWriter.cpp
     pdf/IncrementalWriter.h
     pdf/DocumentWriter.cpp
     pdf/DocumentWriter.h
+    pdf/QpdfBackend.cpp
+    pdf/QpdfBackend.h
     pdf/Navigation.cpp
     pdf/Navigation.h
     pdf/TextPage.cpp
@@ -156,6 +174,8 @@ target_link_libraries(AiPdfEditor PRIVATE
     # 导航栏与发送按钮的图标是 SVG（qt_add_resources 打包）：没有 QSvg 插件
     # 时 QIcon 拿到的是空图标，按钮就只剩下一个白方块。
     Qt6::Svg
+    # 打印：QPrinter / QPrintDialog。用渲染成图的方式打印，不走系统 PDF 打印栈。
+    Qt6::PrintSupport
     ${AIPDF_PDFIUM_LIBRARY}
 )
 
@@ -167,6 +187,18 @@ endif()
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(AiPdfEditor PRIVATE ${AIPDF_PDFIUM_INCLUDE_DIR})
 target_compile_definitions(AiPdfEditor PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
+
+# 可选的 qpdf 结构校验：包在根作用域已找好（找不到时 qpdf_FOUND 为假，这里自动跳过）。
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(AiPdfEditor PRIVATE qpdf::libqpdf)
+    target_compile_definitions(AiPdfEditor PRIVATE AIPDF_WITH_QPDF=1)
+    message(STATUS "qpdf ${qpdf_VERSION}: 保存前会做结构校验")
+    # 运行时需要 qpdf30.dll 与主程序同目录，否则程序根本起不来。
+    add_custom_command(TARGET AiPdfEditor POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:AiPdfEditor>"
+        COMMENT "Copying qpdf runtime")
+endif()
 
 set_target_properties(AiPdfEditor PROPERTIES
     OUTPUT_NAME "AiPdfEditor"

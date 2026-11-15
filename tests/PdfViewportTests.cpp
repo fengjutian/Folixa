@@ -1,4 +1,4 @@
-#include <QtTest>
+﻿#include <QtTest>
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
@@ -14,6 +14,11 @@ private slots:
     void layoutHitTestFindsPage();
     void layoutDominantPageFollowsVisibleArea();
     void layoutHandlesEmptyDocument();
+    void facingModePlacesPagesSideBySide();
+    void facingCoverLeavesFirstPageAlone();
+    void hitTestDistinguishesLeftAndRightPage();
+    void continuousModeKeepsSingleColumn();
+    void rowWidthFollowsEachRow();
     void cacheEvictsLeastRecentlyUsed();
     void cacheRespectsMemoryLimit();
     void cacheSkipsOversizedTile();
@@ -162,6 +167,83 @@ void PdfViewportTests::cacheZoomKeyIsStable() {
     // 极小的浮点抖动不应让缓存键变化。
     QVERIFY(TileCache::zoomToKey(1.0 + 1e-12) == TileCache::zoomToKey(1.0));
     QVERIFY(TileCache::zoomToKey(1.0) != TileCache::zoomToKey(1.5));
+}
+
+void PdfViewportTests::facingModePlacesPagesSideBySide() {
+    PageLayout layout;
+    layout.setPages({makePage(100, 200), makePage(100, 200), makePage(100, 200),
+                     makePage(100, 200)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(10.0);
+    layout.setLayoutMode(PageLayout::LayoutMode::Facing);
+
+    // 两列 + 中间一个间距。
+    QCOMPARE(layout.totalWidth(), 210.0);
+    QCOMPARE(layout.pageRect(0), QRectF(0.0, 0.0, 100.0, 200.0));
+    QCOMPARE(layout.pageRect(1), QRectF(110.0, 0.0, 100.0, 200.0));
+    QCOMPARE(layout.pageRect(2).top(), 210.0);
+    QCOMPARE(layout.pageRect(3).left(), 110.0);
+    // 内容到第二行底部为止（410），不含末尾间距。
+    QCOMPARE(layout.totalHeight(), 410.0);
+}
+
+void PdfViewportTests::facingCoverLeavesFirstPageAlone() {
+    PageLayout layout;
+    layout.setPages({makePage(100, 200), makePage(100, 200), makePage(100, 200)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(10.0);
+    layout.setLayoutMode(PageLayout::LayoutMode::FacingCover);
+
+    // 封面单独一行，之后 1、2 成对。
+    QCOMPARE(layout.pageRect(0), QRectF(0.0, 0.0, 100.0, 200.0));
+    QCOMPARE(layout.pageRect(1).top(), 210.0);
+    QCOMPARE(layout.pageRect(1).left(), 0.0);
+    QCOMPARE(layout.pageRect(2).top(), 210.0);
+    QCOMPARE(layout.pageRect(2).left(), 110.0);
+}
+
+void PdfViewportTests::hitTestDistinguishesLeftAndRightPage() {
+    PageLayout layout;
+    layout.setPages({makePage(100, 200), makePage(100, 200)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(10.0);
+    layout.setLayoutMode(PageLayout::LayoutMode::Facing);
+
+    QCOMPARE(layout.pageAtPoint(QPointF(50.0, 50.0)), 0);
+    QCOMPARE(layout.pageAtPoint(QPointF(150.0, 50.0)), 1);
+    // 两列之间的缝不属于任何一页。
+    QCOMPARE(layout.pageAtPoint(QPointF(105.0, 50.0)), -1);
+}
+
+void PdfViewportTests::continuousModeKeepsSingleColumn() {
+    PageLayout layout;
+    layout.setPages({makePage(100, 200), makePage(100, 150)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(10.0);
+    layout.setLayoutMode(PageLayout::LayoutMode::Continuous);
+
+    QCOMPARE(layout.totalWidth(), 100.0);
+    QCOMPARE(layout.pageRect(1).left(), 0.0);
+    QCOMPARE(layout.pageRect(1).top(), 210.0);
+}
+
+void PdfViewportTests::rowWidthFollowsEachRow() {
+    // 尺寸不一致的文档：窄页按自己的宽度居中，不能被全篇最宽页拖偏。
+    PageLayout layout;
+    layout.setPages({makePage(100, 200), makePage(60, 200), makePage(60, 200)});
+    layout.setScale(1.0);
+    layout.setPageSpacing(10.0);
+
+    QCOMPARE(layout.rowWidth(0), 100.0);
+    QCOMPARE(layout.rowWidth(1), 60.0);
+    QCOMPARE(layout.totalWidth(), 100.0);
+
+    // 切到双页：列宽取全篇最宽页（保证左右两列对齐），所以整宽是 100 + 10 + 100。
+    // 行的宽度仍然按行内实际内容算，用于把这一行居中。
+    layout.setLayoutMode(PageLayout::LayoutMode::Facing);
+    QCOMPARE(layout.rowWidth(0), 100.0);   // 第 0 行：100 与 60 并排
+    QCOMPARE(layout.rowWidth(2), 60.0);    // 第 1 行：只有第 2 页
+    QCOMPARE(layout.totalWidth(), 210.0);
 }
 
 QTEST_GUILESS_MAIN(PdfViewportTests)

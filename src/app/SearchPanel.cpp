@@ -1,7 +1,9 @@
-#include "app/SearchPanel.h"
+﻿#include "app/SearchPanel.h"
 
 #include "app/TextController.h"
 
+#include <QCheckBox>
+#include <QSpinBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -50,6 +52,51 @@ void SearchPanel::buildUi() {
     queryEdit_->setAccessibleName(QStringLiteral("搜索关键词"));
     queryEdit_->setClearButtonEnabled(true);
     layout->addWidget(queryEdit_);
+
+    // 检索选项：改了立刻重搜。勾选项本身就是查询的一部分，
+    // 让用户改完还得再敲一次回车，等于把"选项"变成了"提示"。
+    auto* optionsRow = new QHBoxLayout();
+    optionsRow->setSpacing(12);
+    caseSensitiveBox_ = new QCheckBox(QStringLiteral("区分大小写"), this);
+    caseSensitiveBox_->setObjectName(QStringLiteral("searchCaseSensitive"));
+    wholeWordBox_ = new QCheckBox(QStringLiteral("全字匹配"), this);
+    wholeWordBox_->setObjectName(QStringLiteral("searchWholeWord"));
+    regexBox_ = new QCheckBox(QStringLiteral("正则"), this);
+    regexBox_->setObjectName(QStringLiteral("searchRegex"));
+    optionsRow->addWidget(caseSensitiveBox_);
+    optionsRow->addWidget(wholeWordBox_);
+    optionsRow->addWidget(regexBox_);
+
+    // 页码范围：0 表示"不限"，用户改完立刻重搜。
+    optionsRow->addSpacing(8);
+    optionsRow->addWidget(new QLabel(QStringLiteral("第"), this));
+    fromPageSpin_ = new QSpinBox(this);
+    fromPageSpin_->setObjectName(QStringLiteral("searchFromPage"));
+    fromPageSpin_->setRange(0, 99999);
+    fromPageSpin_->setSpecialValueText(QStringLiteral("不限"));
+    optionsRow->addWidget(fromPageSpin_);
+    optionsRow->addWidget(new QLabel(QStringLiteral("至"), this));
+    toPageSpin_ = new QSpinBox(this);
+    toPageSpin_->setObjectName(QStringLiteral("searchToPage"));
+    toPageSpin_->setRange(0, 99999);
+    toPageSpin_->setSpecialValueText(QStringLiteral("不限"));
+    optionsRow->addWidget(toPageSpin_);
+    optionsRow->addWidget(new QLabel(QStringLiteral("页"), this));
+    optionsRow->addStretch(1);
+    layout->addLayout(optionsRow);
+
+    auto restartSearch = [this]() {
+        if (controller_ == nullptr || queryEdit_->text().trimmed().isEmpty()) {
+            return;
+        }
+        debounceTimer_->stop();
+        runSearch();
+    };
+    connect(caseSensitiveBox_, &QCheckBox::toggled, this, restartSearch);
+    connect(wholeWordBox_, &QCheckBox::toggled, this, restartSearch);
+    connect(regexBox_, &QCheckBox::toggled, this, restartSearch);
+    connect(fromPageSpin_, &QSpinBox::valueChanged, this, restartSearch);
+    connect(toPageSpin_, &QSpinBox::valueChanged, this, restartSearch);
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
@@ -189,7 +236,17 @@ void SearchPanel::runSearch() {
     }
     currentResult_ = -1;
     results_->clear();
-    controller_->startSearch(query);
+    SearchOptions options;
+    options.caseSensitive = caseSensitiveBox_ != nullptr && caseSensitiveBox_->isChecked();
+    options.wholeWord = wholeWordBox_ != nullptr && wholeWordBox_->isChecked();
+    options.regex = regexBox_ != nullptr && regexBox_->isChecked();
+    if (fromPageSpin_ != nullptr && fromPageSpin_->value() > 0) {
+        options.firstPage = fromPageSpin_->value() - 1;
+    }
+    if (toPageSpin_ != nullptr && toPageSpin_->value() > 0) {
+        options.lastPage = toPageSpin_->value() - 1;
+    }
+    controller_->startSearch(query, options);
 }
 
 void SearchPanel::refreshResults() {

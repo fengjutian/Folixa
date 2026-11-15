@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QWidget>
 
@@ -6,6 +6,8 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QCheckBox;
+class QSpinBox;
 class QTimer;
 
 namespace aipdf::app {
@@ -53,6 +55,11 @@ private:
     QPushButton* clearButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
+    QCheckBox* caseSensitiveBox_ = nullptr;
+    QCheckBox* wholeWordBox_ = nullptr;
+    QCheckBox* regexBox_ = nullptr;
+    QSpinBox* fromPageSpin_ = nullptr;
+    QSpinBox* toPageSpin_ = nullptr;
     QListWidget* results_ = nullptr;
     // 输入停顿后再搜索，避免每敲一个字就全扫一遍。
     QTimer* debounceTimer_ = nullptr;

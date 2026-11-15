@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <QWidget>
 #include <QImage>
 
+#include "app/NavigationHistory.h"
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
 #include "pdf/PdfiumAdapter.h"
@@ -83,6 +84,17 @@ public slots:
     void rotateLeft();
     void setZoom(double factor);
     void goToPage(int index);
+
+    // 排布方式：单页长卷 / 双页对开 / 双页(封面单独一行)。
+    void setLayoutMode(PageLayout::LayoutMode mode);
+    PageLayout::LayoutMode layoutMode() const;
+
+    // 前进 / 后退：回到上一次跳转或缩放的位置。
+    void navigateBack();
+    void navigateForward();
+
+    // 放映：全屏一页一张，方向键翻页。
+    void startPresentation();
     // 把当前选中的文字复制到剪贴板。
     void copySelection();
     // 撤销 / 重做批注操作。
@@ -109,6 +121,14 @@ public slots:
     // 文档有没有未保存的改动。
     bool isModified() const;
 
+    // ------------------------------------------------------ 打印与导出 ----
+    //
+    // 三个入口都在这里：打印走"渲染成图"，导出走同一套渲染，保证"屏幕、纸面、
+    // 导出文件"三处看到的是同一份内容（包括批注）。
+    void printDocument();
+    void exportPageImages();
+    void exportPlainText();
+
     // -------------------------------------------------------- 索引定位 ----
     //
     // 跳到某页的某个块，并把那块在页面上高亮出来。
@@ -121,6 +141,8 @@ signals:
     void currentPageChanged(int index);
     // 性能指标文本（缓存占用与待渲染任务数），交给主窗口显示在状态栏。
     void metricsChanged(const QString& text);
+    // 历史可用性变化（供菜单项置灰）。
+    void historyChanged(bool canGoBack, bool canGoForward);
     // 选中的文字已复制（字符数）。
     void textCopied(int characters);
     // 链接被激活：内部跳转给出目标页（从 0 开始），外部链接给出地址。
@@ -173,6 +195,13 @@ private:
     // 刷新批注工具栏的可用状态（撤销、重做、选区类按钮）。
     void updateAnnotationToolBar();
 
+    // 视图历史：只记用户主动换位置的动作（跳页、缩放），滚轮不记。
+    NavigationHistory history_;
+    bool restoringHistory_ = false;
+
+    ViewState captureViewState() const;
+    void applyViewState(const ViewState& state);
+
     pdf::PdfDocument document_;
     PageLayout layout_;
     TileCache cache_;
@@ -199,10 +228,17 @@ private:
     // 批注工具栏上的按钮。
     QToolButton* highlightButton_ = nullptr;
     QToolButton* underlineButton_ = nullptr;
+    QToolButton* squigglyButton_ = nullptr;
     QToolButton* strikeOutButton_ = nullptr;
     QToolButton* noteButton_ = nullptr;
     QToolButton* squareButton_ = nullptr;
+    QToolButton* ellipseButton_ = nullptr;
+    QToolButton* lineButton_ = nullptr;
+    QToolButton* arrowButton_ = nullptr;
+    QToolButton* polygonButton_ = nullptr;
+    QToolButton* cloudButton_ = nullptr;
     QToolButton* inkButton_ = nullptr;
+    QToolButton* eraserButton_ = nullptr;
     QToolButton* undoButton_ = nullptr;
     QToolButton* redoButton_ = nullptr;
     // 指标不放进工具栏：标签宽度一变，工具栏的溢出状态就变，

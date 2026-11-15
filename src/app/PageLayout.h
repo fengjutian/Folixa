@@ -1,5 +1,7 @@
-#pragma once
+﻿#pragma once
 
+#include <QPointF>
+#include <QRectF>
 #include <QSizeF>
 #include <QVector>
 
@@ -14,6 +16,15 @@ namespace aipdf::app {
 // 因此可以脱离界面直接做单元测试。
 class PageLayout {
 public:
+    // 页面排布方式。
+    //
+    // Continuous 是默认的纵向长卷；Facing 把相邻两页并排（左偶右奇）；
+    // FacingCover 让第一页单独占一行（封面），之后才开始成对。
+    enum class LayoutMode {
+        Continuous,
+        Facing,
+        FacingCover,
+    };
     // 单页的静态信息（单位是点，1/72 英寸）。
     // widthPoints/heightPoints 是**显示尺寸**（页面自带 /Rotate 已经应用过）。
     struct PageInfo {
@@ -33,6 +44,10 @@ public:
     // 页与页之间的间距（逻辑像素）。
     void setPageSpacing(double spacing);
 
+    // 排布方式。改变会重建行布局。
+    void setLayoutMode(LayoutMode mode);
+    LayoutMode layoutMode() const;
+
     void clear();
 
     int pageCount() const;
@@ -44,6 +59,19 @@ public:
     // 某一页在视口坐标系里的尺寸与上边缘位置（逻辑像素）。
     QSizeF pageSize(int index) const;
     double pageTop(int index) const;
+
+    // 某一页在视口坐标系里的矩形（含横向位置）。双页模式下左右两页的 x 不同。
+    QRectF pageRect(int index) const;
+
+    // 整篇文档的宽度（逻辑像素）。纵向长卷等于最宽页宽；双页等于两列加间距。
+    double totalWidth() const;
+
+    // 某一页所在行的宽度（逻辑像素）。纵向长卷时就是该页自己的宽度——
+    // 页面尺寸不一致的文档里，按"全篇最宽"居中会让窄页偏到左边。
+    double rowWidth(int index) const;
+
+    // 视口坐标点落在哪一页上；落在页间距里返回 -1。
+    int pageAtPoint(const QPointF& point) const;
 
     // 整篇文档的高度（逻辑像素），供滚动区域使用。
     double totalHeight() const;
@@ -63,14 +91,28 @@ public:
     double pageBottom(int index) const;
 
 private:
+    // 一行可以放一页或两页（双页模式）。
+    struct Row {
+        int firstPage = 0;
+        int count = 1;
+        double top = 0.0;
+        double height = 0.0;
+        double width = 0.0;
+    };
+
     QVector<PageInfo> pages_;
-    QVector<double> tops_;
+    QVector<double> tops_;   // 每页所在行的上边缘
+    QVector<Row> rows_;
     double zoom_ = 1.0;
     int userRotation_ = 0;
     double spacing_ = 12.0;
     double totalHeight_ = 0.0;
+    double totalWidth_ = 0.0;
+    double columnWidth_ = 0.0;
+    LayoutMode mode_ = LayoutMode::Continuous;
 
     void recomputeTops();
+    int rowOfPage(int index) const;
 };
 
 }  // namespace aipdf::app

@@ -1,4 +1,4 @@
-#include "app/PageLayout.h"
+﻿#include "app/PageLayout.h"
 
 #include <QtGlobal>
 
@@ -32,10 +32,25 @@ void PageLayout::setPageSpacing(double spacing) {
     recomputeTops();
 }
 
+void PageLayout::setLayoutMode(LayoutMode mode) {
+    if (mode_ == mode) {
+        return;
+    }
+    mode_ = mode;
+    recomputeTops();
+}
+
+PageLayout::LayoutMode PageLayout::layoutMode() const {
+    return mode_;
+}
+
 void PageLayout::clear() {
     pages_.clear();
     tops_.clear();
+    rows_.clear();
     totalHeight_ = 0.0;
+    totalWidth_ = 0.0;
+    columnWidth_ = 0.0;
 }
 
 int PageLayout::pageCount() const {
@@ -75,35 +90,97 @@ double PageLayout::pageTop(int index) const {
     return tops_.at(index);
 }
 
+QRectF PageLayout::pageRect(int index) const {
+    if (index < 0 || index >= pages_.size()) {
+        return {};
+    }
+    const int row = rowOfPage(index);
+    if (row < 0) {
+        return {};
+    }
+    const Row& current = rows_.at(row);
+    const QSizeF size = pageSize(index);
+    const double column = (index - current.firstPage) * (columnWidth_ + spacing_);
+    return QRectF(column, current.top, size.width(), size.height());
+}
+
 double PageLayout::totalHeight() const {
     return totalHeight_;
 }
 
+double PageLayout::totalWidth() const {
+    return totalWidth_;
+}
+
+double PageLayout::rowWidth(int index) const {
+    const int row = rowOfPage(index);
+    if (row < 0) {
+        return 0.0;
+    }
+    return rows_.at(row).width;
+}
+
 int PageLayout::pageAt(double y) const {
-    if (tops_.isEmpty()) {
+    if (rows_.isEmpty()) {
         return -1;
     }
     if (y < 0.0) {
-        return 0;
+        return rows_.first().firstPage;
     }
-    // tops_ 递增，二分查找最后一页起点不超过 y 的页。
+    // rows_ 按 top 递增，二分找最后一个 top <= y 的行。
     int low = 0;
-    int high = static_cast<int>(tops_.size()) - 1;
+    int high = static_cast<int>(rows_.size()) - 1;
     int result = 0;
     while (low <= high) {
         const int mid = (low + high) / 2;
-        if (tops_.at(mid) <= y) {
+        if (rows_.at(mid).top <= y) {
             result = mid;
             low = mid + 1;
         } else {
             high = mid - 1;
         }
     }
-    return result;
+    return rows_.at(result).firstPage;
+}
+
+int PageLayout::pageAtPoint(const QPointF& point) const {
+    if (rows_.isEmpty()) {
+        return -1;
+    }
+    const int rowIndex = [&]() {
+        int low = 0;
+        int high = static_cast<int>(rows_.size()) - 1;
+        int result = -1;
+        while (low <= high) {
+            const int mid = (low + high) / 2;
+            if (rows_.at(mid).top <= point.y()) {
+                if (point.y() <= rows_.at(mid).top + rows_.at(mid).height) {
+                    return mid;
+                }
+                result = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return result;
+    }();
+    if (rowIndex < 0) {
+        return -1;
+    }
+
+    const Row& row = rows_.at(rowIndex);
+    for (int offset = 0; offset < row.count; ++offset) {
+        const int pageIndex = row.firstPage + offset;
+        if (pageRect(pageIndex).contains(point)) {
+            return pageIndex;
+        }
+    }
+    return -1;  // 落在页间距或行内空白处
 }
 
 int PageLayout::dominantPage(double scrollTop, double viewportHeight) const {
-    if (tops_.isEmpty()) {
+    if (rows_.isEmpty()) {
         return -1;
     }
     if (viewportHeight <= 0.0) {
@@ -114,13 +191,13 @@ int PageLayout::dominantPage(double scrollTop, double viewportHeight) const {
 
     int best = -1;
     double bestHeight = 0.0;
-    for (int index = 0; index < tops_.size(); ++index) {
-        const double top = std::max(tops_.at(index), viewTop);
-        const double bottom = std::min(pageBottom(index), viewBottom);
+    for (int pageIndex = 0; pageIndex < pages_.size(); ++pageIndex) {
+        const double top = std::max(pageTop(pageIndex), viewTop);
+        const double bottom = std::min(pageBottom(pageIndex), viewBottom);
         const double visible = bottom - top;
         if (visible > bestHeight) {
             bestHeight = visible;
-            best = index;
+            best = pageIndex;
         }
     }
     if (best < 0) {
@@ -131,29 +208,85 @@ int PageLayout::dominantPage(double scrollTop, double viewportHeight) const {
 }
 
 double PageLayout::pageBottom(int index) const {
-    if (index < 0 || index >= tops_.size()) {
+    const int row = rowOfPage(index);
+    if (row < 0) {
         return 0.0;
     }
-    if (index + 1 < tops_.size()) {
-        return tops_.at(index + 1) - spacing_;
+    return rows_.at(row).top + rows_.at(row).height;
+}
+
+int PageLayout::rowOfPage(int index) const {
+    if (index < 0 || index >= pages_.size() || rows_.isEmpty()) {
+        return -1;
     }
-    return totalHeight_;
+    // 行数很少（页面数/2），线性扫描足够；二分会因为"行内两页"而需要额外换算。
+    for (int row = 0; row < rows_.size(); ++row) {
+        const Row& current = rows_.at(row);
+        if (index >= current.firstPage && index < current.firstPage + current.count) {
+            return row;
+        }
+    }
+    return -1;
 }
 
 void PageLayout::recomputeTops() {
     tops_.clear();
-    tops_.reserve(pages_.size());
+    rows_.clear();
     totalHeight_ = 0.0;
+    totalWidth_ = 0.0;
+    columnWidth_ = 0.0;
 
-    double y = 0.0;
+    if (pages_.isEmpty()) {
+        return;
+    }
+
+    tops_.resize(pages_.size());
     for (int i = 0; i < pages_.size(); ++i) {
-        tops_.append(y);
-        const QSizeF size = pageSize(i);
-        y += size.height() + spacing_;
+        columnWidth_ = std::max(columnWidth_, pageSize(i).width());
     }
-    if (!pages_.isEmpty()) {
-        totalHeight_ = qMax(0.0, y - spacing_);
+
+    // 按排布方式切行：纵向长卷一页一行，双页两页一行，封面模式第一页单独一行。
+    const int pairStart = (mode_ == LayoutMode::FacingCover) ? 1 : 0;
+    const int perRow = (mode_ == LayoutMode::Continuous) ? 1 : 2;
+
+    int pageIndex = 0;
+    double y = 0.0;
+    if (pairStart == 1) {
+        Row cover;
+        cover.firstPage = 0;
+        cover.count = 1;
+        cover.top = 0.0;
+        cover.height = pageSize(0).height();
+        cover.width = pageSize(0).width();
+        rows_.append(cover);
+        tops_[0] = 0.0;
+        y = cover.height + spacing_;
+        pageIndex = 1;
     }
+
+    while (pageIndex < pages_.size()) {
+        Row row;
+        row.firstPage = pageIndex;
+        row.count = std::min(perRow, static_cast<int>(pages_.size()) - pageIndex);
+        row.top = y;
+        double height = 0.0;
+        for (int offset = 0; offset < row.count; ++offset) {
+            height = std::max(height, pageSize(pageIndex + offset).height());
+            tops_[pageIndex + offset] = y;
+        }
+        row.height = height;
+        double width = 0.0;
+        for (int offset = 0; offset < row.count; ++offset) {
+            width = std::max(width, pageSize(pageIndex + offset).width());
+        }
+        row.width = width;
+        rows_.append(row);
+        y += height + spacing_;
+        pageIndex += row.count;
+    }
+
+    totalHeight_ = std::max(0.0, y - spacing_);
+    totalWidth_ = (perRow == 1) ? columnWidth_ : columnWidth_ * 2 + spacing_;
 }
 
 }  // namespace aipdf::app

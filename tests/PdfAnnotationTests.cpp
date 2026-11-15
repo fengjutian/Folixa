@@ -1,4 +1,4 @@
-// PDFium 适配层的批注读写测试。
+﻿// PDFium 适配层的批注读写测试。
 //
 // 关注三件事：
 //   1) 写进去的批注能读回来（子类型、矩形、四角点、正文）；
@@ -42,6 +42,8 @@ class PdfAnnotationTests : public QObject {
 
 private slots:
     void writeHighlightAndReadBack();
+    void writeSquigglyAndReadBack();
+    void writeEllipseAndReadBack();
     void writeNoteKeepsContents();
     void rewriteReplacesPreviousAnnotations();
     void emptyListRemovesAnnotations();
@@ -222,6 +224,38 @@ void PdfAnnotationTests::controllerUndoThenRedoRestoresAnnotation() {
     QVERIFY(page.has_value());
     QCOMPARE(page->annotations().size(), 1);
     QCOMPARE(page->annotations().first().type, AnnotationType::Square);
+}
+
+void PdfAnnotationTests::writeSquigglyAndReadBack() {
+    const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(result.document.isValid());
+    auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+
+    Annotation annotation = makeHighlight(0);
+    annotation.type = AnnotationType::Squiggly;
+    QVERIFY(page->setAnnotations({ annotation }));
+
+    const auto read = page->annotations();
+    QCOMPARE(read.size(), 1);
+    QCOMPARE(read.first().type, AnnotationType::Squiggly);
+}
+
+void PdfAnnotationTests::writeEllipseAndReadBack() {
+    const auto result = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(result.document.isValid());
+    auto page = result.document.page(0);
+    QVERIFY(page.has_value());
+
+    Annotation annotation = makeHighlight(0);
+    annotation.type = AnnotationType::Ellipse;
+    annotation.quads.clear();
+    annotation.rect = QRectF(56.0, 120.0, 180.0, 90.0);
+    QVERIFY(page->setAnnotations({ annotation }));
+
+    const auto read = page->annotations();
+    QCOMPARE(read.size(), 1);
+    QCOMPARE(read.first().type, AnnotationType::Ellipse);
 }
 
 QTEST_MAIN(PdfAnnotationTests)

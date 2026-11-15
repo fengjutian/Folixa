@@ -849,6 +849,92 @@ public static class AiPdfCursor {
     return $null
 }
 
+function Send-AiPdfKey {
+    <#
+    .SYNOPSIS
+        向当前前台窗口发送一个按键（按下 + 抬起）。
+    .DESCRIPTION
+        用 SendInput 合成真实键盘事件，而不是 PostMessage：目标程序如果是
+        通过 Qt 的事件循环收键（放映窗口就是这样），PostMessage 的 WM_KEYDOWN
+        不会走它的快捷键与 keyPressEvent 分发，等于没按。
+
+        支持的键名：F5、Left、Right、Up、Down、Escape、Space、Home、End、PageUp、PageDown。
+        调用方负责先把目标窗口切到前台（Set-AiPdfForeground）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        # 按住 Ctrl 再敲这个键（组合键，例如 Ctrl+2）。
+        [switch]$Ctrl
+    )
+
+    if (-not ('AiPdfKeyboard' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiPdfKeyboard {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT {
+        public uint type;
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint count, INPUT[] inputs, int size);
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+
+    // 用 keybd_event 而不是 SendInput：这台机器的会话里 SendInput 返回 0（事件被吞），
+    // 而同一族的 mouse_event 一直好用——现有验收脚本的鼠标点击就建立在它上面。
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+    public static int Press(int virtualKey, bool ctrl) {
+        byte VK_CONTROL = 0x11;
+        if (ctrl) { keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); }
+        keybd_event((byte)virtualKey, 0, 0, UIntPtr.Zero);
+        keybd_event((byte)virtualKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        if (ctrl) { keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
+        return ctrl ? 4 : 2;
+    }
+}
+'@
+    }
+
+    $virtualKeys = @{
+        'F5'       = 0x74
+        'Escape'   = 0x1B
+        'Left'     = 0x25
+        'Up'       = 0x26
+        'Right'    = 0x27
+        'Down'     = 0x28
+        'Space'    = 0x20
+        'Home'     = 0x24
+        'End'      = 0x23
+        'PageUp'   = 0x21
+        'PageDown' = 0x22
+        '1'        = 0x31
+        '2'        = 0x32
+        '3'        = 0x33
+        '4'        = 0x34
+        '5'        = 0x35
+        '6'        = 0x36
+        '7'        = 0x37
+        '8'        = 0x38
+        '9'        = 0x39
+        'Equal'    = 0xBB
+        'Add'      = 0x6B
+    }
+    if (-not $virtualKeys.ContainsKey($Key)) {
+        throw "不支持的按键：$Key"
+    }
+    $expected = if ($Ctrl) { 4 } else { 2 }
+    $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl)
+    if ($sent -ne $expected) {
+        throw "SendInput 失败（期望注入 $expected 个事件，实际 $sent）"
+    }
+}
+
 function Restore-AiPdfCursorPosition {
     <#
     .SYNOPSIS

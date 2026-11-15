@@ -1,4 +1,4 @@
-#include "app/PageCanvas.h"
+﻿#include "app/PageCanvas.h"
 
 #include "app/RenderThread.h"
 #include "app/TextController.h"
@@ -6,6 +6,7 @@
 #include "app/TraceText.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
+#include "app/InkGeometry.h"
 #include "pdf/Annotation.h"
 
 #include <QDateTime>
@@ -283,6 +284,82 @@ void PageCanvas::paintAnnotations(QPainter& painter,
                 }
                 break;
             }
+            case pdf::AnnotationType::Line:
+            case pdf::AnnotationType::Arrow: {
+                if (annotation.vertices.size() < 2) {
+                    break;
+                }
+                const QPointF a = toViewportRect(QRectF(transform.toDisplay(annotation.vertices.at(0)),
+                                                        QSizeF(0.0, 0.0)),
+                                                 pageRect, zoom).topLeft();
+                const QPointF b = toViewportRect(QRectF(transform.toDisplay(annotation.vertices.at(1)),
+                                                        QSizeF(0.0, 0.0)),
+                                                 pageRect, zoom).topLeft();
+                painter.setPen(QPen(annotation.color, 1.5));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawLine(a, b);
+                if (annotation.type == pdf::AnnotationType::Arrow) {
+                    const double dx = b.x() - a.x();
+                    const double dy = b.y() - a.y();
+                    const double length = std::hypot(dx, dy);
+                    if (length > 0.01) {
+                        const double head = 9.0;
+                        const double ux = dx / length;
+                        const double uy = dy / length;
+                        const double angle = 0.4363;
+                        const double ca = std::cos(angle);
+                        const double sa = std::sin(angle);
+                        painter.drawLine(b, QPointF(b.x() - head * (ux * ca - uy * sa),
+                                                    b.y() - head * (uy * ca + ux * sa)));
+                        painter.drawLine(b, QPointF(b.x() - head * (ux * ca + uy * sa),
+                                                    b.y() - head * (uy * ca - ux * sa)));
+                    }
+                }
+                break;
+            }
+            case pdf::AnnotationType::Polygon:
+            case pdf::AnnotationType::Cloud: {
+                if (annotation.vertices.size() < 3) {
+                    break;
+                }
+                QPolygonF polygon;
+                for (const QPointF& vertex : annotation.vertices) {
+                    polygon << toViewportRect(QRectF(transform.toDisplay(vertex), QSizeF(0.0, 0.0)),
+                                              pageRect, zoom).topLeft();
+                }
+                painter.setPen(QPen(annotation.color, 1.5));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPolygon(polygon);
+                break;
+            }
+            case pdf::AnnotationType::Ellipse: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                painter.setPen(QPen(annotation.color, 1.5));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawEllipse(rect.adjusted(1, 1, -1, -1));
+                break;
+            }
+            case pdf::AnnotationType::Squiggly: {
+                // 波浪线：沿行的下沿画锯齿，和外观流里的算法保持一致的比例。
+                painter.setPen(QPen(annotation.color, 1.6));
+                painter.setBrush(Qt::NoBrush);
+                for (const QRectF& quad : annotation.quads) {
+                    const QRectF rect = toViewportRect(transform.toDisplay(quad), pageRect, zoom);
+                    const double baseY = rect.bottom() - 1.0;
+                    const double amplitude = 1.6;
+                    const double period = 4.0;
+                    QPolygonF zigzag;
+                    zigzag << QPointF(rect.left(), baseY);
+                    bool up = true;
+                    for (double x = rect.left() + period; x <= rect.right(); x += period) {
+                        zigzag << QPointF(x, baseY + (up ? -amplitude : amplitude));
+                        up = !up;
+                    }
+                    zigzag << QPointF(rect.right(), baseY);
+                    painter.drawPolyline(zigzag);
+                }
+                break;
+            }
             case pdf::AnnotationType::Note: {
                 const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
                 paintNoteIcon(painter, rect, annotation.color);
@@ -481,7 +558,9 @@ bool PageCanvas::pagePointAt(const QPoint& viewportPos,
         return false;
     }
     const double scrollTop = verticalScrollBar()->value();
-    const int index = layout_.pageAt(scrollTop + viewportPos.y());
+    // 双页模式下同一纵坐标会落在左右两页上，必须带上 x 才能判对。
+    const int index =
+        layout_.pageAtPoint(QPointF(viewportPos.x(), scrollTop + viewportPos.y()));
     if (index < 0 || index >= layout_.pageCount()) {
         return false;
     }
@@ -523,13 +602,53 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 viewport()->update();
                 return;
             }
-            if (tool == AnnotationController::Tool::Square) {
+            if (tool == AnnotationController::Tool::Square ||
+                tool == AnnotationController::Tool::Ellipse) {
                 drawingSquare_ = true;
+                drawingEllipse_ = tool == AnnotationController::Tool::Ellipse;
                 drawPage_ = pageIndex;
                 drawAnchor_ = displayPoint;
                 drawCurrent_ = displayPoint;
-                trace(QStringLiteral("annotation tool square page=%1").arg(pageIndex));
+                trace(QStringLiteral("annotation tool %1 page=%2")
+                          .arg(drawingEllipse_ ? QStringLiteral("ellipse") : QStringLiteral("square"))
+                          .arg(pageIndex));
                 viewport()->update();
+                return;
+            }
+            if (tool == AnnotationController::Tool::Line ||
+                tool == AnnotationController::Tool::Arrow) {
+                drawingLine_ = true;
+                lineType_ = tool == AnnotationController::Tool::Arrow ? pdf::AnnotationType::Arrow
+                                                                      : pdf::AnnotationType::Line;
+                drawPage_ = pageIndex;
+                drawAnchor_ = displayPoint;
+                drawCurrent_ = displayPoint;
+                trace(QStringLiteral("annotation tool line page=%1").arg(pageIndex));
+                viewport()->update();
+                return;
+            }
+            if (tool == AnnotationController::Tool::Polygon ||
+                tool == AnnotationController::Tool::Cloud) {
+                // 逐点输入：第一次点决定页号，之后只收同一页的点。
+                if (polygonPage_ != pageIndex) {
+                    polygonPoints_.clear();
+                    polygonPage_ = pageIndex;
+                    polygonType_ = tool == AnnotationController::Tool::Cloud
+                                       ? pdf::AnnotationType::Cloud
+                                       : pdf::AnnotationType::Polygon;
+                }
+                polygonPoints_.append(displayPoint);
+                trace(QStringLiteral("annotation polygon point page=%1 count=%2")
+                          .arg(pageIndex)
+                          .arg(polygonPoints_.size()));
+                viewport()->update();
+                return;
+            }
+            if (tool == AnnotationController::Tool::Eraser) {
+                erasing_ = true;
+                drawPage_ = pageIndex;
+                trace(QStringLiteral("annotation tool eraser page=%1").arg(pageIndex));
+                eraseAt(pageIndex, displayPoint);
                 return;
             }
             if (tool == AnnotationController::Tool::Ink) {
@@ -591,13 +710,20 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     updateLinkCursor(event->pos());
 
     // 批注工具的拖拽中：只收本页的点。
-    if (drawingSquare_ || drawingInk_) {
+    if (drawingSquare_ || drawingInk_ || erasing_ || drawingLine_) {
         int pageIndex = -1;
         QPointF displayPoint;
         if (pagePointAt(event->pos(), &pageIndex, &displayPoint) && pageIndex == drawPage_) {
             drawCurrent_ = displayPoint;
             if (drawingInk_) {
                 inkPoints_.append(displayPoint);
+            }
+            if (erasing_) {
+                eraseAt(pageIndex, displayPoint);
+            }
+            if (!polygonPoints_.isEmpty() && polygonPage_ == pageIndex) {
+                // 多边形预览跟着鼠标走：最后一个点是"虚线尾巴"。
+                viewport()->update();
             }
             viewport()->update();
         }
@@ -660,6 +786,27 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
         return;
     }
 
+    if (drawingLine_) {
+        const int pageIndex = drawPage_;
+        const QPointF a = toUserSpacePoint(pageIndex, drawAnchor_);
+        const QPointF b = toUserSpacePoint(pageIndex, drawCurrent_);
+        drawingLine_ = false;
+        drawPage_ = -1;
+        viewport()->update();
+        if (a != b) {
+            emit lineAnnotationRequested(pageIndex, static_cast<int>(lineType_), a, b);
+        }
+        return;
+    }
+
+    if (erasing_) {
+        erasing_ = false;
+        drawPage_ = -1;
+        trace(QStringLiteral("annotation tool eraser done"));
+        viewport()->update();
+        return;
+    }
+
     // 批注工具：拖拽结束，生成批注。
     if (drawingSquare_ || drawingInk_) {
         const int pageIndex = drawPage_;
@@ -670,8 +817,14 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
             drawPage_ = -1;
             viewport()->update();
             if (a != b) {
-                emit squareAnnotationRequested(pageIndex, QRectF(a, b).normalized());
+                const QRectF rect = QRectF(a, b).normalized();
+                if (drawingEllipse_) {
+                    emit ellipseAnnotationRequested(pageIndex, rect);
+                } else {
+                    emit squareAnnotationRequested(pageIndex, rect);
+                }
             }
+            drawingEllipse_ = false;
             return;
         }
         QVector<QPointF> stroke;
@@ -701,6 +854,22 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
 
 void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseDoubleClickEvent(event);
+    // 多边形/云线：双击就是"收笔"。这条必须先于文字选词判定，
+    // 否则双击最后一个顶点时会顺手选中一个词。
+    if (polygonPoints_.size() >= 3 && polygonPage_ >= 0) {
+        QVector<QPointF> userPoints;
+        userPoints.reserve(polygonPoints_.size());
+        for (const QPointF& point : polygonPoints_) {
+            userPoints.append(toUserSpacePoint(polygonPage_, point));
+        }
+        const int page = polygonPage_;
+        const auto type = polygonType_;
+        polygonPoints_.clear();
+        polygonPage_ = -1;
+        viewport()->update();
+        emit polygonAnnotationRequested(page, static_cast<int>(type), userPoints);
+        return;
+    }
     if (event->button() != Qt::LeftButton || textController_ == nullptr) {
         return;
     }
@@ -738,11 +907,47 @@ void PageCanvas::updateToolCursor() {
     viewport()->setCursor(Qt::ArrowCursor);
 }
 
+void PageCanvas::eraseAt(int pageIndex, const QPointF& displayPoint) {
+    if (annotationController_ == nullptr) {
+        return;
+    }
+    PageTransform transform;
+    if (!annotationController_->transformForPage(pageIndex, &transform)) {
+        return;
+    }
+    // 半径按屏幕像素给：缩放再大，橡皮的"手感"也不该变大变小。
+    constexpr double kEraserRadius = 8.0;
+    const auto annotations = annotationController_->annotationsForPage(pageIndex);
+    for (const pdf::Annotation& annotation : annotations) {
+        if (annotation.type != pdf::AnnotationType::Ink) {
+            continue;
+        }
+        for (const QVector<QPointF>& stroke : annotation.strokes) {
+            QVector<QPointF> display;
+            display.reserve(stroke.size());
+            for (const QPointF& point : stroke) {
+                display.append(transform.toDisplay(point));
+            }
+            if (!strokeHitsCircle(display, displayPoint, kEraserRadius)) {
+                continue;
+            }
+            annotationController_->removeAnnotation(annotation.id);
+            trace(QStringLiteral("annotation erase id=%1").arg(annotation.id));
+            break;
+        }
+    }
+}
+
 double PageCanvas::pageLeft(int index) const {
-    Q_UNUSED(index);
-    const QSizeF size = layout_.pageSize(index);
+    // 整行居中，页在行内按 pageRect().x() 偏移：纵向长卷时一页一行（x 恒为 0），
+    // 双页模式时左页 0、右页 一列宽 + 间距。
+    const QRectF rect = layout_.pageRect(index);
     const double available = viewport()->width() - kPageMargin * 2.0;
-    return std::max(kPageMargin, (available - size.width()) / 2.0 + kPageMargin);
+    // 按"这一行"的宽度居中，而不是全篇最宽：页面尺寸不一致时，
+    // 用最宽页居中会让窄页明显偏左。
+    const double rowWidth = layout_.rowWidth(index);
+    const double rowLeft = std::max(kPageMargin, (available - rowWidth) / 2.0 + kPageMargin);
+    return rowLeft + rect.x();
 }
 
 }  // namespace aipdf::app

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QAbstractScrollArea>
 #include <QPointF>
@@ -8,6 +8,7 @@
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
+#include "pdf/Annotation.h"
 
 class QMouseEvent;
 class QPainter;
@@ -73,6 +74,12 @@ signals:
     void noteAnnotationRequested(int pageIndex, const QPointF& userSpacePoint);
     // 矩形工具：拖出一块（坐标是 PDF user space）。
     void squareAnnotationRequested(int pageIndex, const QRectF& userSpaceRect);
+    // 椭圆工具：拖出一块外接矩形。
+    void ellipseAnnotationRequested(int pageIndex, const QRectF& userSpaceRect);
+    // 直线/箭头：两点（用户空间）。
+    void lineAnnotationRequested(int pageIndex, int type, const QPointF& from, const QPointF& to);
+    // 多边形/云线：顶点序列（用户空间）。
+    void polygonAnnotationRequested(int pageIndex, int type, const QVector<QPointF>& vertices);
     // 墨迹工具：拖出一笔（坐标是 PDF user space）。
     void inkAnnotationRequested(int pageIndex, const QVector<QPointF>& userSpaceStroke);
 
@@ -107,7 +114,16 @@ private:
     int anchorOrder_ = -1;
     // 正在用批注工具拖拽（矩形 / 墨迹）：坐标都在显示空间。
     bool drawingSquare_ = false;
+    bool drawingEllipse_ = false;
+    bool drawingLine_ = false;
+    pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;
+    // 多边形/云线的逐点输入：第一次点击记页号，双击结束。
+    QVector<QPointF> polygonPoints_;
+    int polygonPage_ = -1;
+    pdf::AnnotationType polygonType_ = pdf::AnnotationType::Polygon;
     bool drawingInk_ = false;
+    // 橡皮正在擦：按住拖动期间持续命中判定。
+    bool erasing_ = false;
     int drawPage_ = -1;
     QPointF drawAnchor_;
     QPointF drawCurrent_;
@@ -116,6 +132,8 @@ private:
     void updateScrollRange();
     void requestVisiblePages();
     double pageLeft(int index) const;
+    // 擦掉 displayPoint 附近命中的墨迹（整笔）。
+    void eraseAt(int pageIndex, const QPointF& displayPoint);
     // 视口坐标 → 页面序号 + 页面显示空间坐标（点）。
     bool pagePointAt(const QPoint& viewportPos, int* pageIndex, QPointF* displayPoint) const;
     // 页面显示空间矩形 → 视口矩形。

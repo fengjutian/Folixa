@@ -1,4 +1,4 @@
-#include "app/MainWindow.h"
+﻿#include "app/MainWindow.h"
 
 #include "app/TextController.h"
 #include "app/PdfView.h"
@@ -23,6 +23,7 @@
 #include "pdf/Navigation.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QButtonGroup>
 #include <QCoreApplication>
 #include <QDir>
@@ -243,10 +244,62 @@ void MainWindow::buildUi() {
     saveAsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+S")));
     saveAsAction->setObjectName(QStringLiteral("fileSaveAs"));
     connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveDocumentAs);
+
+    // 打印与导出：都作用在当前标签页，没有文档时什么也不做。
+    auto* printAction = fileMenu->addAction(tr("打印…"));
+    printAction->setShortcut(QKeySequence::Print);
+    printAction->setObjectName(QStringLiteral("filePrint"));
+    connect(printAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->printDocument();
+        }
+    });
+    auto* exportImagesAction = fileMenu->addAction(tr("导出页面为图片…"));
+    exportImagesAction->setObjectName(QStringLiteral("fileExportImages"));
+    connect(exportImagesAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->exportPageImages();
+        }
+    });
+    auto* exportTextAction = fileMenu->addAction(tr("导出文本…"));
+    exportTextAction->setObjectName(QStringLiteral("fileExportText"));
+    connect(exportTextAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->exportPlainText();
+        }
+    });
+
     fileMenu->addSeparator();
     fileMenu->addAction(tr("退出"), QKeySequence::Quit, this, &QWidget::close);
 
     auto* viewMenu = menuBar()->addMenu(tr("视图(&V)"));
+    // 排布方式：三选一，互斥。切换后由 PdfView 重算布局与适配缩放。
+    auto* layoutGroup = new QActionGroup(this);
+    layoutGroup->setExclusive(true);
+    auto addLayoutMode = [&](const QString& text, PageLayout::LayoutMode mode) {
+        auto* action = viewMenu->addAction(text);
+        action->setCheckable(true);
+        layoutGroup->addAction(action);
+        connect(action, &QAction::triggered, this, [this, mode]() {
+            if (auto* view = currentView()) {
+                view->setLayoutMode(mode);
+            }
+        });
+        return action;
+    };
+    addLayoutMode(tr("单页"), PageLayout::LayoutMode::Continuous)->setChecked(true);
+    addLayoutMode(tr("双页"), PageLayout::LayoutMode::Facing);
+    addLayoutMode(tr("双页（封面）"), PageLayout::LayoutMode::FacingCover);
+    viewMenu->addSeparator();
+
+    auto* presentationAction = viewMenu->addAction(tr("放映"));
+    presentationAction->setShortcut(QKeySequence(Qt::Key_F5));
+    presentationAction->setObjectName(QStringLiteral("viewPresentation"));
+    connect(presentationAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->startPresentation();
+        }
+    });
     menuBar()->hide();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。

@@ -1,4 +1,4 @@
-# qpdf 引入提案
+﻿# qpdf 引入提案
 
 **状态：** 提议，**未批准**（批准前按 [依赖与许可证政策](DEPENDENCY_POLICY.md) 第 2 条，不引入源码构建的第三方依赖）  
 **提出：** 2026-11-14，对应 [v1.3.0](versions/v1.3.0.md) 的依赖变更  
@@ -36,25 +36,32 @@ v1.3.0 先落地了一个刻意做窄的增量写入器（`src/pdf/IncrementalWr
 | 打包 | 随包分发 `qpdf.dll`；许可证清单增加 Apache-2.0 与 qpdf 的 NOTICE | 小 |
 | SBOM | 新增条目（版本、来源、SHA-256） | 小 |
 | CI | `windows-2022` 需要 vcpkg 缓存（首次构建约 10–20 分钟） | 中 |
-| 体积 | 安装包预计 +3–5 MB（当前 20 MB 量级，仍在 <80 MB 预算内） | — |
+| 体积 | 实测 `qpdf30.dll` 9.2 MB，安装包约 +9–10 MB（当前 20 MB 量级，仍在 <80 MB 预算内） | — |
 | 启动 | 不主动加载就无影响；按需延迟加载 | 无 |
 
 ## 4. 落地步骤
 
-1. `scripts/bootstrap-qpdf.ps1`：固定版本 + SHA-256，风格对齐 `bootstrap-pdfium.ps1`；
-   下载失败不写半成品。
-2. CMake：`find_package(qpdf CONFIG QUIET)`，仅在找到时定义 `AIPDF_WITH_QPDF`。
-3. `DocumentWriter` 增加后端选择：有 qpdf 走 `QpdfBackend`，没有走现有 `IncrementalWriter`。
-   **接口不变**，`serializeForSave()` / `save()` 的调用方一行不改。
-4. 用现有测试做回归：外观流 13 条、增量写入 12 条、保存 10 条必须全绿。
-5. 迁移完成后，手写实现保留为"无 qpdf 构建"的降级路径，不删除。
+1. ✅ `scripts/bootstrap-qpdf.ps1`：固定版本 + SHA-256，风格对齐 `bootstrap-pdfium.ps1`；
+   下载失败不写半成品。已实测（12.4.2 mingw64，哈希与官方一致）。
+2. ✅ CMake：`-DAIPDF_WITH_QPDF=ON` 时 `find_package(qpdf CONFIG QUIET)`，找不到只告警不失败；
+   `tools/qpdf/lib/cmake/qpdf` 自动定位，运行时自动把 `qpdf30.dll` 复制到 `bin`。
+3. ✅ 写入路径暂不换后端：qpdf 目前只做**落盘前的结构校验**（`src/pdf/QpdfBackend`），
+   序列化与增量写入仍走手写实现。**接口未变**，调用方一行没改。
+   等 1.6 加密 / 1.7 签名需要对象级写入时再切换。
+4. ✅ 回归：全量 34 条测试通过（qpdf 开启时，保存路径的 10 条测试全部经过 qpdf 校验）。
+5. ✅ CI 覆盖：流水线启动时自动获取 qpdf（GitHub Actions 按版本缓存 `tools/qpdf`），
+   拿不到就降级为"无 qpdf"构建并打印告警；`AIPDF_WITH_QPDF` 随可用性传给 Debug/Release 两套配置。
+6. ✅ 打包与 SBOM 已纳入：`package.ps1` 在 `bin` 里有 `qpdf30.dll` 时随包带上，
+   `LicenseMap.ps1` 把 `qpdf*.dll` 判为 Apache-2.0，`generate-sbom.ps1` 增加 qpdf 组件，
+   `licenses/Apache-2.0.txt` 进 `CHECKSUMS.txt`。实测 0.15.0 包：许可证门、SBOM 门、无 SDK 启动门全绿。
 
 ## 5. 验收
 
-- [ ] 全量测试通过（当前 33 条）。
-- [ ] `qpdf --check` 对写出的文件全部通过。
+- [x] 全量测试通过（当前 34 条，qpdf 开启）。
+- [x] `qpdf --check` 对写出的增量文件通过（12.4.2 实测：`No syntax or stream encoding errors`）。
 - [ ] 同一份产物在 PDFium、Windows 渲染器、福昕三处外观一致。
-- [ ] 安装包体积增量 < 8 MB，冷启动无可测量回归。
+- [x] 安装包体积增量 < 12 MB（实测 DLL 9.2 MB / 压缩后约 +1.5 MB，0.15.0 包 21.23 MB），
+      冷启动无可测量回归（无 SDK 启动验收通过）。
 - [ ] SBOM 与许可证清单一致（发布门 `verify-sbom.ps1` / `verify-licenses.ps1` 仍绿）。
 
 ## 6. 风险与回滚

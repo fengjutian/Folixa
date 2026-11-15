@@ -2,9 +2,11 @@
 
 #include "doc/SafeSave.h"
 #include "pdf/Annotation.h"
+#include "pdf/AnnotationDictionary.h"
 #include "pdf/AppearanceStream.h"
 #include "pdf/IncrementalWriter.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/QpdfBackend.h"
 
 namespace aipdf::pdf {
 
@@ -37,7 +39,8 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document) {
                 continue;  // 便签这类没有图形外观
             }
             attachments.append({ QByteArray("Folixa:") + QByteArray::number(annotation.id),
-                                 appearance });
+                                 appearance,
+                                 annotationDictionaryExtras(annotation) });
         }
     }
 
@@ -67,6 +70,14 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
     }
     outcome.warning = prepared.warning;
     outcome.appearanceCount = prepared.appearanceCount;
+
+    // 落盘前的最后一道结构检查。qpdf 未编入时这是一次空操作（返回 true），
+    // 所以调用方不需要 ifdef；编入时它能把"能渲染但结构坏了"的文件挡在磁盘之外。
+    QString structureError;
+    if (!verifyWithQpdf(prepared.bytes, &structureError)) {
+        outcome.error = structureError;
+        return outcome;
+    }
 
     // 文件层的保证（临时文件、重开校验、备份、原子替换）仍在 SafeSave 里：
     // 那是经过缺陷修复的代码，重写一遍只会引入新问题。这里只是把它收进唯一的入口。

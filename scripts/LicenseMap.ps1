@@ -21,5 +21,8 @@ function Get-AiPdfLicense {
     if ($lower -match '^pdfium\.dll$') {
         return @{ id = 'BSD-3-Clause'; name = 'BSD 3-Clause License (PDFium)' }
     }
+    if ($lower -match '^qpdf\d*\.dll$') {
+        return @{ id = 'Apache-2.0'; name = 'Apache License 2.0 (qpdf)' }
+    }
     return @{ id = 'LicenseRef-Project-Proprietary'; name = 'AI PDF Editor build output, all rights reserved' }
 }

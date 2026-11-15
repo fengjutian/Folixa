@@ -9,6 +9,7 @@
 #include <QVector>
 
 #include "app/PageTransform.h"
+#include "app/SearchMatcher.h"
 #include "app/TextLayout.h"
 #include "pdf/PdfiumAdapter.h"
 
@@ -74,7 +75,7 @@ public:
     QVector<QRectF> selectionRects() const;
 
     // 开始搜索。新的搜索会取消上一次。
-    void startSearch(const QString& query);
+    void startSearch(const QString& query, const SearchOptions& options = {});
     // 取消当前搜索。
     void cancelSearch();
     bool isSearching() const;

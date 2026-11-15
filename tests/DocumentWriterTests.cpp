@@ -6,6 +6,7 @@
 #include "pdf/Annotation.h"
 #include "pdf/DocumentWriter.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/QpdfBackend.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -71,6 +72,7 @@ private slots:
     void saveCreatesBackupAndLeavesNoTempFile();
     void saveFailsWhenTargetDirectoryIsMissing();
     void inMemoryAnnotationHasNoAppearance();
+    void qpdfGateRejectsBrokenBytes();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -263,6 +265,32 @@ void DocumentWriterTests::saveFailsWhenTargetDirectoryIsMissing() {
     QVERIFY(!outcome.ok);
     QVERIFY(!outcome.error.isEmpty());
     QVERIFY(!QFileInfo::exists(path));
+}
+
+void DocumentWriterTests::qpdfGateRejectsBrokenBytes() {
+    // 守卫：结构校验必须真的能拦下坏文件，否则它就是一句"总是 true"的空操作。
+    if (!aipdf::pdf::qpdfBackendAvailable()) {
+        QSKIP("本次构建未启用 qpdf（-DAIPDF_WITH_QPDF=ON 后生效）");
+    }
+
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->setAnnotations(
+        { makeAnnotation(1, AnnotationType::Highlight, QRectF(60.0, 200.0, 200.0, 18.0)) }));
+    const auto prepared = DocumentWriter::serializeForSave(opened.document);
+    QVERIFY(prepared.ok);
+
+    // 正常产物必须通过。
+    QString error;
+    QVERIFY2(aipdf::pdf::verifyWithQpdf(prepared.bytes, &error), qPrintable(error));
+
+    // 砍掉尾部（trailer/startxref 没了），必须被拦下。
+    const QByteArray broken = prepared.bytes.left(prepared.bytes.size() / 2);
+    error.clear();
+    QVERIFY2(!aipdf::pdf::verifyWithQpdf(broken, &error), "qpdf 没拦下截断的文件");
+    QVERIFY(!error.isEmpty());
 }
 
 QTEST_MAIN(DocumentWriterTests)

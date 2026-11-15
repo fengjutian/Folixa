@@ -1,4 +1,4 @@
-#include "pdf/AppearanceStream.h"
+﻿#include "pdf/AppearanceStream.h"
 
 #include <algorithm>
 #include <cmath>
@@ -116,7 +116,14 @@ double appearanceOpacity(AnnotationType type) {
         case AnnotationType::Underline:
         case AnnotationType::StrikeOut:
         case AnnotationType::Square:
+        case AnnotationType::Ellipse:
         case AnnotationType::Ink:
+        case AnnotationType::FreeText:
+            return 1.0;
+        case AnnotationType::Line:
+        case AnnotationType::Arrow:
+        case AnnotationType::Polygon:
+        case AnnotationType::Cloud:
             return 1.0;
         case AnnotationType::Note:
             return 0.0;  // 便签没有图形外观
@@ -128,9 +135,17 @@ double appearanceLineWidth(AnnotationType type) {
     switch (type) {
         case AnnotationType::Underline:
         case AnnotationType::StrikeOut:
+        case AnnotationType::Squiggly:
             return 1.2;
         case AnnotationType::Square:
+        case AnnotationType::Ellipse:
+        case AnnotationType::Line:
+        case AnnotationType::Arrow:
+        case AnnotationType::Polygon:
+        case AnnotationType::Cloud:
             return 1.5;
+        case AnnotationType::FreeText:
+            return 0.0;  // 文本框默认无边框
         case AnnotationType::Ink:
             return 1.5;
         default:
@@ -146,6 +161,11 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
     }
 
     appearance.bbox = bounds;
+    if (annotation.type == AnnotationType::FreeText) {
+        appearance.resources =
+            "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
+            "/Encoding /WinAnsiEncoding >> >>";
+    }
     const Local local{ bounds.width(), bounds.height(), bounds };
 
     const double opacity = appearanceOpacity(annotation.type);
@@ -184,6 +204,43 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
                 appendRectPath(out, mapped);
             }
             out += "f\n";
+            break;
+        }
+        case AnnotationType::Squiggly: {
+            // 波浪线：沿着每行下沿画一条锯齿折线。
+            // 振幅与周期取"看起来像波浪、又不会糊成色块"的经验值。
+            const double width = appearanceLineWidth(annotation.type);
+            const double amplitude = std::max(0.8, width);
+            const double period = std::max(3.0, width * 3.0);
+            out += rgb(color);
+            out += " RG\n";
+            out += num(width);
+            out += " w\n0 J 0 j\n";
+            const QVector<QRectF> areas =
+                annotation.quads.isEmpty() ? QVector<QRectF>{ bounds } : annotation.quads;
+            for (const QRectF& area : areas) {
+                const QRectF mapped = local.map(area);
+                if (mapped.width() <= 0.0) {
+                    continue;
+                }
+                const double baseY = mapped.bottom() + amplitude;
+                out += num(mapped.left());
+                out += ' ';
+                out += num(baseY);
+                out += " m\n";
+                bool up = true;
+                for (double x = mapped.left() + period; x <= mapped.right(); x += period) {
+                    out += num(x);
+                    out += ' ';
+                    out += num(baseY + (up ? amplitude : -amplitude));
+                    out += " l\n";
+                    up = !up;
+                }
+                out += num(mapped.right());
+                out += ' ';
+                out += num(baseY);
+                out += " l\nS\n";
+            }
             break;
         }
         case AnnotationType::Underline:
@@ -226,6 +283,187 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
             out += " w\n1 J 0 j\n";
             appendRectPath(out, mapped.adjusted(inset, inset, -inset, -inset));
             out += "S\n";
+            break;
+        }
+        case AnnotationType::Ellipse: {
+            // 椭圆用四段三次贝塞尔近似（kappa 系数是圆的标准近似）。
+            const double width = appearanceLineWidth(annotation.type);
+            const QRectF mapped = local.map(bounds).adjusted(0.75, 0.75, -0.75, -0.75);
+            const double kappa = 0.5522847498;
+            const double rx = mapped.width() / 2.0;
+            const double ry = mapped.height() / 2.0;
+            const double cx = mapped.center().x();
+            const double cy = mapped.center().y();
+            out += rgb(color);
+            out += " RG\n";
+            out += num(width);
+            out += " w\n1 J 0 j\n";
+            out += num(cx + rx);
+            out += ' ';
+            out += num(cy);
+            out += " m\n";
+            out += num(cx + rx) + ' ' + num(cy + kappa * ry) + ' ' + num(cx + kappa * rx) + ' ' +
+                   num(cy + ry) + ' ' + num(cx) + ' ' + num(cy + ry) + " c\n";
+            out += num(cx - kappa * rx) + ' ' + num(cy + ry) + ' ' + num(cx - rx) + ' ' +
+                   num(cy + kappa * ry) + ' ' + num(cx - rx) + ' ' + num(cy) + " c\n";
+            out += num(cx - rx) + ' ' + num(cy - kappa * ry) + ' ' + num(cx - kappa * rx) + ' ' +
+                   num(cy - ry) + ' ' + num(cx) + ' ' + num(cy - ry) + " c\n";
+            out += num(cx + kappa * rx) + ' ' + num(cy - ry) + ' ' + num(cx + rx) + ' ' +
+                   num(cy - kappa * ry) + ' ' + num(cx + rx) + ' ' + num(cy) + " c\n";
+            out += "S\n";
+            break;
+        }
+        case AnnotationType::FreeText: {
+            // 只画能安全编码进 WinAnsi 的字符；出现中文等字符时留空外观，
+            // 让阅读器按 /DA 与 /Contents 自己排版（我们自己的画布不受影响）。
+            bool latinOnly = true;
+            for (const QChar character : annotation.contents) {
+                if (character.unicode() > 0xFF) {
+                    latinOnly = false;
+                    break;
+                }
+            }
+            if (!latinOnly || annotation.contents.trimmed().isEmpty()) {
+                break;
+            }
+            const double size = (annotation.fontSize > 0.0) ? annotation.fontSize : 12.0;
+            const QRectF mapped = local.map(bounds);
+            out += "BT\n";
+            out += "/F1 ";
+            out += num(size);
+            out += " Tf\n";
+            out += rgb(color);
+            out += " rg\n";
+            // 从左上角开始，向下逐行排。
+            double y = mapped.top() - size;
+            const double lineHeight = size * 1.25;
+            const double maxWidth = mapped.width();
+            QStringList lines = annotation.contents.split(QLatin1Char('\n'));
+            for (const QString& rawLine : lines) {
+                if (y < mapped.bottom() - size) {
+                    break;  // 超出文本框高度就不再画
+                }
+                QString line = rawLine;
+                // 粗排：Helvetica 平均字宽约 0.5em。超过就压缩到能放下为止。
+                if (line.size() * size * 0.5 > maxWidth && maxWidth > 0.0) {
+                    const int fit = static_cast<int>(maxWidth / (size * 0.5));
+                    line = line.left(std::max(1, fit));
+                }
+                out += num(mapped.left());
+                out += ' ';
+                out += num(y);
+                out += " Td\n";
+                out += '(';
+                QByteArray escaped;
+                for (const QChar character : line) {
+                    const char ch = static_cast<char>(character.unicode());
+                    if (ch == '(' || ch == ')' || ch == '\\') {
+                        escaped += '\\';
+                    }
+                    escaped += ch;
+                }
+                out += escaped;
+                out += ") Tj\n";
+                out += num(-mapped.left());
+                out += ' ';
+                out += num(-y);
+                out += " Td\n";
+                y -= lineHeight;
+            }
+            out += "ET\n";
+            break;
+        }
+        case AnnotationType::Line:
+        case AnnotationType::Arrow: {
+            if (annotation.vertices.size() < 2) {
+                break;
+            }
+            const double width = appearanceLineWidth(annotation.type);
+            const QPointF a = local.map(annotation.vertices.at(0));
+            const QPointF b = local.map(annotation.vertices.at(1));
+            out += rgb(color);
+            out += " RG\n";
+            out += num(width);
+            out += " w\n1 J 0 j\n";
+            out += num(a.x()) + ' ' + num(a.y()) + " m\n";
+            out += num(b.x()) + ' ' + num(b.y()) + " l\nS\n";
+            if (annotation.type == AnnotationType::Arrow) {
+                // 开口箭头：两段短线，角度固定 25°，长度随线宽放大但不小于 6pt。
+                const double dx = b.x() - a.x();
+                const double dy = b.y() - a.y();
+                const double length = std::hypot(dx, dy);
+                if (length > 0.01) {
+                    const double head = std::max(6.0, width * 4.0);
+                    const double ux = dx / length;
+                    const double uy = dy / length;
+                    const double angle = 0.4363;  // 25°
+                    const double ca = std::cos(angle);
+                    const double sa = std::sin(angle);
+                    const QPointF left(b.x() - head * (ux * ca - uy * sa),
+                                       b.y() - head * (uy * ca + ux * sa));
+                    const QPointF right(b.x() - head * (ux * ca + uy * sa),
+                                        b.y() - head * (uy * ca - ux * sa));
+                    out += num(b.x()) + ' ' + num(b.y()) + " m\n";
+                    out += num(left.x()) + ' ' + num(left.y()) + " l\nS\n";
+                    out += num(b.x()) + ' ' + num(b.y()) + " m\n";
+                    out += num(right.x()) + ' ' + num(right.y()) + " l\nS\n";
+                }
+            }
+            break;
+        }
+        case AnnotationType::Polygon:
+        case AnnotationType::Cloud: {
+            if (annotation.vertices.size() < 3) {
+                break;
+            }
+            const double width = appearanceLineWidth(annotation.type);
+            out += rgb(color);
+            out += " RG\n";
+            out += num(width);
+            out += " w\n1 J 0 j\n";
+            QVector<QPointF> points;
+            points.reserve(annotation.vertices.size());
+            for (const QPointF& vertex : annotation.vertices) {
+                points.append(local.map(vertex));
+            }
+            // 云线：边框用一串小圆弧拼出来（PDF 的 /BE 只影响阅读器自绘，
+            // 不认 /BE 的阅读器仍然应该看到"云朵"轮廓）。
+            const bool cloud = annotation.type == AnnotationType::Cloud;
+            out += num(points.first().x()) + ' ' + num(points.first().y()) + " m\n";
+            for (int i = 1; i < points.size(); ++i) {
+                out += num(points.at(i).x()) + ' ' + num(points.at(i).y()) + " l\n";
+            }
+            if (cloud) {
+                out += "S\n";
+                // 沿每条边撒小半圆，形成扇贝边。
+                const double bump = 4.0;
+                for (int i = 0; i < points.size(); ++i) {
+                    const QPointF from = points.at(i);
+                    const QPointF to = points.at((i + 1) % points.size());
+                    const double dx = to.x() - from.x();
+                    const double dy = to.y() - from.y();
+                    const double len = std::hypot(dx, dy);
+                    if (len < 0.01) {
+                        continue;
+                    }
+                    const int steps = std::max(1, static_cast<int>(len / (bump * 2.0)));
+                    for (int s = 0; s < steps; ++s) {
+                        const double t0 = static_cast<double>(s) / steps;
+                        const double t1 = static_cast<double>(s + 1) / steps;
+                        const QPointF p0(from.x() + dx * t0, from.y() + dy * t0);
+                        const QPointF p1(from.x() + dx * t1, from.y() + dy * t1);
+                        const QPointF mid((p0.x() + p1.x()) / 2.0, (p0.y() + p1.y()) / 2.0);
+                        const double nx = -dy / len;
+                        const double ny = dx / len;
+                        out += num(p0.x()) + ' ' + num(p0.y()) + " m\n";
+                        out += num(mid.x() + nx * bump) + ' ' + num(mid.y() + ny * bump) + ' ' +
+                               num(mid.x() + nx * bump) + ' ' + num(mid.y() + ny * bump) + ' ' +
+                               num(p1.x()) + ' ' + num(p1.y()) + " c\nS\n";
+                    }
+                }
+            } else {
+                out += "s\n";
+            }
             break;
         }
         case AnnotationType::Ink: {

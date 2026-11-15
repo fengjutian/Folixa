@@ -85,6 +85,17 @@ if (-not (Test-Path -LiteralPath $pdfiumDll)) {
 }
 Copy-Item -LiteralPath $pdfiumDll -Destination $stage
 
+# 可选：qpdf（-DAIPDF_WITH_QPDF=ON 的构建才会在 bin 里留 qpdf30.dll）。
+# 没有就跳过——发布包默认仍是"无 qpdf"构建，行为与之前一致。
+Write-Host '==> 检查 qpdf 运行库' -ForegroundColor Cyan
+$qpdfDll = Join-Path $binDir 'qpdf30.dll'
+if (Test-Path -LiteralPath $qpdfDll) {
+    Copy-Item -LiteralPath $qpdfDll -Destination $stage
+    Write-Host "    随包分发 qpdf30.dll（Apache-2.0）" -ForegroundColor Green
+} else {
+    Write-Host "    本次构建不含 qpdf"
+}
+
 Write-Host '==> 部署 Qt 运行库' -ForegroundColor Cyan
 & $windeployqt --release --no-translations --no-opengl-sw --no-system-d3d-compiler --no-system-dxc-compiler --dir $stage (Join-Path $stage 'AiPdfEditor.exe')
 if ($LASTEXITCODE -ne 0) {
@@ -120,7 +131,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\THIRD_PARTY_LICENSES.md') -D
 # 写入前统一按 LF 归一化：上游来源行尾不一致（MinGW 的 COPYING.RUNTIME 是 CRLF），
 # 而仓库与安装包都按 LF 落地，归一化后安装包才是可复现的。
 $licenseSources = Join-Path $PSScriptRoot '..\licenses'
-foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt')) {
+foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt', 'Apache-2.0.txt')) {
     $source = Join-Path $licenseSources $licenseFile
     if (-not (Test-Path -LiteralPath $source)) {
         throw "缺少许可证全文 $source（可运行 scripts\fetch-licenses.ps1 补齐）"
@@ -209,12 +220,22 @@ if (Test-Path -LiteralPath $pdfiumVersionFile) {
         $pdfiumVersion = "$($fields['MAJOR']).$($fields['MINOR']).$($fields['BUILD']).$($fields['PATCH'])"
     }
 }
+# qpdf 版本从它自己的 exe 里问，避免和 tools\qpdf 的实际内容脱节。
+$qpdfVersion = ''
+$qpdfExe = Join-Path $repoRoot 'tools\qpdf\bin\qpdf.exe'
+if ((Test-Path -LiteralPath (Join-Path $stage 'qpdf30.dll')) -and (Test-Path -LiteralPath $qpdfExe)) {
+    $versionText = (& $qpdfExe --version) -join ' '
+    if ($versionText -match 'qpdf version (\S+)') {
+        $qpdfVersion = $matches[1]
+    }
+}
 & (Join-Path $PSScriptRoot 'generate-sbom.ps1') `
     -PackageDir $stage `
     -OutputPath $sbomOutput `
     -Version $Version `
     -QtSbomPath $qtSbom `
-    -PdfiumVersion $pdfiumVersion
+    -PdfiumVersion $pdfiumVersion `
+    -QpdfVersion $qpdfVersion
 
 Write-Host '==> 压缩' -ForegroundColor Cyan
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null

@@ -1,5 +1,8 @@
-#include "app/PdfView.h"
+﻿#include "app/PdfView.h"
 
+#include "app/DocumentOutput.h"
+#include "app/PresentationWindow.h"
+#include "app/ZoomMemory.h"
 #include "app/PageCanvas.h"
 #include "app/RenderThread.h"
 #include "app/TextController.h"
@@ -18,6 +21,10 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFile>
+#include <QPrinter>
+#include <QPrintDialog>
+#include <QMessageBox>
+#include <QFileDialog>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -183,6 +190,28 @@ void PdfView::buildUi() {
     auto* zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
     connect(zoomOutShortcut, &QShortcut::activated, this, &PdfView::zoomOut);
 
+    // 前进/后退用浏览器与阅读器通用的 Alt+←/→。
+    // 排布方式快捷键：Ctrl+1/2/3。验收脚本靠它切模式（菜单栏是隐藏的，UIA 点不到）。
+    // F5 放映：菜单栏是隐藏的，QAction 的快捷键在隐藏菜单里不生效，
+    // 这里挂一个独立 QShortcut（验收脚本与用户按键都走这条）。
+    auto* presentationShortcut = new QShortcut(QKeySequence(Qt::Key_F5), this);
+    connect(presentationShortcut, &QShortcut::activated, this, &PdfView::startPresentation);
+
+    auto* singleShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+1")), this);
+    connect(singleShortcut, &QShortcut::activated, this,
+            [this]() { setLayoutMode(PageLayout::LayoutMode::Continuous); });
+    auto* facingShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+2")), this);
+    connect(facingShortcut, &QShortcut::activated, this,
+            [this]() { setLayoutMode(PageLayout::LayoutMode::Facing); });
+    auto* coverShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+3")), this);
+    connect(coverShortcut, &QShortcut::activated, this,
+            [this]() { setLayoutMode(PageLayout::LayoutMode::FacingCover); });
+
+    auto* backShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);
+    connect(backShortcut, &QShortcut::activated, this, &PdfView::navigateBack);
+    auto* forwardShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+Right")), this);
+    connect(forwardShortcut, &QShortcut::activated, this, &PdfView::navigateForward);
+
     // 复制只在本视图内生效：焦点在搜索框时 Ctrl+C 仍然复制输入框内容。
     auto* copyShortcut = new QShortcut(QKeySequence::Copy, this);
     copyShortcut->setContext(Qt::WidgetWithChildrenShortcut);
@@ -242,10 +271,34 @@ void PdfView::buildAnnotationToolBar() {
                                    QStringLiteral("给选中的文字加下划线 (Ctrl+U)"),
                                    QStringLiteral("annotation.underline"),
                                    "underline");
+    squigglyButton_ = makeButton(QStringLiteral("波浪线"),
+                                 QStringLiteral("给选中的文字加波浪线"),
+                                 QStringLiteral("annotation.squiggly"),
+                                 "squiggly");
     strikeOutButton_ = makeButton(QStringLiteral("删除线"),
                                   QStringLiteral("给选中的文字加删除线"),
                                   QStringLiteral("annotation.strikethrough"),
                                   "strikethrough");
+    ellipseButton_ = makeButton(QStringLiteral("椭圆"),
+                                QStringLiteral("拖出一个椭圆"),
+                                QStringLiteral("annotation.ellipse"),
+                                "ellipse");
+    lineButton_ = makeButton(QStringLiteral("直线"),
+                             QStringLiteral("拖出一条直线"),
+                             QStringLiteral("annotation.line"),
+                             "line");
+    arrowButton_ = makeButton(QStringLiteral("箭头"),
+                              QStringLiteral("拖出一个箭头"),
+                              QStringLiteral("annotation.arrow"),
+                              "arrow");
+    polygonButton_ = makeButton(QStringLiteral("多边形"),
+                                QStringLiteral("逐点点击，双击结束"),
+                                QStringLiteral("annotation.polygon"),
+                                "polygon");
+    cloudButton_ = makeButton(QStringLiteral("云线"),
+                              QStringLiteral("逐点点击，双击结束"),
+                              QStringLiteral("annotation.cloud"),
+                              "cloud");
     noteButton_ = makeButton(QStringLiteral("便签"),
                               QStringLiteral("在页面上放一个便签"),
                               QStringLiteral("annotation.note"),
@@ -254,6 +307,10 @@ void PdfView::buildAnnotationToolBar() {
                                 QStringLiteral("在页面上画一个矩形"),
                                 QStringLiteral("annotation.square"),
                                 "square");
+    eraserButton_ = makeButton(QStringLiteral("橡皮"),
+                               QStringLiteral("擦掉墨迹（整笔删除）"),
+                               QStringLiteral("annotation.eraser"),
+                               "eraser");
     inkButton_ = makeButton(QStringLiteral("墨迹"),
                              QStringLiteral("在页面上画一笔"),
                              QStringLiteral("annotation.ink"),
@@ -273,7 +330,13 @@ void PdfView::buildAnnotationToolBar() {
     toolBar->addSeparator();
     toolBar->addWidget(noteButton_);
     toolBar->addWidget(squareButton_);
+    toolBar->addWidget(ellipseButton_);
+    toolBar->addWidget(lineButton_);
+    toolBar->addWidget(arrowButton_);
+    toolBar->addWidget(polygonButton_);
+    toolBar->addWidget(cloudButton_);
     toolBar->addWidget(inkButton_);
+    toolBar->addWidget(eraserButton_);
     toolBar->addSeparator();
     toolBar->addWidget(undoButton_);
     toolBar->addWidget(redoButton_);
@@ -283,6 +346,9 @@ void PdfView::buildAnnotationToolBar() {
     });
     connect(underlineButton_, &QToolButton::clicked, this, [this]() {
         applyMarkAnnotation(pdf::AnnotationType::Underline);
+    });
+    connect(squigglyButton_, &QToolButton::clicked, this, [this]() {
+        applyMarkAnnotation(pdf::AnnotationType::Squiggly);
     });
     connect(strikeOutButton_, &QToolButton::clicked, this, [this]() {
         applyMarkAnnotation(pdf::AnnotationType::StrikeOut);
@@ -294,7 +360,43 @@ void PdfView::buildAnnotationToolBar() {
     inkButton_->setCheckable(true);
     noteButton_->setAutoExclusive(true);
     squareButton_->setAutoExclusive(true);
+    ellipseButton_->setAutoExclusive(true);
+    lineButton_->setAutoExclusive(true);
+    arrowButton_->setAutoExclusive(true);
+    polygonButton_->setAutoExclusive(true);
+    cloudButton_->setAutoExclusive(true);
     inkButton_->setAutoExclusive(true);
+    eraserButton_->setAutoExclusive(true);
+    connect(ellipseButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Ellipse
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(lineButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Line
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(arrowButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Arrow
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(polygonButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Polygon
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(cloudButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Cloud
+                                                   : AnnotationController::Tool::None);
+        }
+    });
     connect(noteButton_, &QToolButton::clicked, this, [this](bool checked) {
         if (annotationController_) {
             annotationController_->setTool(checked ? AnnotationController::Tool::Note
@@ -310,6 +412,12 @@ void PdfView::buildAnnotationToolBar() {
     connect(inkButton_, &QToolButton::clicked, this, [this](bool checked) {
         if (annotationController_) {
             annotationController_->setTool(checked ? AnnotationController::Tool::Ink
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(eraserButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Eraser
                                                    : AnnotationController::Tool::None);
         }
     });
@@ -349,7 +457,15 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     document_ = std::move(document);
     filePath_ = path;
     pageCount_ = document_.isValid() ? document_.pageCount() : 0;
+    // 换文档就把历史清掉：旧页码对新文档没有意义，留着只会在后退时跳到无关位置。
+    history_.reset(ViewState{});
+    // 同一份文档上次看的时候缩到多少，这次还按那个比例打开（没记过就是 100%）。
     zoom_ = 1.0;
+    const double remembered = rememberedZoomForFile(path);
+    if (remembered > 0.0) {
+        zoom_ = remembered;
+        trace(QStringLiteral("zoom restored value=%1").arg(remembered));
+    }
     userRotation_ = 0;
     fitToWidth_ = false;
     fitToPage_ = false;
@@ -412,6 +528,27 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             [this](int pageIndex, const QRectF& userRect) {
                 if (annotationController_) {
                     annotationController_->addSquare(pageIndex, userRect);
+                }
+            });
+    connect(canvas_, &PageCanvas::lineAnnotationRequested, this,
+            [this](int pageIndex, int type, const QPointF& from, const QPointF& to) {
+                if (annotationController_) {
+                    annotationController_->addLine(static_cast<pdf::AnnotationType>(type), pageIndex,
+                                                   from, to);
+                }
+            });
+    connect(canvas_, &PageCanvas::polygonAnnotationRequested, this,
+            [this](int pageIndex, int type, const QVector<QPointF>& vertices) {
+                if (annotationController_) {
+                    annotationController_->addPolygon(static_cast<pdf::AnnotationType>(type),
+                                                      pageIndex, vertices);
+                }
+            });
+    connect(canvas_, &PageCanvas::ellipseAnnotationRequested, this,
+            [this](int pageIndex, const QRectF& userRect) {
+                if (annotationController_) {
+                    annotationController_->addShape(pdf::AnnotationType::Ellipse, pageIndex,
+                                                    userRect);
                 }
             });
     connect(canvas_, &PageCanvas::inkAnnotationRequested, this,
@@ -655,6 +792,7 @@ void PdfView::clear() {
     qaController_.reset();
     indexController_.reset();
     document_ = pdf::PdfDocument();
+    history_.reset(ViewState{});
     filePath_.clear();
     pageCount_ = 0;
     layout_.clear();
@@ -735,8 +873,16 @@ void PdfView::setZoom(double factor) {
     zoom_ = clamped;
     fitToWidth_ = false;
     fitToPage_ = false;
+    if (!filePath_.isEmpty()) {
+        rememberZoomForFile(filePath_, zoom_);
+        trace(QStringLiteral("zoom set value=%1").arg(clamped));
+    }
     rebuildLayout();
     emit zoomChanged(zoom_);
+    if (!restoringHistory_) {
+        history_.record(captureViewState());
+        emit historyChanged(history_.canGoBack(), history_.canGoForward());
+    }
 }
 
 void PdfView::zoomIn() {
@@ -812,10 +958,84 @@ void PdfView::copySelection() {
     emit textCopied(text.size());
 }
 
+void PdfView::setLayoutMode(PageLayout::LayoutMode mode) {
+    if (layout_.layoutMode() == mode) {
+        return;
+    }
+    layout_.setLayoutMode(mode);
+    // 适配模式要按新的列宽重算，否则切到双页会有一半内容露在视口外。
+    if (fitToWidth_) {
+        zoom_ = fitZoomForWidth();
+    } else if (fitToPage_) {
+        zoom_ = fitZoomForPage();
+    }
+    layout_.setScale(zoom_);
+    rebuildLayout();
+    trace(QStringLiteral("layout mode=%1")
+              .arg(mode == PageLayout::LayoutMode::Facing
+                       ? QStringLiteral("facing")
+                       : (mode == PageLayout::LayoutMode::FacingCover ? QStringLiteral("cover")
+                                                                     : QStringLiteral("single"))));
+    emit zoomChanged(zoom_);
+}
+
+PageLayout::LayoutMode PdfView::layoutMode() const {
+    return layout_.layoutMode();
+}
+
 void PdfView::goToPage(int index) {
     if (canvas_ != nullptr) {
         canvas_->goToPage(index);
     }
+    // 跳页是"用户主动换位置"的最强信号，记进历史。缩放同理（见 setZoom）。
+    history_.record(captureViewState());
+}
+
+app::ViewState PdfView::captureViewState() const {
+    ViewState state;
+    state.pageIndex = currentPage();
+    state.zoom = zoom_;
+    state.anchor = QPointF(0.0, 0.0);  // 页内偏移暂不参与：滚轮会高频触发，需要单独去抖
+    return state;
+}
+
+void PdfView::applyViewState(const ViewState& state) {
+    // 恢复时不要再记历史，否则"后退"会把自己记成新动作。
+    restoringHistory_ = true;
+    if (state.pageIndex >= 0 && state.pageIndex < document_.pageCount()) {
+        if (canvas_ != nullptr) {
+            canvas_->goToPage(state.pageIndex);
+        }
+    }
+    if (!qFuzzyCompare(state.zoom, zoom_)) {
+        setZoom(state.zoom);
+    }
+    restoringHistory_ = false;
+    emit historyChanged(history_.canGoBack(), history_.canGoForward());
+}
+
+void PdfView::startPresentation() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("放映"), tr("先打开一份 PDF。"));
+        return;
+    }
+    // 窗口自己持有一份文档句柄；关掉就随 WA_DeleteOnClose 一起释放。
+    auto* presentation = new PresentationWindow(document_, window());
+    presentation->start();
+}
+
+void PdfView::navigateBack() {
+    if (!history_.canGoBack()) {
+        return;
+    }
+    applyViewState(history_.goBack());
+}
+
+void PdfView::navigateForward() {
+    if (!history_.canGoForward()) {
+        return;
+    }
+    applyViewState(history_.goForward());
 }
 
 void PdfView::applyMarkAnnotation(pdf::AnnotationType type) {
@@ -970,7 +1190,9 @@ double PdfView::fitZoomForWidth() const {
     }
     // layout 里的尺寸是「点 × 当前缩放」，反推回去就是适应宽度需要的缩放。
     const double available = std::max(1.0, static_cast<double>(canvas_->viewport()->width()) - 32.0);
-    return std::clamp(available / (size.width() / zoom_), kMinZoom, kMaxZoom);
+    // 双页模式下"整行"才是要适配的宽度：totalWidth 是当前缩放下的整行宽（逻辑像素）。
+    const double rowWidthPoints = layout_.totalWidth() / zoom_;
+    return std::clamp(available / rowWidthPoints, kMinZoom, kMaxZoom);
 }
 
 double PdfView::fitZoomForPage() const {
@@ -983,7 +1205,7 @@ double PdfView::fitZoomForPage() const {
     }
     const double availableWidth = std::max(1.0, static_cast<double>(canvas_->viewport()->width()) - 32.0);
     const double availableHeight = std::max(1.0, static_cast<double>(canvas_->viewport()->height()) - 32.0);
-    const double byWidth = availableWidth / (size.width() / zoom_);
+    const double byWidth = availableWidth / (layout_.totalWidth() / zoom_);
     const double byHeight = availableHeight / (size.height() / zoom_);
     return std::clamp(std::min(byWidth, byHeight), kMinZoom, kMaxZoom);
 }
@@ -1160,9 +1382,92 @@ bool PdfView::isModified() const {
     return modified_;
 }
 
+// ------------------------------------------------------------ 打印与导出 ----
+
+void PdfView::printDocument() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("打印"), tr("先打开一份 PDF。"));
+        return;
+    }
+
+    QPrinter printer(QPrinter::HighResolution);
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle(tr("打印"));
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    // 每张纸排几页：系统打印对话框不提供这个选项，问一次就够了。
+    const QStringList layouts{tr("1 页"), tr("2 页"), tr("4 页"), tr("6 页"), tr("9 页")};
+    bool accepted = false;
+    const QString chosen = QInputDialog::getItem(this, tr("打印版式"), tr("每张纸排几页："),
+                                                 layouts, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int index = layouts.indexOf(chosen);
+
+    PrintOptions options;
+    options.pagesPerSheet = QList<int>{ 1, 2, 4, 6, 9 }.value(index < 0 ? 0 : index, 1);
+    QString error;
+    if (!app::printDocument(document_, &printer, options, &error)) {
+        QMessageBox::warning(this, tr("打印失败"), error);
+        return;
+    }
+    trace(QStringLiteral("printed pages=%1 perSheet=%2")
+              .arg(document_.pageCount())
+              .arg(options.pagesPerSheet));
+}
+
+void PdfView::exportPageImages() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("导出图片"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const QString directory = QFileDialog::getExistingDirectory(this, tr("导出图片到目录"));
+    if (directory.isEmpty()) {
+        return;
+    }
+
+    const QString baseName = filePath_.isEmpty()
+                                 ? QStringLiteral("document")
+                                 : QFileInfo(filePath_).completeBaseName();
+    ImageExportOptions options;
+    const auto result = app::exportPageImages(document_, directory, baseName, options);
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("导出图片失败"), result.error);
+        return;
+    }
+    trace(QStringLiteral("exported images=%1").arg(result.files.size()));
+    QMessageBox::information(this, tr("导出图片"),
+                             tr("已导出 %1 张到 %2").arg(result.files.size()).arg(directory));
+}
+
+void PdfView::exportPlainText() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("导出文本"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const QString suggested =
+        (filePath_.isEmpty() ? QStringLiteral("document") : QFileInfo(filePath_).completeBaseName()) +
+        QStringLiteral(".txt");
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出文本"), suggested,
+                                                      tr("文本文件 (*.txt)"));
+    if (path.isEmpty()) {
+        return;
+    }
+
+    TextExportOptions options;
+    const auto result = app::exportPlainText(document_, path, options);
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("导出文本失败"), result.error);
+        return;
+    }
+    trace(QStringLiteral("exported text path=%1").arg(path));
+}
+
 // 记一次恢复日志：改过就要能恢复。
-void PdfView::writeRecoveryLog() {
-    if (!annotationController_ || filePath_.isEmpty()) {
+void PdfView::writeRecoveryLog() {    if (!annotationController_ || filePath_.isEmpty()) {
         return;
     }
     doc::RecoveryLog::write(filePath_, annotationController_->serializedHistory());

@@ -14,13 +14,34 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(AIPDF_BUILD_TESTS "Build tests" ON)
 
+# 可选：qpdf 结构校验后端。
+#
+# 默认关闭，因为它依赖 tools/qpdf（预编译包，不进仓库）。开启后，保存前的字节会先过
+# 一遍 qpdf 的结构检查；未开启时该检查是空操作，写入路径完全不受影响。
+# 获取：scripts/bootstrap-qpdf.ps1
+option(AIPDF_WITH_QPDF "Validate written PDFs with qpdf before saving" OFF)
+if(AIPDF_WITH_QPDF)
+    # qpdf 的包配置在 tools/qpdf/lib/cmake/qpdf。直接钉 qpdf_DIR 比依赖
+    # CMAKE_PREFIX_PATH 的搜索规则可靠——工具链文件也会改这个变量，容易互相覆盖。
+    if(NOT qpdf_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf/qpdfConfig.cmake")
+        set(qpdf_DIR "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf")
+    endif()
+    # 在根作用域找，src/ 与 tests/ 两个子目录都能看到 qpdf_FOUND。
+    # 这里刻意不 REQUIRED：CI 上没有 tools/qpdf，构建不能因此失败。
+    find_package(qpdf CONFIG QUIET)
+    if(NOT qpdf_FOUND)
+        message(WARNING "AIPDF_WITH_QPDF=ON 但找不到 qpdf 包；本次构建不含结构校验。"
+                        "先运行 scripts/bootstrap-qpdf.ps1。")
+    endif()
+endif()
+
 # 主程序与 Worker 必须落在同一目录：主程序按自身路径查找 PdfAiWorker。
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${config} "${CMAKE_BINARY_DIR}/bin")
 endforeach()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Svg)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Svg PrintSupport)
 
 if(AIPDF_BUILD_TESTS)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
