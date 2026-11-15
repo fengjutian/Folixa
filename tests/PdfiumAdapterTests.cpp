@@ -61,6 +61,8 @@ private slots:
     void pageBackgroundPaintsPage();
     void formWidgetsAreRendered();
     void mergeAndExtractPages();
+    void backupAndRestoreDuplicatesPage();
+    void deleteThenRestoreReplacesPage();
     void imageLayerCoversRect();
     void imageCanBeRemovedAgain();
     void textReplacementSwapsContent();
@@ -471,6 +473,47 @@ void PdfiumAdapterTests::pageBackgroundPaintsPage() {
     QVERIFY(countInkedPixels(after) > countInkedPixels(before));
     const QRgb corner = after.pixel(after.width() / 2, after.height() / 2);
     QVERIFY(qRed(corner) > 240 && qGreen(corner) > 230 && qBlue(corner) < 245);
+}
+
+
+void PdfiumAdapterTests::backupAndRestoreDuplicatesPage() {
+    auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    const int before = document.pageCount();
+    const auto backup = document.backupPage(1);
+    QVERIFY(backup.isValid());
+    QCOMPARE(backup.pageCount(), 1);
+    QVERIFY(document.restorePageFrom(backup, 1));
+    QCOMPARE(document.pageCount(), before + 1);
+    const auto page = document.page(1);
+    QVERIFY(page.has_value());
+    QVERIFY(!page->render(1.0).isNull());
+}
+
+void PdfiumAdapterTests::deleteThenRestoreReplacesPage() {
+    auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    const int before = document.pageCount();
+    const auto original = document.backupPage(0);
+    QVERIFY(original.isValid());
+    const auto replacement = document.backupPage(1);
+    QVERIFY(replacement.isValid());
+
+    // 替换 = 删掉当前位置 + 把另一页恢复到同一位置。
+    QVERIFY(document.deletePage(0));
+    QCOMPARE(document.pageCount(), before - 1);
+    QVERIFY(document.restorePageFrom(replacement, 0));
+    QCOMPARE(document.pageCount(), before);
+
+    // 撤销 = 删掉替换页 + 把原页恢复回来。
+    QVERIFY(document.deletePage(0));
+    QVERIFY(document.restorePageFrom(original, 0));
+    QCOMPARE(document.pageCount(), before);
+    const auto page = document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(!page->render(1.0).isNull());
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)
