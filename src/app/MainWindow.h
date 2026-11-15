@@ -53,6 +53,8 @@ public:
     // 打开 PDF 文件；失败时在状态栏显示原因，不弹模态框。
     void openPdfFile(const QString& filePath);
 
+
+
 protected:
     void resizeEvent(QResizeEvent* event) override;
     // 拖放打开：窗口任意位置松手都能收下 PDF，不必先找准落点。
@@ -137,6 +139,8 @@ private:
     void applyLanguage(const QString& preference);
     // 就地重译：重跑登记的文案，并把随状态变化的标签也刷一遍。
     void retranslateUi();
+    // 左侧面板顶部的标题（页面/目录/书签/搜索/批注/表单/索引）。
+    void updateNavigationHeader(int index);
     // 语言菜单的勾选状态跟当前选择同步。
     void syncLanguageMenu();
     // 欢迎页标签的文案跟着语言走（标签页是动态建的，单独登记）。
@@ -145,6 +149,7 @@ private:
     ipc::WorkerClient* workerClient_ = nullptr;
     // 状态栏常驻的性能指标（缓存占用、待渲染任务数）。
     QLabel* metricsLabel_ = nullptr;
+    QLabel* navigationHeader_ = nullptr;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;
     // 顶部 Ribbon（文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI）。

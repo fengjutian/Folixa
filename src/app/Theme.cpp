@@ -133,7 +133,7 @@ QTabBar::close-button:hover { background: #E4EAF5; }
 /* -------------------------------------------------------------- 面板 -- */
 QDockWidget { color: #202A3A; font-weight: 600; }
 QDockWidget::title { background: #FBFCFE; border-bottom: 1px solid #E3E7EE; padding: 11px 12px; }
-QFrame#navigationRail { background: #F7F8FB; border-right: 1px solid #E3E7EE; }
+QLabel#navigationHeader {`n    padding: 10px 12px 6px 12px; font-weight: 600; font-size: 13px;`n    color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #EDF0F5;`n}`nQFrame#navigationRail { background: #F7F8FB; border-right: 1px solid #E3E7EE; }
 QToolButton[railButton="true"] { min-width: 38px; max-width: 38px; min-height: 38px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 19px; }
 QToolButton[railButton="true"]:hover { background: #EAF0FF; color: #3555B7; }
 QToolButton[railButton="true"]:checked { background: #E4EAFF; color: #3555B7; border-left: 3px solid #5277E8; }

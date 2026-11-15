@@ -1052,6 +1052,7 @@ void MainWindow::buildUi() {
         navigationPages->setCurrentIndex(index);
         const bool shouldShow = !wasVisible || !samePage;
         setNavigationExpanded(shouldShow);
+        updateNavigationHeader(index);
         traceNavigationPanel(index);
     });
     connect(pagesList_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
@@ -1112,7 +1113,16 @@ void MainWindow::buildUi() {
     connect(annotationRemoveButton_, &QPushButton::clicked, this,
             &MainWindow::removeSelectedAnnotation);
     navigationLayout->addWidget(rail);
-    navigationLayout->addWidget(navigationPages, 1);
+    auto* pageArea = new QWidget(navigation);
+    auto* pageAreaLayout = new QVBoxLayout(pageArea);
+    pageAreaLayout->setContentsMargins(0, 0, 0, 0);
+    pageAreaLayout->setSpacing(0);
+    navigationHeader_ = new QLabel(pageArea);
+    navigationHeader_->setObjectName(QStringLiteral("navigationHeader"));
+    navigationHeader_->setText(tr("页面"));
+    pageAreaLayout->addWidget(navigationHeader_);
+    pageAreaLayout->addWidget(navigationPages, 1);
+    navigationLayout->addWidget(pageArea, 1);
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
     // 导航面板建好了，占位动作现在才有开关可接。
@@ -1247,6 +1257,7 @@ void MainWindow::buildUi() {
     aiQuickCard_->setGraphicsEffect(cardShadow);
     aiQuickCard_->hide();
     updateAiQuickActions();
+    updateNavigationHeader(navigationPages_ != nullptr ? navigationPages_->currentIndex() : 0);
 
     aiFloatingButton_ = new QPushButton(QStringLiteral("✦"), tabs_);
     aiFloatingButton_->setObjectName(QStringLiteral("aiFloatingButton"));
@@ -1258,6 +1269,7 @@ void MainWindow::buildUi() {
         // 「解释」要有选区，「总结」要有文档，禁用时要写明原因。
         if (show) {
             updateAiQuickActions();
+    updateNavigationHeader(navigationPages_ != nullptr ? navigationPages_->currentIndex() : 0);
         }
         aiQuickCard_->setVisible(show);
         positionFloatingUi();
@@ -1267,6 +1279,7 @@ void MainWindow::buildUi() {
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
         if (aiQuickCard_ != nullptr && aiQuickCard_->isVisible()) {
             updateAiQuickActions();
+    updateNavigationHeader(navigationPages_ != nullptr ? navigationPages_->currentIndex() : 0);
         }
     });
 
@@ -2679,11 +2692,29 @@ void MainWindow::applyLanguage(const QString& preference) {
     statusBar()->showMessage(tr("界面语言已切换为 %1").arg(i18n::nativeNameOf(code)), 5000);
 }
 
+
+void MainWindow::updateNavigationHeader(int index) {
+    if (navigationHeader_ == nullptr) {
+        return;
+    }
+    switch (index) {
+        case 0: navigationHeader_->setText(tr("页面")); break;
+        case 1: navigationHeader_->setText(tr("目录")); break;
+        case 2: navigationHeader_->setText(tr("书签")); break;
+        case 3: navigationHeader_->setText(tr("搜索")); break;
+        case 4: navigationHeader_->setText(tr("批注")); break;
+        case 5: navigationHeader_->setText(tr("表单")); break;
+        case 6: navigationHeader_->setText(tr("索引")); break;
+        default: navigationHeader_->setText(tr("导航")); break;
+    }
+}
+
 void MainWindow::retranslateUi() {
     texts_.retranslate();
     syncLanguageMenu();
     // 随状态变化的文案由各自的 update 函数按当前语言重算。
     updateAiQuickActions();
+    updateNavigationHeader(navigationPages_ != nullptr ? navigationPages_->currentIndex() : 0);
 }
 
 void MainWindow::syncLanguageMenu() {
