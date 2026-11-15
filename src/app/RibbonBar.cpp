@@ -1,7 +1,8 @@
-#include "app/RibbonBar.h"
+﻿#include "app/RibbonBar.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QSizePolicy>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
@@ -55,6 +56,8 @@ int RibbonBar::appendPage() {
     auto* pageLayout = new QHBoxLayout(page);
     pageLayout->setContentsMargins(12, 6, 12, 6);
     pageLayout->setSpacing(0);
+    // 末尾的弹簧吸收多余宽度，命令组保持自然宽度。
+    pageLayout->addStretch(1);
     pages_->addWidget(page);
     pageWidgets_.append(page);
     pageLayouts_.append(pageLayout);
@@ -77,6 +80,7 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     auto* frame = new QFrame(pageWidgets_.at(tabIndex));
     frame->setObjectName(QStringLiteral("ribbonGroup"));
     frame->setProperty("ribbonGroup", true);
+    frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
     groupLayout->setContentsMargins(10, 4, 10, 2);
     groupLayout->setSpacing(2);
@@ -92,7 +96,8 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     label->setAlignment(Qt::AlignHCenter);
     groupLayout->addWidget(label);
 
-    pageLayouts_.at(tabIndex)->addWidget(frame);
+    // 插到弹簧之前。
+    pageLayouts_.at(tabIndex)->insertWidget(pageLayouts_.at(tabIndex)->count() - 1, frame);
     return contentLayout;
 }
 

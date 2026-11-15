@@ -752,7 +752,6 @@ void MainWindow::buildUi() {
     };
 
     const int fileTab = ribbonBar_->addTab(tr("文件"));
-    ribbonBar_->addGroup(fileTab, tr("文件"));
     auto* fileGroup = ribbonBar_->addGroup(fileTab, tr("文件"));
     addRibbonCommand(fileGroup, "打开", "打开 PDF 文件", ":/icons/book.svg",
                      [this] { openPdfDialog(); }, true, "ribbonOpen");

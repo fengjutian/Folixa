@@ -949,7 +949,9 @@ public static class AiPdfKeyboard {
     if (-not $virtualKeys.ContainsKey($Key)) {
         throw "不支持的按键：$Key"
     }
-    $expected = 2 + (if ($Ctrl) { 2 } else { 0 }) + (if ($Shift) { 2 } else { 0 })
+    $expected = 2
+    if ($Ctrl) { $expected += 2 }
+    if ($Shift) { $expected += 2 }
     $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl, [bool]$Shift)
     if ($sent -ne $expected) {
         throw "SendInput 失败（期望注入 $expected 个事件，实际 $sent）"
