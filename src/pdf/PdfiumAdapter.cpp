@@ -605,12 +605,14 @@ bool PdfPage::setPageBackground(const QColor& color) {
         return false;
     }
     FPDFPageObj_SetFillColor(rect, color.red(), color.green(), color.blue(), color.alpha());
+    // 路径对象必须显式指定「填充、不描边」，否则它只是几何、不会被画出来。
+    FPDFPath_SetDrawMode(rect, FPDF_FILLMODE_ALTERNATE, 0);
+    // 插到索引 0：背景必须压在正文下面。
     if (!FPDFPage_InsertObjectAtIndex(impl_->page, rect, 0)) {
         FPDFPageObj_Destroy(rect);
         return false;
     }
-    FPDFPage_GenerateContent(impl_->page);
-    return true;
+    return FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
 bool PdfPage::resizePage(double widthPoints, double heightPoints, bool scaleContent) {
@@ -1099,7 +1101,6 @@ QVector<FormField> PdfDocument::formFields() const {
         return fields;
     }
 
-    qWarning("form: handle ok, pages=%d", FPDF_GetPageCount(impl_->handle));
     const int pages = FPDF_GetPageCount(impl_->handle);
     for (int pageIndex = 0; pageIndex < pages; ++pageIndex) {
         FPDF_PAGE page = FPDF_LoadPage(impl_->handle, pageIndex);
@@ -1107,15 +1108,12 @@ QVector<FormField> PdfDocument::formFields() const {
             continue;
         }
         const int annots = FPDFPage_GetAnnotCount(page);
-        qWarning("form: page %d annots=%d", pageIndex, annots);
         for (int i = 0; i < annots; ++i) {
             FPDF_ANNOTATION annot = FPDFPage_GetAnnot(page, i);
             if (annot == nullptr) {
                 continue;
             }
-            qWarning("form: annot %d acquired", i);
             const int type = FPDFAnnot_GetFormFieldType(form, annot);
-            qWarning("form: annot %d type=%d", i, type);
             if (type <= 0) {
                 FPDFPage_CloseAnnot(annot);
                 continue;
@@ -1127,19 +1125,15 @@ QVector<FormField> PdfDocument::formFields() const {
                 return FPDFAnnot_GetFormFieldName(
                     form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
             });
-            qWarning("form: name read");
             field.value = readWideString([&](void* buffer, unsigned long size) {
                 return FPDFAnnot_GetFormFieldValue(
                     form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
             });
-            qWarning("form: value read");
             FS_RECTF rect{};
             if (FPDFAnnot_GetRect(annot, &rect)) {
                 field.rect = fromFsRect(rect);
             }
-            qWarning("form: rect read");
             const int flags = FPDFAnnot_GetFormFieldFlags(form, annot);
-            qWarning("form: flags=%d", flags);
             field.readOnly = (flags & FPDF_FORMFLAG_READONLY) != 0;
 
             fields.append(field);

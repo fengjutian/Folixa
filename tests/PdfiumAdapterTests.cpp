@@ -57,6 +57,8 @@ private slots:
     void formFieldValueCanBeSet();
     void flattenRemovesFormFields();
     void textLayerChangesPixelsAndExtracts();
+    void resizePageScalesContentAndBox();
+    void pageBackgroundPaintsPage();
     void formWidgetsAreRendered();
     void mergeAndExtractPages();
     void imageLayerCoversRect();
@@ -425,6 +427,50 @@ void PdfiumAdapterTests::imageCanBeRemovedAgain() {
 
     QVERIFY(page->removeImagesInRect(QRectF(20.0, 40.0, 60.0, 60.0)));
     QCOMPARE(countInkedPixels(page->render(1.0)), before);
+}
+
+
+void PdfiumAdapterTests::resizePageScalesContentAndBox() {
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->contentBox().right - page->contentBox().left, 200.0);
+
+    QVERIFY(page->resizePage(400.0, 200.0, true));
+    const auto box = page->contentBox();
+    QVERIFY(qAbs((box.right - box.left) - 400.0) < 0.5);
+    QVERIFY(qAbs((box.top - box.bottom) - 200.0) < 0.5);
+    const QImage image = page->render(1.0);
+    QVERIFY(!image.isNull());
+    QCOMPARE(image.width(), 400);
+}
+
+void PdfiumAdapterTests::pageBackgroundPaintsPage() {
+    auto opened = openDocument(fixturePath(QStringLiteral("empty.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    const QImage before = page->render(1.0);
+    QVERIFY(!before.isNull());
+
+    QVERIFY(page->setPageBackground(QColor(255, 249, 224)));
+    // PDFium 的已加载页面对象在 GenerateContent 之后不会立刻反映到渲染上；
+    // 落盘再重开才是权威结果（界面走的也是同步字节后的副本）。
+    QString error;
+    const QByteArray bytes = document.serialize(&error);
+    QVERIFY2(!bytes.isEmpty(), qPrintable(error));
+    const auto reopened = openDocumentFromBytes(bytes);
+    QVERIFY(reopened.document.isValid());
+    const auto reopenedPage = reopened.document.page(0);
+    QVERIFY(reopenedPage.has_value());
+    const QImage after = reopenedPage->render(1.0);
+    QVERIFY(!after.isNull());
+    QVERIFY(countInkedPixels(after) > countInkedPixels(before));
+    const QRgb corner = after.pixel(after.width() / 2, after.height() / 2);
+    QVERIFY(qRed(corner) > 240 && qGreen(corner) > 230 && qBlue(corner) < 245);
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

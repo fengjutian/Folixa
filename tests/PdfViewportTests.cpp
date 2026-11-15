@@ -18,6 +18,7 @@ private slots:
     void facingCoverLeavesFirstPageAlone();
     void hitTestDistinguishesLeftAndRightPage();
     void continuousModeKeepsSingleColumn();
+    void singlePageModeOnlyLaysOutActivePage();
     void rowWidthFollowsEachRow();
     void cacheEvictsLeastRecentlyUsed();
     void cacheRespectsMemoryLimit();
@@ -244,6 +245,26 @@ void PdfViewportTests::rowWidthFollowsEachRow() {
     QCOMPARE(layout.rowWidth(0), 100.0);   // 第 0 行：100 与 60 并排
     QCOMPARE(layout.rowWidth(2), 60.0);    // 第 1 行：只有第 2 页
     QCOMPARE(layout.totalWidth(), 210.0);
+}
+
+
+void PdfViewportTests::singlePageModeOnlyLaysOutActivePage() {
+    PageLayout layout;
+    layout.setPages({ {200.0, 100.0}, {300.0, 150.0}, {400.0, 200.0} });
+    layout.setScale(1.0);
+    layout.setLayoutMode(PageLayout::LayoutMode::SinglePage);
+    layout.setActivePage(1);
+
+    QVERIFY(!layout.pageRect(1).isEmpty());
+    QVERIFY(layout.pageRect(0).isEmpty());
+    QVERIFY(layout.pageRect(2).isEmpty());
+    QCOMPARE(layout.totalHeight(), 150.0);
+    QCOMPARE(layout.totalWidth(), 300.0);
+    QCOMPARE(layout.pageAt(1.0), 1);
+
+    layout.setActivePage(2);
+    QVERIFY(!layout.pageRect(2).isEmpty());
+    QVERIFY(layout.pageRect(1).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(PdfViewportTests)
