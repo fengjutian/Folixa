@@ -1,5 +1,7 @@
 #include "doc/CitationVerifier.h"
 
+#include "i18n/Translate.h"
+
 #include "ai/LocalHashEmbedding.h"
 
 #include <QRegularExpression>
@@ -162,20 +164,26 @@ CitationReport CitationVerifier::verify(const QString& answer,
         if (block == nullptr) {
             // 1. 存在性：编号不在这次给模型的上下文里。
             citation.valid = false;
-            citation.reason = QStringLiteral("引用编号 %1 不在本次提供的材料中").arg(citation.number);
+            citation.reason = i18n::tr("aipdf::doc::CitationVerifier",
+                                      "引用编号 %1 不在本次提供的材料中")
+                                  .arg(citation.number);
             ++report.invalidCount;
             continue;
         }
         if (citation.quote.isEmpty()) {
             citation.valid = false;
-            citation.reason = QStringLiteral("引用 %1 没有给出原文，无法核对").arg(citation.number);
+            citation.reason = i18n::tr("aipdf::doc::CitationVerifier",
+                                      "引用 %1 没有给出原文，无法核对")
+                                  .arg(citation.number);
             ++report.invalidCount;
             continue;
         }
         if (!quoteAppearsIn(citation.quote, block->text)) {
             // 2. 引文核对：编号对，但引的那段话不在这一块里。
             citation.valid = false;
-            citation.reason = QStringLiteral("引用 %1 的引文在原文中找不到").arg(citation.number);
+            citation.reason = i18n::tr("aipdf::doc::CitationVerifier",
+                                      "引用 %1 的引文在原文中找不到")
+                                  .arg(citation.number);
             ++report.invalidCount;
             continue;
         }
@@ -183,7 +191,8 @@ CitationReport CitationVerifier::verify(const QString& answer,
             citation.pageNumber != block->pageIndex + 1) {
             // 3. 页码一致：模型写的页与这块实际所在页不同。
             citation.valid = false;
-            citation.reason = QStringLiteral("引用 %1 的页码与原文不符（原文在第 %2 页）")
+            citation.reason = i18n::tr("aipdf::doc::CitationVerifier",
+                                      "引用 %1 的页码与原文不符（原文在第 %2 页）")
                                   .arg(citation.number)
                                   .arg(block->pageIndex + 1);
             ++report.invalidCount;

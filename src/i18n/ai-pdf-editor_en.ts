@@ -2,6 +2,195 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="zh_CN">
     <context>
+        <name>aipdf::ai::CredentialStore</name>
+        <message>
+            <source>写入 Windows 凭据管理器失败（错误码 %1）</source>
+            <translation>Failed to write to Windows Credential Manager (error code %1)</translation>
+        </message>
+        <message>
+            <source>凭据名称为空</source>
+            <translation>The credential name is empty</translation>
+        </message>
+        <message>
+            <source>删除 Windows 凭据失败（错误码 %1）</source>
+            <translation>Failed to delete the Windows credential (error code %1)</translation>
+        </message>
+        <message>
+            <source>当前系统不支持 Windows 凭据管理器</source>
+            <translation>Windows Credential Manager is not supported on this system</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ai::DataPolicy</name>
+        <message>
+            <source>一次最多发送 %1 块，本次 %2 块</source>
+            <translation>At most %1 chunks can be sent per request; this request has %2</translation>
+        </message>
+        <message>
+            <source>一次最多发送 %1 字，本次 %2 字</source>
+            <translation>At most %1 characters can be sent per request; this request has %2</translation>
+        </message>
+        <message>
+            <source>本地模式：文档内容不会离开本机</source>
+            <translation>Local mode: document content never leaves this machine</translation>
+        </message>
+        <message>
+            <source>没有可发送的内容</source>
+            <translation>There is nothing to send</translation>
+        </message>
+        <message>
+            <source>选定页面模式需要先勾选要发送的页面</source>
+            <translation>Selected-pages mode requires choosing the pages to send first</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ai::MockProvider</name>
+        <message>
+            <source>· 没有检索到可引用的材料。</source>
+            <translation>· No citable material was found.</translation>
+        </message>
+        <message>
+            <source>· 第 %1 页的材料说：%2 [%3]</source>
+            <translation>· The material on page %1 says: %2 [%3]</translation>
+        </message>
+        <message>
+            <source>【演示模式】下面是按当前页文本拼出的摘要示例（没有真正调用模型）。
+· 材料开头：%1
+· 材料长度：%2 字
+· 要真正的模型摘要，请在设置里填 API 密钥。</source>
+            <translation>[Demo mode] Below is a sample summary assembled from the current page text (no model was actually called).
+· Material starts with: %1
+· Material length: %2 characters
+· For a real model summary, enter an API key in Settings.</translation>
+        </message>
+        <message>
+            <source>【演示模式】下面是按检索到的材料拼出的回答示例（没有真正调用模型）。</source>
+            <translation>[Demo mode] Below is a sample answer assembled from the retrieved material (no model was actually called).</translation>
+        </message>
+        <message>
+            <source>【演示模式】下面是按选中文字拼出的翻译示例（没有真正调用模型）。
+· 原文：%1
+· 要真正的模型翻译，请在设置里填 API 密钥。</source>
+            <translation>[Demo mode] Below is a sample translation assembled from the selected text (no model was actually called).
+· Source text: %1
+· For a real model translation, enter an API key in Settings.</translation>
+        </message>
+        <message>
+            <source>【演示模式】下面是按选中文字拼出的解释示例（没有真正调用模型）。
+· 选中内容：%1
+· 要真正的模型解释，请在设置里填 API 密钥。</source>
+            <translation>[Demo mode] Below is a sample explanation assembled from the selected text (no model was actually called).
+· Selected text: %1
+· For a real model explanation, enter an API key in Settings.</translation>
+        </message>
+        <message>
+            <source>【演示模式】收到你的问题，下面是本地拼出的示例回答（没有真正调用模型）。
+· 材料开头：%1
+· 材料长度：%2 字</source>
+            <translation>[Demo mode] Question received; below is a sample answer assembled locally (no model was actually called).
+· Material starts with: %1
+· Material length: %2 characters</translation>
+        </message>
+        <message>
+            <source>上一次请求还没结束。</source>
+            <translation>The previous request has not finished yet.</translation>
+        </message>
+        <message>
+            <source>演示模式（本地应答，未接入模型）</source>
+            <translation>Demo mode (local replies, no model connected)</translation>
+        </message>
+        <message>
+            <source>这一句是演示模式伪造的，原文里并没有它。</source>
+            <translation>This sentence was fabricated by demo mode; it is not in the source.</translation>
+        </message>
+        <message>
+            <source>（空）</source>
+            <translation>(empty)</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ai::OpenAiProvider</name>
+        <message>
+            <source>API 密钥无效或已过期，请在设置里重新填写。</source>
+            <translation>The API key is invalid or expired. Enter a new one in Settings.</translation>
+        </message>
+        <message>
+            <source>上一次请求还没结束。</source>
+            <translation>The previous request has not finished yet.</translation>
+        </message>
+        <message>
+            <source>云端模型（OpenAI 兼容）</source>
+            <translation>Cloud model (OpenAI compatible)</translation>
+        </message>
+        <message>
+            <source>模型服务出错了，请稍后再试。</source>
+            <translation>The model service returned an error. Try again shortly.</translation>
+        </message>
+        <message>
+            <source>模型请求失败。</source>
+            <translation>The model request failed.</translation>
+        </message>
+        <message>
+            <source>没有配置 API 密钥，无法调用云端模型。</source>
+            <translation>No API key is configured, so the cloud model cannot be called.</translation>
+        </message>
+        <message>
+            <source>请求太频繁，服务商限流了，请稍后再试。</source>
+            <translation>Too many requests; the provider is rate limiting. Try again shortly.</translation>
+        </message>
+        <message>
+            <source>请求被模型服务拒绝：%1</source>
+            <translation>The model service rejected the request: %1</translation>
+        </message>
+        <message>
+            <source>请求超时</source>
+            <translation>Request timed out</translation>
+        </message>
+        <message>
+            <source>请求超时，服务商没有在时限内回应。</source>
+            <translation>The request timed out; the provider did not respond in time.</translation>
+        </message>
+        <message>
+            <source>这个密钥没有权限访问该模型。</source>
+            <translation>This key is not allowed to access that model.</translation>
+        </message>
+        <message>
+            <source>连不上模型服务，请检查网络。</source>
+            <translation>Cannot reach the model service. Check your network connection.</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ai::ProviderConfig</name>
+        <message>
+            <source>单价不能是负数</source>
+            <translation>The unit price cannot be negative</translation>
+        </message>
+        <message>
+            <source>服务地址不能为空</source>
+            <translation>The service URL cannot be empty</translation>
+        </message>
+        <message>
+            <source>服务地址必须以 http:// 或 https:// 开头</source>
+            <translation>The service URL must start with http:// or https://</translation>
+        </message>
+        <message>
+            <source>服务地址里没有主机名</source>
+            <translation>The service URL has no host name</translation>
+        </message>
+        <message>
+            <source>模型名不能为空</source>
+            <translation>The model name cannot be empty</translation>
+        </message>
+        <message>
+            <source>没有选服务商</source>
+            <translation>No provider selected</translation>
+        </message>
+        <message>
+            <source>超时时间不能小于 1 秒</source>
+            <translation>The timeout cannot be less than 1 second</translation>
+        </message>
+    </context>
+    <context>
         <name>aipdf::app::AiPanel</name>
         <message>
             <source>%1 · %2</source>
@@ -339,10 +528,8 @@
             <translation>Only the current page, selection, or retrieved chunks are sent; the scope is shown first.</translation>
         </message>
         <message>
-            <source>密钥保存在 Windows 凭据管理器里，不写进配置文件。
-留空密钥表示不修改已保存的值。</source>
-            <translation>The key is stored in Windows Credential Manager, not in the configuration file.
-Leave the key blank to keep the saved value.</translation>
+            <source>密钥保存在 Windows 凭据管理器里，不写进配置文件。</source>
+            <translation>The key is stored in Windows Credential Manager, not in the configuration file.</translation>
         </message>
         <message>
             <source>数据模式</source>
@@ -383,6 +570,10 @@ Leave the key blank to keep the saved value.</translation>
         <message>
             <source>片段云端（只送当前页/选区或检索块）</source>
             <translation>Chunk cloud (send only the current page/selection or retrieved chunks)</translation>
+        </message>
+        <message>
+            <source>留空密钥表示不修改已保存的值。</source>
+            <translation>Leave the key blank to keep the saved value.</translation>
         </message>
         <message>
             <source>粘贴 API 密钥</source>
@@ -521,10 +712,12 @@ Leave the key blank to keep the saved value.</translation>
             <translation>Apply</translation>
         </message>
         <message>
-            <source>确认后这些修改会立即执行，并进入撤销栈（Ctrl+Z 可撤销）。
-点「取消」则什么都不做。</source>
-            <translation>These changes will be applied immediately and added to the undo stack (Ctrl+Z to undo).
-Clicking "Cancel" does nothing.</translation>
+            <source>点「取消」则什么都不做。</source>
+            <translation>Clicking "Cancel" does nothing.</translation>
+        </message>
+        <message>
+            <source>确认后这些修改会立即执行，并进入撤销栈（Ctrl+Z 可撤销）。</source>
+            <translation>These changes will be applied immediately and added to the undo stack (Ctrl+Z to undo).</translation>
         </message>
     </context>
     <context>
@@ -1201,6 +1394,38 @@ Clicking "Cancel" does nothing.</translation>
     <context>
         <name>aipdf::app::PdfView</name>
         <message>
+            <source>1 页</source>
+            <translation>1 page</translation>
+        </message>
+        <message>
+            <source>2 页</source>
+            <translation>2 pages</translation>
+        </message>
+        <message>
+            <source>4 页</source>
+            <translation>4 pages</translation>
+        </message>
+        <message>
+            <source>6 页</source>
+            <translation>6 pages</translation>
+        </message>
+        <message>
+            <source>9 页</source>
+            <translation>9 pages</translation>
+        </message>
+        <message>
+            <source>HTML (*.html)</source>
+            <translation>HTML (*.html)</translation>
+        </message>
+        <message>
+            <source>WAV (*.wav)</source>
+            <translation>WAV (*.wav)</translation>
+        </message>
+        <message>
+            <source>XFDF (*.xfdf)</source>
+            <translation>XFDF (*.xfdf)</translation>
+        </message>
+        <message>
             <source>下划线</source>
             <translation>Underline</translation>
         </message>
@@ -1221,8 +1446,20 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Save document (Ctrl+S)</translation>
         </message>
         <message>
+            <source>先打开一份 PDF。</source>
+            <translation>Open a PDF first.</translation>
+        </message>
+        <message>
+            <source>写不了这个文件: %1</source>
+            <translation>Cannot write this file: %1</translation>
+        </message>
+        <message>
             <source>删除线</source>
             <translation>Strikethrough</translation>
+        </message>
+        <message>
+            <source>删除页失败</source>
+            <translation>Failed to delete the page</translation>
         </message>
         <message>
             <source>向右旋转</source>
@@ -1235,6 +1472,10 @@ Clicking "Cancel" does nothing.</translation>
         <message>
             <source>周长</source>
             <translation>Perimeter</translation>
+        </message>
+        <message>
+            <source>图片 (*.png *.jpg *.jpeg *.bmp)</source>
+            <translation>Images (*.png *.jpg *.jpeg *.bmp)</translation>
         </message>
         <message>
             <source>图片图章</source>
@@ -1273,8 +1514,116 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Sound</translation>
         </message>
         <message>
+            <source>声音批注</source>
+            <translation>Sound annotation</translation>
+        </message>
+        <message>
+            <source>备注内容</source>
+            <translation>Note contents</translation>
+        </message>
+        <message>
             <source>多边形</source>
             <translation>Polygon</translation>
+        </message>
+        <message>
+            <source>导入了 %1 条批注</source>
+            <translation>Imported %1 annotations</translation>
+        </message>
+        <message>
+            <source>导入批注</source>
+            <translation>Import annotations</translation>
+        </message>
+        <message>
+            <source>导出图片</source>
+            <translation>Export images</translation>
+        </message>
+        <message>
+            <source>导出图片到目录</source>
+            <translation>Export images to a folder</translation>
+        </message>
+        <message>
+            <source>导出图片失败</source>
+            <translation>Failed to export images</translation>
+        </message>
+        <message>
+            <source>导出批注</source>
+            <translation>Export annotations</translation>
+        </message>
+        <message>
+            <source>导出批注摘要</source>
+            <translation>Export annotation summary</translation>
+        </message>
+        <message>
+            <source>导出文本</source>
+            <translation>Export text</translation>
+        </message>
+        <message>
+            <source>导出文本失败</source>
+            <translation>Failed to export text</translation>
+        </message>
+        <message>
+            <source>已删除第 %1 页</source>
+            <translation>Deleted page %1</translation>
+        </message>
+        <message>
+            <source>已在当前页后插入空白页</source>
+            <translation>Inserted a blank page after the current page</translation>
+        </message>
+        <message>
+            <source>已导出 %1 张到 %2</source>
+            <translation>Exported %1 images to %2</translation>
+        </message>
+        <message>
+            <source>已导出批注到 %1</source>
+            <translation>Exported annotations to %1</translation>
+        </message>
+        <message>
+            <source>已导出批注摘要</source>
+            <translation>Exported the annotation summary</translation>
+        </message>
+        <message>
+            <source>已添加%1</source>
+            <translation>Added %1</translation>
+        </message>
+        <message>
+            <source>已经是最后一页了</source>
+            <translation>This is the last page</translation>
+        </message>
+        <message>
+            <source>已经是第一页了</source>
+            <translation>This is the first page</translation>
+        </message>
+        <message>
+            <source>当前页的尺寸取不到，插入失败</source>
+            <translation>Could not read the current page size; insert failed</translation>
+        </message>
+        <message>
+            <source>打印</source>
+            <translation>Print</translation>
+        </message>
+        <message>
+            <source>打印失败</source>
+            <translation>Printing failed</translation>
+        </message>
+        <message>
+            <source>打印批注摘要</source>
+            <translation>Print annotation summary</translation>
+        </message>
+        <message>
+            <source>打印版式</source>
+            <translation>Print layout</translation>
+        </message>
+        <message>
+            <source>批注摘要</source>
+            <translation>Annotation summary</translation>
+        </message>
+        <message>
+            <source>批注摘要已发送到打印机</source>
+            <translation>Annotation summary sent to the printer</translation>
+        </message>
+        <message>
+            <source>批注没有添加成功</source>
+            <translation>The annotation was not added</translation>
         </message>
         <message>
             <source>拖出一个椭圆</source>
@@ -1301,6 +1650,10 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Attach a WAV audio clip</translation>
         </message>
         <message>
+            <source>插入空白页失败</source>
+            <translation>Failed to insert a blank page</translation>
+        </message>
+        <message>
             <source>撤销</source>
             <translation>Undo</translation>
         </message>
@@ -1321,12 +1674,36 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Zoom In (Ctrl++)</translation>
         </message>
         <message>
+            <source>放映</source>
+            <translation>Presentation</translation>
+        </message>
+        <message>
             <source>整页</source>
             <translation>Fit Page</translation>
         </message>
         <message>
             <source>文字</source>
             <translation>Text</translation>
+        </message>
+        <message>
+            <source>文本文件 (*.txt)</source>
+            <translation>Text files (*.txt)</translation>
+        </message>
+        <message>
+            <source>文本框</source>
+            <translation>Text box</translation>
+        </message>
+        <message>
+            <source>文档至少要保留一页</source>
+            <translation>The document must keep at least one page</translation>
+        </message>
+        <message>
+            <source>新建便签</source>
+            <translation>New note</translation>
+        </message>
+        <message>
+            <source>旋转页面失败</source>
+            <translation>Failed to rotate the page</translation>
         </message>
         <message>
             <source>未打开文档</source>
@@ -1341,12 +1718,36 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Eraser</translation>
         </message>
         <message>
+            <source>每张纸排几页：</source>
+            <translation>Pages per sheet:</translation>
+        </message>
+        <message>
+            <source>没有可撤销的批注操作</source>
+            <translation>No annotation action to undo</translation>
+        </message>
+        <message>
+            <source>没有可重做的批注操作</source>
+            <translation>No annotation action to redo</translation>
+        </message>
+        <message>
+            <source>没有打开文档</source>
+            <translation>No document open</translation>
+        </message>
+        <message>
+            <source>没有目标路径</source>
+            <translation>No target path</translation>
+        </message>
+        <message>
             <source>波浪线</source>
             <translation>Squiggly</translation>
         </message>
         <message>
             <source>测量</source>
             <translation>Measure</translation>
+        </message>
+        <message>
+            <source>添加附件</source>
+            <translation>Add attachment</translation>
         </message>
         <message>
             <source>用一张图片做图章</source>
@@ -1361,8 +1762,28 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Rectangle</translation>
         </message>
         <message>
+            <source>移动页面失败</source>
+            <translation>Failed to move the page</translation>
+        </message>
+        <message>
             <source>第 %1 / %2 页</source>
             <translation>Page %1 of %2</translation>
+        </message>
+        <message>
+            <source>第 %1 页已上移</source>
+            <translation>Moved page %1 up</translation>
+        </message>
+        <message>
+            <source>第 %1 页已下移</source>
+            <translation>Moved page %1 down</translation>
+        </message>
+        <message>
+            <source>第 %1 页已逆时针旋转 90 度</source>
+            <translation>Rotated page %1 90° counterclockwise</translation>
+        </message>
+        <message>
+            <source>第 %1 页已顺时针旋转 90 度</source>
+            <translation>Rotated page %1 90° clockwise</translation>
         </message>
         <message>
             <source>箭头</source>
@@ -1385,6 +1806,10 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Highlight the selected text (Ctrl+H)</translation>
         </message>
         <message>
+            <source>缓存 %1 MiB · 待渲染 %2</source>
+            <translation>Cache %1 MiB · %2 pending</translation>
+        </message>
+        <message>
             <source>缩小</source>
             <translation>Zoom out</translation>
         </message>
@@ -1401,8 +1826,40 @@ Clicking "Cancel" does nothing.</translation>
             <translation>Zoom to fit the window width</translation>
         </message>
         <message>
+            <source>请先选中要标记的文字</source>
+            <translation>Select the text to mark first</translation>
+        </message>
+        <message>
+            <source>读不了这个文件: %1</source>
+            <translation>Cannot read this file: %1</translation>
+        </message>
+        <message>
+            <source>输入文字（中文会由本程序绘制，其他阅读器按字体回退显示）:</source>
+            <translation>Enter text (this app draws Chinese itself; other readers fall back to font glyphs):</translation>
+        </message>
+        <message>
+            <source>这个文档还没有保存过，请用「另存为」</source>
+            <translation>This document has not been saved yet; use "Save as"</translation>
+        </message>
+        <message>
+            <source>这看起来不是一张图片。</source>
+            <translation>This does not look like an image.</translation>
+        </message>
+        <message>
             <source>适宽</source>
             <translation>Fit Width</translation>
+        </message>
+        <message>
+            <source>选择图章图片</source>
+            <translation>Choose a stamp image</translation>
+        </message>
+        <message>
+            <source>选择图章文字:</source>
+            <translation>Choose the stamp text:</translation>
+        </message>
+        <message>
+            <source>选择音频</source>
+            <translation>Choose audio</translation>
         </message>
         <message>
             <source>逐点点击，双击结束</source>
@@ -1669,6 +2126,25 @@ Clicking "Cancel" does nothing.</translation>
         </message>
     </context>
     <context>
+        <name>aipdf::doc::CitationVerifier</name>
+        <message>
+            <source>引用 %1 没有给出原文，无法核对</source>
+            <translation>Citation [%1] gives no quoted text, so it cannot be verified</translation>
+        </message>
+        <message>
+            <source>引用 %1 的引文在原文中找不到</source>
+            <translation>The text quoted by citation [%1] does not appear in the source</translation>
+        </message>
+        <message>
+            <source>引用 %1 的页码与原文不符（原文在第 %2 页）</source>
+            <translation>Citation [%1] points at the wrong page (the source is on page %2)</translation>
+        </message>
+        <message>
+            <source>引用编号 %1 不在本次提供的材料中</source>
+            <translation>Citation [%1] is not in the material provided for this answer</translation>
+        </message>
+    </context>
+    <context>
         <name>aipdf::doc::EditCommand</name>
         <message>
             <source>修改%1</source>
@@ -1822,6 +2298,98 @@ Clicking "Cancel" does nothing.</translation>
         <message>
             <source>重做 %1</source>
             <translation>Redo %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ipc::WorkerClient</name>
+        <message>
+            <source>AI Worker 未连接，请稍后再试。</source>
+            <translation>The AI Worker is not connected. Try again shortly.</translation>
+        </message>
+        <message>
+            <source>AI Worker 请求失败。</source>
+            <translation>The AI Worker request failed.</translation>
+        </message>
+        <message>
+            <source>AI Worker 请求超时。</source>
+            <translation>The AI Worker request timed out.</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ocr::OcrService</name>
+        <message>
+            <source>没有可用的 OCR 引擎</source>
+            <translation>No OCR engine is available</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ocr::TesseractCliEngine</name>
+        <message>
+            <source>tesseract 启动失败</source>
+            <translation>Failed to start Tesseract</translation>
+        </message>
+        <message>
+            <source>tesseract 退出码 %1</source>
+            <translation>Tesseract exited with code %1</translation>
+        </message>
+        <message>
+            <source>无法创建临时目录</source>
+            <translation>Could not create a temporary directory</translation>
+        </message>
+        <message>
+            <source>没有找到 tesseract 可执行文件</source>
+            <translation>The Tesseract executable was not found</translation>
+        </message>
+        <message>
+            <source>识别超时（%1 ms）</source>
+            <translation>Recognition timed out (%1 ms)</translation>
+        </message>
+        <message>
+            <source>页面图像为空</source>
+            <translation>The page image is empty</translation>
+        </message>
+        <message>
+            <source>页面图像写盘失败</source>
+            <translation>Failed to write the page image to disk</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::ocr::WindowsOcrEngine</name>
+        <message>
+            <source>OCR 脚本写入失败</source>
+            <translation>Failed to write the OCR script</translation>
+        </message>
+        <message>
+            <source>powershell 启动失败</source>
+            <translation>Failed to start PowerShell</translation>
+        </message>
+        <message>
+            <source>找不到 powershell，无法调用系统 OCR</source>
+            <translation>PowerShell was not found, so the system OCR cannot be used</translation>
+        </message>
+        <message>
+            <source>无法创建临时目录</source>
+            <translation>Could not create a temporary directory</translation>
+        </message>
+        <message>
+            <source>没有可用的系统 OCR 语言</source>
+            <translation>No system OCR language is available</translation>
+        </message>
+        <message>
+            <source>系统 OCR 退出码 %1</source>
+            <translation>The system OCR exited with code %1</translation>
+        </message>
+        <message>
+            <source>识别超时</source>
+            <translation>Recognition timed out</translation>
+        </message>
+        <message>
+            <source>页面图像为空</source>
+            <translation>The page image is empty</translation>
+        </message>
+        <message>
+            <source>页面图像写盘失败</source>
+            <translation>Failed to write the page image to disk</translation>
         </message>
     </context>
     <context>
@@ -2099,6 +2667,124 @@ Clicking "Cancel" does nothing.</translation>
         <message>
             <source>没有找到 data 块</source>
             <translation>No data chunk found</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::tools::ProposalValidator</name>
+        <message>
+            <source>%1 不接受参数 %2</source>
+            <translation>%1 does not accept the parameter %2</translation>
+        </message>
+        <message>
+            <source>%1 是只读工具，不能出现在变更提案里</source>
+            <translation>%1 is a read-only tool and cannot appear in a change proposal</translation>
+        </message>
+        <message>
+            <source>%1 缺少必填参数 %2</source>
+            <translation>%1 is missing the required parameter %2</translation>
+        </message>
+        <message>
+            <source>args 必须是对象</source>
+            <translation>args must be an object</translation>
+        </message>
+        <message>
+            <source>一次最多 %1 条操作</source>
+            <translation>At most %1 operations per proposal</translation>
+        </message>
+        <message>
+            <source>删除第 %1 页</source>
+            <translation>Delete page %1</translation>
+        </message>
+        <message>
+            <source>参数 %1 元素太多</source>
+            <translation>Parameter %1 has too many elements</translation>
+        </message>
+        <message>
+            <source>参数 %1 元素太少</source>
+            <translation>Parameter %1 has too few elements</translation>
+        </message>
+        <message>
+            <source>参数 %1 小于下限 %2</source>
+            <translation>Parameter %1 is below the minimum %2</translation>
+        </message>
+        <message>
+            <source>参数 %1 类型应为 %2</source>
+            <translation>Parameter %1 must be of type %2</translation>
+        </message>
+        <message>
+            <source>参数 %1 超过上限 %2</source>
+            <translation>Parameter %1 exceeds the maximum %2</translation>
+        </message>
+        <message>
+            <source>在第 %1 页前插入空白页</source>
+            <translation>Insert a blank page before page %1</translation>
+        </message>
+        <message>
+            <source>在第 %1 页添加批注：%2</source>
+            <translation>Add a note on page %1: %2</translation>
+        </message>
+        <message>
+            <source>工具 %1 被禁止：AI 不能执行文件、Shell 或网络操作</source>
+            <translation>Tool %1 is forbidden: AI cannot perform file, shell, or network operations</translation>
+        </message>
+        <message>
+            <source>把第 %1 页移动到第 %2 位</source>
+            <translation>Move page %1 to position %2</translation>
+        </message>
+        <message>
+            <source>提案里没有任何操作</source>
+            <translation>The proposal contains no operations</translation>
+        </message>
+        <message>
+            <source>插入位置 %1 超出范围（1–%2）</source>
+            <translation>Insert position %1 is out of range (1–%2)</translation>
+        </message>
+        <message>
+            <source>操作必须是对象</source>
+            <translation>Each operation must be an object</translation>
+        </message>
+        <message>
+            <source>文档已被修改，请重新生成提案后再确认</source>
+            <translation>The document has changed. Regenerate the proposal and confirm again.</translation>
+        </message>
+        <message>
+            <source>未知工具：%1</source>
+            <translation>Unknown tool: %1</translation>
+        </message>
+        <message>
+            <source>缺少 tool 字段</source>
+            <translation>The tool field is missing</translation>
+        </message>
+        <message>
+            <source>页码 %1 超出范围（1–%2）</source>
+            <translation>Page %1 is out of range (1–%2)</translation>
+        </message>
+        <message>
+            <source>页码超出范围（1–%1）</source>
+            <translation>Page out of range (1–%1)</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::tools::ToolRegistry</name>
+        <message>
+            <source>删除页面</source>
+            <translation>Delete pages</translation>
+        </message>
+        <message>
+            <source>找出空白页</source>
+            <translation>Find blank pages</translation>
+        </message>
+        <message>
+            <source>插入空白页</source>
+            <translation>Insert blank page</translation>
+        </message>
+        <message>
+            <source>添加批注草稿</source>
+            <translation>Add annotation draft</translation>
+        </message>
+        <message>
+            <source>移动页面</source>
+            <translation>Move page</translation>
         </message>
     </context>
 </TS>

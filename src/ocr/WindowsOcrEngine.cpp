@@ -51,7 +51,12 @@ try {
     $decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
     $bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
     $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
-    if ($null -eq $engine) { Write-Error '没有可用的系统 OCR 语言'; exit 2 }
+    if ($null -eq $engine) {
+        # 只有脚本自己判定的失败才带错误码：界面文案由 C++ 那侧按当前语言生成，
+        # 脚本里不写死中文。
+        Write-Output ([ordered]@{ error_code = 'no_ocr_language' } | ConvertTo-Json -Compress)
+        exit 4
+    }
     $result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
 
     $lineIndex = 0
@@ -173,7 +178,15 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
         for (const QString& row : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
             const QJsonDocument document = QJsonDocument::fromJson(row.trimmed().toUtf8());
             if (document.isObject()) {
-                const QString message = document.object().value(QStringLiteral("error")).toString();
+                const QJsonObject object = document.object();
+                // 脚本自己判定的失败带稳定错误码，文案在这一侧按当前语言生成。
+                const QString code = object.value(QStringLiteral("error_code")).toString();
+                if (code == QLatin1String("no_ocr_language")) {
+                    result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine",
+                                            "没有可用的系统 OCR 语言");
+                    return result;
+                }
+                const QString message = object.value(QStringLiteral("error")).toString();
                 if (!message.isEmpty()) {
                     result.error = message;
                     return result;

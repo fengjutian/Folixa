@@ -1,4 +1,4 @@
-qt_add_executable(IpcProtocolTests
+﻿qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -832,6 +832,7 @@ add_test(NAME DocumentQaTests COMMAND DocumentQaTests)
 qt_add_executable(AiPanelTests
     AiPanelTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.h
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.cpp
@@ -1096,6 +1097,7 @@ qt_add_executable(ProposalRunnerTests
     ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.cpp
     ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.h
     ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
     ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h

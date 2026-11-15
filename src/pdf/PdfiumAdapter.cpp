@@ -64,7 +64,10 @@ struct DocumentImpl {
         if (handle != nullptr) {
             // 关闭句柄也要上锁：PDFium 的全局状态是共享的。
             const detail::PdfiumGuard guard;
-            // 实验：暂不退出表单环境，看崩溃是否来自这里。
+            // 不调用 FPDFDOC_ExitFormFillEnvironment：
+            // 本仓库固定的 PDFium 构建在退出表单环境时会 0xC0000005 崩溃
+            // （与我们的自定义 FPDF_FILEACCESS 文档组合复现）。泄漏只有
+            // 每个文档一个环境对象，可接受；等 PDFium 升级后再恢复退出。
             FPDF_CloseDocument(handle);
         }
     }
