@@ -997,6 +997,43 @@ function Restore-AiPdfCursorPosition {
     [AiPdfCursor]::SetCursorPos($Position.X, $Position.Y) | Out-Null
 }
 
+function Select-AiPdfRibbonTab {
+    <#
+    .SYNOPSIS
+        切到 Ribbon 的某个标签页（按标签文字找 TabItem）。
+    .DESCRIPTION
+        批注等命令已经折进 Ribbon；非当前页的按钮虽然建好了，但不在
+        UI Automation 树里。脚本在找这些按钮之前必须先切页，否则一个都找不到。
+        界面语言由 AcceptanceProbe 固定为中文，所以这里按中文标签文字匹配。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
+            try {
+                if ($element.Current.ControlType.ProgrammaticName -eq 'ControlType.TabItem' -and
+                    $element.Current.Name -eq $Name) {
+                    # 不要再 Prepare（SetWindowPos 会让刚拿到的元素句柄失效）；
+                    # 只把窗口提到前台，然后按标签矩形点一下。
+                    $null = Set-AiPdfForeground -Process $Process
+                    $bounds = $element.Current.BoundingRectangle
+                    Invoke-AiPdfMouseClick -X ([int]($bounds.Left + $bounds.Width / 2)) `
+                        -Y ([int]($bounds.Top + $bounds.Height / 2))
+                    Start-Sleep -Milliseconds 400
+                    return $true
+                }
+            } catch {
+                # 元素可能在遍历时失效，跳过。
+            }
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    return $false
+}
+
 function Wait-AiPdfElementById {
     <#
     .SYNOPSIS

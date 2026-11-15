@@ -82,6 +82,8 @@ try {
     Test-Check '主窗口就绪并可切到前台' $ready
 
     if ($ready) {
+        # 批注工具都在 Ribbon 的「注释」页；不切页，按钮不在 UIA 树里。
+        $null = Select-AiPdfRibbonTab -Process $process -Name '注释'
         $tools = [ordered]@{
             '高亮'   = '*annotation.highlight*'
             '下划线' = '*annotation.underline*'

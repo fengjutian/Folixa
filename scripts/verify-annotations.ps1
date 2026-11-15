@@ -221,36 +221,8 @@ function Click-AiPdfElement {
     return $true
 }
 
-# 切到 Ribbon 的某个标签页。
-#
-# 批注工具已经折进 Ribbon 的「注释」页；非当前页的按钮虽然建好了，但不在
-# UI Automation 树里。不先切页，Get-AiPdfToolButton 会一个都找不到。
-function Select-AiPdfRibbonTab {
-    param(
-        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
-        [Parameter(Mandatory = $true)][string]$Name
-    )
-    $deadline = (Get-Date).AddSeconds(8)
-    while ((Get-Date) -lt $deadline) {
-        foreach ($element in (Get-AiPdfWindowElements -Process $Process)) {
-            try {
-                if ($element.Current.ControlType.ProgrammaticName -eq 'ControlType.TabItem' -and
-                    $element.Current.Name -eq $Name) {
-                    Prepare-AiPdfWindow -Process $Process | Out-Null
-                    Click-AiPdfElement -Process $Process -Element $element | Out-Null
-                    Start-Sleep -Milliseconds 400
-                    return $true
-                }
-            } catch {
-                # 元素可能在遍历时失效，跳过。
-            }
-        }
-        Start-Sleep -Milliseconds 200
-    }
-    return $false
-}
-
 # 批注工具按钮（AutomationId 形如 annotation.highlight），都在 Ribbon「注释」页。
+# Select-AiPdfRibbonTab 由 AcceptanceProbe.ps1 提供。
 function Get-AiPdfToolButton {
     param(
         [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,

@@ -259,7 +259,8 @@ try {
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'page insert index=\d+ pages=4' -TimeoutSeconds 8) `
         (Get-AiPdfTraceText -Path $tracePath)
 
-    # 撤销：回到 3 页。
+    # 撤销：回到 3 页。撤销/重做按钮在 Ribbon 的「注释」页，先切过去。
+    $null = Select-AiPdfRibbonTab -Process $app -Name '注释'
     Reset-AiPdfTrace -Path $tracePath
     $null = Click-AiPdfById -Process $app -IdPattern '*annotation.undo*'
     Test-Check '撤销插入后页数回到 3' `
