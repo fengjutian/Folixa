@@ -1,4 +1,4 @@
-#include "app/MainWindow.h"
+﻿#include "app/MainWindow.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -21,6 +21,7 @@
 #include "doc/RecoveryLog.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
+#include "pdf/FormData.h"
 #include "pdf/Navigation.h"
 
 #include "i18n/Translate.h"
@@ -30,6 +31,8 @@
 #include <QColorDialog>
 #include <QDoubleSpinBox>
 #include <QSlider>
+#include <QHeaderView>
+#include <QTableWidget>
 #include <QShortcut>
 #include <QButtonGroup>
 #include <QCoreApplication>
@@ -621,6 +624,17 @@ void MainWindow::buildUi() {
         trace(QStringLiteral("open annotation panel"));
     });
 
+    // F8：打开表单面板（与 F7 同理，给用户快捷键，也给验收脚本一条可触发的路径）。
+    auto* formShortcut = new QShortcut(QKeySequence(Qt::Key_F8), this);
+    connect(formShortcut, &QShortcut::activated, this, [this]() {
+        if (navigationDock_ != nullptr) {
+            navigationDock_->setVisible(true);
+        }
+        showNavigationPage(5);
+        refreshForms(currentView());
+        trace(QStringLiteral("open form panel"));
+    });
+
     // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
     auto* pageAction = commandBar->addAction(QString());
     pageAction->setIcon(QIcon(QStringLiteral(":/icons/pages.svg")));
@@ -748,6 +762,10 @@ void MainWindow::buildUi() {
                          QStringLiteral("railButton.annotations"), createAnnotationTab()});
     // 索引页：本地索引与检索（v0.9.0）。放在最后，页签下标不变。
     indexPanel_ = new IndexPanel(navigationPages);
+    // 表单页：AcroForm 字段列表与填写（v1.5.0）。
+    railEntries.append({QStringLiteral(":/icons/form.svg"),
+                        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "表单"),
+                        QStringLiteral("railButton.forms"), createFormTab()});
     railEntries.append({QStringLiteral(":/icons/index.svg"),
                          QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "索引"),
                          QStringLiteral("railButton.index"), indexPanel_});
@@ -1399,6 +1417,203 @@ QWidget* MainWindow::createAnnotationTab() {
     return page;
 }
 
+// 表单页：字段列表 + 填值 + 扁平化（v1.5.0）。
+QWidget* MainWindow::createFormTab() {
+    auto* page = new QWidget(navigationPages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    formStack_ = new QStackedWidget(page);
+    formStack_->addWidget(createNavigationEmptyState(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "这份文档没有表单字段"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow",
+                          "带 AcroForm 的 PDF 会在这里列出可填写的字段。")));
+    formTable_ = new QTableWidget(formStack_);
+    formTable_->setObjectName(QStringLiteral("formTable"));
+    formTable_->setColumnCount(4);
+    formTable_->setHorizontalHeaderLabels(QStringList{ tr("页"), tr("名称"), tr("类型"), tr("值") });
+    formTable_->horizontalHeader()->setStretchLastSection(true);
+    formTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    formTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    formStack_->addWidget(formTable_);
+    layout->addWidget(formStack_, 1);
+
+    auto* editor = new QWidget(page);
+    auto* editorLayout = new QVBoxLayout(editor);
+    editorLayout->setContentsMargins(6, 6, 6, 6);
+    editorLayout->setSpacing(6);
+    formValueEdit_ = new QLineEdit(editor);
+    formValueEdit_->setObjectName(QStringLiteral("formValueInput"));
+    formValueEdit_->setPlaceholderText(tr("输入要写入的值"));
+    editorLayout->addWidget(formValueEdit_);
+    auto* buttons = new QHBoxLayout();
+    formApplyButton_ = new QPushButton(tr("写入所选字段"), editor);
+    formApplyButton_->setObjectName(QStringLiteral("formApply"));
+    formFlattenButton_ = new QPushButton(tr("扁平化本页"), editor);
+    formFlattenButton_->setObjectName(QStringLiteral("formFlatten"));
+    buttons->addWidget(formApplyButton_);
+    buttons->addWidget(formFlattenButton_);
+    formExportCsvButton_ = new QPushButton(tr("导出 CSV…"), editor);
+    formExportCsvButton_->setObjectName(QStringLiteral("formExportCsv"));
+    formImportCsvButton_ = new QPushButton(tr("导入 CSV…"), editor);
+    formImportCsvButton_->setObjectName(QStringLiteral("formImportCsv"));
+    buttons->addWidget(formExportCsvButton_);
+    buttons->addWidget(formImportCsvButton_);
+    editorLayout->addLayout(buttons);
+    layout->addWidget(editor);
+
+    connect(formApplyButton_, &QPushButton::clicked, this, &MainWindow::applyFormValue);
+    connect(formFlattenButton_, &QPushButton::clicked, this, &MainWindow::flattenCurrentPageForms);
+    connect(formExportCsvButton_, &QPushButton::clicked, this, &MainWindow::exportFormCsv);
+    connect(formImportCsvButton_, &QPushButton::clicked, this, &MainWindow::importFormCsv);
+    connect(formTable_, &QTableWidget::itemSelectionChanged, this, [this]() {
+        const auto items = formTable_->selectedItems();
+        if (items.isEmpty() || formValueEdit_ == nullptr) {
+            return;
+        }
+        // 第四列是当前值：选中一行就把值带进输入框，省一次手打。
+        const int row = items.first()->row();
+        if (auto* valueItem = formTable_->item(row, 3)) {
+            formValueEdit_->setText(valueItem->text());
+        }
+    });
+    return page;
+}
+
+void MainWindow::refreshForms(PdfView* view) {
+    if (formTable_ == nullptr || formStack_ == nullptr) {
+        return;
+    }
+    formTable_->setRowCount(0);
+    const QVector<pdf::FormField> fields = view != nullptr ? view->formFields() : QVector<pdf::FormField>();
+    formStack_->setCurrentIndex(fields.isEmpty() ? 0 : 1);
+    formTable_->setRowCount(fields.size());
+    for (int row = 0; row < fields.size(); ++row) {
+        const pdf::FormField& field = fields.at(row);
+        formTable_->setItem(row, 0, new QTableWidgetItem(QString::number(field.pageIndex + 1)));
+        formTable_->setItem(row, 1, new QTableWidgetItem(field.name));
+        formTable_->setItem(row, 2, new QTableWidgetItem(formFieldTypeName(field.type)));
+        formTable_->setItem(row, 3, new QTableWidgetItem(field.value));
+    }
+    trace(QStringLiteral("panel forms items=%1").arg(fields.size()));
+}
+
+QString MainWindow::formFieldTypeName(int type) {
+    switch (type) {
+        case 1:
+            return tr("按钮");
+        case 2:
+            return tr("复选框");
+        case 3:
+            return tr("单选");
+        case 4:
+            return tr("下拉框");
+        case 5:
+            return tr("列表框");
+        case 6:
+            return tr("文本框");
+        case 7:
+            return tr("签名");
+        default:
+            return tr("未知");
+    }
+}
+
+void MainWindow::applyFormValue() {
+    PdfView* view = currentView();
+    if (view == nullptr || formTable_ == nullptr || formValueEdit_ == nullptr) {
+        return;
+    }
+    const auto items = formTable_->selectedItems();
+    if (items.isEmpty()) {
+        statusBar()->showMessage(tr("先选中一个字段"), 3000);
+        return;
+    }
+    const int row = items.first()->row();
+    const QString name = formTable_->item(row, 1) != nullptr ? formTable_->item(row, 1)->text() : QString();
+    const int pageIndex = formTable_->item(row, 0) != nullptr
+                              ? formTable_->item(row, 0)->text().toInt() - 1
+                              : 0;
+    if (name.isEmpty()) {
+        return;
+    }
+    if (view->setFormFieldValue(pageIndex, name, formValueEdit_->text())) {
+        statusBar()->showMessage(tr("已写入 %1").arg(name), 3000);
+        refreshForms(view);
+    } else {
+        statusBar()->showMessage(tr("写入失败：这个字段可能只读"), 4000);
+    }
+}
+
+void MainWindow::flattenCurrentPageForms() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    const int page = view->currentPage();
+    if (view->flattenFormsOnPage(page)) {
+        statusBar()->showMessage(tr("已扁平化第 %1 页的表单").arg(page + 1), 3000);
+        refreshForms(view);
+    } else {
+        statusBar()->showMessage(tr("扁平化失败"), 3000);
+    }
+}
+
+void MainWindow::exportFormCsv() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出表单数据"), QString(),
+                                                      tr("CSV (*.csv)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        statusBar()->showMessage(tr("写不了这个文件"), 3000);
+        return;
+    }
+    file.write(pdf::formValuesToCsv(view->formFields()));
+    file.close();
+    statusBar()->showMessage(tr("已导出表单数据"), 3000);
+}
+
+void MainWindow::importFormCsv() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("导入表单数据"), QString(),
+                                                      tr("CSV (*.csv)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        statusBar()->showMessage(tr("读不了这个文件"), 3000);
+        return;
+    }
+    const auto values = pdf::formValuesFromCsv(file.readAll());
+    file.close();
+    // 按名字匹配现有字段：CSV 里多的字段忽略，少的保持原值。
+    const QVector<pdf::FormField> fields = view->formFields();
+    int applied = 0;
+    for (const pdf::FormValue& value : values) {
+        for (const pdf::FormField& field : fields) {
+            if (field.name == value.name && !field.readOnly) {
+                if (view->setFormFieldValue(field.pageIndex, field.name, value.value)) {
+                    ++applied;
+                }
+                break;
+            }
+        }
+    }
+    refreshForms(view);
+    statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+}
+
 void MainWindow::bindAnnotations(PdfView* view) {
     AnnotationController* controller =
         view != nullptr ? view->annotationController() : nullptr;
@@ -1418,6 +1633,7 @@ void MainWindow::bindAnnotations(PdfView* view) {
                                        });
     }
     refreshAnnotations(view);
+    refreshForms(view);
 }
 
 // 索引面板跟着当前文档走。

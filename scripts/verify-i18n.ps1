@@ -119,8 +119,13 @@ try {
 
 # ---------------------------------------------------------------- 覆盖率 ----
 Write-Host '=== 翻译覆盖率 ===' -ForegroundColor Cyan
-& (Join-Path $root 'scripts/check-i18n.py') --src (Join-Path $root 'src') `
-    --ts (Join-Path $root 'src/i18n/ai-pdf-editor_en.ts') | Out-Host
+# Python 默认按控制台代码页输出，中文会在日志里变成乱码。
+$env:PYTHONIOENCODING = 'utf-8'
+# 覆盖率脚本用 Python 跑（CMake 里也挂了一份同名 ctest 用例）。
+$checkScript = Join-Path $root 'scripts/check-i18n.py'
+$sourceDir = Join-Path $root 'src'
+$catalogFile = Join-Path $root 'src/i18n/ai-pdf-editor_en.ts'
+python $checkScript --src $sourceDir --ts $catalogFile | Out-Host
 Test-Check '源码里的文案都有英文翻译' ($LASTEXITCODE -eq 0)
 
 if ($script:Failures -gt 0) {

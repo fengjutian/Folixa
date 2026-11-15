@@ -1,4 +1,4 @@
-#include "pdf/PdfiumAdapter.h"
+﻿#include "pdf/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QImage>
@@ -57,6 +57,10 @@ private slots:
     void formFieldValueCanBeSet();
     void flattenRemovesFormFields();
     void textLayerChangesPixelsAndExtracts();
+    void formWidgetsAreRendered();
+    void mergeAndExtractPages();
+    void imageLayerCoversRect();
+    void textReplacementSwapsContent();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -242,6 +246,7 @@ void PdfiumAdapterTests::renderScalesWithZoom() {
 
 using aipdf::pdf::FormField;
 using aipdf::pdf::openDocument;
+using aipdf::pdf::openDocumentFromBytes;
 
 
 void PdfiumAdapterTests::formFieldsAreEnumerated() {
@@ -250,7 +255,7 @@ void PdfiumAdapterTests::formFieldsAreEnumerated() {
     QVERIFY(document.isValid());
 
     const QVector<FormField> fields = document.formFields();
-    QCOMPARE(fields.size(), 3);
+    QCOMPARE(fields.size(), 4);
     QCOMPARE(fields.at(0).name, QStringLiteral("fullName"));
     QCOMPARE(fields.at(0).type, 6);   // FPDF_FORMFIELD_TEXTFIELD
     QCOMPARE(fields.at(1).name, QStringLiteral("agree"));
@@ -260,6 +265,10 @@ void PdfiumAdapterTests::formFieldsAreEnumerated() {
     // 选项标签：这个 PDFium 构建对 /Opt 的枚举返回 0（GetOptionCount），
     // 所以不断言 options；下拉框仍可按下标/值填写。
     QVERIFY(fields.at(0).rect.width() > 0.0);
+    // 只读位：第 4 个字段是 /Ff 1 的文本域。
+    QCOMPARE(fields.at(3).name, QStringLiteral("issuedBy"));
+    QVERIFY(fields.at(3).readOnly);
+    QVERIFY(!fields.at(0).readOnly);
 }
 
 void PdfiumAdapterTests::formFieldValueCanBeSet() {
@@ -301,6 +310,81 @@ void PdfiumAdapterTests::textLayerChangesPixelsAndExtracts() {
     const auto text = page->extractText();
     QVERIFY(text.has_value());
     QVERIFY(text->plainText().contains(QStringLiteral("CONFIDENTIAL")));
+}
+
+void PdfiumAdapterTests::formWidgetsAreRendered() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    const auto& document = opened.document;
+    QVERIFY(document.isValid());
+    const auto page = document.page(0);
+    QVERIFY(page.has_value());
+
+    // 字段的边框与输入框由 FPDF_FFLDraw 画出来；不画就是一片空白。
+    const QImage image = page->render(1.0);
+    QVERIFY(!image.isNull());
+    QVERIFY2(countInkedPixels(image) > 50, "表单字段没有被渲染出来");
+}
+
+void PdfiumAdapterTests::mergeAndExtractPages() {
+    auto destination = openDocument(fixturePath(QStringLiteral("multipage.pdf")));
+    auto source = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(destination.document.isValid());
+    QVERIFY(source.document.isValid());
+    const int before = destination.document.pageCount();
+    const int extra = source.document.pageCount();
+    QVERIFY(destination.document.appendDocumentPages(source.document));
+    QCOMPARE(destination.document.pageCount(), before + extra);
+
+    // 抽取：只留第 2 页，结果应当只有 1 页。
+    auto original = openDocument(fixturePath(QStringLiteral("multipage.pdf")));
+    QVERIFY(original.document.isValid());
+    const QByteArray extracted = original.document.extractPagesToBytes({ 1 });
+    QVERIFY(!extracted.isEmpty());
+    auto reopened = openDocumentFromBytes(extracted);
+    QVERIFY(reopened.document.isValid());
+    QCOMPARE(reopened.document.pageCount(), 1);
+}
+
+void PdfiumAdapterTests::imageLayerCoversRect() {
+    auto opened = openDocument(fixturePath(QStringLiteral("empty.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+
+    QImage patch(20, 20, QImage::Format_RGB888);
+    patch.fill(QColor(0, 0, 255));
+    // empty.pdf 是 120x160 的小页面。
+    QVERIFY(page->addImageLayer(QRectF(20.0, 40.0, 60.0, 60.0), patch));
+
+    const QImage rendered = page->render(1.0);
+    QVERIFY(!rendered.isNull());
+    // 渲染倍率 1 时，矩形 (100,400) 对应图像里 y=400 的位置附近应是蓝色。
+    const QColor sample = rendered.pixelColor(50, 160 - 70);
+    QVERIFY2(sample.blue() > 150 && sample.red() < 80, "图片没有被画到页面上");
+}
+
+void PdfiumAdapterTests::textReplacementSwapsContent() {
+    auto opened = openDocument(fixturePath(QStringLiteral("text.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    const auto before = page->extractText();
+    QVERIFY(before.has_value());
+    QVERIFY(before->plainText().contains(QStringLiteral("Folixa")));
+
+    // text.pdf 的第一段在页面顶部；用整页上半部分作为替换范围。
+    const double width = page->widthPoints();
+    const double height = page->heightPoints();
+    QVERIFY(page->replaceTextInRect(QRectF(0.0, height * 0.5, width, height * 0.5),
+                                    QStringLiteral("REPLACED LINE"), 14.0, QColor(0, 0, 0)));
+
+    auto updated = document.page(0);
+    QVERIFY(updated.has_value());
+    const auto after = updated->extractText();
+    QVERIFY(after.has_value());
+    QVERIFY2(after->plainText().contains(QStringLiteral("REPLACED LINE")), "新文字没写进去");
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

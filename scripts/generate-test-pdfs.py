@@ -698,12 +698,12 @@ def form_pdf():
         ("Country:", 14, 60, 520),
     ])
     objects = [
-        (1, b"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R 7 0 R] "
+        (1, b"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R 7 0 R 9 0 R] "
             b"/DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 8 0 R >> >> >> >>"),
         (2, b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
         (3, b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
             b"/Resources << /Font << /Helv 8 0 R >> >> /Contents 4 0 R "
-            b"/Annots [5 0 R 6 0 R 7 0 R] >>"),
+            b"/Annots [5 0 R 6 0 R 7 0 R 9 0 R] >>"),
         (5, b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (fullName) /V () /F 4 "
             b"/Rect [130 620 340 644] /DA (/Helv 12 Tf 0 g) >>"),
         (6, b"<< /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /V /Off /AS /Off /F 4 "
@@ -711,6 +711,9 @@ def form_pdf():
         (7, b"<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Ff 131072 /Opt [(China) (Other)] "
             b"/V (China) /F 4 /Rect [130 512 300 536] /DA (/Helv 12 Tf 0 g) >>"),
         (8, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        # 只读文本域：/Ff 1 是 ReadOnly 位。
+        (9, b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (issuedBy) /V (Legal) /Ff 1 /F 4 "
+            b"/Rect [130 480 340 504] /DA (/Helv 12 Tf 0 g) >>"),
     ]
     objects.append((4, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content), content)))
     return _build_pdf(objects, 1)

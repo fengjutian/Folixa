@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="zh_CN">
     <context>
@@ -612,6 +612,21 @@
         </message>
     </context>
     <context>
+        <name>aipdf::app::AttachmentPanel</name>
+        <message>
+            <source>删除</source>
+            <translation>Delete</translation>
+        </message>
+        <message>
+            <source>名称</source>
+            <translation>Name</translation>
+        </message>
+        <message>
+            <source>添加附件</source>
+            <translation>Add attachment</translation>
+        </message>
+    </context>
+    <context>
         <name>aipdf::app::DocumentOutput</name>
         <message>
             <source>写入失败：%1</source>
@@ -793,6 +808,10 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>录制声音批注…</source>
+            <translation>Record sound annotation…</translation>
+        </message>
+        <message>
             <source>AI 助手</source>
             <translation>AI Assistant</translation>
         </message>
@@ -803,6 +822,10 @@
         <message>
             <source>AI：找出空白页并提议删除</source>
             <translation>AI: find blank pages and propose deletion</translation>
+        </message>
+        <message>
+            <source>CSV (*.csv)</source>
+            <translation>CSV (*.csv)</translation>
         </message>
         <message>
             <source>Folixa 文档工作区</source>
@@ -837,6 +860,10 @@
             <translation>Move up</translation>
         </message>
         <message>
+            <source>下拉框</source>
+            <translation>Drop-down</translation>
+        </message>
+        <message>
             <source>下移</source>
             <translation>Move down</translation>
         </message>
@@ -869,6 +896,10 @@
             <translation>Protect</translation>
         </message>
         <message>
+            <source>值</source>
+            <translation>Value</translation>
+        </message>
+        <message>
             <source>先在页面上选中一段文字</source>
             <translation>Select some text on the page first</translation>
         </message>
@@ -877,8 +908,28 @@
             <translation>Open a PDF first</translation>
         </message>
         <message>
+            <source>先选中一个字段</source>
+            <translation>Select a field first</translation>
+        </message>
+        <message>
             <source>先选中要改的批注</source>
             <translation>Select the annotations to change first</translation>
+        </message>
+        <message>
+            <source>写不了这个文件</source>
+            <translation>Cannot write this file</translation>
+        </message>
+        <message>
+            <source>写入失败：这个字段可能只读</source>
+            <translation>Write failed: the field may be read-only</translation>
+        </message>
+        <message>
+            <source>写入所选字段</source>
+            <translation>Write to the selected field</translation>
+        </message>
+        <message>
+            <source>列表框</source>
+            <translation>List box</translation>
         </message>
         <message>
             <source>删除</source>
@@ -895,6 +946,10 @@
         <message>
             <source>功能导航</source>
             <translation>Feature navigation</translation>
+        </message>
+        <message>
+            <source>单选</source>
+            <translation>Radio button</translation>
         </message>
         <message>
             <source>单页</source>
@@ -925,6 +980,10 @@
             <translation>Rotate right</translation>
         </message>
         <message>
+            <source>名称</source>
+            <translation>Name</translation>
+        </message>
+        <message>
             <source>回复内容:</source>
             <translation>Reply:</translation>
         </message>
@@ -945,12 +1004,32 @@
             <translation>Insert a blank page after the current page</translation>
         </message>
         <message>
+            <source>复选框</source>
+            <translation>Check box</translation>
+        </message>
+        <message>
             <source>审阅状态</source>
             <translation>Review status</translation>
         </message>
         <message>
+            <source>导入 CSV…</source>
+            <translation>Import CSV…</translation>
+        </message>
+        <message>
+            <source>导入了 %1 个字段</source>
+            <translation>Imported %1 fields</translation>
+        </message>
+        <message>
             <source>导入批注（XFDF）…</source>
             <translation>Import annotations (XFDF)…</translation>
+        </message>
+        <message>
+            <source>导入表单数据</source>
+            <translation>Import form data</translation>
+        </message>
+        <message>
+            <source>导出 CSV…</source>
+            <translation>Export CSV…</translation>
         </message>
         <message>
             <source>导出批注摘要（HTML）…</source>
@@ -963,6 +1042,10 @@
         <message>
             <source>导出文本…</source>
             <translation>Export text…</translation>
+        </message>
+        <message>
+            <source>导出表单数据</source>
+            <translation>Export form data</translation>
         </message>
         <message>
             <source>导出页面为图片…</source>
@@ -997,6 +1080,10 @@
             <translation>Saved %1 (original backed up as %2)</translation>
         </message>
         <message>
+            <source>已写入 %1</source>
+            <translation>Wrote %1</translation>
+        </message>
+        <message>
             <source>已删除 %1 个空白页，可用 Ctrl+Z 撤销</source>
             <translation>Deleted %1 blank pages; press Ctrl+Z to undo</translation>
         </message>
@@ -1021,8 +1108,16 @@
             <translation>Copied %1 characters to the clipboard</translation>
         </message>
         <message>
+            <source>已导出表单数据</source>
+            <translation>Exported the form data</translation>
+        </message>
+        <message>
             <source>已恢复 %1 条未保存的操作</source>
             <translation>Restored %1 unsaved operations</translation>
+        </message>
+        <message>
+            <source>已扁平化第 %1 页的表单</source>
+            <translation>Flattened the form on page %1</translation>
         </message>
         <message>
             <source>已打开 %1（%2 页）</source>
@@ -1043,6 +1138,10 @@
         <message>
             <source>已跳转到第 %1 页</source>
             <translation>Jumped to page %1</translation>
+        </message>
+        <message>
+            <source>带 AcroForm 的 PDF 会在这里列出可填写的字段。</source>
+            <translation>PDFs with an AcroForm list their fillable fields here.</translation>
         </message>
         <message>
             <source>应用到所选批注</source>
@@ -1075,6 +1174,14 @@
         <message>
             <source>恢复</source>
             <translation>Restore</translation>
+        </message>
+        <message>
+            <source>扁平化失败</source>
+            <translation>Flattening failed</translation>
+        </message>
+        <message>
+            <source>扁平化本页</source>
+            <translation>Flatten this page</translation>
         </message>
         <message>
             <source>打印…</source>
@@ -1133,6 +1240,10 @@
             <translation>Rotate the current page 90° clockwise</translation>
         </message>
         <message>
+            <source>按钮</source>
+            <translation>Button</translation>
+        </message>
+        <message>
             <source>提案没有通过校验：%1</source>
             <translation>The proposal failed validation: %1</translation>
         </message>
@@ -1161,6 +1272,10 @@
             <translation>File(&amp;F)</translation>
         </message>
         <message>
+            <source>文本框</source>
+            <translation>Text box</translation>
+        </message>
+        <message>
             <source>无法打开 %1：%2</source>
             <translation>Cannot open %1: %2</translation>
         </message>
@@ -1183,6 +1298,10 @@
         <message>
             <source>暂无文档目录</source>
             <translation>No document outline</translation>
+        </message>
+        <message>
+            <source>未知</source>
+            <translation>Unknown</translation>
         </message>
         <message>
             <source>松开即可打开 PDF</source>
@@ -1237,6 +1356,14 @@
             <translation>Page %1 · %2</translation>
         </message>
         <message>
+            <source>签名</source>
+            <translation>Signature</translation>
+        </message>
+        <message>
+            <source>类型</source>
+            <translation>Type</translation>
+        </message>
+        <message>
             <source>索引</source>
             <translation>Index</translation>
         </message>
@@ -1289,6 +1416,10 @@
             <translation>Enter the PDF password:</translation>
         </message>
         <message>
+            <source>读不了这个文件</source>
+            <translation>Cannot read this file</translation>
+        </message>
+        <message>
             <source>跟随系统（%1）</source>
             <translation>Follow system (%1)</translation>
         </message>
@@ -1299,6 +1430,14 @@
         <message>
             <source>转换</source>
             <translation>Convert</translation>
+        </message>
+        <message>
+            <source>输入要写入的值</source>
+            <translation>Enter the value to write</translation>
+        </message>
+        <message>
+            <source>这份文档没有表单字段</source>
+            <translation>This document has no form fields</translation>
         </message>
         <message>
             <source>退出</source>
@@ -1327,6 +1466,10 @@
         <message>
             <source>需要密码</source>
             <translation>Password required</translation>
+        </message>
+        <message>
+            <source>页</source>
+            <translation>Page</translation>
         </message>
         <message>
             <source>页面</source>
@@ -1393,6 +1536,102 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>录制声音批注</source>
+            <translation>Record sound annotation</translation>
+        </message>
+        <message>
+            <source>正在录音…按「确定」停止并插入批注。</source>
+            <translation>Recording… press OK to stop and insert the annotation.</translation>
+        </message>
+        <message>
+            <source>没有录到音频。</source>
+            <translation>No audio was recorded.</translation>
+        </message>
+        <message>
+            <source>批注没有创建成功。</source>
+            <translation>The annotation could not be created.</translation>
+        </message>
+        <message>
+            <source>已插入录音批注</source>
+            <translation>Inserted a recorded sound annotation</translation>
+        </message>
+        <message>
+            <source>PDF (*.pdf)</source>
+            <translation>PDF (*.pdf)</translation>
+        </message>
+        <message>
+            <source>合并 PDF</source>
+            <translation>Merge PDF</translation>
+        </message>
+        <message>
+            <source>打不开这份 PDF：%1</source>
+            <translation>Cannot open this PDF: %1</translation>
+        </message>
+        <message>
+            <source>合并失败。</source>
+            <translation>Merge failed.</translation>
+        </message>
+        <message>
+            <source>已合并 %1</source>
+            <translation>Merged %1</translation>
+        </message>
+        <message>
+            <source>抽取当前页</source>
+            <translation>Extract current page</translation>
+        </message>
+        <message>
+            <source>抽取失败。</source>
+            <translation>Extraction failed.</translation>
+        </message>
+        <message>
+            <source>写不了这个文件。</source>
+            <translation>Cannot write this file.</translation>
+        </message>
+        <message>
+            <source>已抽取第 %1 页</source>
+            <translation>Extracted page %1</translation>
+        </message>
+        <message>
+            <source>图片替换</source>
+            <translation>Replace with image</translation>
+        </message>
+        <message>
+            <source>先在页面上选中要替换的区域。</source>
+            <translation>Select the region to replace first.</translation>
+        </message>
+        <message>
+            <source>这不是一张能读的图片。</source>
+            <translation>This image cannot be read.</translation>
+        </message>
+        <message>
+            <source>图片没有写进页面。</source>
+            <translation>The image was not written into the page.</translation>
+        </message>
+        <message>
+            <source>已用图片替换选区</source>
+            <translation>Replaced the selection with an image</translation>
+        </message>
+        <message>
+            <source>替换文字</source>
+            <translation>Replace text</translation>
+        </message>
+        <message>
+            <source>先选中要替换的文字。</source>
+            <translation>Select the text to replace first.</translation>
+        </message>
+        <message>
+            <source>新文字（仅支持西文）:</source>
+            <translation>New text (Latin only):</translation>
+        </message>
+        <message>
+            <source>替换失败。</source>
+            <translation>Replacement failed.</translation>
+        </message>
+        <message>
+            <source>已替换选中文字（行级）</source>
+            <translation>Replaced the selection (line level)</translation>
+        </message>
         <message>
             <source>1 页</source>
             <translation>1 page</translation>
@@ -1586,12 +1825,24 @@
             <translation>Added %1</translation>
         </message>
         <message>
+            <source>已添加页眉页脚</source>
+            <translation>Added the header and footer</translation>
+        </message>
+        <message>
+            <source>已添加页码</source>
+            <translation>Added page numbers</translation>
+        </message>
+        <message>
             <source>已经是最后一页了</source>
             <translation>This is the last page</translation>
         </message>
         <message>
             <source>已经是第一页了</source>
             <translation>This is the first page</translation>
+        </message>
+        <message>
+            <source>已给每页添加水印</source>
+            <translation>Added a watermark to every page</translation>
         </message>
         <message>
             <source>当前页的尺寸取不到，插入失败</source>
@@ -1722,6 +1973,22 @@
             <translation>Pages per sheet:</translation>
         </message>
         <message>
+            <source>水印文字（仅支持西文）:</source>
+            <translation>Watermark text (Western text only):</translation>
+        </message>
+        <message>
+            <source>水印没有写进去。</source>
+            <translation>The watermark was not written.</translation>
+        </message>
+        <message>
+            <source>水印目前只支持西文：中文需要嵌入字体，暂不支持。</source>
+            <translation>Watermarks currently support Western text only; Chinese needs an embedded font and is not supported yet.</translation>
+        </message>
+        <message>
+            <source>没有写入内容。</source>
+            <translation>Nothing was written.</translation>
+        </message>
+        <message>
             <source>没有可撤销的批注操作</source>
             <translation>No annotation action to undo</translation>
         </message>
@@ -1744,6 +2011,10 @@
         <message>
             <source>测量</source>
             <translation>Measure</translation>
+        </message>
+        <message>
+            <source>添加水印</source>
+            <translation>Add watermark</translation>
         </message>
         <message>
             <source>添加附件</source>
@@ -1888,6 +2159,30 @@
         <message>
             <source>面积</source>
             <translation>Area</translation>
+        </message>
+        <message>
+            <source>页眉文字（留空不加）:</source>
+            <translation>Header text (leave empty to skip):</translation>
+        </message>
+        <message>
+            <source>页眉页脚</source>
+            <translation>Header and footer</translation>
+        </message>
+        <message>
+            <source>页眉页脚目前只支持西文：中文需要嵌入字体，暂不支持。</source>
+            <translation>Headers and footers currently support Western text only; Chinese needs an embedded font and is not supported yet.</translation>
+        </message>
+        <message>
+            <source>页码</source>
+            <translation>Page numbers</translation>
+        </message>
+        <message>
+            <source>页码没有写进去。</source>
+            <translation>Page numbers were not written.</translation>
+        </message>
+        <message>
+            <source>页脚文字（留空不加）:</source>
+            <translation>Footer text (leave empty to skip):</translation>
         </message>
         <message>
             <source>高亮</source>

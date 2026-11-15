@@ -100,6 +100,9 @@ public:
     quint64 addImageStamp(int pageIndex, const QRectF& rect, const QByteArray& imageBytes,
                           const QString& label = {});
     // 声音批注：WAV 已被解析成裸 PCM。
+    // 用一段完整 WAV 创建声音批注（附件形态，见 .cpp 里的说明）。
+    quint64 addSoundFromWav(int pageIndex, const QRectF& rect, const QString& name,
+                            const QByteArray& wav);
     quint64 addSound(int pageIndex, const QRectF& rect, const QString& name, const QByteArray& pcm,
                      int rate, int channels, int bits);
     // 距离测量：两点 + 比例（1 点 = scale 个单位），长度写进 /Contents。

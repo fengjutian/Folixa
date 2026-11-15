@@ -61,6 +61,8 @@
     app/InkGeometry.h
     app/InkGeometry.cpp
     app/MeasureGeometry.h
+    app/AudioRecorder.h
+    app/AudioRecorder.cpp
     app/MeasureGeometry.cpp
     app/DocumentOutput.cpp
     app/RenderThread.h
@@ -80,6 +82,8 @@
     pdf/AnnotationSummary.h
     pdf/SoundFormat.h
     pdf/PageDecorations.h
+    pdf/FormData.h
+    pdf/FormData.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
@@ -201,6 +205,7 @@ target_link_libraries(AiPdfEditor PRIVATE
     Qt6::Svg
     # 打印：QPrinter / QPrintDialog。用渲染成图的方式打印，不走系统 PDF 打印栈。
     Qt6::PrintSupport
+    winmm
     ${AIPDF_PDFIUM_LIBRARY}
 )
 

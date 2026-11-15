@@ -57,6 +57,18 @@ public:
     // xPoints/yPoints 是**基线起点**的 PDF 用户空间坐标（左下原点，y 向上）。
     // rotationDegrees 逆时针为正；opacity 取 0..1。
     // 只支持标准 14 字体里的 Helvetica：中文需要嵌入字体，暂时不支持。
+    // 往页面内容里放一张图（图片替换、图片水印都走这条）。
+    // rectPoints 是 PDF 用户空间的矩形；图片被拉伸铺满它。
+    bool addImageLayer(const QRectF& rectPoints, const QImage& image);
+
+    // 文本替换（行级）：
+    //   1. 删掉与 rectPoints 相交面积过半的文本对象；
+    //   2. 用一个白色矩形盖住原位置（防止残留的图形干扰阅读）；
+    //   3. 在矩形左下角画上新文字。
+    // 只支持标准 14 字体（西文）。
+    bool replaceTextInRect(const QRectF& rectPoints, const QString& newText, double fontSize,
+                           const QColor& color);
+
     bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                       const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0);
 
@@ -152,6 +164,11 @@ public:
     // 扁平化：把字段外观烧进页面内容，之后就是普通图形，不能再编辑。
     bool flattenPage(int pageIndex);
 
+    // 文档拼装：把另一份文档的页面全部追加到本文件末尾。
+    bool appendDocumentPages(const PdfDocument& source);
+    // 抽取指定页（0 基）生成一份新文档的字节。
+    QByteArray extractPagesToBytes(const QVector<int>& pages) const;
+
     // 在当前线程创建一份独立的文档句柄。
     // 返回的文档只能在这个线程里使用；文件数据与原文档共享，不额外占内存。
     //
@@ -207,6 +224,7 @@ public:
 private:
     std::shared_ptr<detail::DocumentImpl> impl_;
     explicit PdfDocument(std::shared_ptr<detail::DocumentImpl> impl);
+
     // 接管一个已经存在的 PDFium 句柄（备份文档用）。
     // 句柄类型用 void*：这个头文件刻意不包含 PDFium 的头文件。
     static PdfDocument adoptHandle(void* handle, const QString& path);

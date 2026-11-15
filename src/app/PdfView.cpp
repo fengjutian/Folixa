@@ -1,5 +1,6 @@
 ﻿#include "app/PdfView.h"
 
+#include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
@@ -1441,6 +1442,284 @@ void PdfView::refreshAfterDecoration() {
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
+}
+
+QVector<pdf::FormField> PdfView::formFields() const {
+    return document_.formFields();
+}
+
+bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QString& value) {
+    if (!document_.setFormFieldValue(pageIndex, name, value)) {
+        return false;
+    }
+    // 写进去的是数据，画出来靠 PDFium 重绘：清缓存再让可见页重渲染。
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
+    modified_ = true;
+    emit formFieldsChanged();
+    return true;
+}
+
+bool PdfView::flattenFormsOnPage(int pageIndex) {
+    if (!document_.flattenPage(pageIndex)) {
+        return false;
+    }
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    if (canvas_ != nullptr) {
+        canvas_->viewport()->update();
+    }
+    modified_ = true;
+    emit formFieldsChanged();
+    return true;
+}
+
+void PdfView::mergeDocumentDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("合并 PDF"), QString(),
+                                                      tr("PDF (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    const auto opened = pdf::openDocument(path);
+    if (!opened.document.isValid()) {
+        QMessageBox::warning(this, tr("合并 PDF"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+        return;
+    }
+    if (!document_.appendDocumentPages(opened.document)) {
+        QMessageBox::warning(this, tr("合并 PDF"), tr("合并失败。"));
+        return;
+    }
+    refreshAfterDecoration();
+    rebuildLayout();
+    modified_ = true;
+    emit statusMessage(tr("已合并 %1").arg(QFileInfo(path).fileName()));
+}
+
+void PdfView::extractCurrentPageDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("抽取当前页"), QString(),
+                                                      tr("PDF (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    const QByteArray bytes = document_.extractPagesToBytes({ currentPage() });
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("抽取当前页"), tr("抽取失败。"));
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("抽取当前页"), tr("写不了这个文件。"));
+        return;
+    }
+    file.write(bytes);
+    file.close();
+    emit statusMessage(tr("已抽取第 %1 页").arg(currentPage() + 1));
+}
+
+void PdfView::replaceSelectionWithImageDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("图片替换"), tr("先在页面上选中要替换的区域。"));
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("图片替换"), QString(),
+                                                      tr("图片 (*.png *.jpg *.jpeg *.bmp)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QImage image(path);
+    if (image.isNull()) {
+        QMessageBox::warning(this, tr("图片替换"), tr("这不是一张能读的图片。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        const QPointF a = displayToUser(pageIndex, rect.topLeft());
+        const QPointF b = displayToUser(pageIndex, rect.bottomRight());
+        userRect = userRect.united(QRectF(a, b).normalized());
+    }
+    if (userRect.isEmpty()) {
+        return;
+    }
+    if (!page->addImageLayer(userRect, image)) {
+        QMessageBox::warning(this, tr("图片替换"), tr("图片没有写进页面。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已用图片替换选区"));
+}
+
+void PdfView::replaceSelectionTextDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("替换文字"), tr("先选中要替换的文字。"));
+        return;
+    }
+    bool accepted = false;
+    const QString text = QInputDialog::getText(this, tr("替换文字"),
+                                               tr("新文字（仅支持西文）:"), QLineEdit::Normal,
+                                               QString(), &accepted);
+    if (!accepted || text.isEmpty()) {
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        const QPointF a = displayToUser(pageIndex, rect.topLeft());
+        const QPointF b = displayToUser(pageIndex, rect.bottomRight());
+        userRect = userRect.united(QRectF(a, b).normalized());
+    }
+    const double fontSize = std::max(8.0, userRect.height() * 0.8);
+    if (!page->replaceTextInRect(userRect, text, fontSize, QColor(20, 24, 32))) {
+        QMessageBox::warning(this, tr("替换文字"), tr("替换失败。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已替换选中文字（行级）"));
+}
+
+// 显示空间（页面左上原点、y 向下）→ PDF 用户空间（左下原点、y 向上）。
+QPointF PdfView::displayToUser(int pageIndex, const QPointF& displayPoint) const {
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return displayPoint;
+    }
+    const double height = page->heightPoints();
+    return QPointF(displayPoint.x(), height - displayPoint.y());
+}
+
+void PdfView::importFormFdfDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("导入 FDF 数据"), QString(),
+                                                      tr("FDF (*.fdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("导入 FDF 数据"), tr("读不了这个文件。"));
+        return;
+    }
+    const auto values = pdf::formValuesFromFdf(file.readAll());
+    file.close();
+    if (values.isEmpty()) {
+        QMessageBox::warning(this, tr("导入 FDF 数据"), tr("这份 FDF 里没有可用的字段值。"));
+        return;
+    }
+    // 按名字匹配：只写存在的字段，只读字段跳过。
+    const QVector<pdf::FormField> fields = document_.formFields();
+    int applied = 0;
+    for (const pdf::FormValue& value : values) {
+        for (const pdf::FormField& field : fields) {
+            if (field.name == value.name && !field.readOnly) {
+                if (document_.setFormFieldValue(field.pageIndex, field.name, value.value)) {
+                    ++applied;
+                }
+                break;
+            }
+        }
+    }
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (!bytes.isEmpty()) {
+        document_.syncBytes(bytes);
+    }
+    cache_.clear();
+    modified_ = true;
+    emit formFieldsChanged();
+    emit statusMessage(tr("从 FDF 导入了 %1 个字段").arg(applied));
+}
+
+void PdfView::exportFormFdfDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出 FDF 数据"), QString(),
+                                                      tr("FDF (*.fdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("导出 FDF 数据"), tr("写不了这个文件。"));
+        return;
+    }
+    file.write(pdf::formValuesToFdf(document_.formFields()));
+    file.close();
+    emit statusMessage(tr("已导出 FDF 数据"));
+}
+
+void PdfView::recordSoundAnnotationDialog() {
+    if (!document_.isValid() || !annotationController_) {
+        return;
+    }
+    aipdf::app::AudioRecorder recorder;
+    QString error;
+    if (!recorder.start(&error)) {
+        QMessageBox::warning(this, tr("录制声音批注"), error);
+        return;
+    }
+    // 极简交互：弹一个"正在录音"的框，按确定就是停止。
+    QMessageBox box(QMessageBox::Information, tr("录制声音批注"),
+                    tr("正在录音…按「确定」停止并插入批注。"), QMessageBox::Ok, this);
+    box.exec();
+    const QByteArray wav = recorder.stop();
+    if (wav.isEmpty()) {
+        QMessageBox::warning(this, tr("录制声音批注"), tr("没有录到音频。"));
+        return;
+    }
+    auto page = document_.page(currentPage());
+    if (!page.has_value()) {
+        return;
+    }
+    const double width = page->widthPoints();
+    const double height = page->heightPoints();
+    constexpr double kSize = 28.0;
+    const QRectF rect(width / 2.0 - kSize / 2.0, height / 2.0 - kSize / 2.0, kSize, kSize);
+    const QString name = QStringLiteral("recording-%1.wav")
+                             .arg(QDateTime::currentDateTime().toString("HHmmss"));
+    if (annotationController_->addSoundFromWav(currentPage(), rect, name, wav) == 0) {
+        QMessageBox::warning(this, tr("录制声音批注"), tr("批注没有创建成功。"));
+        return;
+    }
+    modified_ = true;
+    emit statusMessage(tr("已插入录音批注"));
 }
 
 void PdfView::startPresentation() {

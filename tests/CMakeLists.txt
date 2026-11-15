@@ -1,4 +1,4 @@
-qt_add_executable(IpcProtocolTests
+﻿qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -445,6 +445,48 @@ endif()
 
 add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
 
+# ------------------------------------------------------------ 录音 --------
+
+qt_add_executable(AudioRecorderTests
+    AudioRecorderTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AudioRecorder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AudioRecorder.h
+)
+
+target_link_libraries(AudioRecorderTests PRIVATE Qt6::Core Qt6::Test winmm)
+target_include_directories(AudioRecorderTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AudioRecorderTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AudioRecorderTests)
+
+add_test(NAME AudioRecorderTests COMMAND AudioRecorderTests)
+# ------------------------------------------------------------ 表单数据 ----
+
+qt_add_executable(FormDataTests
+    FormDataTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormData.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormData.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(FormDataTests PRIVATE
+    Qt6::Gui
+    Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(FormDataTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tools/pdfium/include
+)
+set_target_properties(FormDataTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FormDataTests)
+aipdf_deploy_pdfium(FormDataTests)
+
+add_test(NAME FormDataTests COMMAND FormDataTests)
 # ------------------------------------------------------------ 页面装饰 ----
 
 qt_add_executable(PageDecorationsTests

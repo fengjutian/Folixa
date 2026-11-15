@@ -330,6 +330,37 @@ quint64 AnnotationController::addImageStamp(int pageIndex, const QRectF& rect,
     return id;
 }
 
+quint64 AnnotationController::addSoundFromWav(int pageIndex, const QRectF& rect,
+                                              const QString& name, const QByteArray& wav) {
+    if (wav.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    // PDFium 这个版本不能创建 /Sound 注释，音频以附件形式随文档保存：
+    // 阅读器里点开附件就能播放，数据一个字节都不少。
+    annotation.type = pdf::AnnotationType::FileAttachment;
+    annotation.rect = rect;
+    annotation.attachmentName = name;
+    annotation.attachmentData = wav;
+    annotation.contents = QStringLiteral("声音: %1").arg(name);
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Sound);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 wav=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::FileAttachment))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(wav.size()));
+    emit undoStateChanged();
+    return id;
+}
+
 quint64 AnnotationController::addSound(int pageIndex, const QRectF& rect, const QString& name,
                                        const QByteArray& pcm, int rate, int channels, int bits) {
     if (pcm.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0) {

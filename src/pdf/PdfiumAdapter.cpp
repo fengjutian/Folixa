@@ -1,4 +1,5 @@
 ﻿#include "pdf/PdfiumAdapter.h"
+#include <QImage>
 #include <functional>
 
 #include "i18n/Translate.h"
@@ -311,7 +312,8 @@ bool isOurAnnotation(FPDF_ANNOTATION annot) {
 }
 
 // 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
-std::vector<unsigned short> toWideString(const QString& text) {    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
+std::vector<unsigned short> toWideString(const QString& text) {
+    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
     const int count = text.size();
     std::vector<unsigned short> wide;
     wide.reserve(static_cast<size_t>(count) + 1);
@@ -520,6 +522,15 @@ QImage PdfPage::render(double zoom, int rotateQuarterTurns) const {
     FPDFBitmap_FillRect(bitmap, 0, 0, pixelWidth, pixelHeight, 0xFFFFFFFF);
     FPDF_RenderPageBitmap(
         bitmap, impl_->page, 0, 0, pixelWidth, pixelHeight, totalTurns, FPDF_ANNOT);
+    // 表单字段（输入框、复选框）不在页面内容流里，必须单独画一层；
+    // 不画的话，用户只能看到空白框，填了什么完全看不见。
+    if (impl_->document) {
+        FPDF_FORMHANDLE form = impl_->document->ensureForm();
+        if (form != nullptr) {
+            FPDF_FFLDraw(form, bitmap, impl_->page, 0, 0, pixelWidth, pixelHeight, totalTurns,
+                         FPDF_ANNOT);
+        }
+    }
     FPDFBitmap_Destroy(bitmap);
 
     return image;
@@ -1106,6 +1117,45 @@ bool PdfDocument::setFormFieldValue(int pageIndex, const QString& name, const QS
     return changed;
 }
 
+bool PdfDocument::appendDocumentPages(const PdfDocument& source) {
+    if (!isValid() || !source.isValid()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    // 空页码范围表示"全部页面"。
+    return FPDF_ImportPages(impl_->handle, source.impl_->handle, "", 0) != 0;
+}
+
+QByteArray PdfDocument::extractPagesToBytes(const QVector<int>& pages) const {
+    if (!isValid() || pages.isEmpty()) {
+        return {};
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_DOCUMENT created = FPDF_CreateNewDocument();
+    if (created == nullptr) {
+        return {};
+    }
+    QStringList range;
+    for (int page : pages) {
+        range.append(QString::number(page + 1));  // PDFium 的页号从 1 开始
+    }
+    const QByteArray rangeBytes = range.join(',').toLatin1();
+    QByteArray output;
+    if (FPDF_ImportPages(created, impl_->handle, rangeBytes.constData(), 0)) {
+        MemoryWriter writer;
+        FPDF_FILEWRITE fileWrite = {};
+        fileWrite.version = 1;
+        fileWrite.WriteBlock = &writeToMemory;
+        g_memoryWriterTarget = &writer;
+        if (FPDF_SaveAsCopy(created, &fileWrite, 0)) {
+            output = writer.data;
+        }
+        g_memoryWriterTarget = nullptr;
+    }
+    FPDF_CloseDocument(created);
+    return output;
+}
+
 bool PdfDocument::flattenPage(int pageIndex) {
     if (!impl_ || impl_->handle == nullptr) {
         return false;
@@ -1119,6 +1169,106 @@ bool PdfDocument::flattenPage(int pageIndex) {
     FPDF_ClosePage(page);
     return result == FLATTEN_SUCCESS;
 }
+bool PdfPage::addImageLayer(const QRectF& rectPoints, const QImage& image) {
+    if (!impl_ || impl_->page == nullptr || image.isNull() || rectPoints.isEmpty()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_DOCUMENT document = impl_->document ? impl_->document->handle : nullptr;
+    if (document == nullptr) {
+        return false;
+    }
+    FPDF_PAGEOBJECT object = FPDFPageObj_NewImageObj(document);
+    if (object == nullptr) {
+        return false;
+    }
+    // 用 PDFium 自己分配内存的位图：CreateEx 借的是我们的缓冲区，
+    // 销毁位图之后图像对象就没有像素可读了，渲染出来是一片空白。
+    const QImage rgba = image.convertToFormat(QImage::Format_ARGB32);
+    FPDF_BITMAP bitmap = FPDFBitmap_Create(rgba.width(), rgba.height(), 1);
+    if (bitmap != nullptr) {
+        auto* buffer = static_cast<uchar*>(FPDFBitmap_GetBuffer(bitmap));
+        const int stride = FPDFBitmap_GetStride(bitmap);
+        for (int y = 0; y < rgba.height(); ++y) {
+            std::memcpy(buffer + y * stride, rgba.constScanLine(y),
+                        static_cast<size_t>(rgba.width()) * 4);
+        }
+    }
+    if (bitmap == nullptr) {
+        FPDFPageObj_Destroy(object);
+        return false;
+    }
+    bool ok = FPDFImageObj_SetBitmap(&impl_->page, 1, object, bitmap) != 0;
+    FPDFBitmap_Destroy(bitmap);
+    if (!ok) {
+        FPDFPageObj_Destroy(object);
+        return false;
+    }
+    // 图片对象默认是 1x1 单位：缩放到目标矩形再平移过去。
+    FPDFPageObj_Transform(object, rectPoints.width(), 0.0, 0.0, rectPoints.height(),
+                          rectPoints.left(), rectPoints.top());
+    FPDFPage_InsertObject(impl_->page, object);
+    return FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText, double fontSize,
+                                const QColor& color) {
+    if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty() || newText.isEmpty()) {
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_DOCUMENT document = impl_->document ? impl_->document->handle : nullptr;
+    if (document == nullptr) {
+        return false;
+    }
+
+    // 1) 删掉与目标矩形重叠过半的文本对象。
+    const int count = FPDFPage_CountObjects(impl_->page);
+    QVector<FPDF_PAGEOBJECT> victims;
+    for (int i = 0; i < count; ++i) {
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, i);
+        if (object == nullptr || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT) {
+            continue;
+        }
+        float left = 0.0F;
+        float bottom = 0.0F;
+        float right = 0.0F;
+        float top = 0.0F;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) {
+            continue;
+        }
+        const QRectF objectRect(left, bottom, right - left, top - bottom);
+        const QRectF overlap = objectRect.intersected(rectPoints);
+        const double objectArea = objectRect.width() * objectRect.height();
+        if (objectArea <= 0.0) {
+            continue;
+        }
+        if (overlap.width() * overlap.height() >= objectArea * 0.5) {
+            victims.append(object);
+        }
+    }
+    for (FPDF_PAGEOBJECT object : victims) {
+        FPDFPage_RemoveObject(impl_->page, object);
+    }
+
+    // 2) 白色遮盖块：原文的图形（下划线、边框）可能还在。
+    FPDF_PAGEOBJECT cover = FPDFPageObj_CreateNewRect(
+        static_cast<float>(rectPoints.left()), static_cast<float>(rectPoints.top()),
+        static_cast<float>(rectPoints.width()), static_cast<float>(rectPoints.height()));
+    if (cover != nullptr) {
+        FPDFPageObj_SetFillColor(cover, 255, 255, 255, 255);
+        FPDFPage_InsertObject(impl_->page, cover);
+    }
+
+    // 3) 新文字画在矩形左下角略上的位置。
+    const bool ok = addTextLayer(newText, rectPoints.left(), rectPoints.top() + fontSize * 0.2,
+                                 fontSize, color, 0.0, 1.0);
+    if (!ok) {
+        return false;
+    }
+    return FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
 bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                            const QColor& color, double rotationDegrees, double opacity) {
     if (!impl_ || impl_->page == nullptr || text.isEmpty() || fontSize <= 0.0) {

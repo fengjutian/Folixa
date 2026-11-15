@@ -164,6 +164,17 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-m0.ps1
 启动主程序，检查 Worker 拉起、就绪状态、版本显示、健康检查返回值与退出清理，
 可用 `-ScreenshotPath` 保存窗口截图。
 
+## 界面语言验收
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-i18n.ps1
+```
+
+真起进程，分别用中文、英文与「记住的设置」三种方式启动，断言界面文案真的换了、
+没有中英混排，最后再跑一遍翻译覆盖率。断言按中文文案写，所以
+`scripts/AcceptanceProbe.ps1` 会把界面语言固定成中文（`AIPDF_UI_LANGUAGE`），
+英文 runner 上也不会漂。
+
 ## PDF 能力验收
 
 ```powershell
@@ -274,6 +285,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 ## 文档
 
 - [对标基线：Foxit PDF Editor 2026](docs/FOXIT_BENCHMARK.md)
+- [福昕功能矩阵（17 个标签页截图 + 276 条命令的对齐状态）](docs/FOXIT_FEATURE_MATRIX.md)
 - [技术设计](docs/AI_PDF_EDITOR_TECHNICAL_DESIGN.md)
 - [Prism Document UI 设计规范](docs/UI_DESIGN_SYSTEM.md)
 - [版本与任务管理规范](docs/VERSIONING.md)

@@ -114,9 +114,27 @@ public slots:
     void applyHeaderFooterDialog();
     void applyPageNumbersDialog();
 
+    // 表单（v1.5.0）：字段列表、写值、扁平化。
+    QVector<pdf::FormField> formFields() const;
+    bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
+    bool flattenFormsOnPage(int pageIndex);
+
+    // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
+    void mergeDocumentDialog();
+    void extractCurrentPageDialog();
+    void replaceSelectionWithImageDialog();
+    void replaceSelectionTextDialog();
+    // 录音声音批注（v1.4.0 尾巴）。
+    void recordSoundAnnotationDialog();
+    // 表单数据：FDF 导入导出（CSV 在面板里）。
+    void importFormFdfDialog();
+    void exportFormFdfDialog();
+
 private:
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
+    // 显示坐标 → PDF 用户空间（y 反向）。
+    QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 
 public:
     // 把当前选中的文字复制到剪贴板。
@@ -167,6 +185,8 @@ signals:
     void metricsChanged(const QString& text);
     // 历史可用性变化（供菜单项置灰）。
     void historyChanged(bool canGoBack, bool canGoForward);
+    // 表单字段值或扁平化状态变了。
+    void formFieldsChanged();
     // 选中的文字已复制（字符数）。
     void textCopied(int characters);
     // 链接被激活：内部跳转给出目标页（从 0 开始），外部链接给出地址。

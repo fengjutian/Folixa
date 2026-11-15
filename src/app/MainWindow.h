@@ -11,6 +11,8 @@ class QLineEdit;
 class QPushButton;
 class QDoubleSpinBox;
 class QSlider;
+class QTableWidget;
+class QLineEdit;
 #include <QColor>
 class QTabWidget;
 class QTextBrowser;
@@ -71,6 +73,13 @@ private:
     QStackedWidget* createOutlineTab();
     QStackedWidget* createBookmarkTab();
     QWidget* createAnnotationTab();
+    QWidget* createFormTab();
+    void refreshForms(PdfView* view);
+    void applyFormValue();
+    void flattenCurrentPageForms();
+    void exportFormCsv();
+    void importFormCsv();
+    static QString formFieldTypeName(int type);
     void openPdfDialog();
     void sendHealthCheck();
     void refreshThumbnails(PdfView* view);
@@ -158,6 +167,13 @@ private:
     QPushButton* annotationApplyAppearanceButton_ = nullptr;
     QDoubleSpinBox* annotationWidthSpin_ = nullptr;
     QSlider* annotationOpacitySlider_ = nullptr;
+    QStackedWidget* formStack_ = nullptr;
+    QTableWidget* formTable_ = nullptr;
+    QLineEdit* formValueEdit_ = nullptr;
+    QPushButton* formApplyButton_ = nullptr;
+    QPushButton* formFlattenButton_ = nullptr;
+    QPushButton* formExportCsvButton_ = nullptr;
+    QPushButton* formImportCsvButton_ = nullptr;
     QColor annotationPendingColor_ = QColor(255, 214, 0);
     QPushButton* annotationStateButton_ = nullptr;
     // 页面页的页面管理按钮（v0.8.0）。
