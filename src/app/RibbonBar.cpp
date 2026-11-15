@@ -2,6 +2,7 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
 #include <QSizePolicy>
 #include <QScrollArea>
 #include <QStackedWidget>
@@ -12,6 +13,30 @@
 namespace aipdf::app {
 
 namespace {
+
+// 选中标签的底部蓝条自己画。
+//
+// QSS 的 `::tab:selected { border-bottom: ... }` 在 QTabBar 上会被标签矩形裁掉，
+// 实测只在文字颜色上生效，当前页看起来和别的页没区别。这里在标签矩形底部
+// 补一条 2px 的指示条，宽度跟着文字收一点，和福昕的样式一致。
+class RibbonTabBar final : public QTabBar {
+public:
+    explicit RibbonTabBar(QWidget* parent = nullptr) : QTabBar(parent) {}
+
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        QTabBar::paintEvent(event);
+        const int index = currentIndex();
+        if (index < 0) {
+            return;
+        }
+        const QRect tab = tabRect(index);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        painter.fillRect(QRect(tab.left() + 12, tab.bottom() - 1, qMax(0, tab.width() - 24), 2),
+                         QColor(0x52, 0x77, 0xE8));
+    }
+};
 
 // 命令按钮的统一样式：图标在上、文字在下，和福昕 Ribbon 一致。
 void styleCommand(QToolButton* button) {
@@ -31,11 +56,13 @@ void styleCommand(QToolButton* button) {
 
 RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("ribbonBar"));
+    // 普通 QWidget 子类默认不画 QSS 背景，白底会透出父窗口的灰。
+    setAttribute(Qt::WA_StyledBackground, true);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    tabs_ = new QTabBar(this);
+    tabs_ = new RibbonTabBar(this);
     tabs_->setObjectName(QStringLiteral("ribbonTabs"));
     tabs_->setExpanding(false);
     tabs_->setDrawBase(false);
@@ -46,15 +73,12 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 
     pages_ = new QStackedWidget(this);
     pages_->setObjectName(QStringLiteral("ribbonPages"));
-    // 标签页内容放进横向滚动区：命令再多也不参与主窗口的最小宽度。
-    auto* pageScroll = new QScrollArea(this);
-    pageScroll->setObjectName(QStringLiteral("ribbonPageScroll"));
-    pageScroll->setWidgetResizable(true);
-    pageScroll->setFrameShape(QFrame::NoFrame);
-    pageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    pageScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    pageScroll->setWidget(pages_);
-    layout->addWidget(pageScroll, 1);
+    // 每个标签页各自包一层横向滚动区，而不是把整个 pages_ 塞进一个滚动区。
+    //
+    // 后者的滚动范围由最宽的那一页（注释 / 页面管理）决定：停在「文件」页时
+    // 也会常驻一条横向滚动条，白吃掉十几像素，把分组标题压成 0 高。
+    // 拆开之后只有真的放不下的当前页才出现滚动条，也不参与主窗口最小宽度。
+    layout->addWidget(pages_, 1);
 
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
         pages_->setCurrentIndex(index);
@@ -63,13 +87,31 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 }
 
 int RibbonBar::appendPage() {
-    auto* page = new QWidget(pages_);
+    auto* page = new QWidget;
     auto* pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(10, 2, 10, 2);
+    pageLayout->setContentsMargins(10, 4, 10, 4);
     pageLayout->setSpacing(0);
     // 末尾的弹簧吸收多余宽度，命令组保持自然宽度。
     pageLayout->addStretch(1);
-    pages_->addWidget(page);
+
+    auto* scroll = new QScrollArea(pages_);
+    scroll->setObjectName(QStringLiteral("ribbonPageScroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setWidget(page);
+    // 滚动区的 viewport 默认按 QPalette::Base 自绘灰底，会盖住 Ribbon 的白底。
+    // 必须在 setWidget() 之后再设：setWidget 会重置 viewport 的调色板。
+    page->setAutoFillBackground(false);
+    scroll->viewport()->setBackgroundRole(QPalette::Base);
+    QPalette viewportPalette = scroll->viewport()->palette();
+    viewportPalette.setColor(QPalette::Base, QColor(0xFF, 0xFF, 0xFF));
+    viewportPalette.setColor(QPalette::Window, QColor(0xFF, 0xFF, 0xFF));
+    scroll->viewport()->setPalette(viewportPalette);
+    scroll->viewport()->setAutoFillBackground(true);
+
+    pages_->addWidget(scroll);
     pageWidgets_.append(page);
     pageLayouts_.append(pageLayout);
     return pageWidgets_.size() - 1;

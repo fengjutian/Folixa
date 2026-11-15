@@ -837,11 +837,11 @@
         </message>
 
         <message>
-            <source>/ %1</source>
+            <source>/ %1 页</source>
             <translation>/ %1</translation>
         </message>
         <message>
-            <source>/ 0</source>
+            <source>/ 0 页</source>
             <translation>/ 0</translation>
         </message>
 

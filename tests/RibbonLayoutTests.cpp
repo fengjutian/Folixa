@@ -1,9 +1,12 @@
-﻿#include "app/RibbonBar.h"
+#include "app/RibbonBar.h"
 #include "app/Theme.h"
 
 #include <QApplication>
 #include <QDir>
 #include <QHBoxLayout>
+#include <QLabel>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolButton>
@@ -16,7 +19,7 @@ using aipdf::app::RibbonBar;
 namespace {
 
 // 复刻主窗口的目标结构：QWidget + QVBoxLayout(Ribbon, tabs)。
-// Ribbon 固定 96，文档标签占满剩余空间。
+// Ribbon 固定 124，文档标签占满剩余空间。
 class Harness {
 public:
     Harness() {
@@ -27,7 +30,7 @@ public:
         layout->setSpacing(0);
 
         ribbon_ = new RibbonBar(window_);
-        ribbon_->setFixedHeight(96);
+        ribbon_->setFixedHeight(124);
         layout->addWidget(ribbon_);
 
         // 故意塞很宽的内容：验证 Ribbon 再宽也不会把窗口撑大。
@@ -41,6 +44,14 @@ public:
                                     QIcon(),
                                     QStringLiteral("很宽的命令按钮 %1").arg(i + 1));
             }
+        }
+        // 最后再加一页远超窗口宽度的命令：用来验证「只有当前页放不下才出滚动条」，
+        // 而不是整摞页共用一条、停在窄页上也常驻。
+        const int wide = ribbon_->addTab(QStringLiteral("宽页"));
+        QHBoxLayout* wideGroup = ribbon_->addGroup(wide, QStringLiteral("宽页"));
+        for (int i = 0; i < 30; ++i) {
+            ribbon_->addCommand(wideGroup, QStringLiteral("命令 %1").arg(i + 1), QIcon(),
+                                QStringLiteral("超宽命令 %1").arg(i + 1));
         }
 
         tabs_ = new QTabWidget(window_);
@@ -101,14 +112,48 @@ void RibbonLayoutTests::verifySize(const QSize& requested, const QString& name) 
     QVERIFY(window->height() > 600);
     QVERIFY(window->height() <= requested.height());
 
-    // 2) Ribbon 高度锁在 96，标签条必须可见。
-    QCOMPARE(harness.ribbon()->height(), 96);
+    // 2) Ribbon 高度锁在 124，标签条必须可见。
+    QCOMPARE(harness.ribbon()->height(), 124);
     auto* tabBar = harness.ribbon()->findChild<QTabBar*>(QStringLiteral("ribbonTabs"));
     QVERIFY(tabBar != nullptr);
     QVERIFY2(tabBar->height() >= 24, qPrintable(QStringLiteral("标签条高度 %1").arg(tabBar->height())));
-    QCOMPARE(tabBar->count(), 7);
+    QCOMPARE(tabBar->count(), 8);
     QCOMPARE(tabBar->currentIndex(), 0);
     QVERIFY(tabBar->isVisible());
+
+    // 3) 分组标题必须真的占到高度：被按钮挤成 0 高是最隐蔽的回归。
+    const QList<QLabel*> groupTitles =
+        harness.ribbon()->findChildren<QLabel*>(QStringLiteral("ribbonGroupTitle"));
+    QVERIFY(!groupTitles.isEmpty());
+    bool titleVisible = false;
+    for (QLabel* title : groupTitles) {
+        if (title->isVisible() && title->height() >= 10) {
+            titleVisible = true;
+            break;
+        }
+    }
+    QVERIFY2(titleVisible, "Ribbon 分组标题没有被画出来");
+
+    // 4) 停在窄标签页时不该有横向滚动条；切到超宽页才允许出现。
+    auto activeScroll = [&harness]() -> QScrollArea* {
+        for (QScrollArea* area : harness.ribbon()->findChildren<QScrollArea*>()) {
+            if (area->isVisible()) {
+                return area;
+            }
+        }
+        return nullptr;
+    };
+    QScrollArea* narrowScroll = activeScroll();
+    QVERIFY(narrowScroll != nullptr);
+    QCOMPARE(narrowScroll->horizontalScrollBar()->maximum(), 0);
+    harness.ribbon()->setCurrentTab(7);
+    QTest::qWait(50);
+    QScrollArea* wideScroll = activeScroll();
+    QVERIFY(wideScroll != nullptr);
+    QVERIFY2(wideScroll->horizontalScrollBar()->maximum() > 0,
+             "超宽标签页没有出现横向滚动条");
+    harness.ribbon()->setCurrentTab(0);
+    QTest::qWait(50);
 
     // 3) 文档标签仍在 Ribbon 下方且可见。
     QVERIFY(harness.tabs()->isVisible());

@@ -618,7 +618,6 @@ void MainWindow::buildUi() {
             searchPanel_->focusSearch();
         }
     });
-    commandBar->addSeparator();
     // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
     // 未交付的保持纯文字并用分隔线隔开，一眼能看出「这些还不能点」。
     commandBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -708,7 +707,6 @@ void MainWindow::buildUi() {
     //
     // 还没有实现的能力也带图标：它们和已交付功能并排，缺图标会让人以为
     // 是状态异常；图标统一取中性灰的禁用态，仍然一眼看得出「还不能点」。
-    commandBar->addSeparator();
     struct FutureCommand {
         const char* label;
         QString icon;
@@ -737,6 +735,8 @@ void MainWindow::buildUi() {
     texts_.bind([this, aiAction] { aiAction->setText(tr("✦ AI 助手")); });
     aiAction->setObjectName(QStringLiteral("aiCommand"));
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
+        aiButton->setObjectName(QStringLiteral("aiCommandButton"));
+    }
     // 顶部只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
     // 注意不能遍历 commandBar->actions() 全隐藏——菜单按钮与品牌是 QWidgetAction，
     // 一起隐藏会把主菜单也弄没。
@@ -745,8 +745,6 @@ void MainWindow::buildUi() {
     pageAction->setVisible(false);
     indexAction->setVisible(false);
     aiAction->setVisible(false);
-        aiButton->setObjectName(QStringLiteral("aiCommandButton"));
-    }
 
     // ------------------------------------------------------------- Ribbon ----
     // 顶部标签页 + 命令组：结构对齐福昕的「文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI」。
@@ -754,7 +752,9 @@ void MainWindow::buildUi() {
     // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
     // Ribbon 放进顶部 Dock：不动中央 QTabWidget，避免换中央控件时的生命周期问题。
     ribbonBar_ = new RibbonBar(this);
-    ribbonBar_->setFixedHeight(104);
+    // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
+    // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
+    ribbonBar_->setFixedHeight(124);
     auto* ribbonDock = new QDockWidget(QString(), this);
     ribbonDock->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -1439,7 +1439,9 @@ void MainWindow::buildUi() {
         }
     });
 
-    // 底部页码与缩放（福昕：左下 1 / 12，右下 − 100% +）。
+    // 底部页码与缩放（右下：第 1 / 12 页，再往右是 − 100% +）。
+    // 页码必须挂常驻区：addWidget 的普通控件会被任何 showMessage 临时隐藏，
+    // 刚打开文档时「已打开 …」一出现，页码就跟着消失，读屏与验收都读不到。
     auto* pagePrefix = new QLabel(this);
     texts_.bind([this, pagePrefix] { pagePrefix->setText(tr("第")); });
     statusPageEdit_ = new QLineEdit(this);
@@ -1449,10 +1451,10 @@ void MainWindow::buildUi() {
     statusPageEdit_->setValidator(new QIntValidator(1, 99999, statusPageEdit_));
     statusPageTotal_ = new QLabel(this);
     statusPageTotal_->setObjectName(QStringLiteral("secondaryText"));
-    statusPageTotal_->setText(tr("/ 0"));
-    statusBar()->addWidget(pagePrefix);
-    statusBar()->addWidget(statusPageEdit_);
-    statusBar()->addWidget(statusPageTotal_);
+    statusPageTotal_->setText(tr("/ 0 页"));
+    statusBar()->addPermanentWidget(pagePrefix);
+    statusBar()->addPermanentWidget(statusPageEdit_);
+    statusBar()->addPermanentWidget(statusPageTotal_);
     connect(statusPageEdit_, &QLineEdit::returnPressed, this, [this] {
         PdfView* view = currentView();
         if (view == nullptr) {
@@ -2861,11 +2863,11 @@ void MainWindow::updateStatusPage(int pageIndex) {
     const int total = (view != nullptr) ? view->pageCount() : 0;
     if (total <= 0) {
         statusPageEdit_->clear();
-        statusPageTotal_->setText(tr("/ 0"));
+        statusPageTotal_->setText(tr("/ 0 页"));
         return;
     }
     statusPageEdit_->setText(QString::number(qBound(1, pageIndex + 1, total)));
-    statusPageTotal_->setText(tr("/ %1").arg(total));
+    statusPageTotal_->setText(tr("/ %1 页").arg(total));
 }
 
 void MainWindow::updateStatusZoom(double factor) {
