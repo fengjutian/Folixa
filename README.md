@@ -290,6 +290,7 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 - [Prism Document UI 设计规范](docs/UI_DESIGN_SYSTEM.md)
 - [版本与任务管理规范](docs/VERSIONING.md)
 - [版本任务索引](docs/versions/README.md)
+- [1.x 版本审计（计划 vs 代码）](docs/VERSION_AUDIT.md)
 - [依赖与许可证政策](docs/DEPENDENCY_POLICY.md)
 - [qpdf 引入提案（未批准）](docs/QPDF_ADOPTION.md)
 - [OCR 妥协清单](docs/OCR_LIMITATIONS.md)
