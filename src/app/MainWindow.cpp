@@ -836,10 +836,21 @@ void MainWindow::buildUi() {
                      [this] { moveCurrentPageUp(); });
     addRibbonCommand(pageGroup, "下移", "当前页下移", ":/icons/move-down.svg",
                      [this] { moveCurrentPageDown(); });
-    auto* assemblyGroup = ribbonBar_->addGroup(pageTab, tr("组装"));
+    addRibbonCommand(pageGroup, "复制页", "复制当前页", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->duplicateCurrentPage(); }
+    }, true, "ribbonDuplicate");
+    addRibbonCommand(pageGroup, "交换", "与下一页交换", ":/icons/move-down.svg", [this] {
+        if (auto* view = currentView()) { view->swapCurrentWithNext(); }
+    }, true, "ribbonSwap");
+    addRibbonCommand(pageGroup, "逆序", "整篇页面逆序", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->reversePages(); }
+    }, true, "ribbonReverse");    auto* assemblyGroup = ribbonBar_->addGroup(pageTab, tr("组装"));
     addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
     });
+    addRibbonCommand(assemblyGroup, "拆分", "按每 N 页拆分文档", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->splitDocumentDialog(); }
+    }, true, "ribbonSplit");
     addRibbonCommand(assemblyGroup, "合并", "合并另一份 PDF", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->mergeDocumentDialog(); }
     });

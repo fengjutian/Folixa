@@ -28,6 +28,8 @@
 #include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
 #include <QFile>
 #include <QPrinter>
 #include <QPrintDialog>
@@ -1556,6 +1558,125 @@ void PdfView::applyBatesNumberingDialog() {
     modified_ = true;
     refreshAfterDecoration();
     emit statusMessage(tr("已添加贝茨编号"));
+}
+
+
+// ------------------------------------------------ 页面组装（对齐福昕）----
+
+void PdfView::duplicateCurrentPage() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const int index = currentPage();
+    const pdf::PdfDocument backup = document_.backupPage(index);
+    if (!backup.isValid() || !document_.restorePageFrom(backup, index + 1)) {
+        emit statusMessage(tr("复制页面失败"));
+        return;
+    }
+    handlePageStructureChanged();
+    modified_ = true;
+    goToPage(index + 1);
+    trace(QStringLiteral("page duplicate index=%1 pages=%2").arg(index).arg(pageCount()));
+    emit statusMessage(tr("已复制第 %1 页").arg(index + 1));
+}
+
+void PdfView::swapCurrentWithNext() {
+    if (!document_.isValid() || annotationController_ == nullptr) {
+        return;
+    }
+    const int index = currentPage();
+    if (index < 0 || index + 1 >= document_.pageCount()) {
+        emit statusMessage(tr("已经是最后一页了"));
+        return;
+    }
+    if (!annotationController_->movePage(index, index + 1)) {
+        emit statusMessage(tr("交换页面失败"));
+        return;
+    }
+    goToPage(index + 1);
+    emit statusMessage(tr("已交换第 %1、%2 页").arg(index + 1).arg(index + 2));
+}
+
+void PdfView::reversePages() {
+    if (!document_.isValid() || annotationController_ == nullptr) {
+        return;
+    }
+    const int count = document_.pageCount();
+    if (count < 2) {
+        emit statusMessage(tr("只有一页，不需要逆序"));
+        return;
+    }
+    // 按目标位置逐页搬运：每次把「原本在最后的那一页」放到当前位置。
+    // 一次操作一条命令，整篇逆序可以用 Ctrl+Z 逐步退回。
+    QVector<int> order;
+    order.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        order.append(i);
+    }
+    for (int target = 0; target < count; ++target) {
+        const int desired = count - 1 - target;
+        const int position = order.indexOf(desired);
+        if (position != target && !annotationController_->movePage(position, target)) {
+            emit statusMessage(tr("逆序失败，已停止在第 %1 页").arg(target + 1));
+            return;
+        }
+        order.move(position, target);
+    }
+    goToPage(0);
+    emit statusMessage(tr("已把 %1 页逆序").arg(count));
+}
+
+void PdfView::splitDocumentDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const int perFile = QInputDialog::getInt(this, tr("拆分文档"), tr("每份文件包含多少页:"),
+                                              1, 1, document_.pageCount(), 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const QString directory = QFileDialog::getExistingDirectory(this, tr("选择输出目录"));
+    if (directory.isEmpty()) {
+        return;
+    }
+    const int count = document_.pageCount();
+    int written = 0;
+    for (int start = 0; start < count; start += perFile) {
+        const int end = std::min(count, start + perFile);
+        pdf::PdfDocument part = document_.backupPage(start);
+        if (!part.isValid()) {
+            continue;
+        }
+        for (int page = start + 1; page < end; ++page) {
+            if (!part.restorePageFrom(document_.backupPage(page), part.pageCount())) {
+                part = pdf::PdfDocument();
+                break;
+            }
+        }
+        if (!part.isValid()) {
+            continue;
+        }
+        QString error;
+        const QByteArray bytes = part.serialize(&error);
+        if (bytes.isEmpty()) {
+            continue;
+        }
+        const QString base = QFileInfo(filePath_).completeBaseName();
+        const QString name = QStringLiteral("%1_%2-%3.pdf")
+                                 .arg(base.isEmpty() ? QStringLiteral("part") : base)
+                                 .arg(start + 1)
+                                 .arg(end);
+        QFile file(QDir(directory).filePath(name));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.write(bytes);
+            file.close();
+            ++written;
+        }
+    }
+    trace(QStringLiteral("split pages=%1 perFile=%2 written=%3")
+              .arg(count).arg(perFile).arg(written));
+    emit statusMessage(tr("已拆分出 %1 个文件").arg(written));
 }
 
 void PdfView::refreshAfterDecoration() {

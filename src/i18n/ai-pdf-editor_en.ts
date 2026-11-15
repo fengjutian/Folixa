@@ -808,6 +808,22 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>复制页</source>
+            <translation>Duplicate page</translation>
+        </message>
+        <message>
+            <source>交换</source>
+            <translation>Swap</translation>
+        </message>
+        <message>
+            <source>逆序</source>
+            <translation>Reverse</translation>
+        </message>
+        <message>
+            <source>拆分</source>
+            <translation>Split</translation>
+        </message>
+        <message>
             <source>主页</source>
             <translation>Home</translation>
         </message>
@@ -1636,6 +1652,50 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>交换页面失败</source>
+            <translation>Failed to swap pages</translation>
+        </message>
+        <message>
+            <source>只有一页，不需要逆序</source>
+            <translation>Only one page, nothing to reverse</translation>
+        </message>
+        <message>
+            <source>复制页面失败</source>
+            <translation>Failed to copy the page</translation>
+        </message>
+        <message>
+            <source>已交换第 %1、%2 页</source>
+            <translation>Swapped pages %1 and %2</translation>
+        </message>
+        <message>
+            <source>已复制第 %1 页</source>
+            <translation>Copied page %1</translation>
+        </message>
+        <message>
+            <source>已把 %1 页逆序</source>
+            <translation>Reversed %1 pages</translation>
+        </message>
+        <message>
+            <source>已拆分出 %1 个文件</source>
+            <translation>Split into %1 files</translation>
+        </message>
+        <message>
+            <source>拆分文档</source>
+            <translation>Split document</translation>
+        </message>
+        <message>
+            <source>每份文件包含多少页:</source>
+            <translation>Pages per file:</translation>
+        </message>
+        <message>
+            <source>逆序失败，已停止在第 %1 页</source>
+            <translation>Reverse failed at page %1</translation>
+        </message>
+        <message>
+            <source>选择输出目录</source>
+            <translation>Choose output folder</translation>
+        </message>
         <message>
             <source>这是 XFA 动态表单：PDFium 没有 XFA 引擎，页面可能显示为空白。</source>
             <translation>This is an XFA dynamic form: PDFium has no XFA engine, so the page may appear blank.</translation>

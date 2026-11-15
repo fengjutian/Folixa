@@ -117,6 +117,10 @@ public slots:
     // 页面组装（对齐福昕页面管理）：裁剪与贝茨编号。
     void cropCurrentPageDialog();
     void applyBatesNumberingDialog();
+    void duplicateCurrentPage();
+    void reversePages();
+    void swapCurrentWithNext();
+    void splitDocumentDialog();
 
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;
