@@ -61,6 +61,7 @@ private slots:
     void mergeAndExtractPages();
     void imageLayerCoversRect();
     void textReplacementSwapsContent();
+    void formValuesSurviveSaveAndReopen();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -385,6 +386,27 @@ void PdfiumAdapterTests::textReplacementSwapsContent() {
     const auto after = updated->extractText();
     QVERIFY(after.has_value());
     QVERIFY2(after->plainText().contains(QStringLiteral("REPLACED LINE")), "新文字没写进去");
+}
+
+void PdfiumAdapterTests::formValuesSurviveSaveAndReopen() {
+    auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+    QVERIFY(document.setFormFieldValue(0, QStringLiteral("fullName"), QStringLiteral("张三")));
+
+    QString error;
+    const QByteArray bytes = document.serialize(&error);
+    QVERIFY2(!bytes.isEmpty(), qPrintable(error));
+
+    auto reopened = openDocumentFromBytes(bytes);
+    QVERIFY(reopened.document.isValid());
+    const QVector<FormField> fields = reopened.document.formFields();
+    QVERIFY(!fields.isEmpty());
+    QCOMPARE(fields.at(0).name, QStringLiteral("fullName"));
+    QVERIFY2(fields.at(0).value.contains(QStringLiteral("张三")),
+             "填写的值没有随文档保存");
+    reopened.document.flattenPage(0);
+    QVERIFY(reopened.document.formFields().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

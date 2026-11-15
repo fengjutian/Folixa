@@ -1,4 +1,4 @@
-﻿qt_add_executable(AiPdfEditor WIN32
+qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
@@ -97,6 +97,8 @@
     pdf/DocumentWriter.h
     pdf/QpdfBackend.cpp
     pdf/QpdfBackend.h
+    pdf/PdfSecurity.cpp
+    pdf/PdfSecurity.h
     pdf/Navigation.cpp
     pdf/Navigation.h
     pdf/TextPage.cpp

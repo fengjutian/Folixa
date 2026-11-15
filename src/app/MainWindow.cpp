@@ -1458,8 +1458,14 @@ QWidget* MainWindow::createFormTab() {
     formExportCsvButton_->setObjectName(QStringLiteral("formExportCsv"));
     formImportCsvButton_ = new QPushButton(tr("导入 CSV…"), editor);
     formImportCsvButton_->setObjectName(QStringLiteral("formImportCsv"));
+    formExportFdfButton_ = new QPushButton(tr("导出 FDF…"), editor);
+    formExportFdfButton_->setObjectName(QStringLiteral("formExportFdf"));
+    formImportFdfButton_ = new QPushButton(tr("导入 FDF…"), editor);
+    formImportFdfButton_->setObjectName(QStringLiteral("formImportFdf"));
     buttons->addWidget(formExportCsvButton_);
     buttons->addWidget(formImportCsvButton_);
+    buttons->addWidget(formExportFdfButton_);
+    buttons->addWidget(formImportFdfButton_);
     editorLayout->addLayout(buttons);
     layout->addWidget(editor);
 
@@ -1467,6 +1473,17 @@ QWidget* MainWindow::createFormTab() {
     connect(formFlattenButton_, &QPushButton::clicked, this, &MainWindow::flattenCurrentPageForms);
     connect(formExportCsvButton_, &QPushButton::clicked, this, &MainWindow::exportFormCsv);
     connect(formImportCsvButton_, &QPushButton::clicked, this, &MainWindow::importFormCsv);
+    connect(formExportFdfButton_, &QPushButton::clicked, this, [this]() {
+        if (auto* view = currentView()) {
+            view->exportFormFdfDialog();
+        }
+    });
+    connect(formImportFdfButton_, &QPushButton::clicked, this, [this]() {
+        if (auto* view = currentView()) {
+            view->importFormFdfDialog();
+            refreshForms(view);
+        }
+    });
     connect(formTable_, &QTableWidget::itemSelectionChanged, this, [this]() {
         const auto items = formTable_->selectedItems();
         if (items.isEmpty() || formValueEdit_ == nullptr) {

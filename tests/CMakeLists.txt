@@ -1,4 +1,4 @@
-﻿qt_add_executable(IpcProtocolTests
+qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -146,6 +146,47 @@ aipdf_deploy_qt_runtime(PdfiumAdapterTests)
 aipdf_deploy_pdfium(PdfiumAdapterTests)
 
 add_test(NAME PdfiumAdapterTests COMMAND PdfiumAdapterTests)
+
+# ------------------------------------------------------------ PDF 安全 ----
+# AES-256 加密与权限位依赖 qpdf；没有 qpdf 的构建不编这组测试。
+
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    qt_add_executable(PdfSecurityTests
+        PdfSecurityTests.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    )
+
+    target_link_libraries(PdfSecurityTests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Test
+        ${AIPDF_PDFIUM_LIBRARY}
+        qpdf::libqpdf
+    )
+    target_include_directories(PdfSecurityTests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${AIPDF_PDFIUM_INCLUDE_DIR}
+    )
+    target_compile_definitions(PdfSecurityTests PRIVATE
+        AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+        AIPDF_WITH_QPDF=1
+    )
+    set_target_properties(PdfSecurityTests PROPERTIES WIN32_EXECUTABLE FALSE)
+    add_dependencies(PdfSecurityTests pdf-fixtures)
+    aipdf_deploy_qt_runtime(PdfSecurityTests)
+    aipdf_deploy_pdfium(PdfSecurityTests)
+    add_custom_command(TARGET PdfSecurityTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:PdfSecurityTests>"
+        COMMENT "Copying qpdf runtime for tests")
+
+    add_test(NAME PdfSecurityTests COMMAND PdfSecurityTests)
+endif()
 
 # ------------------------------------------------------------ 视口与缓存 ----
 

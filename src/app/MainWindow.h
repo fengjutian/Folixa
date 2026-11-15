@@ -174,6 +174,8 @@ private:
     QPushButton* formFlattenButton_ = nullptr;
     QPushButton* formExportCsvButton_ = nullptr;
     QPushButton* formImportCsvButton_ = nullptr;
+    QPushButton* formExportFdfButton_ = nullptr;
+    QPushButton* formImportFdfButton_ = nullptr;
     QColor annotationPendingColor_ = QColor(255, 214, 0);
     QPushButton* annotationStateButton_ = nullptr;
     // 页面页的页面管理按钮（v0.8.0）。

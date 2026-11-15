@@ -808,6 +808,14 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>导出 FDF…</source>
+            <translation>Export FDF…</translation>
+        </message>
+        <message>
+            <source>导入 FDF…</source>
+            <translation>Import FDF…</translation>
+        </message>
+        <message>
             <source>录制声音批注…</source>
             <translation>Record sound annotation…</translation>
         </message>
@@ -1536,6 +1544,38 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>FDF (*.fdf)</source>
+            <translation>FDF (*.fdf)</translation>
+        </message>
+        <message>
+            <source>导入 FDF 数据</source>
+            <translation>Import FDF data</translation>
+        </message>
+        <message>
+            <source>读不了这个文件。</source>
+            <translation>Cannot read this file.</translation>
+        </message>
+        <message>
+            <source>这份 FDF 里没有可用的字段值。</source>
+            <translation>This FDF contains no usable field values.</translation>
+        </message>
+        <message>
+            <source>从 FDF 导入了 %1 个字段</source>
+            <translation>Imported %1 fields from FDF</translation>
+        </message>
+        <message>
+            <source>导出 FDF 数据</source>
+            <translation>Export FDF data</translation>
+        </message>
+        <message>
+            <source>写不了这个文件。</source>
+            <translation>Cannot write this file.</translation>
+        </message>
+        <message>
+            <source>已导出 FDF 数据</source>
+            <translation>Exported FDF data</translation>
+        </message>
         <message>
             <source>录制声音批注</source>
             <translation>Record sound annotation</translation>

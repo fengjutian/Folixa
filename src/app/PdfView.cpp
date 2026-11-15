@@ -4,6 +4,7 @@
 #include "app/DocumentOutput.h"
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
+#include "pdf/FormData.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
