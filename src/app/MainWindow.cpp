@@ -533,6 +533,32 @@ void MainWindow::buildUi() {
         trace(QStringLiteral("ocr failed page=%1 reason=%2").arg(page + 1).arg(reason));
     });
     appMenu->addSeparator();
+    // 界面语言：中文是源语言（界面文案本身就是中文），英文走翻译目录；
+    // 「跟随系统」按系统语言选，默认就是它。
+    auto* languageMenu = appMenu->addMenu(QString());
+    texts_.bind([this, languageMenu] { languageMenu->setTitle(tr("语言(&L)")); });
+    languageActions_ = new QActionGroup(this);
+    languageActions_->setExclusive(true);
+    for (const i18n::Language& language : i18n::supportedLanguages()) {
+        // 语言名用各自的自称（中文 / English），不翻译。
+        QAction* action = languageMenu->addAction(language.nativeName);
+        action->setCheckable(true);
+        action->setData(language.code);
+        languageActions_->addAction(action);
+        connect(action, &QAction::triggered, this, [this, code = language.code] {
+            applyLanguage(code);
+        });
+    }
+    auto* followSystemAction = languageMenu->addAction(QString());
+    followSystemAction->setCheckable(true);
+    followSystemAction->setData(i18n::LanguageManager::systemPreference());
+    languageActions_->addAction(followSystemAction);
+    followSystemAction_ = followSystemAction;
+    connect(followSystemAction, &QAction::triggered, this, [this] {
+        applyLanguage(i18n::LanguageManager::systemPreference());
+    });
+    syncLanguageMenu();
+
     auto* appQuitAction = appMenu->addAction(QString());
     connect(appQuitAction, &QAction::triggered, this, &QWidget::close);
     texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
@@ -1155,18 +1181,23 @@ void MainWindow::rememberRecentFile(const QString& filePath) {
     QSettings().setValue(QStringLiteral("startup/recentFiles"), files);
 }
 
-QWidget* MainWindow::createNavigationEmptyState(const QString& titleText,
-                                                const QString& descriptionText) {
+QWidget* MainWindow::createNavigationEmptyState(const char* titleSource,
+                                                const char* descriptionSource) {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(18, 28, 18, 28);
-    auto* title = new QLabel(titleText, page);
+    auto* title = new QLabel(QString(), page);
     title->setAlignment(Qt::AlignCenter);
     title->setWordWrap(true);
-    auto* description = new QLabel(descriptionText, page);
+    auto* description = new QLabel(QString(), page);
     description->setObjectName(QStringLiteral("emptyDescription"));
     description->setAlignment(Qt::AlignCenter);
     description->setWordWrap(true);
+    // 占位页是常驻的，切换语言时按传进来的源文案重译。
+    texts_.bind([this, title, description, titleSource, descriptionSource] {
+        title->setText(tr(titleSource));
+        description->setText(tr(descriptionSource));
+    });
     layout->addStretch();
     layout->addWidget(title);
     layout->addWidget(description);
@@ -1198,34 +1229,45 @@ QWidget* MainWindow::createPagesTab() {
     //
     // 图标与命令栏共用同一套 SVG：这几个按钮以前只有文字，面板上
     // 六个等宽按钮排成三行，扫一眼分不出「插入」和「删除」。
-    auto makeButton = [page](const QString& text,
-                              const QString& icon,
-                              const QString& tip,
-                              const QString& id) {
-        auto* button = new QPushButton(commandIcon(icon), text, page);
-        button->setToolTip(tip);
+    auto makeButton = [this, page](const char* textSource,
+                                   const QString& icon,
+                                   const char* tipSource,
+                                   const QString& id) {
+        auto* button = new QPushButton(commandIcon(icon), QString(), page);
         button->setObjectName(id);
+        texts_.bind([this, button, textSource, tipSource] {
+            button->setText(tr(textSource));
+            button->setToolTip(tr(tipSource));
+        });
         return button;
     };
 
-    pageInsertButton_ = makeButton(tr("插入"), QStringLiteral("page-insert"),
-                                    tr("在当前页后插入一张空白页"),
-                                    QStringLiteral("page.insert"));
-    pageDeleteButton_ = makeButton(tr("删除"), QStringLiteral("page-delete"),
-                                    tr("删除当前页"),
-                                    QStringLiteral("page.delete"));
-    pageRotateRightButton_ = makeButton(tr("右转"), QStringLiteral("rotate-right"),
-                                         tr("把当前页顺时针转 90 度"),
-                                         QStringLiteral("page.rotateRight"));
-    pageRotateLeftButton_ = makeButton(tr("左转"), QStringLiteral("rotate-left"),
-                                        tr("把当前页逆时针转 90 度"),
-                                        QStringLiteral("page.rotateLeft"));
-    pageMoveUpButton_ = makeButton(tr("上移"), QStringLiteral("move-up"),
-                                    tr("把当前页往前挪一位"),
-                                    QStringLiteral("page.moveUp"));
-    pageMoveDownButton_ = makeButton(tr("下移"), QStringLiteral("move-down"),
-                                      tr("把当前页往后挪一位"),
-                                      QStringLiteral("page.moveDown"));
+    pageInsertButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "插入"), QStringLiteral("page-insert"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "在当前页后插入一张空白页"),
+        QStringLiteral("page.insert"));
+    pageDeleteButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "删除"), QStringLiteral("page-delete"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "删除当前页"),
+        QStringLiteral("page.delete"));
+    pageRotateRightButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "右转"),
+        QStringLiteral("rotate-right"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "把当前页顺时针转 90 度"),
+        QStringLiteral("page.rotateRight"));
+    pageRotateLeftButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "左转"),
+        QStringLiteral("rotate-left"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "把当前页逆时针转 90 度"),
+        QStringLiteral("page.rotateLeft"));
+    pageMoveUpButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "上移"), QStringLiteral("move-up"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "把当前页往前挪一位"),
+        QStringLiteral("page.moveUp"));
+    pageMoveDownButton_ = makeButton(
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "下移"), QStringLiteral("move-down"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "把当前页往后挪一位"),
+        QStringLiteral("page.moveDown"));
 
     auto* firstRow = new QHBoxLayout();
     firstRow->addWidget(pageInsertButton_);
@@ -1255,7 +1297,8 @@ QWidget* MainWindow::createPagesTab() {
 QStackedWidget* MainWindow::createOutlineTab() {
     auto* stack = new QStackedWidget(navigationPages_);
     stack->addWidget(createNavigationEmptyState(
-        tr("暂无文档目录"), tr("当前文档没有大纲（书签）。")));
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "暂无文档目录"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "当前文档没有大纲（书签）。")));
     outlineTree_ = new QTreeWidget(stack);
     outlineTree_->setObjectName(QStringLiteral("outlineTree"));
     outlineTree_->setHeaderHidden(true);
@@ -1270,7 +1313,8 @@ QStackedWidget* MainWindow::createOutlineTab() {
 QStackedWidget* MainWindow::createBookmarkTab() {
     auto* stack = new QStackedWidget(navigationPages_);
     stack->addWidget(createNavigationEmptyState(
-        tr("暂无书签"), tr("当前文档没有可显示的书签。")));
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "暂无书签"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "当前文档没有可显示的书签。")));
     bookmarkList_ = new QListWidget(stack);
     bookmarkList_->setObjectName(QStringLiteral("bookmarkList"));
     stack->addWidget(bookmarkList_);
@@ -1290,7 +1334,9 @@ QWidget* MainWindow::createAnnotationTab() {
 
     auto* stack = new QStackedWidget(page);
     stack->addWidget(createNavigationEmptyState(
-        tr("暂无批注"), tr("选中文字后点「高亮」，或用便签、矩形、墨迹工具添加批注。")));
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "暂无批注"),
+        QT_TRANSLATE_NOOP("aipdf::app::MainWindow",
+                          "选中文字后点「高亮」，或用便签、矩形、墨迹工具添加批注。")));
     annotationList_ = new QListWidget(stack);
     stack->addWidget(annotationList_);
     outer->addWidget(stack, 1);
@@ -1305,18 +1351,21 @@ QWidget* MainWindow::createAnnotationTab() {
     // 外观属性：颜色 / 线宽 / 不透明度。多选后一次改完。
     auto* appearanceRow = new QHBoxLayout();
     appearanceRow->setSpacing(6);
-    annotationColorButton_ = new QPushButton(tr("颜色…"), content);
+    annotationColorButton_ = new QPushButton(QString(), content);
+    texts_.bind([this] { annotationColorButton_->setText(tr("颜色…")); });
     annotationColorButton_->setObjectName(QStringLiteral("annotationColor"));
     appearanceRow->addWidget(annotationColorButton_);
-    auto* widthLabel = new QLabel(tr("线宽"), content);
+    auto* widthLabel = new QLabel(QString(), content);
+    texts_.bind([this, widthLabel] { widthLabel->setText(tr("线宽")); });
     appearanceRow->addWidget(widthLabel);
     annotationWidthSpin_ = new QDoubleSpinBox(content);
     annotationWidthSpin_->setObjectName(QStringLiteral("annotationWidth"));
     annotationWidthSpin_->setRange(0.0, 8.0);
     annotationWidthSpin_->setSingleStep(0.5);
-    annotationWidthSpin_->setSpecialValueText(tr("默认"));
+    texts_.bind([this] { annotationWidthSpin_->setSpecialValueText(tr("默认")); });
     appearanceRow->addWidget(annotationWidthSpin_);
-    auto* opacityLabel = new QLabel(tr("透明"), content);
+    auto* opacityLabel = new QLabel(QString(), content);
+    texts_.bind([this, opacityLabel] { opacityLabel->setText(tr("透明")); });
     appearanceRow->addWidget(opacityLabel);
     annotationOpacitySlider_ = new QSlider(Qt::Horizontal, content);
     annotationOpacitySlider_->setObjectName(QStringLiteral("annotationOpacity"));
@@ -1324,17 +1373,23 @@ QWidget* MainWindow::createAnnotationTab() {
     annotationOpacitySlider_->setValue(100);
     appearanceRow->addWidget(annotationOpacitySlider_, 1);
     layout->addLayout(appearanceRow);
-    annotationApplyAppearanceButton_ = new QPushButton(tr("应用到所选批注"), content);
+    annotationApplyAppearanceButton_ = new QPushButton(QString(), content);
+    texts_.bind([this] {
+        annotationApplyAppearanceButton_->setText(tr("应用到所选批注"));
+    });
     annotationApplyAppearanceButton_->setObjectName(QStringLiteral("annotationApplyAppearance"));
     layout->addWidget(annotationApplyAppearanceButton_);
 
-    annotationReplyButton_ = new QPushButton(tr("回复所选"), content);
+    annotationReplyButton_ = new QPushButton(QString(), content);
+    texts_.bind([this] { annotationReplyButton_->setText(tr("回复所选")); });
     annotationReplyButton_->setObjectName(QStringLiteral("annotationReply"));
     layout->addWidget(annotationReplyButton_);
-    annotationStateButton_ = new QPushButton(tr("设置审阅状态"), content);
+    annotationStateButton_ = new QPushButton(QString(), content);
+    texts_.bind([this] { annotationStateButton_->setText(tr("设置审阅状态")); });
     annotationStateButton_->setObjectName(QStringLiteral("annotationState"));
     layout->addWidget(annotationStateButton_);
-    annotationRemoveButton_ = new QPushButton(tr("删除所选批注"), content);
+    annotationRemoveButton_ = new QPushButton(QString(), content);
+    texts_.bind([this] { annotationRemoveButton_->setText(tr("删除所选批注")); });
     annotationRemoveButton_->setObjectName(QStringLiteral("annotationRemove"));
     layout->addWidget(annotationRemoveButton_);
 
@@ -2129,6 +2184,50 @@ void MainWindow::openPdfFile(const QString& filePath) {
         aiPanel_->setQaController(view->qaController());
     }
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
+}
+
+// ---------------------------------------------------------------- 语言 ----
+
+void MainWindow::applyLanguage(const QString& preference) {
+    if (!i18n::LanguageManager::instance().setPreference(preference)) {
+        return;
+    }
+    // 重译由 languageChanged 信号驱动（本窗口与各面板各自登记），
+    // 这里只补一条状态栏反馈，用的是切换之后的新语言。
+    const QString code = i18n::LanguageManager::instance().code();
+    statusBar()->showMessage(tr("界面语言已切换为 %1").arg(i18n::nativeNameOf(code)), 5000);
+}
+
+void MainWindow::retranslateUi() {
+    texts_.retranslate();
+    syncLanguageMenu();
+    // 随状态变化的文案由各自的 update 函数按当前语言重算。
+    updateAiQuickActions();
+}
+
+void MainWindow::syncLanguageMenu() {
+    if (languageActions_ == nullptr) {
+        return;
+    }
+    const QString preference = i18n::LanguageManager::instance().preference();
+    for (QAction* action : languageActions_->actions()) {
+        action->setChecked(action->data().toString() == preference);
+    }
+    if (followSystemAction_ != nullptr) {
+        // 跟随系统时把实际生效的语言写进括号：不用去翻系统设置猜「现在是哪种」。
+        followSystemAction_->setText(tr("跟随系统（%1）")
+                                         .arg(i18n::nativeNameOf(
+                                             i18n::LanguageManager::instance().code())));
+    }
+}
+
+void MainWindow::bindWelcomeTab(QWidget* page) {
+    texts_.bind([this, page] {
+        const int index = tabs_->indexOf(page);
+        if (index >= 0) {
+            tabs_->setTabText(index, tr("欢迎页"));
+        }
+    });
 }
 
 }  // namespace aipdf::app

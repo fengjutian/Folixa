@@ -1,4 +1,6 @@
 ﻿#include "pdf/PdfiumAdapter.h"
+#include <fpdf_flatten.h>
+#include <fpdf_formfill.h>
 
 #include <fpdf_annot.h>
 #include <fpdf_doc.h>
@@ -51,13 +53,30 @@ struct DocumentImpl {
     QString password;
     FPDF_FILEACCESS access{};
     FPDF_DOCUMENT handle = nullptr;
+    // 表单填充环境：懒创建，关闭文档前必须先退出。
+    FPDF_FORMHANDLE form = nullptr;
 
     ~DocumentImpl() {
         if (handle != nullptr) {
             // 关闭句柄也要上锁：PDFium 的全局状态是共享的。
             const PdfiumGuard guard;
+            if (form != nullptr) {
+                FPDFDOC_ExitFormFillEnvironment(form);
+                form = nullptr;
+            }
             FPDF_CloseDocument(handle);
         }
+    }
+
+    // 没有表单也要能建环境：PDFium 用它统一管理可填写字段。
+    FPDF_FORMHANDLE ensureForm() {
+        if (form != nullptr || handle == nullptr) {
+            return form;
+        }
+        FPDF_FORMFILLINFO info{};
+        info.version = 2;
+        form = FPDFDOC_InitFormFillEnvironment(handle, &info);
+        return form;
     }
 
     static int readBlock(void* param,

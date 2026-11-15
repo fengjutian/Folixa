@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
 #include <QImage>
@@ -102,6 +102,19 @@ private:
 // 不能跨线程共享。本类因此提供 isolatedCopy()：在调用线程里新建一份
 // 独立句柄（文件字节用 QByteArray 隐式共享，不复制内存），
 // 供渲染线程之类的其它线程各自持有。
+// 一个可填写的表单字段（AcroForm 的 Widget）。
+struct FormField {
+    int pageIndex = 0;
+    QString name;
+    QString value;
+    // FPDF_FORMFIELD_* 的取值：1 按钮、2 复选、3 单选、4 下拉、5 列表、6 文本、7 签名。
+    int type = 0;
+    QRectF rect;
+    // FPDF_FORMFLAG_READONLY（1 << 0）。
+    bool readOnly = false;
+    QVector<QString> options;
+};
+
 class PdfDocument {
 public:
     PdfDocument() = default;
@@ -122,6 +135,14 @@ public:
     // 返回一棵按文档顺序排列的树；没有大纲时返回空列表。
     // 条目的目标页解析不出来时 pageIndex 为 -1（条目本身仍然显示）。
     std::vector<OutlineItem> outline() const;
+
+    // ------------------------------------------------------------ 表单 ----
+    // 枚举所有页上的表单字段（按页、再按 /Annots 顺序）。
+    QVector<FormField> formFields() const;
+    // 填写：文本/下拉写 /V，勾选与单选写 /AS（取选项的导出值）。
+    bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
+    // 扁平化：把字段外观烧进页面内容，之后就是普通图形，不能再编辑。
+    bool flattenPage(int pageIndex);
 
     // 在当前线程创建一份独立的文档句柄。
     // 返回的文档只能在这个线程里使用；文件数据与原文档共享，不额外占内存。

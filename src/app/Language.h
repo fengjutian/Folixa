@@ -9,7 +9,7 @@
 
 class QIODevice;
 
-namespace aipdf::app::i18n {
+namespace aipdf::i18n {
 
 // 一个可选的界面语言。
 struct Language {
@@ -113,4 +113,4 @@ private:
     TsTranslator* translator_ = nullptr;
 };
 
-}  // namespace aipdf::app::i18n
+}  // namespace aipdf::i18n

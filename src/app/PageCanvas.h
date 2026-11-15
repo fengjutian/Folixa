@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QAbstractScrollArea>
 #include <QPointF>
@@ -10,6 +10,7 @@
 #include "app/TileCache.h"
 #include "app/MeasureGeometry.h"
 #include "pdf/Annotation.h"
+#include "i18n/Translate.h"
 
 class QMouseEvent;
 class QPainter;
@@ -105,6 +106,9 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
+    // 切换语言后就地重译画布上的常驻文案（未打开文档时的占位提示）。
+    void retranslateUi();
+
     PageLayout layout_;
     TileCache* cache_ = nullptr;
     RenderThread* renderThread_ = nullptr;
@@ -169,6 +173,11 @@ private:
     QPointF toUserSpacePoint(int pageIndex, const QPointF& displayPoint) const;
     // 批注工具激活时把光标换成十字，退出时恢复。
     void updateToolCursor();
+
+    // 没有打开文档时画在画布中央的占位提示。
+    QString emptyText_;
+    // 一次设定、长期显示的界面文案：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

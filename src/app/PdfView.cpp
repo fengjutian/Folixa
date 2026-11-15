@@ -1,6 +1,7 @@
-﻿#include "app/PdfView.h"
+#include "app/PdfView.h"
 
 #include "app/DocumentOutput.h"
+#include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
@@ -75,6 +76,10 @@ void trace(const QString& message) {
 
 PdfView::PdfView(QWidget* parent) : QWidget(parent), cache_(kCacheBytes) {
     buildUi();
+
+    // 切换语言后所有登记过的文案就地重译：不重建视图，文档与滚动位置都留着。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &PdfView::retranslateUi);
 }
 
 PdfView::~PdfView() {
@@ -97,66 +102,74 @@ void PdfView::buildUi() {
     // 缩放与旋转是纯图标按钮：文字只留在 Tooltip 和可访问名称里，
     // 键盘与读屏用户靠这两处仍能知道按钮是干什么的。
     auto makeIconButton = [this](const char* iconName,
-                                 const QString& tip,
-                                 const QString& accessibleName,
+                                 const char* tipSource,
+                                 const char* accessibleNameSource,
                                  const QString& objectName) {
         auto* button = new QToolButton(this);
         button->setIcon(toolbarIcon(iconName));
-        button->setToolTip(tip);
-        button->setAccessibleName(accessibleName);
         button->setObjectName(objectName);
         button->setProperty("iconOnly", true);
         button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        texts_.bind([this, button, tipSource, accessibleNameSource] {
+            button->setToolTip(tr(tipSource));
+            button->setAccessibleName(tr(accessibleNameSource));
+        });
         return button;
     };
 
     auto* zoomOut = makeIconButton("zoom-out",
-                                   QStringLiteral("缩小 (Ctrl+-)"),
-                                   QStringLiteral("缩小"),
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "缩小 (Ctrl+-)"),
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "缩小"),
                                    QStringLiteral("document.zoomOut"));
     connect(zoomOut, &QToolButton::clicked, this, &PdfView::zoomOut);
 
     auto* zoomIn = makeIconButton("zoom-in",
-                                  QStringLiteral("放大 (Ctrl++)"),
-                                  QStringLiteral("放大"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "放大 (Ctrl++)"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "放大"),
                                   QStringLiteral("document.zoomIn"));
     connect(zoomIn, &QToolButton::clicked, this, &PdfView::zoomIn);
 
     auto* fitWidthButton = new QToolButton(this);
-    fitWidthButton->setText(QStringLiteral("适宽"));
     fitWidthButton->setIcon(toolbarIcon("fit-width"));
-    fitWidthButton->setToolTip(QStringLiteral("缩放到适应窗口宽度"));
     fitWidthButton->setObjectName(QStringLiteral("document.fitWidth"));
     fitWidthButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    texts_.bind([this, fitWidthButton] {
+        fitWidthButton->setText(tr("适宽"));
+        fitWidthButton->setToolTip(tr("缩放到适应窗口宽度"));
+    });
     connect(fitWidthButton, &QToolButton::clicked, this, &PdfView::zoomToFitWidth);
 
     auto* fitPageButton = new QToolButton(this);
-    fitPageButton->setText(QStringLiteral("整页"));
     fitPageButton->setIcon(toolbarIcon("fit-page"));
-    fitPageButton->setToolTip(QStringLiteral("缩放到整页可见"));
     fitPageButton->setObjectName(QStringLiteral("document.fitPage"));
     fitPageButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    texts_.bind([this, fitPageButton] {
+        fitPageButton->setText(tr("整页"));
+        fitPageButton->setToolTip(tr("缩放到整页可见"));
+    });
     connect(fitPageButton, &QToolButton::clicked, this, &PdfView::zoomToFitPage);
 
     auto* rotateLeftButton = makeIconButton("rotate-left",
-                                            QStringLiteral("向左旋转"),
-                                            QStringLiteral("向左旋转"),
+                                            QT_TRANSLATE_NOOP("aipdf::app::PdfView", "向左旋转"),
+                                            QT_TRANSLATE_NOOP("aipdf::app::PdfView", "向左旋转"),
                                             QStringLiteral("document.rotateLeft"));
     connect(rotateLeftButton, &QToolButton::clicked, this, &PdfView::rotateLeft);
 
     auto* rotateRightButton = makeIconButton("rotate-right",
-                                             QStringLiteral("向右旋转"),
-                                             QStringLiteral("向右旋转"),
+                                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "向右旋转"),
+                                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "向右旋转"),
                                              QStringLiteral("document.rotateRight"));
     connect(rotateRightButton, &QToolButton::clicked, this, &PdfView::rotateRight);
 
     // 保存按钮（v0.8.0）：菜单栏是收起的，文档工具栏上留一个入口。
     auto* saveButton = new QToolButton(this);
-    saveButton->setText(QStringLiteral("保存"));
     saveButton->setIcon(toolbarIcon("save"));
-    saveButton->setToolTip(QStringLiteral("保存文档 (Ctrl+S)"));
     saveButton->setObjectName(QStringLiteral("document.save"));
     saveButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    texts_.bind([this, saveButton] {
+        saveButton->setText(tr("保存"));
+        saveButton->setToolTip(tr("保存文档 (Ctrl+S)"));
+    });
     connect(saveButton, &QToolButton::clicked, this, &PdfView::saveRequested);
 
     zoomLabel_ = new QLabel(QStringLiteral("100%"), this);
@@ -164,7 +177,7 @@ void PdfView::buildUi() {
     zoomLabel_->setMinimumWidth(56);
     zoomLabel_->setAlignment(Qt::AlignCenter);
 
-    pageInfoLabel_ = new QLabel(QStringLiteral("未打开文档"), this);
+    pageInfoLabel_ = new QLabel(QString(), this);
     pageInfoLabel_->setObjectName(QStringLiteral("secondaryText"));
     pageInfoLabel_->setAlignment(Qt::AlignCenter);
 
@@ -259,111 +272,136 @@ void PdfView::buildAnnotationToolBar() {
     shapesBar->setIconSize(QSize(kToolBarIconPixels, kToolBarIconPixels));
     shapesBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-    auto makeButton = [](QToolBar* bar, const QString& text, const QString& tip,
-                         const QString& objectName, const char* iconName) {
+    auto makeButton = [this](QToolBar* bar, const char* textSource, const char* tipSource,
+                             const QString& objectName, const char* iconName) {
         auto* button = new QToolButton(bar);
-        button->setText(text);
-        button->setToolTip(tip);
         button->setObjectName(objectName);
         button->setIcon(toolbarIcon(iconName));
         // 工具栏的 toolButtonStyle 只作用在 QToolBar 自己按 QAction 建的按钮上，
         // addWidget 加进来的独立 QToolButton 默认还是纯图标，得逐个设置。
         button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        texts_.bind([this, button, textSource, tipSource] {
+            button->setText(tr(textSource));
+            button->setToolTip(tr(tipSource));
+        });
         return button;
     };
 
-    highlightButton_ = makeButton(toolBar, QStringLiteral("高亮"),
-                                   QStringLiteral("给选中的文字加高亮 (Ctrl+H)"),
-                                   QStringLiteral("annotation.highlight"),
-                                   "highlight");
-    underlineButton_ = makeButton(toolBar, QStringLiteral("下划线"),
-                                   QStringLiteral("给选中的文字加下划线 (Ctrl+U)"),
-                                   QStringLiteral("annotation.underline"),
-                                   "underline");
-    squigglyButton_ = makeButton(toolBar, QStringLiteral("波浪线"),
-                                 QStringLiteral("给选中的文字加波浪线"),
+    highlightButton_ = makeButton(toolBar,
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "高亮"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "给选中的文字加高亮 (Ctrl+H)"),
+                                  QStringLiteral("annotation.highlight"),
+                                  "highlight");
+    underlineButton_ = makeButton(toolBar,
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "下划线"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "给选中的文字加下划线 (Ctrl+U)"),
+                                  QStringLiteral("annotation.underline"),
+                                  "underline");
+    squigglyButton_ = makeButton(toolBar,
+                                 QT_TRANSLATE_NOOP("aipdf::app::PdfView", "波浪线"),
+                                 QT_TRANSLATE_NOOP("aipdf::app::PdfView", "给选中的文字加波浪线"),
                                  QStringLiteral("annotation.squiggly"),
                                  "squiggly");
-    strikeOutButton_ = makeButton(toolBar, QStringLiteral("删除线"),
-                                  QStringLiteral("给选中的文字加删除线"),
+    strikeOutButton_ = makeButton(toolBar,
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "删除线"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "给选中的文字加删除线"),
                                   QStringLiteral("annotation.strikethrough"),
                                   "strikethrough");
-    ellipseButton_ = makeButton(shapesBar, QStringLiteral("椭圆"),
-                                QStringLiteral("拖出一个椭圆"),
+    ellipseButton_ = makeButton(shapesBar,
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "椭圆"),
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "拖出一个椭圆"),
                                 QStringLiteral("annotation.ellipse"),
                                 "ellipse");
-    perimeterButton_ = makeButton(shapesBar, QStringLiteral("周长"),
-                                  QStringLiteral("逐点点击，双击结束，量周长"),
+    perimeterButton_ = makeButton(shapesBar,
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "周长"),
+                                  QT_TRANSLATE_NOOP("aipdf::app::PdfView", "逐点点击，双击结束，量周长"),
                                   QStringLiteral("annotation.perimeter"),
                                   "perimeter");
-    areaButton_ = makeButton(shapesBar, QStringLiteral("面积"),
-                             QStringLiteral("逐点点击，双击结束，量面积"),
+    areaButton_ = makeButton(shapesBar,
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "面积"),
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "逐点点击，双击结束，量面积"),
                              QStringLiteral("annotation.area"),
                              "area");
-    imageStampButton_ = makeButton(shapesBar, QStringLiteral("图片图章"),
-                                   QStringLiteral("用一张图片做图章"),
+    imageStampButton_ = makeButton(shapesBar,
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "图片图章"),
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "用一张图片做图章"),
                                    QStringLiteral("annotation.imagestamp"),
                                    "stamp");
-    soundButton_ = makeButton(shapesBar, QStringLiteral("声音"),
-                              QStringLiteral("挂一段 WAV 音频"),
+    soundButton_ = makeButton(shapesBar,
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "声音"),
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "挂一段 WAV 音频"),
                               QStringLiteral("annotation.sound"),
                               "sound");
-    attachmentButton_ = makeButton(shapesBar, QStringLiteral("附件"),
-                                   QStringLiteral("在页面上挂一个文件"),
+    attachmentButton_ = makeButton(shapesBar,
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "附件"),
+                                   QT_TRANSLATE_NOOP("aipdf::app::PdfView", "在页面上挂一个文件"),
                                    QStringLiteral("annotation.attachment"),
                                    "attachment");
-    measureButton_ = makeButton(shapesBar, QStringLiteral("测量"),
-                                QStringLiteral("拖出两点，显示距离"),
+    measureButton_ = makeButton(shapesBar,
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "测量"),
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "拖出两点，显示距离"),
                                 QStringLiteral("annotation.measure"),
                                 "measure");
-    stampButton_ = makeButton(shapesBar, QStringLiteral("图章"),
-                              QStringLiteral("在页面上放一个文字图章"),
+    stampButton_ = makeButton(shapesBar,
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "图章"),
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "在页面上放一个文字图章"),
                               QStringLiteral("annotation.stamp"),
                               "stamp");
-    freeTextButton_ = makeButton(shapesBar, QStringLiteral("文字"),
-                                 QStringLiteral("拖出一块并输入文字"),
+    freeTextButton_ = makeButton(shapesBar,
+                                 QT_TRANSLATE_NOOP("aipdf::app::PdfView", "文字"),
+                                 QT_TRANSLATE_NOOP("aipdf::app::PdfView", "拖出一块并输入文字"),
                                  QStringLiteral("annotation.freetext"),
                                  "freetext");
-    lineButton_ = makeButton(shapesBar, QStringLiteral("直线"),
-                             QStringLiteral("拖出一条直线"),
+    lineButton_ = makeButton(shapesBar,
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "直线"),
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "拖出一条直线"),
                              QStringLiteral("annotation.line"),
                              "line");
-    arrowButton_ = makeButton(shapesBar, QStringLiteral("箭头"),
-                              QStringLiteral("拖出一个箭头"),
+    arrowButton_ = makeButton(shapesBar,
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "箭头"),
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "拖出一个箭头"),
                               QStringLiteral("annotation.arrow"),
                               "arrow");
-    polygonButton_ = makeButton(shapesBar, QStringLiteral("多边形"),
-                                QStringLiteral("逐点点击，双击结束"),
+    polygonButton_ = makeButton(shapesBar,
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "多边形"),
+                                QT_TRANSLATE_NOOP("aipdf::app::PdfView", "逐点点击，双击结束"),
                                 QStringLiteral("annotation.polygon"),
                                 "polygon");
-    cloudButton_ = makeButton(shapesBar, QStringLiteral("云线"),
-                              QStringLiteral("逐点点击，双击结束"),
+    cloudButton_ = makeButton(shapesBar,
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "云线"),
+                              QT_TRANSLATE_NOOP("aipdf::app::PdfView", "逐点点击，双击结束"),
                               QStringLiteral("annotation.cloud"),
                               "cloud");
-    noteButton_ = makeButton(toolBar, QStringLiteral("便签"),
-                              QStringLiteral("在页面上放一个便签"),
-                              QStringLiteral("annotation.note"),
-                              "note");
-    squareButton_ = makeButton(toolBar, QStringLiteral("矩形"),
-                                QStringLiteral("在页面上画一个矩形"),
-                                QStringLiteral("annotation.square"),
-                                "square");
-    eraserButton_ = makeButton(toolBar, QStringLiteral("橡皮"),
-                               QStringLiteral("擦掉墨迹（整笔删除）"),
+    noteButton_ = makeButton(toolBar,
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "便签"),
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "在页面上放一个便签"),
+                             QStringLiteral("annotation.note"),
+                             "note");
+    squareButton_ = makeButton(toolBar,
+                               QT_TRANSLATE_NOOP("aipdf::app::PdfView", "矩形"),
+                               QT_TRANSLATE_NOOP("aipdf::app::PdfView", "在页面上画一个矩形"),
+                               QStringLiteral("annotation.square"),
+                               "square");
+    eraserButton_ = makeButton(toolBar,
+                               QT_TRANSLATE_NOOP("aipdf::app::PdfView", "橡皮"),
+                               QT_TRANSLATE_NOOP("aipdf::app::PdfView", "擦掉墨迹（整笔删除）"),
                                QStringLiteral("annotation.eraser"),
                                "eraser");
-    inkButton_ = makeButton(toolBar, QStringLiteral("墨迹"),
-                             QStringLiteral("在页面上画一笔"),
-                             QStringLiteral("annotation.ink"),
-                             "ink");
-    undoButton_ = makeButton(toolBar, QStringLiteral("撤销"),
-                              QStringLiteral("撤销上一步批注操作 (Ctrl+Z)"),
-                              QStringLiteral("annotation.undo"),
-                              "undo");
-    redoButton_ = makeButton(toolBar, QStringLiteral("重做"),
-                              QStringLiteral("重做上一步批注操作 (Ctrl+Shift+Z)"),
-                              QStringLiteral("annotation.redo"),
-                              "redo");
+    inkButton_ = makeButton(toolBar,
+                            QT_TRANSLATE_NOOP("aipdf::app::PdfView", "墨迹"),
+                            QT_TRANSLATE_NOOP("aipdf::app::PdfView", "在页面上画一笔"),
+                            QStringLiteral("annotation.ink"),
+                            "ink");
+    undoButton_ = makeButton(toolBar,
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "撤销"),
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "撤销上一步批注操作 (Ctrl+Z)"),
+                             QStringLiteral("annotation.undo"),
+                             "undo");
+    redoButton_ = makeButton(toolBar,
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "重做"),
+                             QT_TRANSLATE_NOOP("aipdf::app::PdfView", "重做上一步批注操作 (Ctrl+Shift+Z)"),
+                             QStringLiteral("annotation.redo"),
+                             "redo");
 
     toolBar->addWidget(highlightButton_);
     toolBar->addWidget(underlineButton_);
@@ -1425,10 +1463,10 @@ void PdfView::updateZoomLabel() {
 
 void PdfView::updatePageInfo() {
     if (pageCount_ <= 0) {
-        pageInfoLabel_->setText(QStringLiteral("未打开文档"));
+        pageInfoLabel_->setText(tr("未打开文档"));
         return;
     }
-    pageInfoLabel_->setText(QStringLiteral("第 %1 / %2 页")
+    pageInfoLabel_->setText(tr("第 %1 / %2 页")
                                 .arg(currentPage() + 1)
                                 .arg(pageCount_));
 }
@@ -1441,9 +1479,23 @@ void PdfView::updateMetrics() {
     }
     lastCacheBytes_ = bytes;
     lastPending_ = pending;
-    emit metricsChanged(QStringLiteral("缓存 %1 MiB · 待渲染 %2")
+    emit metricsChanged(tr("缓存 %1 MiB · 待渲染 %2")
                             .arg(static_cast<double>(bytes) / (1024.0 * 1024.0), 0, 'f', 1)
                             .arg(pending));
+}
+
+void PdfView::refreshMetrics() {
+    // 忘掉上一次的值，逼 updateMetrics() 重新算一遍并发出新语言的文案。
+    lastCacheBytes_ = -1;
+    lastPending_ = -1;
+    updateMetrics();
+}
+
+void PdfView::retranslateUi() {
+    texts_.retranslate();
+    // 随状态变化的文案由各自的 update 函数按当前语言重算。
+    updatePageInfo();
+    updateAnnotationToolBar();
 }
 
 void PdfView::requestVisiblePages() {

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QWidget>
 #include <QImage>
@@ -7,6 +7,7 @@
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
 #include "pdf/PdfiumAdapter.h"
+#include "i18n/Translate.h"
 
 #include <memory>
 
@@ -54,6 +55,11 @@ public:
     qint64 cacheBytes() const;
     // 渲染线程里尚未完成的请求数。
     int pendingRenders() const;
+
+    // 按当前语言重新报一次性能指标。
+    // updateMetrics() 平时按「值有没有变」去抖，切换语言时值没变、文案却要变，
+    // 所以给一个强制重报的入口。
+    void refreshMetrics();
 
     // 当前文档的文本控制器（文本提取、选择与搜索）。
     // 没有打开文档时返回 nullptr。
@@ -176,6 +182,8 @@ protected:
 private:
     void buildUi();
     void buildAnnotationToolBar();
+    // 切换语言后就地重译常驻文案，并让动态标签按新语言重算。
+    void retranslateUi();
     void rebuildLayout();
     void updateZoomLabel();
     void updatePageInfo();
@@ -271,6 +279,8 @@ private:
     bool fitToPage_ = false;
     // 文档有没有未保存的改动。
     bool modified_ = false;
+    // 一次设定、长期显示的界面文案：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

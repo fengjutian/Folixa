@@ -64,7 +64,9 @@ private:
     QWidget* createWelcomePage();
     // 把刚打开的文件记到最近文档的最前面（去重、限量）。
     void rememberRecentFile(const QString& filePath);
-    QWidget* createNavigationEmptyState(const QString& title, const QString& description);
+    // 空状态页：标题与说明的源文案传进来，切换语言时按同一份文案重译。
+    QWidget* createNavigationEmptyState(const char* titleSource,
+                                        const char* descriptionSource);
     QWidget* createPagesTab();
     QStackedWidget* createOutlineTab();
     QStackedWidget* createBookmarkTab();

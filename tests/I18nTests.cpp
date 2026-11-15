@@ -18,8 +18,8 @@
 
 namespace {
 
-using aipdf::app::i18n::LanguageManager;
-using aipdf::app::i18n::TsTranslator;
+using aipdf::i18n::LanguageManager;
+using aipdf::i18n::TsTranslator;
 
 constexpr auto kMainWindowContext = "aipdf::app::MainWindow";
 // 目录里一定有这条：主窗口的欢迎页标签。
@@ -186,7 +186,7 @@ void I18nTests::resolveLanguage_data() {
 void I18nTests::resolveLanguage() {
     QFETCH(QStringList, uiLanguages);
     QFETCH(QString, expected);
-    QCOMPARE(aipdf::app::i18n::resolveLanguage(uiLanguages), expected);
+    QCOMPARE(aipdf::i18n::resolveLanguage(uiLanguages), expected);
 }
 
 void I18nTests::embeddedCatalogLoads() {

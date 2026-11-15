@@ -6,7 +6,7 @@
 #include <QSettings>
 #include <QXmlStreamReader>
 
-namespace aipdf::app::i18n {
+namespace aipdf::i18n {
 namespace {
 
 constexpr auto kPreferenceKey = "ui/language";
@@ -337,4 +337,4 @@ void LanguageManager::persist() const {
     }
 }
 
-}  // namespace aipdf::app::i18n
+}  // namespace aipdf::i18n

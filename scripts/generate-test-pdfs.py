@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """生成 PDFium 适配层使用的测试 PDF 集合。
 
 纯标准库实现：手工计算 xref 偏移，并自行实现 PDF 标准安全处理器
@@ -685,6 +685,36 @@ def annotation_pdf():
     return _build_pdf(objects, 1)
 
 
+def form_pdf():
+    """带 AcroForm 的测试文档：一个文本域、一个复选框、一个下拉框。
+
+    PDFium 的 CreateAnnot 造不出表单字段（表单字段属于 AcroForm），所以这个
+    固定装置必须手写：Catalog 里挂 /AcroForm，页面 /Annots 里放三个 Widget。
+    """
+    content = _page_content_stream([
+        ("Form demo", 28, 60, 700),
+        ("Name:", 14, 60, 630),
+        ("Agree to terms", 14, 110, 560),
+        ("Country:", 14, 60, 520),
+    ])
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R 7 0 R] "
+            b"/DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 8 0 R >> >> >> >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        (3, b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /Helv 8 0 R >> >> /Contents 4 0 R "
+            b"/Annots [5 0 R 6 0 R 7 0 R] >>"),
+        (5, b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (fullName) /V () /F 4 "
+            b"/Rect [130 620 340 644] /DA (/Helv 12 Tf 0 g) >>"),
+        (6, b"<< /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /V /Off /AS /Off /F 4 "
+            b"/Rect [88 552 104 568] >>"),
+        (7, b"<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Opt [(China) (Other)] "
+            b"/V (China) /F 4 /Rect [130 512 300 536] /DA (/Helv 12 Tf 0 g) >>"),
+        (8, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]
+    objects.append((4, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content), content)))
+    return _build_pdf(objects, 1)
+
 FIXTURES = {
     "normal.pdf": normal_pdf,
     "empty.pdf": empty_pdf,
@@ -698,6 +728,7 @@ FIXTURES = {
     "cjk.pdf": cjk_pdf,
     "navigation.pdf": navigation_pdf,
     "annotation.pdf": annotation_pdf,
+    "form.pdf": form_pdf,
 }
 
 
