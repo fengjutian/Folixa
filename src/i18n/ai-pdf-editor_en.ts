@@ -808,6 +808,15 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>插入文件</source>
+            <translation>Insert file</translation>
+        </message>
+        <message>
+            <source>提取范围</source>
+            <translation>Extract range</translation>
+        </message>
+
+        <message>
             <source>替换</source>
             <translation>Replace</translation>
         </message>
@@ -1668,6 +1677,39 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>提取页面</source>
+            <translation>Extract pages</translation>
+        </message>
+        <message>
+            <source>起始页:</source>
+            <translation>First page:</translation>
+        </message>
+        <message>
+            <source>结束页:</source>
+            <translation>Last page:</translation>
+        </message>
+        <message>
+            <source>提取失败。</source>
+            <translation>Extraction failed.</translation>
+        </message>
+        <message>
+            <source>已提取第 %1–%2 页</source>
+            <translation>Extracted pages %1–%2</translation>
+        </message>
+        <message>
+            <source>插入页面</source>
+            <translation>Insert pages</translation>
+        </message>
+        <message>
+            <source>插入失败。</source>
+            <translation>Insert failed.</translation>
+        </message>
+        <message>
+            <source>已插入 %1 页</source>
+            <translation>Inserted %1 pages</translation>
+        </message>
+
         <message>
             <source>PDF 文件 (*.pdf)</source>
             <translation>PDF files (*.pdf)</translation>

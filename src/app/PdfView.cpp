@@ -215,6 +215,21 @@ void PdfView::buildUi() {
 
     // 前进/后退用浏览器与阅读器通用的 Alt+←/→。
     // 排布方式快捷键：Ctrl+1/2/3。验收脚本靠它切模式（菜单栏是隐藏的，UIA 点不到）。
+    // 编辑类动作的快捷键：菜单栏是隐藏的，QAction 快捷键不生效，
+    // 这里挂独立 QShortcut——用户能用，验收脚本也能触发。
+    auto* watermarkShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+W")), this);
+    connect(watermarkShortcut, &QShortcut::activated, this, &PdfView::applyWatermarkDialog);
+    auto* headerFooterShortcut =
+        new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+H")), this);
+    connect(headerFooterShortcut, &QShortcut::activated, this,
+            &PdfView::applyHeaderFooterDialog);
+    auto* pageNumberShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+N")), this);
+    connect(pageNumberShortcut, &QShortcut::activated, this, &PdfView::applyPageNumbersDialog);
+    auto* mergeShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")), this);
+    connect(mergeShortcut, &QShortcut::activated, this, &PdfView::mergeDocumentDialog);
+    auto* extractShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+E")), this);
+    connect(extractShortcut, &QShortcut::activated, this, &PdfView::extractCurrentPageDialog);
+
     // F5 放映：菜单栏是隐藏的，QAction 的快捷键在隐藏菜单里不生效，
     // 这里挂一个独立 QShortcut（验收脚本与用户按键都走这条）。
     auto* presentationShortcut = new QShortcut(QKeySequence(Qt::Key_F5), this);
@@ -1393,6 +1408,7 @@ void PdfView::applyWatermarkDialog() {
     }
     modified_ = true;
     refreshAfterDecoration();
+    trace(QStringLiteral("decor watermark applied"));
     emit statusMessage(tr("已给每页添加水印"));
 }
 
@@ -1426,6 +1442,7 @@ void PdfView::applyHeaderFooterDialog() {
     }
     modified_ = true;
     refreshAfterDecoration();
+    trace(QStringLiteral("decor header footer applied"));
     emit statusMessage(tr("已添加页眉页脚"));
 }
 
@@ -1440,6 +1457,7 @@ void PdfView::applyPageNumbersDialog() {
     }
     modified_ = true;
     refreshAfterDecoration();
+    trace(QStringLiteral("decor page numbers applied"));
     emit statusMessage(tr("已添加页码"));
 }
 
@@ -1865,6 +1883,86 @@ void PdfView::crossMergeDialog() {
                            .arg(QFileInfo(path).fileName())
                            .arg(pageCount()));
 }
+
+void PdfView::extractPagesDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const int count = document_.pageCount();
+    bool accepted = false;
+    const int first = QInputDialog::getInt(this, tr("提取页面"), tr("起始页:"), 1, 1,
+                                           count, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int last = QInputDialog::getInt(this, tr("提取页面"), tr("结束页:"), first, first,
+                                          count, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    pdf::PdfDocument part = document_.backupPage(first - 1);
+    if (!part.isValid()) {
+        return;
+    }
+    for (int page = first; page < last; ++page) {
+        if (!part.restorePageFrom(document_.backupPage(page), part.pageCount())) {
+            QMessageBox::warning(this, tr("提取页面"), tr("提取失败。"));
+            return;
+        }
+    }
+    const QString base = QFileInfo(filePath_).completeBaseName();
+    const QString suggested = QDir(QFileInfo(filePath_).absolutePath())
+                                  .filePath(QStringLiteral("%1_%2-%3.pdf")
+                                                .arg(base.isEmpty() ? QStringLiteral("extract") : base)
+                                                .arg(first)
+                                                .arg(last));
+    const QString path = QFileDialog::getSaveFileName(this, tr("提取页面"), suggested,
+                                                      tr("PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QString error;
+    const QByteArray bytes = part.serialize(&error);
+    QFile file(path);
+    if (bytes.isEmpty() || !file.open(QIODevice::WriteOnly | QIODevice::Truncate) ||
+        file.write(bytes) != bytes.size()) {
+        QMessageBox::warning(this, tr("提取页面"), tr("写不了这个文件。"));
+        return;
+    }
+    file.close();
+    emit statusMessage(tr("已提取第 %1–%2 页").arg(first).arg(last));
+}
+
+void PdfView::insertPagesFromFileDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("插入页面"), QString(),
+                                                      tr("PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    const auto opened = pdf::openDocument(path);
+    if (!opened.document.isValid()) {
+        QMessageBox::warning(this, tr("插入页面"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+        return;
+    }
+    const int insertAt = currentPage() + 1;
+    const int sourceCount = opened.document.pageCount();
+    for (int index = 0; index < sourceCount; ++index) {
+        const pdf::PdfDocument backup = opened.document.backupPage(index);
+        if (!backup.isValid() ||
+            !document_.restorePageFrom(backup, insertAt + index)) {
+            QMessageBox::warning(this, tr("插入页面"), tr("插入失败。"));
+            return;
+        }
+    }
+    handlePageStructureChanged();
+    modified_ = true;
+    goToPage(insertAt);
+    emit statusMessage(tr("已插入 %1 页").arg(sourceCount));
+}
+
 void PdfView::refreshAfterDecoration() {
     QString error;
     const QByteArray bytes = document_.serialize(&error);
@@ -1942,6 +2040,7 @@ void PdfView::mergeDocumentDialog() {
     refreshAfterDecoration();
     rebuildLayout();
     modified_ = true;
+    trace(QStringLiteral("document merged pages=%1").arg(document_.pageCount()));
     emit statusMessage(tr("已合并 %1").arg(QFileInfo(path).fileName()));
 }
 
@@ -1966,6 +2065,7 @@ void PdfView::extractCurrentPageDialog() {
     }
     file.write(bytes);
     file.close();
+    trace(QStringLiteral("page extracted index=%1").arg(currentPage()));
     emit statusMessage(tr("已抽取第 %1 页").arg(currentPage() + 1));
 }
 

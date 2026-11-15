@@ -845,6 +845,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(pageGroup, "逆序", "整篇页面逆序", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->reversePages(); }
     }, true, "ribbonReverse");    auto* assemblyGroup = ribbonBar_->addGroup(pageTab, tr("组装"));
+    addRibbonCommand(assemblyGroup, "提取范围", "按页码范围提取新文档", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->extractPagesDialog(); }
+    }, true, "ribbonExtractRange");
     addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
     });

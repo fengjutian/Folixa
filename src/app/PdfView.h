@@ -123,6 +123,8 @@ public slots:
     void splitDocumentDialog();
     void replaceCurrentPageDialog();
     void crossMergeDialog();
+    void extractPagesDialog();
+    void insertPagesFromFileDialog();
     void resizeCurrentPageDialog();
     void setPageBackgroundDialog();
 
