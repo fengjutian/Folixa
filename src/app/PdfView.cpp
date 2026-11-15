@@ -3,6 +3,7 @@
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
 #include "app/EncryptionDialog.h"
+#include "app/PdfPageOperations.h"
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
 #include "pdf/FormData.h"
@@ -1790,7 +1791,7 @@ bool appendPageFrom(pdf::PdfDocument& target, const pdf::PdfDocument& source, in
 }  // namespace
 
 void PdfView::replaceCurrentPageDialog() {
-    if (!document_.isValid()) {
+    if (!document_.isValid() || annotationController_ == nullptr) {
         return;
     }
     const QString path = QFileDialog::getOpenFileName(this, tr("替换页面"), QString(),
@@ -1810,36 +1811,23 @@ void PdfView::replaceCurrentPageDialog() {
     if (!accepted) {
         return;
     }
-    const int targetIndex = currentPage();
-    const int count = document_.pageCount();
-    pdf::PdfDocument result;
-    bool seeded = false;
-    auto appendAny = [&](const pdf::PdfDocument& source, int pageIndex) {
-        if (!seeded) {
-            result = source.backupPage(pageIndex);
-            seeded = result.isValid();
-            return seeded;
-        }
-        return appendPageFrom(result, source, pageIndex);
-    };
-    for (int index = 0; index < count; ++index) {
-        const bool replaced = index == targetIndex;
-        const bool ok = replaced ? appendAny(opened.document, sourcePage - 1)
-                                 : appendAny(document_, index);
-        if (!ok) {
-            QMessageBox::warning(this, tr("替换页面"), tr("替换失败。"));
-            return;
-        }
+    // 备份源页：命令层只认 PageBackup，不依赖源文档还活着。
+    PdfPageOperations sourceOps(opened.document);
+    std::shared_ptr<doc::PageBackup> replacement;
+    if (!sourceOps.backupPage(sourcePage - 1, &replacement) || replacement == nullptr) {
+        QMessageBox::warning(this, tr("替换页面"), tr("替换失败。"));
+        return;
     }
-    setDocument(std::move(result), filePath_);
-    setModified(true);
-    goToPage(targetIndex);
-    emit statusMessage(tr("已用 %1 的第 %2 页替换第 %3 页")
+    const int targetIndex = currentPage();
+    if (!annotationController_->replacePageWithBackup(targetIndex, replacement)) {
+        QMessageBox::warning(this, tr("替换页面"), tr("替换失败。"));
+        return;
+    }
+    emit statusMessage(tr("已用 %1 的第 %2 页替换第 %3 页（可撤销）")
                            .arg(QFileInfo(path).fileName())
                            .arg(sourcePage)
                            .arg(targetIndex + 1));
 }
-
 void PdfView::crossMergeDialog() {
     if (!document_.isValid()) {
         return;

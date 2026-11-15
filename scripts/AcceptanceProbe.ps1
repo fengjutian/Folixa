@@ -871,7 +871,9 @@ function Send-AiPdfKey {
     param(
         [Parameter(Mandatory = $true)][string]$Key,
         # 按住 Ctrl 再敲这个键（组合键，例如 Ctrl+2）。
-        [switch]$Ctrl
+        [switch]$Ctrl,
+        # 再叠加 Shift（例如 Ctrl+Shift+W）。
+        [switch]$Shift
     )
 
     if (-not ('AiPdfKeyboard' -as [type])) {
@@ -896,13 +898,17 @@ public static class AiPdfKeyboard {
     // 而同一族的 mouse_event 一直好用——现有验收脚本的鼠标点击就建立在它上面。
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
-    public static int Press(int virtualKey, bool ctrl) {
+    public static int Press(int virtualKey, bool ctrl, bool shift) {
         byte VK_CONTROL = 0x11;
-        if (ctrl) { keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); }
+        byte VK_SHIFT = 0x10;
+        int count = 2;
+        if (ctrl) { keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); count += 2; }
+        if (shift) { keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero); count += 2; }
         keybd_event((byte)virtualKey, 0, 0, UIntPtr.Zero);
         keybd_event((byte)virtualKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        if (shift) { keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
         if (ctrl) { keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
-        return ctrl ? 4 : 2;
+        return count;
     }
 }
 '@
@@ -943,8 +949,8 @@ public static class AiPdfKeyboard {
     if (-not $virtualKeys.ContainsKey($Key)) {
         throw "不支持的按键：$Key"
     }
-    $expected = if ($Ctrl) { 4 } else { 2 }
-    $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl)
+    $expected = 2 + (if ($Ctrl) { 2 } else { 0 }) + (if ($Shift) { 2 } else { 0 })
+    $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl, [bool]$Shift)
     if ($sent -ne $expected) {
         throw "SendInput 失败（期望注入 $expected 个事件，实际 $sent）"
     }
