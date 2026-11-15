@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
 
@@ -17,5 +17,17 @@ namespace aipdf::pdf {
 //
 // 返回的是可以直接拼进对象字典的 PDF 片段；不需要额外条目时返回空。
 QByteArray annotationDictionaryExtras(const Annotation& annotation);
+
+// 批注需要的额外条目与**额外对象**。
+//
+// 附件是个例外：它不只是往字典里加键，还要新建两个对象
+// （嵌入式文件流 + Filespec 字典）。对象号在写入时才分配，所以这里用
+// `@EXTRA0`、`@EXTRA1` 占位，由写入器替换。
+struct AnnotationDictionaryParts {
+    QByteArray entries;
+    QVector<QByteArray> objects;
+};
+
+AnnotationDictionaryParts annotationDictionaryParts(const Annotation& annotation);
 
 }  // namespace aipdf::pdf

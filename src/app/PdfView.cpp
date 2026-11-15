@@ -1,6 +1,9 @@
 ﻿#include "app/PdfView.h"
 
 #include "app/DocumentOutput.h"
+#include "pdf/AnnotationSummary.h"
+#include "pdf/SoundFormat.h"
+#include "pdf/Xfdf.h"
 #include "app/PresentationWindow.h"
 #include "app/ZoomMemory.h"
 #include "app/PageCanvas.h"
@@ -248,11 +251,17 @@ void PdfView::buildAnnotationToolBar() {
     // 批注工具是低频功能，按设计规范用「图标 + 文字」，不让人对着图标猜。
     toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-    auto makeButton = [toolBar](const QString& text,
-                                const QString& tip,
-                                const QString& objectName,
-                                const char* iconName) {
-        auto* button = new QToolButton(toolBar);
+    // 第二行：图形、测量、附件这些低频工具。挤在一行会让 QToolBar 溢出，
+    // 后面的按钮被收进溢出菜单——界面上看不见，UIA 也找不到。
+    auto* shapesBar = new QToolBar(this);
+    shapesBar->setObjectName(QStringLiteral("shapeToolBar"));
+    shapesBar->setMovable(false);
+    shapesBar->setIconSize(QSize(kToolBarIconPixels, kToolBarIconPixels));
+    shapesBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+    auto makeButton = [](QToolBar* bar, const QString& text, const QString& tip,
+                         const QString& objectName, const char* iconName) {
+        auto* button = new QToolButton(bar);
         button->setText(text);
         button->setToolTip(tip);
         button->setObjectName(objectName);
@@ -263,63 +272,95 @@ void PdfView::buildAnnotationToolBar() {
         return button;
     };
 
-    highlightButton_ = makeButton(QStringLiteral("高亮"),
+    highlightButton_ = makeButton(toolBar, QStringLiteral("高亮"),
                                    QStringLiteral("给选中的文字加高亮 (Ctrl+H)"),
                                    QStringLiteral("annotation.highlight"),
                                    "highlight");
-    underlineButton_ = makeButton(QStringLiteral("下划线"),
+    underlineButton_ = makeButton(toolBar, QStringLiteral("下划线"),
                                    QStringLiteral("给选中的文字加下划线 (Ctrl+U)"),
                                    QStringLiteral("annotation.underline"),
                                    "underline");
-    squigglyButton_ = makeButton(QStringLiteral("波浪线"),
+    squigglyButton_ = makeButton(toolBar, QStringLiteral("波浪线"),
                                  QStringLiteral("给选中的文字加波浪线"),
                                  QStringLiteral("annotation.squiggly"),
                                  "squiggly");
-    strikeOutButton_ = makeButton(QStringLiteral("删除线"),
+    strikeOutButton_ = makeButton(toolBar, QStringLiteral("删除线"),
                                   QStringLiteral("给选中的文字加删除线"),
                                   QStringLiteral("annotation.strikethrough"),
                                   "strikethrough");
-    ellipseButton_ = makeButton(QStringLiteral("椭圆"),
+    ellipseButton_ = makeButton(shapesBar, QStringLiteral("椭圆"),
                                 QStringLiteral("拖出一个椭圆"),
                                 QStringLiteral("annotation.ellipse"),
                                 "ellipse");
-    lineButton_ = makeButton(QStringLiteral("直线"),
+    perimeterButton_ = makeButton(shapesBar, QStringLiteral("周长"),
+                                  QStringLiteral("逐点点击，双击结束，量周长"),
+                                  QStringLiteral("annotation.perimeter"),
+                                  "perimeter");
+    areaButton_ = makeButton(shapesBar, QStringLiteral("面积"),
+                             QStringLiteral("逐点点击，双击结束，量面积"),
+                             QStringLiteral("annotation.area"),
+                             "area");
+    imageStampButton_ = makeButton(shapesBar, QStringLiteral("图片图章"),
+                                   QStringLiteral("用一张图片做图章"),
+                                   QStringLiteral("annotation.imagestamp"),
+                                   "stamp");
+    soundButton_ = makeButton(shapesBar, QStringLiteral("声音"),
+                              QStringLiteral("挂一段 WAV 音频"),
+                              QStringLiteral("annotation.sound"),
+                              "sound");
+    attachmentButton_ = makeButton(shapesBar, QStringLiteral("附件"),
+                                   QStringLiteral("在页面上挂一个文件"),
+                                   QStringLiteral("annotation.attachment"),
+                                   "attachment");
+    measureButton_ = makeButton(shapesBar, QStringLiteral("测量"),
+                                QStringLiteral("拖出两点，显示距离"),
+                                QStringLiteral("annotation.measure"),
+                                "measure");
+    stampButton_ = makeButton(shapesBar, QStringLiteral("图章"),
+                              QStringLiteral("在页面上放一个文字图章"),
+                              QStringLiteral("annotation.stamp"),
+                              "stamp");
+    freeTextButton_ = makeButton(shapesBar, QStringLiteral("文字"),
+                                 QStringLiteral("拖出一块并输入文字"),
+                                 QStringLiteral("annotation.freetext"),
+                                 "freetext");
+    lineButton_ = makeButton(shapesBar, QStringLiteral("直线"),
                              QStringLiteral("拖出一条直线"),
                              QStringLiteral("annotation.line"),
                              "line");
-    arrowButton_ = makeButton(QStringLiteral("箭头"),
+    arrowButton_ = makeButton(shapesBar, QStringLiteral("箭头"),
                               QStringLiteral("拖出一个箭头"),
                               QStringLiteral("annotation.arrow"),
                               "arrow");
-    polygonButton_ = makeButton(QStringLiteral("多边形"),
+    polygonButton_ = makeButton(shapesBar, QStringLiteral("多边形"),
                                 QStringLiteral("逐点点击，双击结束"),
                                 QStringLiteral("annotation.polygon"),
                                 "polygon");
-    cloudButton_ = makeButton(QStringLiteral("云线"),
+    cloudButton_ = makeButton(shapesBar, QStringLiteral("云线"),
                               QStringLiteral("逐点点击，双击结束"),
                               QStringLiteral("annotation.cloud"),
                               "cloud");
-    noteButton_ = makeButton(QStringLiteral("便签"),
+    noteButton_ = makeButton(toolBar, QStringLiteral("便签"),
                               QStringLiteral("在页面上放一个便签"),
                               QStringLiteral("annotation.note"),
                               "note");
-    squareButton_ = makeButton(QStringLiteral("矩形"),
+    squareButton_ = makeButton(toolBar, QStringLiteral("矩形"),
                                 QStringLiteral("在页面上画一个矩形"),
                                 QStringLiteral("annotation.square"),
                                 "square");
-    eraserButton_ = makeButton(QStringLiteral("橡皮"),
+    eraserButton_ = makeButton(toolBar, QStringLiteral("橡皮"),
                                QStringLiteral("擦掉墨迹（整笔删除）"),
                                QStringLiteral("annotation.eraser"),
                                "eraser");
-    inkButton_ = makeButton(QStringLiteral("墨迹"),
+    inkButton_ = makeButton(toolBar, QStringLiteral("墨迹"),
                              QStringLiteral("在页面上画一笔"),
                              QStringLiteral("annotation.ink"),
                              "ink");
-    undoButton_ = makeButton(QStringLiteral("撤销"),
+    undoButton_ = makeButton(toolBar, QStringLiteral("撤销"),
                               QStringLiteral("撤销上一步批注操作 (Ctrl+Z)"),
                               QStringLiteral("annotation.undo"),
                               "undo");
-    redoButton_ = makeButton(QStringLiteral("重做"),
+    redoButton_ = makeButton(toolBar, QStringLiteral("重做"),
                               QStringLiteral("重做上一步批注操作 (Ctrl+Shift+Z)"),
                               QStringLiteral("annotation.redo"),
                               "redo");
@@ -330,11 +371,19 @@ void PdfView::buildAnnotationToolBar() {
     toolBar->addSeparator();
     toolBar->addWidget(noteButton_);
     toolBar->addWidget(squareButton_);
-    toolBar->addWidget(ellipseButton_);
-    toolBar->addWidget(lineButton_);
-    toolBar->addWidget(arrowButton_);
-    toolBar->addWidget(polygonButton_);
-    toolBar->addWidget(cloudButton_);
+    shapesBar->addWidget(ellipseButton_);
+    shapesBar->addWidget(lineButton_);
+    shapesBar->addWidget(arrowButton_);
+    shapesBar->addWidget(polygonButton_);
+    shapesBar->addWidget(cloudButton_);
+    shapesBar->addWidget(freeTextButton_);
+    shapesBar->addWidget(stampButton_);
+    shapesBar->addWidget(measureButton_);
+    shapesBar->addWidget(imageStampButton_);
+    shapesBar->addWidget(soundButton_);
+    shapesBar->addWidget(attachmentButton_);
+    shapesBar->addWidget(perimeterButton_);
+    shapesBar->addWidget(areaButton_);
     toolBar->addWidget(inkButton_);
     toolBar->addWidget(eraserButton_);
     toolBar->addSeparator();
@@ -365,11 +414,67 @@ void PdfView::buildAnnotationToolBar() {
     arrowButton_->setAutoExclusive(true);
     polygonButton_->setAutoExclusive(true);
     cloudButton_->setAutoExclusive(true);
+    freeTextButton_->setAutoExclusive(true);
+    stampButton_->setAutoExclusive(true);
+    measureButton_->setAutoExclusive(true);
+    attachmentButton_->setAutoExclusive(true);
+    imageStampButton_->setAutoExclusive(true);
+    soundButton_->setAutoExclusive(true);
+    perimeterButton_->setAutoExclusive(true);
+    areaButton_->setAutoExclusive(true);
     inkButton_->setAutoExclusive(true);
     eraserButton_->setAutoExclusive(true);
     connect(ellipseButton_, &QToolButton::clicked, this, [this](bool checked) {
         if (annotationController_) {
             annotationController_->setTool(checked ? AnnotationController::Tool::Ellipse
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(perimeterButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::MeasurePerimeter
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(areaButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::MeasureArea
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(imageStampButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::ImageStamp
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(soundButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Sound
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(attachmentButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Attachment
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(measureButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Measure
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(stampButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::Stamp
+                                                   : AnnotationController::Tool::None);
+        }
+    });
+    connect(freeTextButton_, &QToolButton::clicked, this, [this](bool checked) {
+        if (annotationController_) {
+            annotationController_->setTool(checked ? AnnotationController::Tool::FreeText
                                                    : AnnotationController::Tool::None);
         }
     });
@@ -435,6 +540,7 @@ void PdfView::buildAnnotationToolBar() {
     auto* layout = qobject_cast<QVBoxLayout*>(this->layout());
     if (layout != nullptr) {
         layout->insertWidget(1, toolBar);
+        layout->insertWidget(2, shapesBar);
     }
     updateAnnotationToolBar();
 }
@@ -530,9 +636,115 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                     annotationController_->addSquare(pageIndex, userRect);
                 }
             });
+    connect(canvas_, &PageCanvas::measureShapeRequested, this,
+            [this](int pageIndex, int mode, const QVector<QPointF>& vertices) {
+                if (annotationController_) {
+                    annotationController_->addMeasureShape(
+                        static_cast<MeasureMode>(mode), pageIndex, vertices, 1.0);
+                }
+            });
+    connect(canvas_, &PageCanvas::imageStampRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                const QString path = QFileDialog::getOpenFileName(
+                    this, tr("选择图章图片"), QString(), tr("图片 (*.png *.jpg *.jpeg *.bmp)"));
+                if (path.isEmpty() || !annotationController_) {
+                    return;
+                }
+                QFile file(path);
+                if (!file.open(QIODevice::ReadOnly)) {
+                    return;
+                }
+                const QByteArray bytes = file.readAll();
+                file.close();
+                QImage image;
+                if (!image.loadFromData(bytes)) {
+                    QMessageBox::warning(this, tr("图片图章"), tr("这看起来不是一张图片。"));
+                    return;
+                }
+                // 保持原图宽高比，宽度固定 160pt。
+                constexpr double kWidth = 160.0;
+                const double height = kWidth * image.height() / std::max(1, image.width());
+                const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - height / 2.0,
+                                  kWidth, height);
+                annotationController_->addImageStamp(pageIndex, rect, bytes,
+                                                     QFileInfo(path).baseName());
+            });
+    connect(canvas_, &PageCanvas::soundRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                const QString path =
+                    QFileDialog::getOpenFileName(this, tr("选择音频"), QString(), tr("WAV (*.wav)"));
+                if (path.isEmpty() || !annotationController_) {
+                    return;
+                }
+                QFile file(path);
+                if (!file.open(QIODevice::ReadOnly)) {
+                    return;
+                }
+                const QByteArray bytes = file.readAll();
+                file.close();
+                const pdf::SoundPayload payload = pdf::parseWav(bytes);
+                if (!payload.isValid()) {
+                    QMessageBox::warning(this, tr("声音批注"), payload.error);
+                    return;
+                }
+                constexpr double kSize = 24.0;
+                const QRectF rect(userPoint.x() - kSize / 2.0, userPoint.y() - kSize / 2.0, kSize,
+                                  kSize);
+                annotationController_->addSound(pageIndex, rect, QFileInfo(path).fileName(),
+                                                payload.pcm, payload.rate, payload.channels,
+                                                payload.bits);
+            });
+    connect(canvas_, &PageCanvas::attachmentRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                const QString path = QFileDialog::getOpenFileName(this, tr("添加附件"));
+                if (path.isEmpty() || !annotationController_) {
+                    return;
+                }
+                QFile file(path);
+                if (!file.open(QIODevice::ReadOnly)) {
+                    QMessageBox::warning(this, tr("添加附件"), tr("读不了这个文件: %1").arg(path));
+                    return;
+                }
+                const QByteArray data = file.readAll();
+                file.close();
+                annotationController_->addAttachment(pageIndex, userPoint,
+                                                    QFileInfo(path).fileName(), data);
+            });
+    connect(canvas_, &PageCanvas::stampRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                const QStringList labels{ QStringLiteral("APPROVED"), QStringLiteral("DRAFT"),
+                                          QStringLiteral("CONFIDENTIAL"),
+                                          QStringLiteral("REVIEWED") };
+                bool accepted = false;
+                const QString label = QInputDialog::getItem(
+                    this, tr("图章"), tr("选择图章文字:"), labels, 0, false, &accepted);
+                if (!accepted || label.isEmpty() || !annotationController_) {
+                    return;
+                }
+                constexpr double kWidth = 140.0;
+                constexpr double kHeight = 48.0;
+                const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - kHeight / 2.0,
+                                  kWidth, kHeight);
+                annotationController_->addStamp(pageIndex, rect, label);
+            });
+    connect(canvas_, &PageCanvas::freeTextRequested, this,
+            [this](int pageIndex, const QRectF& userRect) {
+                bool accepted = false;
+                const QString text = QInputDialog::getMultiLineText(
+                    this, tr("文本框"), tr("输入文字（中文会由本程序绘制，其他阅读器按字体回退显示）:"),
+                    QString(), &accepted);
+                if (accepted && !text.trimmed().isEmpty() && annotationController_) {
+                    annotationController_->addFreeText(pageIndex, userRect, text);
+                }
+            });
     connect(canvas_, &PageCanvas::lineAnnotationRequested, this,
             [this](int pageIndex, int type, const QPointF& from, const QPointF& to) {
-                if (annotationController_) {
+                if (!annotationController_) {
+                    return;
+                }
+                if (static_cast<pdf::AnnotationType>(type) == pdf::AnnotationType::Measure) {
+                    annotationController_->addMeasure(pageIndex, from, to, 1.0);
+                } else {
                     annotationController_->addLine(static_cast<pdf::AnnotationType>(type), pageIndex,
                                                    from, to);
                 }
@@ -1014,6 +1226,93 @@ void PdfView::applyViewState(const ViewState& state) {
     emit historyChanged(history_.canGoBack(), history_.canGoForward());
 }
 
+void PdfView::exportAnnotationsXfdf() {
+    if (!annotationController_) {
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出批注"), QString(),
+                                                      tr("XFDF (*.xfdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("导出批注"), tr("写不了这个文件: %1").arg(path));
+        return;
+    }
+    const QString xml = pdf::annotationsToXfdf(annotationController_->allAnnotations(),
+                                               document_.pageCount());
+    file.write(xml.toUtf8());
+    file.close();
+    emit statusMessage(tr("已导出批注到 %1").arg(QFileInfo(path).fileName()));
+}
+
+void PdfView::importAnnotationsXfdf() {
+    if (!annotationController_) {
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("导入批注"), QString(),
+                                                      tr("XFDF (*.xfdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("导入批注"), tr("读不了这个文件: %1").arg(path));
+        return;
+    }
+    const auto annotations =
+        pdf::annotationsFromXfdf(QString::fromUtf8(file.readAll()), document_.pageCount());
+    file.close();
+    int imported = 0;
+    for (const pdf::Annotation& annotation : annotations) {
+        if (annotationController_->importAnnotation(annotation) != 0) {
+            ++imported;
+        }
+    }
+    emit statusMessage(tr("导入了 %1 条批注").arg(imported));
+}
+
+void PdfView::exportAnnotationSummary() {
+    if (!annotationController_) {
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出批注摘要"), QString(),
+                                                      tr("HTML (*.html)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("导出批注摘要"), tr("写不了这个文件: %1").arg(path));
+        return;
+    }
+    const QString title = filePath_.isEmpty() ? tr("批注摘要") : QFileInfo(filePath_).fileName();
+    file.write(pdf::annotationsToHtmlSummary(annotationController_->allAnnotations(),
+                                             document_.pageCount(), title)
+                   .toUtf8());
+    file.close();
+    emit statusMessage(tr("已导出批注摘要"));
+}
+
+void PdfView::printAnnotationSummary() {
+    if (!annotationController_) {
+        return;
+    }
+    QPrinter printer;
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle(tr("打印批注摘要"));
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QString title = filePath_.isEmpty() ? tr("批注摘要") : QFileInfo(filePath_).fileName();
+    QTextDocument document;
+    document.setHtml(pdf::annotationsToHtmlSummary(annotationController_->allAnnotations(),
+                                                   document_.pageCount(), title));
+    document.print(&printer);
+    emit statusMessage(tr("批注摘要已发送到打印机"));
+}
+
 void PdfView::startPresentation() {
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("放映"), tr("先打开一份 PDF。"));
@@ -1350,7 +1649,13 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
 
     // 保存只有一个入口：序列化 + 补外观流 + 写临时文件 + 重开校验 + 备份 + 原子替换。
     // 分步调用会绕过后半段，"保存失败不破坏原文件"的保证就没了。
-    const pdf::SaveOutcome saved = pdf::DocumentWriter::save(document_, targetPath, true);
+    // 模型是权威版本：附件内容、作者、审阅状态、回复关系都只存在这里。
+    QVector<pdf::Annotation> modelAnnotations;
+    if (annotationController_ != nullptr) {
+        modelAnnotations = annotationController_->allAnnotations();
+    }
+    const pdf::SaveOutcome saved =
+        pdf::DocumentWriter::save(document_, targetPath, true, modelAnnotations);
     if (!saved.ok) {
         if (errorMessage != nullptr) {
             *errorMessage = saved.error;

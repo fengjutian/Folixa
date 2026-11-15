@@ -1,10 +1,13 @@
-#pragma once
+﻿#pragma once
 
 #include <QMainWindow>
 
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QDoubleSpinBox;
+class QSlider;
+#include <QColor>
 class QTabWidget;
 class QTextBrowser;
 class QDockWidget;
@@ -61,7 +64,7 @@ private:
     QWidget* createPagesTab();
     QStackedWidget* createOutlineTab();
     QStackedWidget* createBookmarkTab();
-    QStackedWidget* createAnnotationTab();
+    QWidget* createAnnotationTab();
     void openPdfDialog();
     void sendHealthCheck();
     void refreshThumbnails(PdfView* view);
@@ -77,6 +80,10 @@ private:
     void bindIndex(PdfView* view);
     // 删除批注面板里选中的批注。
     void removeSelectedAnnotation();
+    void replyToSelectedAnnotation();
+    void applyAnnotationAppearance();
+    void pickAnnotationColor();
+    void setSelectedAnnotationState();
     // ------------------------------------------------------- 页面管理 ----
     // 下面几个都作用在当前页上（页面页的按钮）。
     void insertBlankPage();
@@ -131,6 +138,13 @@ private:
     QStackedWidget* annotationStack_ = nullptr;
     QListWidget* annotationList_ = nullptr;
     QPushButton* annotationRemoveButton_ = nullptr;
+    QPushButton* annotationReplyButton_ = nullptr;
+    QPushButton* annotationColorButton_ = nullptr;
+    QPushButton* annotationApplyAppearanceButton_ = nullptr;
+    QDoubleSpinBox* annotationWidthSpin_ = nullptr;
+    QSlider* annotationOpacitySlider_ = nullptr;
+    QColor annotationPendingColor_ = QColor(255, 214, 0);
+    QPushButton* annotationStateButton_ = nullptr;
     // 页面页的页面管理按钮（v0.8.0）。
     QPushButton* pageInsertButton_ = nullptr;
     QPushButton* pageDeleteButton_ = nullptr;

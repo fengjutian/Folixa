@@ -903,6 +903,7 @@ public static class AiPdfKeyboard {
 
     $virtualKeys = @{
         'F5'       = 0x74
+        'F7'       = 0x76
         'Escape'   = 0x1B
         'Left'     = 0x25
         'Up'       = 0x26

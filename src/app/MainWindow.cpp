@@ -24,6 +24,10 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QColorDialog>
+#include <QDoubleSpinBox>
+#include <QSlider>
+#include <QShortcut>
 #include <QButtonGroup>
 #include <QCoreApplication>
 #include <QDir>
@@ -292,6 +296,36 @@ void MainWindow::buildUi() {
     addLayoutMode(tr("双页（封面）"), PageLayout::LayoutMode::FacingCover);
     viewMenu->addSeparator();
 
+    auto* exportXfdfAction = viewMenu->addAction(tr("导出批注（XFDF）…"));
+    exportXfdfAction->setObjectName(QStringLiteral("annotationsExportXfdf"));
+    connect(exportXfdfAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->exportAnnotationsXfdf();
+        }
+    });
+    auto* summaryExportAction = viewMenu->addAction(tr("导出批注摘要（HTML）…"));
+    summaryExportAction->setObjectName(QStringLiteral("annotationsSummaryExport"));
+    connect(summaryExportAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->exportAnnotationSummary();
+        }
+    });
+    auto* summaryPrintAction = viewMenu->addAction(tr("打印批注摘要…"));
+    summaryPrintAction->setObjectName(QStringLiteral("annotationsSummaryPrint"));
+    connect(summaryPrintAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->printAnnotationSummary();
+        }
+    });
+    auto* importXfdfAction = viewMenu->addAction(tr("导入批注（XFDF）…"));
+    importXfdfAction->setObjectName(QStringLiteral("annotationsImportXfdf"));
+    connect(importXfdfAction, &QAction::triggered, this, [this]() {
+        if (auto* view = currentView()) {
+            view->importAnnotationsXfdf();
+        }
+    });
+    viewMenu->addSeparator();
+
     auto* presentationAction = viewMenu->addAction(tr("放映"));
     presentationAction->setShortcut(QKeySequence(Qt::Key_F5));
     presentationAction->setObjectName(QStringLiteral("viewPresentation"));
@@ -493,6 +527,18 @@ void MainWindow::buildUi() {
         showNavigationPage(4);
         trace(QStringLiteral("open annotation panel"));
     });
+    // F7：直接打开批注面板。除了给用户一条快捷键，它也是验收脚本唯一能
+    // 可靠"展开面板"的手段（导航栏按钮不支持 InvokePattern）。
+    auto* annotationShortcut = new QShortcut(QKeySequence(Qt::Key_F7), this);
+    connect(annotationShortcut, &QShortcut::activated, this, [this]() {
+        // 面板可能是收起的：只切页不展开，用户（和验收脚本）都看不到东西。
+        if (navigationDock_ != nullptr) {
+            navigationDock_->setVisible(true);
+        }
+        showNavigationPage(4);
+        trace(QStringLiteral("open annotation panel"));
+    });
+
     // 页面管理已交付（v0.8.0）：点开就是页面页（缩略图 + 页面操作按钮）。
     auto* pageAction = commandBar->addAction(tr("页面"));
     pageAction->setIcon(QIcon(QStringLiteral(":/icons/pages.svg")));
@@ -688,6 +734,14 @@ void MainWindow::buildUi() {
         }
         trace(QStringLiteral("annotation goto page=%1").arg(pageIndex));
     });
+    connect(annotationColorButton_, &QPushButton::clicked, this,
+            &MainWindow::pickAnnotationColor);
+    connect(annotationApplyAppearanceButton_, &QPushButton::clicked, this,
+            &MainWindow::applyAnnotationAppearance);
+    connect(annotationReplyButton_, &QPushButton::clicked, this,
+            &MainWindow::replyToSelectedAnnotation);
+    connect(annotationStateButton_, &QPushButton::clicked, this,
+            &MainWindow::setSelectedAnnotationState);
     connect(annotationRemoveButton_, &QPushButton::clicked, this,
             &MainWindow::removeSelectedAnnotation);
     navigationLayout->addWidget(rail);
@@ -1123,25 +1177,68 @@ QStackedWidget* MainWindow::createBookmarkTab() {
 }
 
 // 批注页：批注列表 + 删除按钮（v0.7.0）。
-QStackedWidget* MainWindow::createAnnotationTab() {
-    auto* stack = new QStackedWidget(navigationPages_);
+QWidget* MainWindow::createAnnotationTab() {
+    // 空状态与列表放堆叠页里，**按钮放堆叠页外面**：
+    // 没有批注时按钮也该看得见（灰着就行）。藏在另一个页里的话，用户找不到，
+    // 自动化也点不到——之前"批注面板按钮找不到"就是这个原因。
+    auto* page = new QWidget(navigationPages_);
+    auto* outer = new QVBoxLayout(page);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(0);
+
+    auto* stack = new QStackedWidget(page);
     stack->addWidget(createNavigationEmptyState(
         tr("暂无批注"), tr("选中文字后点「高亮」，或用便签、矩形、墨迹工具添加批注。")));
+    annotationList_ = new QListWidget(stack);
+    stack->addWidget(annotationList_);
+    outer->addWidget(stack, 1);
 
-    auto* content = new QWidget(stack);
+    auto* content = new QWidget(page);
     auto* layout = new QVBoxLayout(content);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    annotationList_ = new QListWidget(content);
     annotationList_->setObjectName(QStringLiteral("annotationList"));
+    annotationList_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     layout->addWidget(annotationList_, 1);
+    // 外观属性：颜色 / 线宽 / 不透明度。多选后一次改完。
+    auto* appearanceRow = new QHBoxLayout();
+    appearanceRow->setSpacing(6);
+    annotationColorButton_ = new QPushButton(tr("颜色…"), content);
+    annotationColorButton_->setObjectName(QStringLiteral("annotationColor"));
+    appearanceRow->addWidget(annotationColorButton_);
+    auto* widthLabel = new QLabel(tr("线宽"), content);
+    appearanceRow->addWidget(widthLabel);
+    annotationWidthSpin_ = new QDoubleSpinBox(content);
+    annotationWidthSpin_->setObjectName(QStringLiteral("annotationWidth"));
+    annotationWidthSpin_->setRange(0.0, 8.0);
+    annotationWidthSpin_->setSingleStep(0.5);
+    annotationWidthSpin_->setSpecialValueText(tr("默认"));
+    appearanceRow->addWidget(annotationWidthSpin_);
+    auto* opacityLabel = new QLabel(tr("透明"), content);
+    appearanceRow->addWidget(opacityLabel);
+    annotationOpacitySlider_ = new QSlider(Qt::Horizontal, content);
+    annotationOpacitySlider_->setObjectName(QStringLiteral("annotationOpacity"));
+    annotationOpacitySlider_->setRange(10, 100);
+    annotationOpacitySlider_->setValue(100);
+    appearanceRow->addWidget(annotationOpacitySlider_, 1);
+    layout->addLayout(appearanceRow);
+    annotationApplyAppearanceButton_ = new QPushButton(tr("应用到所选批注"), content);
+    annotationApplyAppearanceButton_->setObjectName(QStringLiteral("annotationApplyAppearance"));
+    layout->addWidget(annotationApplyAppearanceButton_);
+
+    annotationReplyButton_ = new QPushButton(tr("回复所选"), content);
+    annotationReplyButton_->setObjectName(QStringLiteral("annotationReply"));
+    layout->addWidget(annotationReplyButton_);
+    annotationStateButton_ = new QPushButton(tr("设置审阅状态"), content);
+    annotationStateButton_->setObjectName(QStringLiteral("annotationState"));
+    layout->addWidget(annotationStateButton_);
     annotationRemoveButton_ = new QPushButton(tr("删除所选批注"), content);
     annotationRemoveButton_->setObjectName(QStringLiteral("annotationRemove"));
     layout->addWidget(annotationRemoveButton_);
 
-    stack->addWidget(content);
+    outer->addWidget(content);
     annotationStack_ = stack;
-    return stack;
+    return page;
 }
 
 void MainWindow::bindAnnotations(PdfView* view) {
@@ -1206,6 +1303,85 @@ void MainWindow::refreshAnnotations(PdfView* view) {
         item->setToolTip(tr("跳转到第 %1 页").arg(annotation.pageIndex + 1));
     }
     trace(QStringLiteral("panel annotations items=%1").arg(annotations.size()));
+}
+
+void MainWindow::applyAnnotationAppearance() {
+    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
+        return;
+    }
+    QVector<quint64> ids;
+    for (QListWidgetItem* item : annotationList_->selectedItems()) {
+        ids.append(static_cast<quint64>(item->data(Qt::UserRole).toULongLong()));
+    }
+    if (ids.isEmpty()) {
+        statusBar()->showMessage(tr("先选中要改的批注"), 3000);
+        return;
+    }
+    const QColor color = annotationPendingColor_;
+    const double width = annotationWidthSpin_ != nullptr ? annotationWidthSpin_->value() : 0.0;
+    const double opacity =
+        annotationOpacitySlider_ != nullptr ? annotationOpacitySlider_->value() / 100.0 : 0.0;
+    if (boundAnnotations_->updateAppearance(ids, color, width, opacity)) {
+        statusBar()->showMessage(tr("已更新 %1 条批注的外观").arg(ids.size()), 3000);
+    }
+}
+
+void MainWindow::pickAnnotationColor() {
+    const QColor chosen = QColorDialog::getColor(annotationPendingColor_, this, tr("批注颜色"));
+    if (chosen.isValid()) {
+        annotationPendingColor_ = chosen;
+        if (annotationColorButton_ != nullptr) {
+            annotationColorButton_->setStyleSheet(
+                QStringLiteral("background:%1;color:%2;")
+                    .arg(chosen.name(), chosen.lightness() > 128 ? QStringLiteral("#202A3A")
+                                                                 : QStringLiteral("#FFFFFF")));
+        }
+    }
+}
+
+void MainWindow::replyToSelectedAnnotation() {
+    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = annotationList_->currentItem();
+    if (item == nullptr) {
+        return;
+    }
+    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+    bool accepted = false;
+    const QString text = QInputDialog::getMultiLineText(this, tr("回复批注"), tr("回复内容:"),
+                                                        QString(), &accepted);
+    if (!accepted || text.trimmed().isEmpty()) {
+        return;
+    }
+    const QString author = qEnvironmentVariable("USERNAME");
+    if (boundAnnotations_->addReply(id, text, author) == 0) {
+        statusBar()->showMessage(tr("回复没有添加成功"), 3000);
+        return;
+    }
+    statusBar()->showMessage(tr("已添加回复"), 3000);
+}
+
+void MainWindow::setSelectedAnnotationState() {
+    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = annotationList_->currentItem();
+    if (item == nullptr) {
+        return;
+    }
+    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+    const QStringList states{ QStringLiteral("Accepted"), QStringLiteral("Rejected"),
+                              QStringLiteral("Cancelled"), QStringLiteral("Completed"),
+                              tr("清除状态") };
+    bool accepted = false;
+    const QString chosen =
+        QInputDialog::getItem(this, tr("审阅状态"), tr("状态:"), states, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const QString state = (chosen == tr("清除状态")) ? QString() : chosen;
+    boundAnnotations_->setReviewState(id, state);
 }
 
 void MainWindow::removeSelectedAnnotation() {

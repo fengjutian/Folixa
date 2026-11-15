@@ -1,7 +1,10 @@
-﻿qt_add_executable(AiPdfEditor WIN32
+qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
+    app/Language.cpp
+    app/Language.h
+    i18n/Translate.h
     app/Theme.cpp
     app/Theme.h
     app/BrandMark.cpp
@@ -57,6 +60,8 @@
     app/ZoomMemory.cpp
     app/InkGeometry.h
     app/InkGeometry.cpp
+    app/MeasureGeometry.h
+    app/MeasureGeometry.cpp
     app/DocumentOutput.cpp
     app/RenderThread.h
     app/RenderThread.cpp
@@ -71,6 +76,12 @@
     pdf/Annotation.cpp
     pdf/Annotation.h
     pdf/AnnotationDictionary.h
+    pdf/Xfdf.h
+    pdf/AnnotationSummary.h
+    pdf/SoundFormat.h
+    pdf/SoundFormat.cpp
+    pdf/AnnotationSummary.cpp
+    pdf/Xfdf.cpp
     pdf/AnnotationDictionary.cpp
     pdf/AppearanceStream.cpp
     pdf/AppearanceStream.h
@@ -164,6 +175,18 @@ qt_add_resources(AiPdfEditor "app_icons"
     PREFIX "/icons"
     BASE "app/icons"
     FILES ${AIPDF_ICON_SVGS}
+)
+
+# 翻译目录：标准 .ts 直接进资源，运行时由 TsTranslator 解析。
+#
+# 不走 qt_add_translations / lrelease：固定工具链里没有 Qt LinguistTools，
+# 加一个编译期依赖会把「装好工具链就能构建」这条前提打破。.ts 仍是标准
+# 格式，Qt Linguist 照样能打开编辑；打包也只是多几百 KB 的文本。
+file(GLOB AIPDF_I18N_CATALOGS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/*.ts")
+qt_add_resources(AiPdfEditor "app_i18n"
+    PREFIX "/i18n"
+    BASE "i18n"
+    FILES ${AIPDF_I18N_CATALOGS}
 )
 
 target_link_libraries(AiPdfEditor PRIVATE

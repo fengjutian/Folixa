@@ -1,3 +1,4 @@
+#include "app/Language.h"
 #include "app/MainWindow.h"
 #include "app/Theme.h"
 
@@ -26,6 +27,10 @@ int main(int argc, char* argv[]) {
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, probeRoot);
         QSettings::setPath(QSettings::IniFormat, QSettings::SystemScope, probeRoot);
     }
+
+    // 界面语言要在建窗口之前定下来：窗口构造时读到的就是最终语言。
+    // 设置里没存过就跟随系统（中文系统→中文，其他→英文）。
+    aipdf::app::i18n::LanguageManager::instance().loadSavedPreference();
 
     aipdf::app::theme::apply(application);
 

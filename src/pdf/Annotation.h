@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QJsonObject>
 #include <QPointF>
+#include <QDateTime>
 #include <QRectF>
 #include <QString>
 #include <QVector>
@@ -27,6 +28,10 @@ enum class AnnotationType {
     Polygon,    // 多边形
     Cloud,      // 云线（多边形 + 弧线边框）
     FreeText,   // 文本框（打字机）
+    Stamp,      // 图章（内置文字图章）
+    Measure,    // 距离测量（直线 + /Measure 比例）
+    FileAttachment, // 附件（挂一个文件在页面上）
+    Sound,      // 声音批注（挂一段音频）
     Ink,        // 墨迹
 };
 
@@ -60,7 +65,29 @@ struct Annotation {
     QString contents;
     // 文本框的字号（点）。0 表示用默认值。
     double fontSize = 0.0;
+    // 外观属性（0 表示用该类型的默认值）。属性面板改的就是这两个。
+    double lineWidth = 0.0;
+    double opacity = 0.0;
+    // 测量比例：1 个 PDF 点 = 多少用户单位（默认 1，即按点计）。
+    double measureScale = 1.0;
+    // 附件的文件名与内容。PDFium 没有创建附件的接口，这两项由我们自己的写入器落盘。
+    QString attachmentName;
+    QByteArray attachmentData;
+    // 图片图章：原始图片字节（PNG/JPEG），写盘时解码成 RGB 再压成 Flate 流。
+    QByteArray imageData;
+    // 声音批注：WAV 的原始数据与格式。
+    QByteArray soundData;
+    QString soundName;
+    int soundRate = 8000;
+    int soundChannels = 1;
+    int soundBits = 8;
     QString author;
+    // 审阅状态（/State + /StateModel）。空表示没标记。
+    QString reviewState;
+    // 回复：指向父批注的 id（0 表示不是回复）。写盘时转成 /IRT 对象引用。
+    quint64 replyToId = 0;
+    // 创建时间；无效时写入端用当前时间。
+    QDateTime createdAt;
 };
 
 // 类型的显示名（界面与轨迹用）。

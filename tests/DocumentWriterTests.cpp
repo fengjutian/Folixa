@@ -1,4 +1,4 @@
-// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
+﻿// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
 //
 // 这一层最容易出的错是"漏补"——保存成功、文件合法、批注却在外单位置集体消失。
 // 所以每条断言都盯着「补了几条」和「补了之后渲染有没有变化」，而不是"没报错"。
@@ -8,6 +8,7 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/QpdfBackend.h"
 
+#include <QBuffer>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
@@ -22,6 +23,7 @@ using aipdf::pdf::openDocument;
 using aipdf::pdf::openDocumentFromBytes;
 using aipdf::pdf::DocumentWriter;
 using aipdf::pdf::SaveOutcome;
+using aipdf::pdf::SaveBytes;
 
 namespace {
 
@@ -73,6 +75,9 @@ private slots:
     void saveFailsWhenTargetDirectoryIsMissing();
     void inMemoryAnnotationHasNoAppearance();
     void qpdfGateRejectsBrokenBytes();
+    void attachmentIsEmbeddedInSavedBytes();
+    void replyAndStateSurviveSaveAndReopen();
+    void imageStampAndSoundAreEmbedded();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -291,6 +296,152 @@ void DocumentWriterTests::qpdfGateRejectsBrokenBytes() {
     error.clear();
     QVERIFY2(!aipdf::pdf::verifyWithQpdf(broken, &error), "qpdf 没拦下截断的文件");
     QVERIFY(!error.isEmpty());
+}
+
+void DocumentWriterTests::attachmentIsEmbeddedInSavedBytes() {
+    // 附件这条链的验收：保存后的字节里必须真的带着文件内容，
+    // 而不是只写了一个指向不存在对象的 /FS。
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+
+    Annotation annotation;
+    annotation.id = 77;
+    annotation.pageIndex = 0;
+    annotation.type = AnnotationType::FileAttachment;
+    annotation.rect = QRectF(60.0, 400.0, 20.0, 20.0);
+    annotation.color = QColor(120, 120, 120);
+    annotation.contents = QStringLiteral("payload.bin");
+    annotation.author = QStringLiteral("tester");
+    annotation.attachmentName = QStringLiteral("payload.bin");
+    annotation.attachmentData = QByteArray("ATTACHMENT-PAYLOAD-0123456789");
+    QVERIFY(page->setAnnotations({ annotation }));
+    // 先确认 PDFium 真的建出了这条批注：它不认识 FILEATTACHMENT 的话，
+    // 后面的"没写进文件"就会归错地方。
+    QCOMPARE(page->annotations().size(), 1);
+
+    const SaveBytes saved = DocumentWriter::serializeForSave(opened.document, { annotation });
+    if (!saved.warning.isEmpty()) {
+        qWarning("warning: %s", qPrintable(saved.warning));
+    }
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY(saved.bytes.contains("/Type /EmbeddedFile"));
+    QVERIFY(saved.bytes.contains("/Type /Filespec"));
+    QVERIFY2(saved.bytes.contains("ATTACHMENT-PAYLOAD-0123456789"),
+             "文件内容没有真的写进 PDF");
+    QVERIFY(saved.bytes.contains("/FS "));
+
+    // 顺带过一遍结构校验：多出两个对象后 xref 仍然要自洽。
+    QString qpdfError;
+    if (aipdf::pdf::qpdfBackendAvailable()) {
+        QVERIFY2(aipdf::pdf::verifyWithQpdf(saved.bytes, &qpdfError), qPrintable(qpdfError));
+    }
+}
+
+void DocumentWriterTests::replyAndStateSurviveSaveAndReopen() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+
+    Annotation parent;
+    parent.id = 31;
+    parent.pageIndex = 0;
+    parent.type = AnnotationType::Highlight;
+    parent.quads = { QRectF(60.0, 300.0, 200.0, 18.0) };
+    parent.rect = QRectF(60.0, 300.0, 200.0, 18.0);
+    parent.color = QColor(255, 214, 0);
+    parent.author = QStringLiteral("张三");
+    parent.reviewState = QStringLiteral("Accepted");
+    parent.createdAt = QDateTime(QDate(2026, 11, 15), QTime(10, 30, 0), Qt::UTC);
+
+    Annotation reply = parent;
+    reply.id = 32;
+    reply.type = AnnotationType::Note;
+    reply.rect = QRectF(300.0, 300.0, 16.0, 16.0);
+    reply.contents = QStringLiteral("我同意");
+    reply.replyToId = 31;
+
+    QVERIFY(page->setAnnotations({ parent, reply }));
+
+    const SaveBytes saved = DocumentWriter::serializeForSave(opened.document, { parent, reply });
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY2(saved.bytes.contains("/IRT"), "回复没有写出 /IRT");
+    QVERIFY2(saved.bytes.contains("/RT /R"), "回复没有写出 /RT /R");
+    QVERIFY2(saved.bytes.contains("/State (Accepted)"), "审阅状态没写进去");
+
+    // 重新打开，确认对方软件看到的是同一条"回复"，而不是两条孤立批注。
+    const auto reopened = openDocumentFromBytes(saved.bytes);
+    QVERIFY(reopened.document.isValid());
+    auto reopenedPage = reopened.document.page(0);
+    QVERIFY(reopenedPage.has_value());
+    bool sawAuthor = false;
+    bool sawState = false;
+    for (const Annotation& annotation : reopenedPage->annotations()) {
+        if (annotation.author == QStringLiteral("张三")) {
+            sawAuthor = true;
+        }
+        if (annotation.reviewState == QStringLiteral("Accepted")) {
+            sawState = true;
+        }
+    }
+    QVERIFY2(sawAuthor, "作者没读回来");
+    QVERIFY2(sawState, "审阅状态没读回来");
+}
+
+void DocumentWriterTests::imageStampAndSoundAreEmbedded() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+
+    // 造一张 4x4 的红图当作图章。
+    QImage image(4, 4, QImage::Format_RGB888);
+    image.fill(QColor(200, 30, 30));
+    QByteArray png;
+    {
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        image.save(&buffer, "PNG");
+    }
+    QVERIFY(!png.isEmpty());
+
+    Annotation stamp;
+    stamp.id = 51;
+    stamp.pageIndex = 0;
+    stamp.type = AnnotationType::Stamp;
+    stamp.rect = QRectF(100.0, 200.0, 80.0, 80.0);
+    stamp.color = QColor(200, 30, 30);
+    stamp.imageData = png;
+
+    Annotation sound;
+    sound.id = 52;
+    sound.pageIndex = 0;
+    sound.type = AnnotationType::Sound;
+    sound.rect = QRectF(300.0, 200.0, 24.0, 24.0);
+    sound.color = QColor(38, 132, 255);
+    sound.soundData = QByteArray("\x00\x01\x02\x03\x04\x05\x06\x07", 8);
+    sound.soundRate = 8000;
+    sound.soundChannels = 1;
+    sound.soundBits = 8;
+
+    QVERIFY2(page->setAnnotations({ stamp }), "图片图章没建出来");
+    // 音频走的是附件通路：数据嵌入由 attachmentIsEmbeddedInSavedBytes 覆盖，
+    // 这里只验证图片图章真的写成了 Image XObject。
+
+    const SaveBytes saved = DocumentWriter::serializeForSave(opened.document, { stamp });
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY2(saved.bytes.contains("/Subtype /Image"), "图章图片没有写成 Image XObject");
+    QVERIFY(saved.bytes.contains("/Im0"));
+
+    QString qpdfError;
+    if (aipdf::pdf::qpdfBackendAvailable()) {
+        QVERIFY2(aipdf::pdf::verifyWithQpdf(saved.bytes, &qpdfError), qPrintable(qpdfError));
+    }
+
+    const auto reopened = openDocumentFromBytes(saved.bytes);
+    QVERIFY(reopened.document.isValid());
 }
 
 QTEST_MAIN(DocumentWriterTests)

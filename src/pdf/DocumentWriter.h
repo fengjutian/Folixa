@@ -1,11 +1,13 @@
-#pragma once
+﻿#pragma once
 
 #include <QByteArray>
+#include <QVector>
 #include <QString>
 
 namespace aipdf::pdf {
 
 class PdfDocument;
+struct Annotation;
 
 // 保存用的字节。
 struct SaveBytes {
@@ -46,7 +48,10 @@ public:
     //
     // 只处理本程序写的批注（/NM 以 "Folixa:" 开头、id 非 0）：别的软件写进来的批注
     // 通常自带外观流，重写它们既没必要也不安全。
-    static SaveBytes serializeForSave(const PdfDocument& document);
+    // 模型里的批注才是"完整"的那份：附件内容、作者、审阅状态、回复关系都只存在
+    // 内存模型里（PDFium 没有写这些的接口）。传进来就用它替换从页面读到的版本。
+    static SaveBytes serializeForSave(const PdfDocument& document,
+                                      const QVector<Annotation>& model = {});
 
     // 保存到磁盘：serializeForSave + 写临时文件 + 重开校验 + 备份 + 原子替换。
     //
@@ -54,7 +59,8 @@ public:
     // 外观流没补上不算失败（文件是好的），但 warning 会非空。
     static SaveOutcome save(const PdfDocument& document,
                             const QString& targetPath,
-                            bool createBackup = true);
+                            bool createBackup = true,
+                            const QVector<Annotation>& model = {});
 };
 
 }  // namespace aipdf::pdf

@@ -174,6 +174,10 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/layout.png'
     )
+    Invoke-Script '批注工具栏验收' (Join-Path $PSScriptRoot 'verify-annotation-types.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/annotation-types.png'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

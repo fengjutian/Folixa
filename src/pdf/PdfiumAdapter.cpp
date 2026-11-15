@@ -647,6 +647,24 @@ QVector<Annotation> PdfPage::annotations() const {
         item.hasAppearance = FPDFAnnot_HasKey(annot, "AP") != 0;
 
         // 批注正文（Contents）。
+        // 作者与审阅状态：回复线程与"谁批的、批成什么状态"都靠它们。
+        const std::pair<const char*, QString*> fields[] = {
+            { "T", &item.author },
+            { "State", &item.reviewState },
+        };
+        for (const auto& field : fields) {
+            const unsigned long fieldLength =
+                FPDFAnnot_GetStringValue(annot, field.first, nullptr, 0);
+            if (fieldLength > 2 && fieldLength < 4096) {
+                std::vector<unsigned short> value(fieldLength / 2 + 2, 0);
+                if (FPDFAnnot_GetStringValue(annot, field.first, value.data(),
+                                             static_cast<unsigned long>(value.size() * 2)) > 2) {
+                    *field.second = QString::fromUtf16(
+                        reinterpret_cast<const char16_t*>(value.data()));
+                }
+            }
+        }
+
         const unsigned long needed =
             FPDFAnnot_GetStringValue(annot, "Contents", nullptr, 0);
         if (needed > 2 && needed < 65536) {
@@ -821,6 +839,14 @@ int annotationTypeToPdfium(AnnotationType type) {
             return FPDF_ANNOT_POLYGON;
         case AnnotationType::FreeText:
             return FPDF_ANNOT_FREETEXT;
+        case AnnotationType::Stamp:
+            return FPDF_ANNOT_STAMP;
+        case AnnotationType::Measure:
+            return FPDF_ANNOT_LINE;
+        case AnnotationType::FileAttachment:
+            return FPDF_ANNOT_FILEATTACHMENT;
+        case AnnotationType::Sound:
+            return FPDF_ANNOT_SOUND;
 
         case AnnotationType::Note:
             return FPDF_ANNOT_TEXT;
@@ -860,6 +886,15 @@ bool annotationTypeFromPdfium(int subtype, AnnotationType* out) {
             return true;
         case FPDF_ANNOT_FREETEXT:
             *out = AnnotationType::FreeText;
+            return true;
+        case FPDF_ANNOT_STAMP:
+            *out = AnnotationType::Stamp;
+            return true;
+        case FPDF_ANNOT_FILEATTACHMENT:
+            *out = AnnotationType::FileAttachment;
+            return true;
+        case FPDF_ANNOT_SOUND:
+            *out = AnnotationType::Sound;
             return true;
 
         case FPDF_ANNOT_TEXT:

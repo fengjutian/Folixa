@@ -29,6 +29,10 @@ struct AppearanceAttachment {
     // 直线要 /L、云线要 /BE、多边形要 /Vertices——不写这些键，福昕里只会看到
     // 一个空矩形，而不是我们外观流里画的那条线。
     QByteArray extraEntries;
+    // 需要新建的对象体（如嵌入式文件流、Filespec 字典）。写进条目里可以用
+    // `@EXTRA0`、`@EXTRA1` 这样的占位符引用它们——对象号在写入时才分配，
+    // 提前写死是不可能的。
+    QVector<QByteArray> extraObjects;
 };
 
 // 给一批批注补上外观流（/AP），**一次写入**完成。

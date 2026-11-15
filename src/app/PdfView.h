@@ -95,6 +95,13 @@ public slots:
 
     // 放映：全屏一页一张，方向键翻页。
     void startPresentation();
+
+    // 批注交换：XFDF 导入导出。
+    void exportAnnotationsXfdf();
+    void importAnnotationsXfdf();
+    // 批注摘要：导出 HTML / 直接打印。
+    void exportAnnotationSummary();
+    void printAnnotationSummary();
     // 把当前选中的文字复制到剪贴板。
     void copySelection();
     // 撤销 / 重做批注操作。
@@ -237,6 +244,14 @@ private:
     QToolButton* arrowButton_ = nullptr;
     QToolButton* polygonButton_ = nullptr;
     QToolButton* cloudButton_ = nullptr;
+    QToolButton* freeTextButton_ = nullptr;
+    QToolButton* stampButton_ = nullptr;
+    QToolButton* measureButton_ = nullptr;
+    QToolButton* attachmentButton_ = nullptr;
+    QToolButton* imageStampButton_ = nullptr;
+    QToolButton* soundButton_ = nullptr;
+    QToolButton* perimeterButton_ = nullptr;
+    QToolButton* areaButton_ = nullptr;
     QToolButton* inkButton_ = nullptr;
     QToolButton* eraserButton_ = nullptr;
     QToolButton* undoButton_ = nullptr;

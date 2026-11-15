@@ -11,6 +11,7 @@
 #include "pdf/Annotation.h"
 #include "pdf/AppearanceStream.h"
 
+#include <QBuffer>
 #include <QTest>
 
 #include <cmath>
@@ -70,6 +71,11 @@ private slots:
     void arrowAddsTwoHeadStrokes();
     void polygonClosesPath();
     void cloudDrawsScallops();
+    void customLineWidthAndOpacityWin();
+    void imageStampProducesImageObject();
+    void stampDrawsBorderAndLabel();
+    void freeTextDrawsLatinText();
+    void freeTextSkipsUnencodableScript();
     void inkDrawsEveryStroke();
     void noteHasNoAppearance();
     void contentNeverEscapesBbox();
@@ -293,6 +299,89 @@ void AppearanceStreamTests::cloudDrawsScallops() {
 
     const QString text = QString::fromLatin1(buildAnnotationAppearance(annotation).content);
     QVERIFY2(text.count(QLatin1String(" c\n")) >= 4, "云线没有弧线，看起来就是普通多边形");
+}
+
+void AppearanceStreamTests::freeTextDrawsLatinText() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::FreeText;
+    annotation.quads.clear();
+    annotation.rect = QRectF(72.0, 500.0, 240.0, 80.0);
+    annotation.contents = QStringLiteral("Hello (PDF)");
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    const QString text = QString::fromLatin1(appearance.content);
+    QVERIFY(text.contains("BT\n"));
+    QVERIFY(text.contains("/F1 "));
+    QVERIFY(text.contains("Tj"));
+    // 字体资源必须带上，否则阅读器会画出空框。
+    QVERIFY(appearance.resources.contains("/Helvetica"));
+    // 括号要被转义，否则内容流会在字符串中间断开。
+    QVERIFY(text.contains("\\(PDF\\)"));
+}
+
+void AppearanceStreamTests::freeTextSkipsUnencodableScript() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::FreeText;
+    annotation.quads.clear();
+    annotation.rect = QRectF(72.0, 500.0, 240.0, 80.0);
+    annotation.contents = QStringLiteral("中文内容");
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    // 画不出来就不要画：只保留 q/Q 这类壳，没有文字绘制指令。
+    QVERIFY(!appearance.content.contains("BT"));
+    QVERIFY(!appearance.content.contains("Tj"));
+}
+
+void AppearanceStreamTests::stampDrawsBorderAndLabel() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Stamp;
+    annotation.quads.clear();
+    annotation.rect = QRectF(300.0, 400.0, 140.0, 48.0);
+    annotation.contents = QStringLiteral("APPROVED");
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    const QString text = QString::fromLatin1(appearance.content);
+    QVERIFY(text.contains("S\n"));      // 边框
+    QVERIFY(text.contains("Tj"));       // 文字
+    QVERIFY(appearance.resources.contains("/Helvetica-Bold"));
+}
+
+void AppearanceStreamTests::customLineWidthAndOpacityWin() {
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Square;
+    annotation.quads.clear();
+    annotation.rect = QRectF(100.0, 100.0, 120.0, 80.0);
+    annotation.lineWidth = 4.0;
+    annotation.opacity = 0.5;
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    const QString text = QString::fromLatin1(appearance.content);
+    QVERIFY2(text.contains("4 w"), "属性面板改的线宽没有进外观流");
+    QVERIFY2(appearance.usesTransparency, "改了不透明度，外观流却没启用透明组");
+    QVERIFY(text.contains("/GS0 gs"));
+}
+
+void AppearanceStreamTests::imageStampProducesImageObject() {
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.fill(QColor(10, 200, 30));
+    QByteArray png;
+    {
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        QVERIFY(image.save(&buffer, "PNG"));
+    }
+
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Stamp;
+    annotation.quads.clear();
+    annotation.rect = QRectF(100.0, 100.0, 80.0, 80.0);
+    annotation.imageData = png;
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    QVERIFY2(!appearance.imageObjectBody.isEmpty(), "图片没被编码成对象");
+    QVERIFY(appearance.imageObjectBody.contains("/Subtype /Image"));
+    QVERIFY(appearance.content.contains("/Im0 Do"));
+    QVERIFY(appearance.resources.contains("@EXTRA0"));
 }
 
 QTEST_MAIN(AppearanceStreamTests)

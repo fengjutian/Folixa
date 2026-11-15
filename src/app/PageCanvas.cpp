@@ -284,6 +284,81 @@ void PageCanvas::paintAnnotations(QPainter& painter,
                 }
                 break;
             }
+            case pdf::AnnotationType::Stamp: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                painter.setPen(QPen(annotation.color, std::max(1.5, rect.height() * 0.06)));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawRect(rect.adjusted(1, 1, -1, -1));
+                QFont font = painter.font();
+                font.setBold(true);
+                font.setPointSizeF(std::max(5.0, rect.height() * 0.42));
+                painter.setFont(font);
+                painter.setPen(annotation.color);
+                painter.drawText(rect, Qt::AlignCenter, annotation.contents.trimmed().isEmpty()
+                                                             ? QStringLiteral("APPROVED")
+                                                             : annotation.contents.trimmed());
+                break;
+            }
+            case pdf::AnnotationType::FreeText: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                const double size = (annotation.fontSize > 0.0 ? annotation.fontSize : 12.0) * zoom;
+                QFont font = painter.font();
+                font.setPointSizeF(std::max(1.0, size));
+                painter.setFont(font);
+                painter.setPen(annotation.color);
+                // 中文靠画布自己排，不依赖外观流里的 WinAnsi 字体。
+                painter.drawText(rect.adjusted(2, 2, -2, -2),
+                                 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                                 annotation.contents);
+                break;
+            }
+            case pdf::AnnotationType::Sound: {
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                painter.setPen(QPen(annotation.color, 1.4));
+                painter.setBrush(QColor(255, 255, 255, 220));
+                // 小喇叭图标：一个梯形加两道声波。
+                QPolygonF speaker;
+                speaker << QPointF(rect.left() + 3, rect.center().y() - 3)
+                        << QPointF(rect.left() + 8, rect.center().y() - 3)
+                        << QPointF(rect.left() + 14, rect.center().y() - 7)
+                        << QPointF(rect.left() + 14, rect.center().y() + 7)
+                        << QPointF(rect.left() + 8, rect.center().y() + 3)
+                        << QPointF(rect.left() + 3, rect.center().y() + 3);
+                painter.drawPolygon(speaker);
+                break;
+            }
+            case pdf::AnnotationType::FileAttachment: {
+                // 回形针：一个带斜线的小矩形，够认就行。
+                const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
+                painter.setPen(QPen(annotation.color, 1.4));
+                painter.setBrush(QColor(255, 255, 255, 220));
+                painter.drawRect(rect);
+                painter.drawLine(rect.topLeft() + QPointF(4, 4), rect.bottomRight() - QPointF(4, 4));
+                painter.drawLine(rect.topRight() + QPointF(-4, 4), rect.bottomLeft() + QPointF(4, -4));
+                break;
+            }
+            case pdf::AnnotationType::Measure: {
+                if (annotation.vertices.size() < 2) {
+                    break;
+                }
+                const QPointF a = toViewportRect(QRectF(transform.toDisplay(annotation.vertices.at(0)),
+                                                        QSizeF(0.0, 0.0)),
+                                                 pageRect, zoom).topLeft();
+                const QPointF b = toViewportRect(QRectF(transform.toDisplay(annotation.vertices.at(1)),
+                                                        QSizeF(0.0, 0.0)),
+                                                 pageRect, zoom).topLeft();
+                painter.setPen(QPen(annotation.color, 1.5, Qt::DashLine));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawLine(a, b);
+                // 端点小刻度
+                painter.drawLine(a + QPointF(-4, -4), a + QPointF(4, 4));
+                painter.drawLine(b + QPointF(-4, -4), b + QPointF(4, 4));
+                painter.setPen(annotation.color);
+                const QPointF mid((a.x() + b.x()) / 2.0, (a.y() + b.y()) / 2.0);
+                painter.drawText(QRectF(mid.x() - 60, mid.y() - 18, 120, 16),
+                                 Qt::AlignCenter, annotation.contents);
+                break;
+            }
             case pdf::AnnotationType::Line:
             case pdf::AnnotationType::Arrow: {
                 if (annotation.vertices.size() < 2) {
@@ -602,6 +677,40 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 viewport()->update();
                 return;
             }
+            if (tool == AnnotationController::Tool::Attachment) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool attachment page=%1").arg(pageIndex));
+                emit attachmentRequested(pageIndex, userPoint);
+                return;
+            }
+            if (tool == AnnotationController::Tool::ImageStamp) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool image stamp page=%1").arg(pageIndex));
+                emit imageStampRequested(pageIndex, userPoint);
+                return;
+            }
+            if (tool == AnnotationController::Tool::Sound) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool sound page=%1").arg(pageIndex));
+                emit soundRequested(pageIndex, userPoint);
+                return;
+            }
+            if (tool == AnnotationController::Tool::Stamp) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool stamp page=%1").arg(pageIndex));
+                emit stampRequested(pageIndex, userPoint);
+                return;
+            }
+            if (tool == AnnotationController::Tool::FreeText) {
+                drawingSquare_ = true;
+                drawingFreeText_ = true;
+                drawPage_ = pageIndex;
+                drawAnchor_ = displayPoint;
+                drawCurrent_ = displayPoint;
+                trace(QStringLiteral("annotation tool freetext page=%1").arg(pageIndex));
+                viewport()->update();
+                return;
+            }
             if (tool == AnnotationController::Tool::Square ||
                 tool == AnnotationController::Tool::Ellipse) {
                 drawingSquare_ = true;
@@ -616,10 +725,14 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 return;
             }
             if (tool == AnnotationController::Tool::Line ||
-                tool == AnnotationController::Tool::Arrow) {
+                tool == AnnotationController::Tool::Arrow ||
+                tool == AnnotationController::Tool::Measure) {
                 drawingLine_ = true;
-                lineType_ = tool == AnnotationController::Tool::Arrow ? pdf::AnnotationType::Arrow
-                                                                      : pdf::AnnotationType::Line;
+                lineType_ = tool == AnnotationController::Tool::Arrow
+                                ? pdf::AnnotationType::Arrow
+                                : (tool == AnnotationController::Tool::Measure
+                                       ? pdf::AnnotationType::Measure
+                                       : pdf::AnnotationType::Line);
                 drawPage_ = pageIndex;
                 drawAnchor_ = displayPoint;
                 drawCurrent_ = displayPoint;
@@ -628,7 +741,14 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 return;
             }
             if (tool == AnnotationController::Tool::Polygon ||
-                tool == AnnotationController::Tool::Cloud) {
+                tool == AnnotationController::Tool::Cloud ||
+                tool == AnnotationController::Tool::MeasurePerimeter ||
+                tool == AnnotationController::Tool::MeasureArea) {
+                measureMode_ = tool == AnnotationController::Tool::MeasureArea
+                                   ? MeasureMode::Area
+                                   : (tool == AnnotationController::Tool::MeasurePerimeter
+                                          ? MeasureMode::Perimeter
+                                          : MeasureMode::Distance);
                 // 逐点输入：第一次点决定页号，之后只收同一页的点。
                 if (polygonPage_ != pageIndex) {
                     polygonPoints_.clear();
@@ -818,13 +938,16 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
             viewport()->update();
             if (a != b) {
                 const QRectF rect = QRectF(a, b).normalized();
-                if (drawingEllipse_) {
+                if (drawingFreeText_) {
+                    emit freeTextRequested(pageIndex, rect);
+                } else if (drawingEllipse_) {
                     emit ellipseAnnotationRequested(pageIndex, rect);
                 } else {
                     emit squareAnnotationRequested(pageIndex, rect);
                 }
             }
             drawingEllipse_ = false;
+            drawingFreeText_ = false;
             return;
         }
         QVector<QPointF> stroke;
@@ -867,7 +990,13 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
         polygonPoints_.clear();
         polygonPage_ = -1;
         viewport()->update();
-        emit polygonAnnotationRequested(page, static_cast<int>(type), userPoints);
+        if (measureMode_ != MeasureMode::Distance) {
+            const auto mode = measureMode_;
+            measureMode_ = MeasureMode::Distance;
+            emit measureShapeRequested(page, static_cast<int>(mode), userPoints);
+        } else {
+            emit polygonAnnotationRequested(page, static_cast<int>(type), userPoints);
+        }
         return;
     }
     if (event->button() != Qt::LeftButton || textController_ == nullptr) {

@@ -1,4 +1,4 @@
-qt_add_executable(IpcProtocolTests
+﻿qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -223,6 +223,7 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
@@ -366,6 +367,66 @@ endif()
 
 add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
 
+# ------------------------------------------------------------ WAV 解析 ----
+
+qt_add_executable(SoundFormatTests
+    SoundFormatTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.h
+)
+
+target_link_libraries(SoundFormatTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(SoundFormatTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(SoundFormatTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(SoundFormatTests)
+
+add_test(NAME SoundFormatTests COMMAND SoundFormatTests)
+# ------------------------------------------------------------ 批注摘要 ----
+
+qt_add_executable(AnnotationSummaryTests
+    AnnotationSummaryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationSummary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationSummary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(AnnotationSummaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(AnnotationSummaryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(AnnotationSummaryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(AnnotationSummaryTests)
+
+add_test(NAME AnnotationSummaryTests COMMAND AnnotationSummaryTests)
+# ------------------------------------------------------------ 测量几何 ----
+
+qt_add_executable(MeasureGeometryTests
+    MeasureGeometryTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.h
+)
+
+target_link_libraries(MeasureGeometryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(MeasureGeometryTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(MeasureGeometryTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(MeasureGeometryTests)
+
+add_test(NAME MeasureGeometryTests COMMAND MeasureGeometryTests)
+# ------------------------------------------------------------ XFDF ----
+
+qt_add_executable(XfdfTests
+    XfdfTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Xfdf.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Xfdf.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+)
+
+target_link_libraries(XfdfTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(XfdfTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(XfdfTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(XfdfTests)
+
+add_test(NAME XfdfTests COMMAND XfdfTests)
 # ------------------------------------------------------------ 批注字典 ----
 
 qt_add_executable(AnnotationDictionaryTests
@@ -521,6 +582,7 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h

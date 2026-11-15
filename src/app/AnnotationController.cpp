@@ -168,6 +168,206 @@ quint64 AnnotationController::addPolygon(pdf::AnnotationType type, int pageIndex
     return id;
 }
 
+quint64 AnnotationController::addMeasureShape(MeasureMode mode, int pageIndex,
+                                              const QVector<QPointF>& vertices, double scale) {
+    if (vertices.size() < 2) {
+        return 0;
+    }
+    if (mode == MeasureMode::Area && vertices.size() < 3) {
+        return 0;
+    }
+    const double factor = (scale > 0.0) ? scale : 1.0;
+    const QString label = formatMeasure(mode, vertices, factor);
+    if (label.isEmpty()) {
+        return 0;
+    }
+
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::Measure;
+    annotation.vertices = vertices;
+    annotation.measureScale = factor;
+    annotation.contents = label;
+    QRectF rect = QRectF(vertices.first(), vertices.first());
+    for (const QPointF& vertex : vertices) {
+        rect = rect.united(QRectF(vertex, QSizeF(0.0, 0.0)));
+    }
+    annotation.rect = rect.adjusted(-2.0, -2.0, 2.0, 2.0);
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Measure);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 measure=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::Measure))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(label));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addAttachment(int pageIndex, const QPointF& point,
+                                           const QString& fileName, const QByteArray& data) {
+    if (fileName.isEmpty() || data.isEmpty()) {
+        return 0;
+    }
+    constexpr double kSize = 20.0;
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::FileAttachment;
+    annotation.rect = QRectF(point.x() - kSize / 2.0, point.y() - kSize / 2.0, kSize, kSize);
+    annotation.contents = fileName;
+    annotation.attachmentName = fileName;
+    annotation.attachmentData = data;
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::FileAttachment);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 size=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::FileAttachment))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(data.size()));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addMeasure(int pageIndex, const QPointF& from, const QPointF& to,
+                                        double scale) {
+    if (QLineF(from, to).length() < 0.5) {
+        return 0;
+    }
+    const double factor = (scale > 0.0) ? scale : 1.0;
+    const double length = QLineF(from, to).length() * factor;
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::Measure;
+    annotation.vertices = { from, to };
+    annotation.measureScale = factor;
+    annotation.contents = QStringLiteral("%1 pt").arg(length, 0, 'f', 1);
+    annotation.rect = QRectF(from, to).normalized();
+    if (annotation.rect.width() < 1.0) {
+        annotation.rect.setWidth(1.0);
+    }
+    if (annotation.rect.height() < 1.0) {
+        annotation.rect.setHeight(1.0);
+    }
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Measure);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 length=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::Measure))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(length, 0, 'f', 2));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addStamp(int pageIndex, const QRectF& rect, const QString& label) {
+    if (rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::Stamp;
+    annotation.rect = rect;
+    annotation.contents = label.trimmed().isEmpty() ? QStringLiteral("APPROVED") : label.trimmed();
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Stamp);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3")
+              .arg(static_cast<int>(pdf::AnnotationType::Stamp))
+              .arg(pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addImageStamp(int pageIndex, const QRectF& rect,
+                                            const QByteArray& imageBytes, const QString& label) {
+    if (imageBytes.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    annotation.type = pdf::AnnotationType::Stamp;
+    annotation.rect = rect;
+    annotation.imageData = imageBytes;
+    annotation.contents = label;
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Stamp);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 image=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::Stamp))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(imageBytes.size()));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addSound(int pageIndex, const QRectF& rect, const QString& name,
+                                       const QByteArray& pcm, int rate, int channels, int bits) {
+    if (pcm.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return 0;
+    }
+    pdf::Annotation annotation;
+    annotation.id = model_.allocateId();
+    annotation.pageIndex = pageIndex;
+    // PDFium 这个版本没有创建 /Sound 注释的接口（FPDFPage_CreateAnnot 对
+    // FPDF_ANNOT_SOUND 返回空），所以音频以"文件附件"的形式随文档保存：
+    // 阅读器里点开附件就能播放，数据一个字节都不少。等哪天能写 /Sound 注释，
+    // 这里换回来即可，模型字段已经留好。
+    annotation.type = pdf::AnnotationType::FileAttachment;
+    annotation.rect = rect;
+    annotation.soundData = pcm;
+    annotation.soundName = name;
+    annotation.soundRate = rate > 0 ? rate : 8000;
+    annotation.soundChannels = channels > 0 ? channels : 1;
+    annotation.soundBits = bits > 0 ? bits : 8;
+    annotation.attachmentName = name;
+    annotation.attachmentData = pcm;
+    annotation.contents = QStringLiteral("声音: %1").arg(name);
+    annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Sound);
+
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    const quint64 id = annotation.id;
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add type=%1 page=%2 id=%3 pcm=%4")
+              .arg(static_cast<int>(pdf::AnnotationType::Sound))
+              .arg(pageIndex)
+              .arg(id)
+              .arg(pcm.size()));
+    emit undoStateChanged();
+    return id;
+}
+
 quint64 AnnotationController::addFreeText(int pageIndex, const QRectF& rect, const QString& text,
                                          double fontSize) {
     if (rect.width() <= 0.0 || rect.height() <= 0.0 || text.trimmed().isEmpty()) {
@@ -297,6 +497,109 @@ bool AnnotationController::removeAnnotation(quint64 id) {
     return true;
 }
 
+quint64 AnnotationController::importAnnotation(const pdf::Annotation& source) {
+    pdf::Annotation annotation = source;
+    annotation.id = model_.allocateId();
+    if (annotation.createdAt.isNull()) {
+        annotation.createdAt = QDateTime::currentDateTimeUtc();
+    }
+    const quint64 id = annotation.id;
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation import type=%1 page=%2 id=%3")
+              .arg(static_cast<int>(annotation.type))
+              .arg(annotation.pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
+quint64 AnnotationController::addReply(quint64 parentId, const QString& text, const QString& author) {
+    const pdf::Annotation* parent = model_.find(parentId);
+    if (parent == nullptr || text.trimmed().isEmpty()) {
+        return 0;
+    }
+    pdf::Annotation reply;
+    reply.id = model_.allocateId();
+    reply.pageIndex = parent->pageIndex;
+    reply.type = pdf::AnnotationType::Note;
+    reply.replyToId = parentId;
+    reply.contents = text.trimmed();
+    reply.author = author;
+    reply.createdAt = QDateTime::currentDateTimeUtc();
+    reply.color = parent->color;
+    // 回复贴在父批注右侧，避免和父批注完全重叠。
+    reply.rect = parent->rect.translated(parent->rect.width() + 6.0, 0.0);
+
+    const quint64 id = reply.id;
+    auto command = std::make_unique<doc::AddAnnotationCommand>(reply);
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation reply parent=%1 id=%2").arg(parentId).arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
+bool AnnotationController::updateAppearance(const QVector<quint64>& ids, const QColor& color,
+                                            double lineWidth, double opacity) {
+    if (ids.isEmpty()) {
+        return false;
+    }
+    // 一条批注一个命令：撤销时逐条回滚，符合"我改了几条就撤几次"的直觉。
+    int changed = 0;
+    for (quint64 id : ids) {
+        const pdf::Annotation* annotation = model_.find(id);
+        if (annotation == nullptr) {
+            continue;
+        }
+        pdf::Annotation before = *annotation;
+        pdf::Annotation after = before;
+        if (color.isValid()) {
+            after.color = color;
+        }
+        if (lineWidth > 0.0) {
+            after.lineWidth = lineWidth;
+        }
+        if (opacity > 0.0 && opacity <= 1.0) {
+            after.opacity = opacity;
+        }
+        if (after.color == before.color && qFuzzyCompare(after.lineWidth + 1.0, before.lineWidth + 1.0) &&
+            qFuzzyCompare(after.opacity + 1.0, before.opacity + 1.0)) {
+            continue;
+        }
+        auto command = std::make_unique<doc::UpdateAnnotationCommand>(before, after);
+        if (undoStack_.push(std::move(command), this)) {
+            ++changed;
+        }
+    }
+    if (changed == 0) {
+        return false;
+    }
+    trace(QStringLiteral("annotation appearance updated count=%1").arg(changed));
+    emit undoStateChanged();
+    return true;
+}
+
+bool AnnotationController::setReviewState(quint64 id, const QString& state) {
+    const pdf::Annotation* annotation = model_.find(id);
+    if (annotation == nullptr) {
+        return false;
+    }
+    pdf::Annotation before = *annotation;
+    pdf::Annotation after = before;
+    after.reviewState = state;
+    auto command = std::make_unique<doc::UpdateAnnotationCommand>(before, after);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("annotation state id=%1 state=%2").arg(id).arg(state));
+    emit undoStateChanged();
+    return true;
+}
+
 bool AnnotationController::updateAnnotation(quint64 id,
                                             const QColor& color,
                                             const QString& contents) {
@@ -360,6 +663,18 @@ QString AnnotationController::redoText() const {
 
 QVector<pdf::Annotation> AnnotationController::annotationsForPage(int pageIndex) const {
     return model_.forPage(pageIndex);
+}
+
+QHash<quint64, QPair<QString, QByteArray>> AnnotationController::attachmentPayloads() const {
+    QHash<quint64, QPair<QString, QByteArray>> payloads;
+    for (const pdf::Annotation& annotation : model_.all()) {
+        if (annotation.type == pdf::AnnotationType::FileAttachment &&
+            !annotation.attachmentData.isEmpty()) {
+            payloads.insert(annotation.id,
+                            { annotation.attachmentName, annotation.attachmentData });
+        }
+    }
+    return payloads;
 }
 
 QVector<pdf::Annotation> AnnotationController::allAnnotations() const {

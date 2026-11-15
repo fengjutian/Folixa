@@ -1,4 +1,4 @@
-#include "pdf/IncrementalWriter.h"
+﻿#include "pdf/IncrementalWriter.h"
 
 #include <algorithm>
 #include <map>
@@ -299,8 +299,19 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
     QVector<QPair<int, QByteArray>> appearanceBodies;
     QVector<QByteArray> seenMarkers;
 
+    // 先把所有标记对应的对象号摸清楚：/IRT（回复）要引用父批注的对象号，
+    // 而对象号只有解析文件之后才知道。
+    std::map<QByteArray, int> markerObjects;
     for (const AppearanceAttachment& item : attachments) {
-        if (item.appearance.isEmpty()) {
+        Target probe;
+        if (findTarget(pdf, item.marker, &probe)) {
+            markerObjects[item.marker] = probe.object;
+        }
+    }
+
+    for (const AppearanceAttachment& item : attachments) {
+        if (item.appearance.isEmpty() && item.extraObjects.isEmpty() &&
+            item.extraEntries.isEmpty()) {
             continue;
         }
         if (seenMarkers.contains(item.marker)) {
@@ -323,16 +334,59 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         }
 
         const int appearanceObject = nextObject++;
-        QByteArray inserted = "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> ";
+        // 先给额外对象分配号，再替换占位符：对象之间可能互相引用。
+        QVector<int> extraNumbers;
+        for (int i = 0; i < item.extraObjects.size(); ++i) {
+            extraNumbers.append(nextObject++);
+        }
+        auto substitute = [&extraNumbers, &markerObjects](QByteArray body) {
+            for (int i = 0; i < extraNumbers.size(); ++i) {
+                body.replace("@EXTRA" + QByteArray::number(i),
+                             QByteArray::number(extraNumbers.at(i)));
+            }
+            for (const auto& entry : markerObjects) {
+                body.replace("@ANNOT" + entry.first, QByteArray::number(entry.second));
+            }
+            return body;
+        };
+        for (int i = 0; i < item.extraObjects.size(); ++i) {
+            appearanceBodies.append({ extraNumbers.at(i), substitute(item.extraObjects.at(i)) });
+        }
+        // 便签这类没有图形外观的批注也要写（/IRT、/T、/State 都在 extraEntries 里），
+        // 只是不写 /AP——写一个空 XObject 反而会让阅读器画出一块空白。
+        // 外观流里也可能引用新对象（图片图章的 /Im0）：先替换占位符再写。
+        if (!item.appearance.imageObjectBody.isEmpty()) {
+            // 外观流里也可能引用新对象（图片图章的 /Im0）：先替换占位符再写。
+            Appearance styled = item.appearance;
+            styled.content = substitute(styled.content);
+            styled.resources = substitute(styled.resources);
+            QByteArray imageBody = substitute(item.appearance.imageObjectBody);
+            appearanceBodies.append({ extraNumbers.value(0, appearanceObject), imageBody });
+            appearanceBodies.append({ appearanceObject, buildAppearanceBody(styled) });
+            continue;
+        }
+        QByteArray inserted;
+        if (!item.appearance.isEmpty()) {
+            inserted = "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> ";
+        }
         if (!item.extraEntries.isEmpty()) {
             // 额外字典项（/L、/BE、/Vertices…）与 /AP 一起插进同一次重写。
             // 顺序无所谓：PDF 字典按键查找，重复键才是问题——所以调用方必须
             // 保证这些键原本不存在（PDFium 建出来的注释确实没有它们）。
-            inserted += item.extraEntries;
+            inserted += substitute(item.extraEntries);
             inserted += ' ';
         }
+        if (inserted.contains("@ANNOT")) {
+            // 占位符没被替换掉说明父批注不在这次写入里：宁可失败，
+            // 也不要把一个指向不存在对象的 /IRT 写进文件。
+            result.error = QStringLiteral("回复引用的父批注不在本次写入中：") +
+                           QByteArray(item.marker);
+            return result;
+        }
         it->second.inserts.append({ target.insertAt, inserted });
-        appearanceBodies.append({ appearanceObject, buildAppearanceBody(item.appearance) });
+        if (!item.appearance.isEmpty()) {
+            appearanceBodies.append({ appearanceObject, buildAppearanceBody(item.appearance) });
+        }
     }
 
     if (appearanceBodies.isEmpty()) {

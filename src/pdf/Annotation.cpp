@@ -30,6 +30,14 @@ QString annotationTypeName(AnnotationType type) {
             return QStringLiteral("云线");
         case AnnotationType::FreeText:
             return QStringLiteral("文本框");
+        case AnnotationType::Stamp:
+            return QStringLiteral("图章");
+        case AnnotationType::Measure:
+            return QStringLiteral("测量");
+        case AnnotationType::FileAttachment:
+            return QStringLiteral("附件");
+        case AnnotationType::Sound:
+            return QStringLiteral("声音");
 
         case AnnotationType::Ink:
             return QStringLiteral("墨迹");
@@ -60,6 +68,14 @@ QColor defaultAnnotationColor(AnnotationType type) {
             return QColor(226, 62, 62);
         case AnnotationType::FreeText:
             return QColor(32, 42, 58);
+        case AnnotationType::Stamp:
+            return QColor(226, 62, 62);
+        case AnnotationType::Measure:
+            return QColor(38, 132, 255);
+        case AnnotationType::FileAttachment:
+            return QColor(120, 120, 120);
+        case AnnotationType::Sound:
+            return QColor(38, 132, 255);
 
         case AnnotationType::Ink:
             return QColor(226, 62, 62);

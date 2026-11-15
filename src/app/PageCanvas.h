@@ -8,6 +8,7 @@
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
+#include "app/MeasureGeometry.h"
 #include "pdf/Annotation.h"
 
 class QMouseEvent;
@@ -80,6 +81,17 @@ signals:
     void lineAnnotationRequested(int pageIndex, int type, const QPointF& from, const QPointF& to);
     // 多边形/云线：顶点序列（用户空间）。
     void polygonAnnotationRequested(int pageIndex, int type, const QVector<QPointF>& vertices);
+    // 文本框工具：拖出一块，交给界面去问文字。
+    void freeTextRequested(int pageIndex, const QRectF& userSpaceRect);
+    // 图章工具：点在页面上，要放一个图章（中心点，用户空间）。
+    void stampRequested(int pageIndex, const QPointF& userSpacePoint);
+    // 图片图章 / 声音批注：点在页面上，素材已经在工具选择时准备好。
+    void imageStampRequested(int pageIndex, const QPointF& userSpacePoint);
+    void soundRequested(int pageIndex, const QPointF& userSpacePoint);
+    // 附件工具：点在页面上，要挂一个文件（中心点，用户空间）。
+    void attachmentRequested(int pageIndex, const QPointF& userSpacePoint);
+    // 周长/面积：逐点输入后一次给出结果（mode 是 MeasureMode 的整数值）。
+    void measureShapeRequested(int pageIndex, int mode, const QVector<QPointF>& vertices);
     // 墨迹工具：拖出一笔（坐标是 PDF user space）。
     void inkAnnotationRequested(int pageIndex, const QVector<QPointF>& userSpaceStroke);
 
@@ -115,12 +127,14 @@ private:
     // 正在用批注工具拖拽（矩形 / 墨迹）：坐标都在显示空间。
     bool drawingSquare_ = false;
     bool drawingEllipse_ = false;
+    bool drawingFreeText_ = false;
     bool drawingLine_ = false;
     pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;
     // 多边形/云线的逐点输入：第一次点击记页号，双击结束。
     QVector<QPointF> polygonPoints_;
     int polygonPage_ = -1;
     pdf::AnnotationType polygonType_ = pdf::AnnotationType::Polygon;
+    MeasureMode measureMode_ = MeasureMode::Distance;
     bool drawingInk_ = false;
     // 橡皮正在擦：按住拖动期间持续命中判定。
     bool erasing_ = false;

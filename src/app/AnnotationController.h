@@ -12,6 +12,7 @@
 #include "doc/AnnotationModel.h"
 #include "doc/EditContext.h"
 #include "doc/UndoStack.h"
+#include "app/MeasureGeometry.h"
 #include "pdf/Annotation.h"
 #include "pdf/PdfiumAdapter.h"
 
@@ -54,6 +55,13 @@ public:
         Polygon, // 多边形：逐点点击，双击结束
         Cloud,   // 云线：同多边形，边框画成扇贝
         FreeText, // 文本框：拖出一块再输入文字
+        Stamp,   // 图章：点一下放一个
+        ImageStamp, // 图片图章
+        Sound,   // 声音批注
+        Measure, // 测量：拖出两点
+        MeasurePerimeter, // 周长：逐点
+        MeasureArea,      // 面积：逐点
+        Attachment, // 附件：点一下放一个
         Ink,     // 墨迹：拖出一笔
         Eraser,  // 橡皮：划过的墨迹整笔删掉
     };
@@ -86,6 +94,22 @@ public:
                     const QPointF& to);
     // 多边形 / 云线：顶点序列，/Vertices 与 /BE 由写入器补齐。
     // 文本框：拖出一块，再把文字放进去。
+    // 图章：在 rect 里放一个文字图章（边框 + 居中粗体字）。
+    quint64 addStamp(int pageIndex, const QRectF& rect, const QString& label);
+    // 图片图章：图片字节随文档一起保存，外观写成 Image XObject。
+    quint64 addImageStamp(int pageIndex, const QRectF& rect, const QByteArray& imageBytes,
+                          const QString& label = {});
+    // 声音批注：WAV 已被解析成裸 PCM。
+    quint64 addSound(int pageIndex, const QRectF& rect, const QString& name, const QByteArray& pcm,
+                     int rate, int channels, int bits);
+    // 距离测量：两点 + 比例（1 点 = scale 个单位），长度写进 /Contents。
+    quint64 addMeasure(int pageIndex, const QPointF& from, const QPointF& to, double scale = 1.0);
+    // 周长 / 面积：顶点序列，文字直接写进 /Contents。
+    quint64 addMeasureShape(MeasureMode mode, int pageIndex, const QVector<QPointF>& vertices,
+                            double scale = 1.0);
+    // 附件：在页面上放一个回形针图标，文件内容随文档保存。
+    quint64 addAttachment(int pageIndex, const QPointF& point, const QString& fileName,
+                          const QByteArray& data);
     quint64 addFreeText(int pageIndex, const QRectF& rect, const QString& text,
                         double fontSize = 12.0);
     quint64 addPolygon(pdf::AnnotationType type, int pageIndex,
@@ -95,6 +119,15 @@ public:
 
     // 删除一条批注。
     bool removeAnnotation(quint64 id);
+    // 回复：在父批注旁边挂一条便签，/IRT 指向父批注。
+    quint64 addReply(quint64 parentId, const QString& text, const QString& author = {});
+    // 从外部（XFDF 等）导入一条批注：重新分配 id，其余字段照抄。
+    quint64 importAnnotation(const pdf::Annotation& annotation);
+    // 审阅状态：Accepted / Rejected / Cancelled / Completed / None（空字符串表示清除）。
+    bool setReviewState(quint64 id, const QString& state);
+    // 批量改外观：颜色 / 线宽 / 不透明度。width 或 opacity <=0 表示不动。
+    bool updateAppearance(const QVector<quint64>& ids, const QColor& color, double lineWidth,
+                          double opacity);
     // 修改批注（颜色、正文）。
     bool updateAnnotation(quint64 id, const QColor& color, const QString& contents);
 
@@ -109,6 +142,9 @@ public:
     // 批注列表。
     QVector<pdf::Annotation> annotationsForPage(int pageIndex) const;
     QVector<pdf::Annotation> allAnnotations() const;
+    // 附件内容（id → 文件名与字节）。保存时交给 DocumentWriter：
+    // PDFium 的对象里没有这些内容，只能从模型带过去。
+    QHash<quint64, QPair<QString, QByteArray>> attachmentPayloads() const;
     int annotationCount() const;
     int annotationCountForPage(int pageIndex) const;
 
