@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QByteArray>
 #include <QVector>
@@ -8,6 +8,7 @@ namespace aipdf::pdf {
 
 class PdfDocument;
 struct Annotation;
+struct PdfEncryptionOptions;
 
 // 保存用的字节。
 struct SaveBytes {
@@ -57,10 +58,14 @@ public:
     //
     // 校验不通过时原文件与备份都不动，返回的 ok 为 false。
     // 外观流没补上不算失败（文件是好的），但 warning 会非空。
+    //
+    // encryption 非空时，序列化之后先做 AES-256 加密再落盘；重开校验会用
+    // 加密设置里的用户密码。用户密码为空表示加密但不要求密码打开（只写权限位）。
     static SaveOutcome save(const PdfDocument& document,
                             const QString& targetPath,
                             bool createBackup = true,
-                            const QVector<Annotation>& model = {});
+                            const QVector<Annotation>& model = {},
+                            const PdfEncryptionOptions* encryption = nullptr);
 };
 
 }  // namespace aipdf::pdf

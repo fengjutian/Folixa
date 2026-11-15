@@ -1,4 +1,4 @@
-﻿#include "app/MainWindow.h"
+#include "app/MainWindow.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -436,6 +436,21 @@ void MainWindow::buildUi() {
         statusBar()->showMessage(
             tr("第 %1 页 OCR 完成：%2 块已加入索引").arg(page + 1).arg(chunks), 10000);
         trace(QStringLiteral("ocr applied page=%1 chunks=%2").arg(page + 1).arg(chunks));
+    });
+    // 安全（v1.6.0）：保存时 AES-256 加密并写权限位。
+    auto* encryptionAction = appMenu->addAction(QString());
+    texts_.bind([this, encryptionAction] {
+        encryptionAction->setText(tr("加密与权限…"));
+    });
+    encryptionAction->setObjectName(QStringLiteral("securityEncryption"));
+    encryptionAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+E")));
+    connect(encryptionAction, &QAction::triggered, this, [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("先打开一份 PDF"), 5000);
+            return;
+        }
+        view->configureEncryptionDialog();
     });
     // AI 文档操作（v0.14.0）：只读扫描 → 生成提案 → 用户确认 → 走命令系统。
     // 这条路径上没有任何一步能绕过确认框。

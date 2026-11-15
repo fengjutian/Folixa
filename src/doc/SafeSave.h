@@ -35,10 +35,15 @@ public:
     static SaveResult writeAtomically(const QString& targetPath,
                                       const QByteArray& bytes,
                                       int expectedPageCount,
-                                      bool createBackup);
+                                      bool createBackup,
+                                      const QString& password = QString());
 
     // 校验字节：能不能当 PDF 打开、页数对不对。
-    static bool verify(const QByteArray& bytes, int expectedPageCount, QString* error);
+    // 加密文档要传打开密码；空密码表示无密码打开。
+    static bool verify(const QByteArray& bytes,
+                       int expectedPageCount,
+                       QString* error,
+                       const QString& password = QString());
 
     // 备份文件路径：<原名>.folixa.bak。
     static QString backupPathFor(const QString& targetPath);

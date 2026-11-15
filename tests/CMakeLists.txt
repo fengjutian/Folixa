@@ -1,4 +1,4 @@
-qt_add_executable(IpcProtocolTests
+﻿qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -439,6 +439,8 @@ add_test(NAME IncrementalWriterTests COMMAND IncrementalWriterTests)
 qt_add_executable(DocumentWriterTests
     DocumentWriterTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
@@ -725,6 +727,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h

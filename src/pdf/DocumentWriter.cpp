@@ -1,4 +1,4 @@
-﻿#include "pdf/DocumentWriter.h"
+#include "pdf/DocumentWriter.h"
 
 #include "doc/SafeSave.h"
 #include "i18n/Translate.h"
@@ -7,6 +7,7 @@
 #include "pdf/AppearanceStream.h"
 #include "pdf/IncrementalWriter.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/PdfSecurity.h"
 #include "pdf/QpdfBackend.h"
 
 namespace aipdf::pdf {
@@ -93,7 +94,8 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
 
 SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& targetPath,
                                       bool createBackup,
-                                      const QVector<Annotation>& model) {
+                                      const QVector<Annotation>& model,
+                                      const PdfEncryptionOptions* encryption) {
     SaveOutcome outcome;
 
     const SaveBytes prepared = serializeForSave(document, model);
@@ -104,10 +106,22 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
     outcome.warning = prepared.warning;
     outcome.appearanceCount = prepared.appearanceCount;
 
+    // 加密放在结构校验之前：要校验的是最终会落盘的那份字节。
+    QByteArray bytes = prepared.bytes;
+    const QString password = encryption != nullptr ? encryption->userPassword : QString();
+    if (encryption != nullptr) {
+        QString encryptionError;
+        bytes = encryptPdf(bytes, *encryption, &encryptionError);
+        if (bytes.isEmpty()) {
+            outcome.error = encryptionError;
+            return outcome;
+        }
+    }
+
     // 落盘前的最后一道结构检查。qpdf 未编入时这是一次空操作（返回 true），
     // 所以调用方不需要 ifdef；编入时它能把"能渲染但结构坏了"的文件挡在磁盘之外。
     QString structureError;
-    if (!verifyWithQpdf(prepared.bytes, &structureError)) {
+    if (!verifyWithQpdf(bytes, &structureError, password)) {
         outcome.error = structureError;
         return outcome;
     }
@@ -115,7 +129,7 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
     // 文件层的保证（临时文件、重开校验、备份、原子替换）仍在 SafeSave 里：
     // 那是经过缺陷修复的代码，重写一遍只会引入新问题。这里只是把它收进唯一的入口。
     const doc::SaveResult written = doc::SafeSave::writeAtomically(
-        targetPath, prepared.bytes, document.pageCount(), createBackup);
+        targetPath, bytes, document.pageCount(), createBackup, password);
     outcome.ok = written.ok;
     outcome.error = written.errorMessage;
     outcome.backupPath = written.backupPath;

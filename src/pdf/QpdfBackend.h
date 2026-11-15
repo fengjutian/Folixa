@@ -18,6 +18,8 @@ bool qpdfBackendAvailable();
 // 因此这里把**任何 warning 都当失败**——对刚由我们自己写出的文件，不该有警告。
 //
 // qpdf 未启用时直接返回 true（error 保持为空）：调用方不需要写 ifdef。
-bool verifyWithQpdf(const QByteArray& bytes, QString* error);
+// 加密文档要传打开密码；空密码表示按无密码打开。
+bool verifyWithQpdf(const QByteArray& bytes, QString* error,
+                    const QString& password = QString());
 
 }  // namespace aipdf::pdf

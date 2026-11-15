@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QWidget>
 #include <QImage>
@@ -7,6 +7,7 @@
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/PdfSecurity.h"
 #include "i18n/Translate.h"
 
 #include <memory>
@@ -113,6 +114,10 @@ public slots:
     void applyWatermarkDialog();
     void applyHeaderFooterDialog();
     void applyPageNumbersDialog();
+
+    // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
+    bool encryptionEnabled() const;
+    void configureEncryptionDialog();
 
     // 表单（v1.5.0）：字段列表、写值、扁平化。
     QVector<pdf::FormField> formFields() const;
@@ -310,6 +315,9 @@ private:
     bool fitToPage_ = false;
     // 文档有没有未保存的改动。
     bool modified_ = false;
+    // 保存时的加密设置（v1.6.0）。encryptionEnabled_ 为假时按明文保存。
+    pdf::PdfEncryptionOptions encryptionOptions_;
+    bool encryptionEnabled_ = false;
     // 一次设定、长期显示的界面文案：切换语言时就地重译。
     i18n::TextBindings texts_;
 };

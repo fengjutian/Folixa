@@ -1,7 +1,8 @@
-﻿#include "app/PdfView.h"
+#include "app/PdfView.h"
 
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
+#include "app/EncryptionDialog.h"
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
 #include "pdf/FormData.h"
@@ -1429,6 +1430,48 @@ void PdfView::applyPageNumbersDialog() {
     emit statusMessage(tr("已添加页码"));
 }
 
+// ------------------------------------------------------ 安全（v1.6.0）----
+
+bool PdfView::encryptionEnabled() const {
+    return encryptionEnabled_;
+}
+
+void PdfView::configureEncryptionDialog() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("加密与权限"), tr("先打开一份 PDF。"));
+        return;
+    }
+    if (!pdf::encryptionAvailable()) {
+        QMessageBox::warning(
+            this, tr("加密与权限"),
+            tr("本次构建没有启用 qpdf，写不了加密文档。请用带 qpdf 的安装包。"));
+        return;
+    }
+    EncryptionDialog dialog(encryptionOptions_, encryptionEnabled_, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const bool wasEnabled = encryptionEnabled_;
+    encryptionOptions_ = dialog.options();
+    encryptionEnabled_ = dialog.encryptionEnabled();
+    if (encryptionEnabled_ || wasEnabled) {
+        // 加密是保存时的动作：标脏，避免用户改完设置却没保存就关掉。
+        setModified(true);
+    }
+    if (encryptionEnabled_) {
+        const bool needsPassword = !encryptionOptions_.userPassword.isEmpty();
+        emit statusMessage(
+            needsPassword
+                ? tr("保存时将使用 AES-256 加密；重新打开需要密码")
+                : tr("保存时将使用 AES-256 加密并写入权限位（打开不需要密码）"));
+    } else {
+        emit statusMessage(tr("已关闭加密：下次保存写明文 PDF"));
+    }
+    trace(QStringLiteral("encryption configured enabled=%1 password=%2")
+              .arg(encryptionEnabled_ ? 1 : 0)
+              .arg(encryptionOptions_.userPassword.isEmpty() ? 0 : 1));
+}
+
 // 装饰写进页面内容后，渲染线程手里的文档副本已经过期，必须换一份。
 void PdfView::refreshAfterDecoration() {
     QString error;
@@ -2079,7 +2122,8 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
         modelAnnotations = annotationController_->allAnnotations();
     }
     const pdf::SaveOutcome saved =
-        pdf::DocumentWriter::save(document_, targetPath, true, modelAnnotations);
+        pdf::DocumentWriter::save(document_, targetPath, true, modelAnnotations,
+                                  encryptionEnabled_ ? &encryptionOptions_ : nullptr);
     if (!saved.ok) {
         if (errorMessage != nullptr) {
             *errorMessage = saved.error;

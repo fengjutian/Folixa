@@ -89,14 +89,17 @@ QString SafeSave::temporaryPathFor(const QString& targetPath) {
     return targetPath + QStringLiteral(".folixa.tmp");
 }
 
-bool SafeSave::verify(const QByteArray& bytes, int expectedPageCount, QString* error) {
+bool SafeSave::verify(const QByteArray& bytes,
+                      int expectedPageCount,
+                      QString* error,
+                      const QString& password) {
     if (bytes.isEmpty()) {
         if (error != nullptr) {
             *error = i18n::tr("aipdf::doc::SafeSave", "内容为空");
         }
         return false;
     }
-    const pdf::PdfOpenResult result = pdf::openDocumentFromBytes(bytes);
+    const pdf::PdfOpenResult result = pdf::openDocumentFromBytes(bytes, QString(), password);
     if (!result.document.isValid()) {
         if (error != nullptr) {
             *error = i18n::tr("aipdf::doc::SafeSave", "写出的文件打不开：%1")
@@ -119,7 +122,8 @@ bool SafeSave::verify(const QByteArray& bytes, int expectedPageCount, QString* e
 SaveResult SafeSave::writeAtomically(const QString& targetPath,
                                      const QByteArray& bytes,
                                      int expectedPageCount,
-                                     bool createBackup) {
+                                     bool createBackup,
+                                     const QString& password) {
     SaveResult result;
 
     if (targetPath.isEmpty()) {
@@ -177,7 +181,7 @@ SaveResult SafeSave::writeAtomically(const QString& targetPath,
         }
         const QByteArray written = temporary.readAll();
         temporary.close();
-        if (!verify(written, expectedPageCount, &verifyError)) {
+        if (!verify(written, expectedPageCount, &verifyError, password)) {
             QFile::remove(temporaryPath);
             result.errorMessage = verifyError;
             return result;

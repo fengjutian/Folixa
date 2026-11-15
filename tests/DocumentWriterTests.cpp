@@ -1,4 +1,4 @@
-﻿// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
+// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
 //
 // 这一层最容易出的错是"漏补"——保存成功、文件合法、批注却在外单位置集体消失。
 // 所以每条断言都盯着「补了几条」和「补了之后渲染有没有变化」，而不是"没报错"。
@@ -6,6 +6,7 @@
 #include "pdf/Annotation.h"
 #include "pdf/DocumentWriter.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/PdfSecurity.h"
 #include "pdf/QpdfBackend.h"
 
 #include <QBuffer>
@@ -78,6 +79,7 @@ private slots:
     void attachmentIsEmbeddedInSavedBytes();
     void replyAndStateSurviveSaveAndReopen();
     void imageStampAndSoundAreEmbedded();
+    void saveEncryptsWrittenFile();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -444,6 +446,53 @@ void DocumentWriterTests::imageStampAndSoundAreEmbedded() {
 
     const auto reopened = openDocumentFromBytes(saved.bytes);
     QVERIFY(reopened.document.isValid());
+}
+
+void DocumentWriterTests::saveEncryptsWrittenFile() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("encrypted.pdf"));
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("reader");
+    options.ownerPassword = QStringLiteral("owner");
+    options.permissions.allowCopying = false;
+    options.permissions.allowPrinting = true;
+
+    const aipdf::pdf::SaveOutcome saved =
+        aipdf::pdf::DocumentWriter::save(opened.document, path, false, {}, &options);
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY(QFile::exists(path));
+
+    // 没有密码：必须被当成「需要密码」，而不是损坏文件。
+    const auto locked = openDocument(path);
+    QVERIFY(locked.passwordRequired);
+    QVERIFY(!locked.document.isValid());
+
+    // 错误密码同样打不开。
+    const auto wrong = openDocument(path, QStringLiteral("wrong"));
+    QVERIFY(!wrong.document.isValid());
+
+    // 正确密码：页数与内容结构都在。
+    const auto reopened = openDocument(path, QStringLiteral("reader"));
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    QCOMPARE(reopened.document.pageCount(), opened.document.pageCount());
+
+    // 落盘的是真正的 R6 加密，权限位也按设置写了。
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    file.close();
+    int revision = 0;
+    int permissions = 0;
+    QVERIFY(aipdf::pdf::inspectEncryption(bytes, QStringLiteral("reader"), &revision,
+                                          &permissions));
+    QCOMPARE(revision, 6);
+    QVERIFY(!(permissions & (1 << 4)));  // 复制位：关闭
+    QVERIFY(permissions & (1 << 2));     // 打印位：开启
 }
 
 QTEST_MAIN(DocumentWriterTests)

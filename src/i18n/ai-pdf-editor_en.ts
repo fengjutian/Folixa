@@ -808,6 +808,10 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>加密与权限…</source>
+            <translation>Encryption and permissions…</translation>
+        </message>
+        <message>
             <source>导出 FDF…</source>
             <translation>Export FDF…</translation>
         </message>
@@ -1544,6 +1548,26 @@
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
+        <message>
+            <source>加密与权限</source>
+            <translation>Encryption and permissions</translation>
+        </message>
+        <message>
+            <source>本次构建没有启用 qpdf，写不了加密文档。请用带 qpdf 的安装包。</source>
+            <translation>This build has no qpdf, so it cannot write encrypted documents. Use a package built with qpdf.</translation>
+        </message>
+        <message>
+            <source>保存时将使用 AES-256 加密；重新打开需要密码</source>
+            <translation>The file will be saved with AES-256 encryption; reopening it will require the password</translation>
+        </message>
+        <message>
+            <source>保存时将使用 AES-256 加密并写入权限位（打开不需要密码）</source>
+            <translation>The file will be saved with AES-256 encryption and permission flags (no password needed to open)</translation>
+        </message>
+        <message>
+            <source>已关闭加密：下次保存写明文 PDF</source>
+            <translation>Encryption is off; the next save writes a plain PDF</translation>
+        </message>
         <message>
             <source>FDF (*.fdf)</source>
             <translation>FDF (*.fdf)</translation>
@@ -3120,6 +3144,81 @@
         <message>
             <source>移动页面</source>
             <translation>Move page</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::EncryptionDialog</name>
+        <message>
+            <source>取消</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>保存时用 AES-256 加密这份文档</source>
+            <translation>Encrypt this document with AES-256 when saving</translation>
+        </message>
+        <message>
+            <source>打开密码（留空表示不需要密码）</source>
+            <translation>Open password (leave empty for no password)</translation>
+        </message>
+        <message>
+            <source>确认打开密码</source>
+            <translation>Confirm open password</translation>
+        </message>
+        <message>
+            <source>所有者密码（留空自动生成）</source>
+            <translation>Owner password (leave empty to generate one)</translation>
+        </message>
+        <message>
+            <source>打开密码为空：文件可以直接打开，权限位只对遵守规范的阅读器生效。</source>
+            <translation>The open password is empty: the file opens without a password, and the permission flags only apply to readers that honor them.</translation>
+        </message>
+        <message>
+            <source>所有者密码用于修改权限；留空时由程序随机生成，无法事后解除限制。</source>
+            <translation>The owner password protects permission changes; if left empty, a random one is generated and the restrictions cannot be lifted later.</translation>
+        </message>
+        <message>
+            <source>允许打印</source>
+            <translation>Allow printing</translation>
+        </message>
+        <message>
+            <source>允许高质量打印</source>
+            <translation>Allow high-quality printing</translation>
+        </message>
+        <message>
+            <source>允许复制文本与图片</source>
+            <translation>Allow copying text and images</translation>
+        </message>
+        <message>
+            <source>允许添加批注</source>
+            <translation>Allow adding annotations</translation>
+        </message>
+        <message>
+            <source>允许填写表单</source>
+            <translation>Allow filling forms</translation>
+        </message>
+        <message>
+            <source>允许插入、删除、旋转页面</source>
+            <translation>Allow inserting, deleting, and rotating pages</translation>
+        </message>
+        <message>
+            <source>允许其它修改</source>
+            <translation>Allow other modifications</translation>
+        </message>
+        <message>
+            <source>无障碍提取在 PDF 2.0 中始终允许，无法关闭；这是规范要求，不是遗漏。</source>
+            <translation>Accessibility extraction is always allowed in PDF 2.0 and cannot be disabled; this is required by the specification.</translation>
+        </message>
+        <message>
+            <source>确定</source>
+            <translation>OK</translation>
+        </message>
+        <message>
+            <source>加密与权限</source>
+            <translation>Encryption and permissions</translation>
+        </message>
+        <message>
+            <source>两次输入的打开密码不一致。</source>
+            <translation>The two open passwords do not match.</translation>
         </message>
     </context>
 </TS>

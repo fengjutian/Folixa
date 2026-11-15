@@ -1,4 +1,4 @@
-﻿#include "pdf/QpdfBackend.h"
+#include "pdf/QpdfBackend.h"
 
 #include "i18n/Translate.h"
 
@@ -22,7 +22,7 @@ bool qpdfBackendAvailable() {
 #endif
 }
 
-bool verifyWithQpdf(const QByteArray& bytes, QString* error) {
+bool verifyWithQpdf(const QByteArray& bytes, QString* error, const QString& password) {
 #ifdef AIPDF_WITH_QPDF
     if (bytes.isEmpty()) {
         if (error != nullptr) {
@@ -32,8 +32,10 @@ bool verifyWithQpdf(const QByteArray& bytes, QString* error) {
     }
     try {
         QPDF pdf;
+        const QByteArray utf8Password = password.toUtf8();
         pdf.processMemoryFile("candidate.pdf", bytes.constData(),
-                              static_cast<size_t>(bytes.size()));
+                              static_cast<size_t>(bytes.size()),
+                              utf8Password.constData());
         // 不抑制警告：我们刚写出的文件不该有任何"已修复"的痕迹。
         if (pdf.anyWarnings()) {
             const std::vector<QPDFExc> warnings = pdf.getWarnings();
@@ -57,6 +59,7 @@ bool verifyWithQpdf(const QByteArray& bytes, QString* error) {
     }
 #else
     Q_UNUSED(bytes);
+    Q_UNUSED(password);
     if (error != nullptr) {
         error->clear();
     }
