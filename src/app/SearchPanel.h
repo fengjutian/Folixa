@@ -1,4 +1,6 @@
-﻿#pragma once
+#pragma once
+
+#include "i18n/Translate.h"
 
 #include <QWidget>
 
@@ -38,15 +40,24 @@ signals:
     void navigateToPage(int pageIndex);
 
 private:
+    // 状态行当前显示的是哪一类文案：重译时按类型重新生成，
+    // 而不是把「共 N 处结果」重置成初始提示。
+    enum class StatusMode { Prompt, Live, Cancelled };
+
     void buildUi();
     void runSearch();
     void refreshResults();
+    // 只重写已有结果项的前缀，不重建列表，保住当前选中项。
+    void refreshResultTexts();
     void updateStatus();
     void goToResult(int index);
     void stepResult(int delta);
     void clearResults();
     // 第 index 条结果所在的页。
     int pageOfResult(int index) const;
+
+    // 切换语言后重译常驻文案，并重算随搜索状态变化的动态文案。
+    void retranslateUi();
 
     TextController* controller_ = nullptr;
     QLineEdit* queryEdit_ = nullptr;
@@ -66,6 +77,9 @@ private:
     int currentResult_ = -1;
     // 重建结果列表时不要触发跳转。
     bool suppressNavigation_ = false;
+    StatusMode statusMode_ = StatusMode::Prompt;
+    // 一次设定、长期显示的界面文案：切换语言时就地重译。
+    i18n::TextBindings texts_;
 };
 
 }  // namespace aipdf::app

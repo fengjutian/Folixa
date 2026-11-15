@@ -37,6 +37,17 @@ aipdf_deploy_qt_runtime(I18nTests)
 
 add_test(NAME I18nTests COMMAND I18nTests)
 
+# 覆盖率守卫：源码里每一条 tr()/translate()/QT_TRANSLATE_NOOP 都要有英文翻译。
+# 用 CMake 已经找到的 Python 跑，CI 与本地一条命令都能复现。
+add_test(NAME I18nCoverageTests
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check-i18n.py
+            --src ${CMAKE_SOURCE_DIR}/src
+            --ts ${CMAKE_SOURCE_DIR}/src/i18n/ai-pdf-editor_en.ts
+)
+set_tests_properties(I18nCoverageTests PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 qt_add_executable(WorkerIntegrationTests
     WorkerIntegrationTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp

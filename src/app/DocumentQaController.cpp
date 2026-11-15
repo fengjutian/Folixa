@@ -4,6 +4,8 @@
 #include "app/IndexController.h"
 #include "doc/DocumentChunk.h"
 
+#include "i18n/Translate.h"
+
 #include <QDateTime>
 #include <QFile>
 #include <QMutex>
@@ -118,7 +120,7 @@ protected:
 
             const QVector<ai::EmbeddingVector> computed = embedder_->embed(texts);
             if (computed.size() != entries.size()) {
-                postFailed(QStringLiteral("嵌入结果数量与块数不一致"));
+                postFailed(i18n::tr("aipdf::app::DocumentQaController", "嵌入结果数量与块数不一致"));
                 continue;
             }
 
@@ -349,7 +351,7 @@ void DocumentQaController::handleVectorIndexReady(const QVector<VectorEntry>& en
     }
     if (!vectors_.save()) {
         vectorIndexReady_ = false;
-        emit vectorIndexFailed(QStringLiteral("向量索引写盘失败"));
+        emit vectorIndexFailed(tr("向量索引写盘失败"));
         return;
     }
     vectorIndexReady_ = true;

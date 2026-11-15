@@ -1,6 +1,7 @@
-﻿#include "app/PageCanvas.h"
+#include "app/PageCanvas.h"
 
 #include "app/RenderThread.h"
+#include "app/Language.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
 #include "app/TraceText.h"
@@ -73,6 +74,19 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     // 鼠标跟踪：没有它就收不到「只是移过去」的移动事件，
     // 悬停在链接上时手型光标就不会出现。
     viewport()->setMouseTracking(true);
+
+    // 空画布的占位提示：常驻文案，登记后切换语言时就地重译并重画。
+    texts_.bind([this] {
+        emptyText_ = tr("未打开文档");
+        viewport()->update();
+    });
+
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &PageCanvas::retranslateUi);
+}
+
+void PageCanvas::retranslateUi() {
+    texts_.retranslate();
 }
 
 void PageCanvas::setLayout(const PageLayout& layout) {
@@ -177,7 +191,7 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
 
     if (layout_.isEmpty()) {
         painter.setPen(palette().color(QPalette::Text));
-        painter.drawText(event->rect(), Qt::AlignCenter, QStringLiteral("未打开文档"));
+        painter.drawText(event->rect(), Qt::AlignCenter, emptyText_);
         return;
     }
 

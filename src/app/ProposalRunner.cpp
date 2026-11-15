@@ -4,6 +4,8 @@
 #include "doc/UndoStack.h"
 #include "pdf/Annotation.h"
 
+#include "i18n/Translate.h"
+
 #include <QJsonArray>
 
 #include <algorithm>
@@ -12,13 +14,17 @@ namespace aipdf::app {
 
 namespace {
 
+// 提案是给用户看的：错误信息既进状态栏，也可能进确认对话框。
+// ProposalRunner 不是 QObject，用显式上下文走 i18n::tr。
+constexpr const char* kContext = "aipdf::app::ProposalRunner";
+
 // 页码：提案里从 1 开始（给人看），命令里从 0 开始。
 int toIndex(int pageNumber) {
     return pageNumber - 1;
 }
 
 QString describeFailure(const tools::ProposedOperation& operation, const QString& reason) {
-    return QStringLiteral("第 %1 条操作（%2）无法执行：%3")
+    return i18n::tr(kContext, "第 %1 条操作（%2）无法执行：%3")
         .arg(operation.displayName, operation.toolId, reason);
 }
 
@@ -70,14 +76,15 @@ bool ProposalRunner::buildCommands(const tools::Proposal& proposal, CommandList*
             annotation.rect = QRectF(rect.at(0).toDouble(), rect.at(1).toDouble(),
                                      rect.at(2).toDouble(), rect.at(3).toDouble());
             annotation.contents = operation.args.value(QStringLiteral("text")).toString();
-            annotation.author = QStringLiteral("AI 草稿");
+            // 作者名会显示在批注里，跟随界面语言。
+            annotation.author = i18n::tr(kContext, "AI 草稿");
             annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Note);
             commands->push_back(std::make_unique<doc::AddAnnotationCommand>(annotation));
             continue;
         }
 
         if (error != nullptr) {
-            *error = describeFailure(operation, QStringLiteral("没有对应的编辑命令"));
+            *error = describeFailure(operation, i18n::tr(kContext, "没有对应的编辑命令"));
         }
         commands->clear();
         return false;
@@ -85,7 +92,7 @@ bool ProposalRunner::buildCommands(const tools::Proposal& proposal, CommandList*
 
     if (commands->empty()) {
         if (error != nullptr) {
-            *error = QStringLiteral("提案里没有可执行的操作");
+            *error = i18n::tr(kContext, "提案里没有可执行的操作");
         }
         return false;
     }
@@ -95,7 +102,7 @@ bool ProposalRunner::buildCommands(const tools::Proposal& proposal, CommandList*
 int ProposalRunner::execute(CommandList* commands, const Applier& apply, QString* error) {
     if (commands == nullptr || !apply) {
         if (error != nullptr) {
-            *error = QStringLiteral("没有可用的执行入口");
+            *error = i18n::tr(kContext, "没有可用的执行入口");
         }
         return 0;
     }
@@ -108,7 +115,7 @@ int ProposalRunner::execute(CommandList* commands, const Applier& apply, QString
         const QString name = command->displayName();
         if (!apply(std::move(command))) {
             if (error != nullptr) {
-                *error = QStringLiteral("第 %1 条「%2」执行失败").arg(applied + 1).arg(name);
+                *error = i18n::tr(kContext, "第 %1 条「%2」执行失败").arg(applied + 1).arg(name);
             }
             return applied;
         }

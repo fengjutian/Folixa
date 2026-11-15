@@ -8,6 +8,8 @@
 #include "ocr/ScannedPageDetector.h"
 #include "ocr/OcrEngineFactory.h"
 
+#include "i18n/Translate.h"
+
 #include <QDateTime>
 #include <QFile>
 #include <QImage>
@@ -83,7 +85,7 @@ bool pageNeedsOcr(PdfView* view, int pageIndex, ocr::PageTextStats* stats, bool 
 }  // namespace
 
 QString OcrController::unavailableReason() const {
-    return QStringLiteral("本机没有可用的 OCR：可以装 tesseract（PATH 或 AIPDF_TESSERACT_PATH），或使用 Windows 自带的 OCR");
+    return tr("本机没有可用的 OCR：可以装 tesseract（PATH 或 AIPDF_TESSERACT_PATH），或使用 Windows 自带的 OCR");
 }
 
 bool OcrController::requestPage(PdfView* view, int pageIndex, QString* reason) {
@@ -98,23 +100,23 @@ bool OcrController::requestPage(PdfView* view, int pageIndex, QString* reason) {
         return fail(unavailableReason());
     }
     if (view == nullptr) {
-        return fail(QStringLiteral("没有打开的文档"));
+        return fail(tr("没有打开的文档"));
     }
     if (pageIndex < 0 || pageIndex >= view->pageCount()) {
-        return fail(QStringLiteral("页码超出范围"));
+        return fail(tr("页码超出范围"));
     }
 
     if (!pageNeedsOcr(view, pageIndex, nullptr)) {
-        return fail(QStringLiteral("这一页已有可用的文本层，不需要 OCR"));
+        return fail(tr("这一页已有可用的文本层，不需要 OCR"));
     }
 
     const QImage pageImage = view->renderThumbnail(pageIndex, 2000);
     if (pageImage.isNull()) {
-        return fail(QStringLiteral("页面渲染失败"));
+        return fail(tr("页面渲染失败"));
     }
     const QSizeF pageSize = view->pageSizePoints(pageIndex);
     if (pageSize.width() <= 0.0 || pageSize.height() <= 0.0) {
-        return fail(QStringLiteral("取不到页面尺寸"));
+        return fail(tr("取不到页面尺寸"));
     }
 
     pendingView_ = view;
@@ -131,7 +133,7 @@ bool OcrController::requestPage(PdfView* view, int pageIndex, QString* reason) {
 
 void OcrController::handlePageReady(const ocr::OcrPageResult& result) {
     if (result.cancelled) {
-        emit failed(result.pageIndex, QStringLiteral("识别已取消"));
+        emit failed(result.pageIndex, tr("识别已取消"));
         return;
     }
     if (!result.error.isEmpty()) {
@@ -141,13 +143,13 @@ void OcrController::handlePageReady(const ocr::OcrPageResult& result) {
 
     PdfView* view = pendingView_.data();
     if (view == nullptr || view->indexController() == nullptr) {
-        emit failed(result.pageIndex, QStringLiteral("索引不可用，识别结果未保存"));
+        emit failed(result.pageIndex, tr("索引不可用，识别结果未保存"));
         return;
     }
 
     const QVector<doc::DocumentChunk> chunks = ocr::chunksFromOcrPage(result, 0);
     if (chunks.isEmpty()) {
-        emit failed(result.pageIndex, QStringLiteral("这一页没有识别出文字"));
+        emit failed(result.pageIndex, tr("这一页没有识别出文字"));
         return;
     }
     view->indexController()->applyOcrPage(result.pageIndex, chunks);

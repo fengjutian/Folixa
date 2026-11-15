@@ -10,6 +10,8 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/TextPage.h"
 
+#include "i18n/Translate.h"
+
 #include <QDateTime>
 #include <QFile>
 #include <QHash>
@@ -231,7 +233,9 @@ protected:
         // 原来的那份留着不动：它归主线程所有，要由主线程来释放。
         document_ = source_.isolatedCopy();
         if (!document_.isValid()) {
-            postFinished(false, QStringLiteral("文档句柄不可用"));
+            // Worker 不是界面类，但这条错误会经 indexFailed 显示给用户；
+            // 用显式上下文落到 IndexController 的词条里。
+            postFinished(false, i18n::tr("aipdf::app::IndexController", "文档句柄不可用"));
             return;
         }
 
@@ -509,17 +513,17 @@ IndexController::State IndexController::state() const {
 QString IndexController::statusText() const {
     switch (state_) {
         case State::Idle:
-            return QStringLiteral("尚未建立索引");
+            return tr("尚未建立索引");
         case State::Running:
-            return QStringLiteral("索引中 %1/%2 页").arg(processedPages_).arg(totalPages_);
+            return tr("索引中 %1/%2 页").arg(processedPages_).arg(totalPages_);
         case State::Completed:
-            return QStringLiteral("索引完成：%1 个块（重建 %2 页）")
+            return tr("索引完成：%1 个块（重建 %2 页）")
                 .arg(index_.chunkCount())
                 .arg(rebuiltPages_);
         case State::Cancelled:
-            return QStringLiteral("索引已取消");
+            return tr("索引已取消");
         case State::Failed:
-            return QStringLiteral("索引失败：%1").arg(errorMessage_);
+            return tr("索引失败：%1").arg(errorMessage_);
     }
     return QString();
 }

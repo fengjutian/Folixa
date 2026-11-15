@@ -210,12 +210,11 @@ void I18nTests::embeddedCatalogCoversKnownStrings() {
     QVERIFY(translator.loadTs(&file));
 
     // 关键界面文案的守卫：目录被误删/改空时这里先红。
-    const char* contexts[] = {kMainWindowContext};
-    Q_UNUSED(contexts);
-    const QString translated =
-        translator.translate(kMainWindowContext, kSource);
-    QVERIFY2(!translated.isEmpty(),
+    QVERIFY2(!translator.translate(kMainWindowContext, kSource).isEmpty(),
              "英文目录里缺少主窗口欢迎页标签；重新导出 .ts 或补上翻译");
+    // 带 & 快捷键的条目：XML 里写的是 &amp;，解析回来必须是单个 &。
+    QCOMPARE(translator.translate(kMainWindowContext, "文件(&F)"),
+             QStringLiteral("File(&F)"));
 }
 
 void I18nTests::switchToEnglishTranslates() {

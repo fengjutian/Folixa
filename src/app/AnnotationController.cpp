@@ -1,4 +1,4 @@
-﻿#include "app/AnnotationController.h"
+#include "app/AnnotationController.h"
 
 #include "app/PdfPageOperations.h"
 #include "doc/EditCommand.h"
@@ -351,7 +351,8 @@ quint64 AnnotationController::addSound(int pageIndex, const QRectF& rect, const 
     annotation.soundBits = bits > 0 ? bits : 8;
     annotation.attachmentName = name;
     annotation.attachmentData = pcm;
-    annotation.contents = QStringLiteral("声音: %1").arg(name);
+    // 附件名会显示在阅读器的批注里，跟着界面语言走。
+    annotation.contents = tr("声音: %1").arg(name);
     annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Sound);
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);

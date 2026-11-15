@@ -1,6 +1,9 @@
-﻿#include "app/SearchPanel.h"
+#include "app/SearchPanel.h"
 
+#include "app/Language.h"
 #include "app/TextController.h"
+
+#include "i18n/Translate.h"
 
 #include <QCheckBox>
 #include <QSpinBox>
@@ -24,17 +27,24 @@ constexpr int kDebounceMs = 250;
 // v0.11.0 截图上「上一处 / 下一处」被压成两团认不出的残字。
 // chevron 是「上一条 / 下一条命中」的通用写法，文字挪进 tooltip 与
 // accessibleName，既腾出宽度也不丢可读性。
-void makeIconButton(QPushButton* button, const QString& iconPath, const QString& tooltip) {
+//
+// 提示文字由调用点用 QT_TRANSLATE_NOOP 带下来：这个辅助函数不是 QObject
+// 成员，拿不到类的 tr()，所以这里显式写明上下文。
+void makeIconButton(QPushButton* button, const QString& iconPath, const char* tooltipSource) {
     button->setIcon(QIcon(iconPath));
     button->setIconSize(QSize(18, 18));
     // 图标按钮不留文字内边距：Theme 里按 iconOnly 压成 32px 见方。
     button->setProperty("iconOnly", true);
-    button->setToolTip(tooltip);
+    button->setToolTip(i18n::tr("aipdf::app::SearchPanel", tooltipSource));
 }
 }  // namespace
 
 SearchPanel::SearchPanel(QWidget* parent) : QWidget(parent) {
     buildUi();
+
+    // 切换语言后登记过的常驻文案就地重译；动态文案由 retranslateUi() 重算。
+    connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
+            this, &SearchPanel::retranslateUi);
 }
 
 void SearchPanel::buildUi() {
