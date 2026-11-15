@@ -1,4 +1,4 @@
-﻿#include "app/MainWindow.h"
+#include "app/MainWindow.h"
 #include "app/RibbonBar.h"
 
 #include "app/Language.h"
@@ -805,7 +805,7 @@ void MainWindow::buildUi() {
     });
     addRibbonCommand(zoomGroup, "适宽", "适应宽度", ":/icons/fit-width.svg", [this] {
         if (auto* view = currentView()) { view->zoomToFitWidth(); }
-    });
+    }, true, "ribbonFitWidth");
     addRibbonCommand(zoomGroup, "整页", "适应页面", ":/icons/fit-page.svg", [this] {
         if (auto* view = currentView()) { view->zoomToFitPage(); }
     });

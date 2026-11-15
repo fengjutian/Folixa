@@ -893,7 +893,9 @@ function Send-AiPdfKey {
         # 按住 Ctrl 再敲这个键（组合键，例如 Ctrl+2）。
         [switch]$Ctrl,
         # 再叠加 Shift（例如 Ctrl+Shift+W）。
-        [switch]$Shift
+        [switch]$Shift,
+        # 按住 Alt（例如 Alt+Left 前进/后退）。
+        [switch]$Alt
     )
 
     if (-not ('AiPdfKeyboard' -as [type])) {
@@ -918,14 +920,17 @@ public static class AiPdfKeyboard {
     // 而同一族的 mouse_event 一直好用——现有验收脚本的鼠标点击就建立在它上面。
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
-    public static int Press(int virtualKey, bool ctrl, bool shift) {
+    public static int Press(int virtualKey, bool ctrl, bool shift, bool alt) {
         byte VK_CONTROL = 0x11;
         byte VK_SHIFT = 0x10;
+        byte VK_MENU = 0x12;
         int count = 2;
         if (ctrl) { keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); count += 2; }
         if (shift) { keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero); count += 2; }
+        if (alt) { keybd_event(VK_MENU, 0, 0, UIntPtr.Zero); count += 2; }
         keybd_event((byte)virtualKey, 0, 0, UIntPtr.Zero);
         keybd_event((byte)virtualKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        if (alt) { keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
         if (shift) { keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
         if (ctrl) { keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); }
         return count;
@@ -967,6 +972,7 @@ public static class AiPdfKeyboard {
         'F9'       = 0x78
         'Equal'    = 0xBB
         'Add'      = 0x6B
+        'Enter'    = 0x0D
     }
     if (-not $virtualKeys.ContainsKey($Key)) {
         throw "不支持的按键：$Key"
@@ -974,7 +980,8 @@ public static class AiPdfKeyboard {
     $expected = 2
     if ($Ctrl) { $expected += 2 }
     if ($Shift) { $expected += 2 }
-    $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl, [bool]$Shift)
+    if ($Alt) { $expected += 2 }
+    $sent = [AiPdfKeyboard]::Press([int]$virtualKeys[$Key], [bool]$Ctrl, [bool]$Shift, [bool]$Alt)
     if ($sent -ne $expected) {
         throw "SendInput 失败（期望注入 $expected 个事件，实际 $sent）"
     }

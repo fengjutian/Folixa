@@ -1273,6 +1273,9 @@ void PdfView::setLayoutMode(PageLayout::LayoutMode mode) {
     if (layout_.layoutMode() == mode) {
         return;
     }
+    // 换布局会重排所有行，滚动像素值不变就会落到别的页上。
+    // 记下当前页，重排后回到这一页，切布局不该改变用户正在看的位置。
+    const int anchorPage = canvas_ != nullptr ? canvas_->currentPage() : currentPage();
     layout_.setLayoutMode(mode);
     // 适配模式要按新的列宽重算，否则切到双页会有一半内容露在视口外。
     if (fitToWidth_) {
@@ -1282,6 +1285,9 @@ void PdfView::setLayoutMode(PageLayout::LayoutMode mode) {
     }
     layout_.setScale(zoom_);
     rebuildLayout();
+    if (canvas_ != nullptr && anchorPage >= 0 && anchorPage < document_.pageCount()) {
+        canvas_->goToPage(anchorPage);
+    }
     trace(QStringLiteral("layout mode=%1")
               .arg(mode == PageLayout::LayoutMode::Facing
                        ? QStringLiteral("facing")
