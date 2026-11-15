@@ -901,6 +901,12 @@ void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
     int pageIndex = -1;
     QPointF displayPoint;
     if (!pagePointAt(viewportPos, &pageIndex, &displayPoint)) {
+        // 移到页面外的空白区也算"离开链接"：状态要翻转，轨迹也要记，
+        // 否则验收里"移出链接后指针恢复默认"永远观察不到。
+        if (overLink_) {
+            overLink_ = false;
+            trace(QStringLiteral("cursor default"));
+        }
         viewport()->setCursor(Qt::ArrowCursor);
         return;
     }

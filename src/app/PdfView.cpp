@@ -228,7 +228,7 @@ void PdfView::buildUi() {
     connect(pageNumberShortcut, &QShortcut::activated, this, &PdfView::applyPageNumbersDialog);
     auto* mergeShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")), this);
     connect(mergeShortcut, &QShortcut::activated, this, &PdfView::mergeDocumentDialog);
-    auto* extractShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+E")), this);
+    auto* extractShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+X")), this);
     connect(extractShortcut, &QShortcut::activated, this, &PdfView::extractCurrentPageDialog);
 
     // F5 放映：菜单栏是隐藏的，QAction 的快捷键在隐藏菜单里不生效，

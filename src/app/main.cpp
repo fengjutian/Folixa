@@ -1,5 +1,6 @@
-#include "app/Language.h"
+﻿#include "app/Language.h"
 #include "app/MainWindow.h"
+#include "app/PdfView.h"
 #include "app/Theme.h"
 
 #include <QApplication>
@@ -7,6 +8,9 @@
 #include <QDir>
 #include <QIcon>
 #include <QSettings>
+#include <QTimer>
+
+#include <memory>
 
 int main(int argc, char* argv[]) {
     QApplication application(argc, argv);
@@ -47,6 +51,56 @@ int main(int argc, char* argv[]) {
         window.openPdfFile(arguments.at(1));
     }
 
+    // 验收专用：--diagnostic-action=<name> 在窗口显示后触发一个动作，然后退出。
+    // 走这条路而不是模拟按键——按键会受前台切换与焦点影响，验收会变得不稳定。
+    QString diagnostic;
+    for (const QString& argument : arguments) {
+        if (argument.startsWith(QStringLiteral("--diagnostic-action="))) {
+            diagnostic = argument.section(QLatin1Char('='), 1);
+        }
+    }
+    if (!diagnostic.isEmpty()) {
+        QTimer::singleShot(700, &window, [&window, diagnostic]() {
+            auto triggered = std::make_shared<bool>(false);
+            // 模态对话框会挡住后面的退出：安排一个反复关闭的定时器。
+            // 动作里可能连开多个对话框（先输入文字、再确认），只关一次会卡住。
+            auto* closer = new QTimer(&window);
+            QObject::connect(closer, &QTimer::timeout, []() {
+                if (QWidget* modal = QApplication::activeModalWidget()) {
+                    modal->close();
+                }
+            });
+            closer->start(400);
+
+            // 退出定时器必须在动作**之前**排好：动作会进入模态事件循环，
+            // 排在其后的代码要等对话框关掉才执行。
+            QTimer::singleShot(2500, [triggered]() {
+                QCoreApplication::exit(*triggered ? 0 : 3);
+            });
+
+            // 直接找当前标签页里的 PdfView：不动 MainWindow 的接口，
+            // 免得和正在并行的编辑互相覆盖。
+            aipdf::app::PdfView* view = window.findChild<aipdf::app::PdfView*>();
+            if (view != nullptr) {
+                if (diagnostic == QStringLiteral("watermark")) {
+                    view->applyWatermarkDialog();
+                    *triggered = true;
+                } else if (diagnostic == QStringLiteral("headerFooter")) {
+                    view->applyHeaderFooterDialog();
+                    *triggered = true;
+                } else if (diagnostic == QStringLiteral("pageNumbers")) {
+                    view->applyPageNumbersDialog();
+                    *triggered = true;
+                } else if (diagnostic == QStringLiteral("merge")) {
+                    view->mergeDocumentDialog();
+                    *triggered = true;
+                } else if (diagnostic == QStringLiteral("extract")) {
+                    view->extractCurrentPageDialog();
+                    *triggered = true;
+                }
+            }
+        });
+    }
     return application.exec();
 }
 

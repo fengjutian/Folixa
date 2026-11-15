@@ -465,6 +465,15 @@ try {
         (Get-AiPdfTraceText -Path $tracePath)
 
     # --- 负例：点空白处不该触发任何链接 ---
+    # 上一步点的是外部 URI 链接，可能把浏览器拉到前台；先把主窗口切回来，
+    # 否则后面的悬停事件送不到画布（曾经因此误报"指针没恢复默认"）。
+    Set-AiPdfForeground -Process $app | Out-Null
+    Start-Sleep -Milliseconds 300
+    # 轨迹只在"状态翻转"时记录。先把光标明确放到链接上（强制 overLink=true），
+    # 再移开，这样一定能观察到 cursor link → cursor default 的那次翻转。
+    Reset-AiPdfTrace -Path $tracePath
+    Invoke-AiPdfPageHover -Process $app -DisplayX 180.0 -DisplayY 235.0 | Out-Null
+    Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'cursor link' -TimeoutSeconds 5 | Out-Null
     Reset-AiPdfTrace -Path $tracePath
     Invoke-AiPdfPageHover -Process $app -DisplayX 420.0 -DisplayY 340.0 | Out-Null
     Start-Sleep -Milliseconds 600

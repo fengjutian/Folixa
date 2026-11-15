@@ -67,6 +67,7 @@ private slots:
     void imageCanBeRemovedAgain();
     void textReplacementSwapsContent();
     void formValuesSurviveSaveAndReopen();
+    void checkboxAndChoiceFieldsAcceptValues();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -514,6 +515,31 @@ void PdfiumAdapterTests::deleteThenRestoreReplacesPage() {
     const auto page = document.page(0);
     QVERIFY(page.has_value());
     QVERIFY(!page->render(1.0).isNull());
+}
+
+void PdfiumAdapterTests::checkboxAndChoiceFieldsAcceptValues() {
+    auto opened = openDocument(fixturePath(QStringLiteral("form.pdf")));
+    auto& document = opened.document;
+    QVERIFY(document.isValid());
+
+    // 复选框写 /AS（外观状态），下拉框写 /V（选中值）。
+    QVERIFY(document.setFormFieldValue(0, QStringLiteral("agree"), QStringLiteral("Yes")));
+    QVERIFY(document.setFormFieldValue(0, QStringLiteral("country"), QStringLiteral("Other")));
+
+    auto reopened = openDocumentFromBytes(document.serialize());
+    QVERIFY(reopened.document.isValid());
+    const QVector<FormField> fields = reopened.document.formFields();
+    QString agree;
+    QString country;
+    for (const FormField& field : fields) {
+        if (field.name == QStringLiteral("agree")) {
+            agree = field.value;
+        } else if (field.name == QStringLiteral("country")) {
+            country = field.value;
+        }
+    }
+    QVERIFY2(agree.contains(QStringLiteral("Yes")), qPrintable(agree));
+    QVERIFY2(country.contains(QStringLiteral("Other")), qPrintable(country));
 }
 
 QTEST_GUILESS_MAIN(PdfiumAdapterTests)

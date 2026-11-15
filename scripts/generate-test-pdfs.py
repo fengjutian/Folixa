@@ -707,7 +707,11 @@ def form_pdf():
         (5, b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (fullName) /V () /F 4 "
             b"/Rect [130 620 340 644] /DA (/Helv 12 Tf 0 g) >>"),
         (6, b"<< /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /V /Off /AS /Off /F 4 "
-            b"/Rect [88 552 104 568] >>"),
+            b"/Rect [88 552 104 568] /AP << /N << /Yes 10 0 R /Off 11 0 R >> >> >>"),
+        # 复选框的两个外观状态：有 /AP，PDFium 才会显示勾选态。
+        (10, b"<< /Type /XObject /Subtype /Form /BBox [0 0 16 16] /Length 26 >>\nstream\n"
+             b"0 0 0 rg 2 2 12 12 re f\nendstream"),
+        (11, b"<< /Type /XObject /Subtype /Form /BBox [0 0 16 16] /Length 0 >>\nstream\n\nendstream"),
         (7, b"<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Ff 131072 /Opt [(China) (Other)] "
             b"/V (China) /F 4 /Rect [130 512 300 536] /DA (/Helv 12 Tf 0 g) >>"),
         (8, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),

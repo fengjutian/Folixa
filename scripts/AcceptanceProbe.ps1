@@ -856,6 +856,26 @@ public static class AiPdfCursor {
     return $null
 }
 
+function Wait-AiPdfCondition {
+    <#
+    .SYNOPSIS
+        轮询等待一个条件成立。
+    .DESCRIPTION
+        "睡固定时间再看一眼"在并行编译的机器上必然不稳定：Worker 可能晚几十毫秒起来，
+        也可能晚几十毫秒退出。这里改成轮询到超时，判据不变、结论不再随机。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$Condition,
+        [int]$TimeoutSeconds = 15,
+        [int]$IntervalMilliseconds = 300
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if (& $Condition) { return $true }
+        Start-Sleep -Milliseconds $IntervalMilliseconds
+    }
+    return [bool](& $Condition)
+}
 function Send-AiPdfKey {
     <#
     .SYNOPSIS
@@ -938,6 +958,8 @@ public static class AiPdfKeyboard {
         '8'        = 0x38
         '9'        = 0x39
         'W'        = 0x57
+        'K'        = 0x4B
+        'X'        = 0x58
         'H'        = 0x48
         'N'        = 0x4E
         'M'        = 0x4D

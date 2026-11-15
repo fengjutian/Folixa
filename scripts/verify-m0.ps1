@@ -103,6 +103,15 @@ try {
 
     $workers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
         Where-Object { $workersBefore -notcontains $_.Id })
+    # Worker 是异步拉起的：轮询到它出现，而不是睡固定时间赌它已经起来。
+    if ($workers.Count -lt 1) {
+        Wait-AiPdfCondition -TimeoutSeconds 20 -Condition {
+            @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+                Where-Object { $workersBefore -notcontains $_.Id }).Count -ge 1
+        } | Out-Null
+        $workers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+            Where-Object { $workersBefore -notcontains $_.Id })
+    }
     Test-Check 'Worker 被主程序自动拉起' ($workers.Count -ge 1) "count=$($workers.Count)"
 
     $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15
@@ -129,7 +138,11 @@ try {
     }
 }
 
-Start-Sleep -Seconds 2
+# Worker 的退出同样是异步的：轮询到它消失，而不是睡 2 秒赌它已经退干净。
+Wait-AiPdfCondition -TimeoutSeconds 20 -Condition {
+    @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+        Where-Object { $workersBefore -notcontains $_.Id }).Count -eq 0
+} | Out-Null
 $remaining = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
     Where-Object { $workersBefore -notcontains $_.Id })
 Test-Check '主程序退出后 Worker 随之结束' ($remaining.Count -eq 0) "count=$($remaining.Count)"
@@ -145,6 +158,14 @@ try {
     Start-Sleep -Seconds $StartupSeconds
     $killWorkers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
         Where-Object { $workersBeforeKill -notcontains $_.Id })
+    if ($killWorkers.Count -lt 1) {
+        Wait-AiPdfCondition -TimeoutSeconds 20 -Condition {
+            @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+                Where-Object { $workersBeforeKill -notcontains $_.Id }).Count -ge 1
+        } | Out-Null
+        $killWorkers = @(Get-Process -Name 'PdfAiWorker' -ErrorAction SilentlyContinue |
+            Where-Object { $workersBeforeKill -notcontains $_.Id })
+    }
     Test-Check '强杀前 Worker 已拉起' ($killWorkers.Count -ge 1) "count=$($killWorkers.Count)"
 
     $killedApp.Kill()
