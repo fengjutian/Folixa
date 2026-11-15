@@ -40,6 +40,7 @@ class PdfView;
 class SearchPanel;
 class IndexPanel;
 class AiPanel;
+class RibbonBar;
 class NavigationController;
 class AnnotationController;
 
@@ -146,6 +147,8 @@ private:
     QLabel* metricsLabel_ = nullptr;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;
+    // 顶部 Ribbon（文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI）。
+    RibbonBar* ribbonBar_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;

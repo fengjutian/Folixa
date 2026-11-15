@@ -1,4 +1,4 @@
-qt_add_executable(AiPdfEditor WIN32
+﻿qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
@@ -39,6 +39,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/AiSettingsDialog.cpp
     app/EncryptionDialog.h
     app/EncryptionDialog.cpp
+    app/RibbonBar.h
+    app/RibbonBar.cpp
     app/UploadPreviewDialog.h
     app/UploadPreviewDialog.cpp
     app/OcrController.cpp
@@ -85,6 +87,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/SoundFormat.h
     pdf/PageDecorations.h
     pdf/FormData.h
+    pdf/PageAnnotsInjector.h
+    pdf/PageAnnotsInjector.cpp
     pdf/FormData.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp

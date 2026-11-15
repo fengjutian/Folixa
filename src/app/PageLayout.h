@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QPointF>
 #include <QRectF>
@@ -18,10 +18,11 @@ class PageLayout {
 public:
     // 页面排布方式。
     //
-    // Continuous 是默认的纵向长卷；Facing 把相邻两页并排（左偶右奇）；
-    // FacingCover 让第一页单独占一行（封面），之后才开始成对。
+    // 连续是默认的纵向长卷；SinglePage 一次只排一页（翻页式）；
+    // Facing 把相邻两页并排（左偶右奇）；FacingCover 让第一页单独占一行（封面）。
     enum class LayoutMode {
         Continuous,
+        SinglePage,
         Facing,
         FacingCover,
     };
@@ -47,6 +48,10 @@ public:
     // 排布方式。改变会重建行布局。
     void setLayoutMode(LayoutMode mode);
     LayoutMode layoutMode() const;
+
+    // 翻页模式（SinglePage）下当前显示哪一页。其它模式忽略这个值。
+    void setActivePage(int index);
+    int activePage() const;
 
     void clear();
 
@@ -110,6 +115,7 @@ private:
     double totalWidth_ = 0.0;
     double columnWidth_ = 0.0;
     LayoutMode mode_ = LayoutMode::Continuous;
+    int activePage_ = 0;
 
     void recomputeTops();
     int rowOfPage(int index) const;

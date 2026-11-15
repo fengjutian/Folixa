@@ -1,4 +1,5 @@
-#include "app/MainWindow.h"
+﻿#include "app/MainWindow.h"
+#include "app/RibbonBar.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -723,6 +724,196 @@ void MainWindow::buildUi() {
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
         aiButton->setObjectName(QStringLiteral("aiCommandButton"));
     }
+
+    // ------------------------------------------------------------- Ribbon ----
+    // 顶部标签页 + 命令组：结构对齐福昕的「文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI」。
+    // 只放已经能用的命令；没实现的能力用禁用按钮并写明「后续版本」。
+    auto* ribbonToolBar = addToolBar(QString());
+    ribbonToolBar->setObjectName(QStringLiteral("ribbonToolBar"));
+    ribbonToolBar->setMovable(false);
+    ribbonToolBar->setFloatable(false);
+    ribbonBar_ = new RibbonBar(ribbonToolBar);
+    ribbonToolBar->addWidget(ribbonBar_);
+    auto* ribbonSpacer = new QWidget(ribbonToolBar);
+    ribbonSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    ribbonToolBar->addWidget(ribbonSpacer);
+
+    auto addRibbonCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
+                                   const QString& icon, auto handler, bool enabled = true,
+                                   const QString& objectName = QString()) {
+        QToolButton* button = ribbonBar_->addCommand(group, tr(source), QIcon(icon), tr(tip),
+                                                     enabled, objectName);
+        texts_.bind([this, button, source, tip] {
+            button->setText(tr(source));
+            button->setToolTip(tr(tip));
+        });
+        connect(button, &QToolButton::clicked, this, handler);
+        return button;
+    };
+
+    const int fileTab = ribbonBar_->addTab(tr("文件"));
+    ribbonBar_->addGroup(fileTab, tr("文件"));
+    auto* fileGroup = ribbonBar_->addGroup(fileTab, tr("文件"));
+    addRibbonCommand(fileGroup, "打开", "打开 PDF 文件", ":/icons/book.svg",
+                     [this] { openPdfDialog(); }, true, "ribbonOpen");
+    addRibbonCommand(fileGroup, "保存", "保存当前文档", ":/icons/save.svg",
+                     [this] { saveDocument(); }, true, "ribbonSave");
+    addRibbonCommand(fileGroup, "另存为", "另存为新的 PDF", ":/icons/save.svg",
+                     [this] { saveDocumentAs(); }, true, "ribbonSaveAs");
+    auto* exportGroup = ribbonBar_->addGroup(fileTab, tr("导出"));
+    addRibbonCommand(exportGroup, "打印", "打印当前文档", ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->printDocument(); }
+    });
+    addRibbonCommand(exportGroup, "图片", "把页面导出为图片", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->exportPageImages(); }
+    });
+    addRibbonCommand(exportGroup, "文本", "导出纯文本", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->exportPlainText(); }
+    });
+
+    const int homeTab = ribbonBar_->addTab(tr("主页"));
+    auto* zoomGroup = ribbonBar_->addGroup(homeTab, tr("显示"));
+    addRibbonCommand(zoomGroup, "缩小", "缩小", ":/icons/zoom-out.svg", [this] {
+        if (auto* view = currentView()) { view->zoomOut(); }
+    });
+    addRibbonCommand(zoomGroup, "放大", "放大", ":/icons/zoom-in.svg", [this] {
+        if (auto* view = currentView()) { view->zoomIn(); }
+    });
+    addRibbonCommand(zoomGroup, "适宽", "适应宽度", ":/icons/fit-width.svg", [this] {
+        if (auto* view = currentView()) { view->zoomToFitWidth(); }
+    });
+    addRibbonCommand(zoomGroup, "整页", "适应页面", ":/icons/fit-page.svg", [this] {
+        if (auto* view = currentView()) { view->zoomToFitPage(); }
+    });
+    addRibbonCommand(zoomGroup, "左旋", "向左旋转视图", ":/icons/rotate-left.svg", [this] {
+        if (auto* view = currentView()) { view->rotateLeft(); }
+    });
+    addRibbonCommand(zoomGroup, "右旋", "向右旋转视图", ":/icons/rotate-right.svg", [this] {
+        if (auto* view = currentView()) { view->rotateRight(); }
+    });
+    auto* editGroup = ribbonBar_->addGroup(homeTab, tr("编辑"));
+    addRibbonCommand(editGroup, "撤销", "撤销批注操作", ":/icons/undo.svg", [this] {
+        if (auto* view = currentView()) { view->undoAnnotation(); }
+    });
+    addRibbonCommand(editGroup, "重做", "重做批注操作", ":/icons/redo.svg", [this] {
+        if (auto* view = currentView()) { view->redoAnnotation(); }
+    });
+    auto* toolsGroup = ribbonBar_->addGroup(homeTab, tr("工具"));
+    addRibbonCommand(toolsGroup, "识别", "识别当前页（OCR）", ":/icons/search.svg",
+                     [ocrAction] { ocrAction->trigger(); });
+    addRibbonCommand(toolsGroup, "加密", "加密与权限", ":/icons/protect.svg",
+                     [encryptionAction] { encryptionAction->trigger(); }, true,
+                     "ribbonEncryption");
+
+    const int commentTab = ribbonBar_->addTab(tr("注释"));
+    auto* panelGroup = ribbonBar_->addGroup(commentTab, tr("面板"));
+    addRibbonCommand(panelGroup, "批注", "打开批注面板", ":/icons/annotation.svg", [this] {
+        navigationDock_->setVisible(true);
+        showNavigationPage(4);
+    }, true, "ribbonAnnotationPanel");
+    auto* reviewGroup = ribbonBar_->addGroup(commentTab, tr("审阅"));
+    addRibbonCommand(reviewGroup, "导出批注", "导出批注（XFDF）", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->exportAnnotationsXfdf(); }
+    });
+    addRibbonCommand(reviewGroup, "导入批注", "导入批注（XFDF）", ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->importAnnotationsXfdf(); }
+    });
+    addRibbonCommand(reviewGroup, "摘要", "导出批注摘要 HTML", ":/icons/annotation.svg", [this] {
+        if (auto* view = currentView()) { view->exportAnnotationSummary(); }
+    });
+
+    const int pageTab = ribbonBar_->addTab(tr("页面管理"));
+    auto* pageGroup = ribbonBar_->addGroup(pageTab, tr("页面"));
+    addRibbonCommand(pageGroup, "插入", "在当前页后插入空白页", ":/icons/page-insert.svg",
+                     [this] { insertBlankPage(); });
+    addRibbonCommand(pageGroup, "删除", "删除当前页", ":/icons/page-delete.svg",
+                     [this] { deleteCurrentPage(); });
+    addRibbonCommand(pageGroup, "左旋", "向左旋转页面", ":/icons/rotate-left.svg",
+                     [this] { rotateCurrentPageLeft(); });
+    addRibbonCommand(pageGroup, "右旋", "向右旋转页面", ":/icons/rotate-right.svg",
+                     [this] { rotateCurrentPageRight(); });
+    addRibbonCommand(pageGroup, "上移", "当前页上移", ":/icons/move-up.svg",
+                     [this] { moveCurrentPageUp(); });
+    addRibbonCommand(pageGroup, "下移", "当前页下移", ":/icons/move-down.svg",
+                     [this] { moveCurrentPageDown(); });
+    auto* assemblyGroup = ribbonBar_->addGroup(pageTab, tr("组装"));
+    addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
+    });
+    addRibbonCommand(assemblyGroup, "合并", "合并另一份 PDF", ":/icons/pages.svg", [this] {
+        if (auto* view = currentView()) { view->mergeDocumentDialog(); }
+    });
+    auto* decorationGroup = ribbonBar_->addGroup(pageTab, tr("装饰"));
+    addRibbonCommand(decorationGroup, "水印", "添加水印", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->applyWatermarkDialog(); }
+    });
+    addRibbonCommand(decorationGroup, "页眉页脚", "添加页眉页脚", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->applyHeaderFooterDialog(); }
+    });
+    addRibbonCommand(decorationGroup, "页码", "添加页码", ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) { view->applyPageNumbersDialog(); }
+    });
+
+    const int viewTab = ribbonBar_->addTab(tr("视图"));
+    auto* ribbonLayoutRow = ribbonBar_->addGroup(viewTab, tr("页面布局"));
+    auto* layoutButtons = new QButtonGroup(this);
+    layoutButtons->setExclusive(true);
+    auto addLayoutCommand = [this, ribbonLayoutRow, layoutButtons](
+                                const char* source, const char* tip,
+                                PageLayout::LayoutMode mode, bool checked) {
+        QToolButton* button = ribbonBar_->addCommand(ribbonLayoutRow, tr(source),
+                                                     QIcon(), tr(tip), true, QString());
+        button->setCheckable(true);
+        button->setChecked(checked);
+        layoutButtons->addButton(button);
+        texts_.bind([this, button, source, tip] {
+            button->setText(tr(source));
+            button->setToolTip(tr(tip));
+        });
+        connect(button, &QToolButton::clicked, this, [this, mode] {
+            if (auto* view = currentView()) { view->setLayoutMode(mode); }
+        });
+        return button;
+    };
+    addLayoutCommand("连续", "连续滚动", PageLayout::LayoutMode::Continuous, true);
+    addLayoutCommand("单页", "一次显示一页", PageLayout::LayoutMode::SinglePage, false);
+    addLayoutCommand("双页", "双页对开", PageLayout::LayoutMode::Facing, false);
+    addLayoutCommand("双页封面", "第一页单独作为封面", PageLayout::LayoutMode::FacingCover,
+                     false);
+    auto* showGroup = ribbonBar_->addGroup(viewTab, tr("显示"));
+    addRibbonCommand(showGroup, "放映", "全屏放映", ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->startPresentation(); }
+    });
+    addRibbonCommand(showGroup, "导航", "显示或隐藏导航面板", ":/icons/outline.svg", [this] {
+        navigationDock_->setVisible(!navigationDock_->isVisible());
+    });
+    addRibbonCommand(showGroup, "AI 助手", "显示或隐藏 AI 面板", ":/icons/chat.svg", [this] {
+        aiDock_->setVisible(!aiDock_->isVisible());
+    });
+
+    const int protectTab = ribbonBar_->addTab(tr("保护"));
+    auto* securityGroup = ribbonBar_->addGroup(protectTab, tr("文档安全"));
+    addRibbonCommand(securityGroup, "加密与权限", "设置打开密码与权限位",
+                     ":/icons/protect.svg", [encryptionAction] { encryptionAction->trigger(); },
+                     true, "ribbonSecurity");
+    addRibbonCommand(securityGroup, "密文遮盖", "后续版本提供", ":/icons/protect.svg",
+                     [] {}, false, "ribbonRedaction");
+
+    const int aiTab = ribbonBar_->addTab(tr("AI 助手"));
+    auto* aiGroup = ribbonBar_->addGroup(aiTab, tr("对话"));
+    addRibbonCommand(aiGroup, "打开 AI", "打开 AI 对话面板", ":/icons/chat.svg", [this] {
+        if (aiFloatingButton_ != nullptr) { aiFloatingButton_->click(); }
+    });
+    addRibbonCommand(aiGroup, "总结", "总结当前页", ":/icons/summarize.svg", [this] {
+        if (aiPanel_ != nullptr) { aiDock_->show(); aiPanel_->requestSummary(); }
+    });
+    addRibbonCommand(aiGroup, "解释", "解释选中的文字", ":/icons/explain.svg", [this] {
+        if (aiPanel_ != nullptr) { aiDock_->show(); aiPanel_->requestExplain(); }
+    });
+    auto* aiOpsGroup = ribbonBar_->addGroup(aiTab, tr("文档操作"));
+    addRibbonCommand(aiOpsGroup, "找空白页", "找出空白页并提议删除", ":/icons/annotation.svg",
+                     [blankAction] { blankAction->trigger(); });
+
 
     navigationDock_ = new QDockWidget(QString(), this);
     texts_.bind([this] { navigationDock_->setWindowTitle(tr("导航")); });

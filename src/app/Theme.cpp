@@ -48,6 +48,26 @@ QToolBar#commandBar QToolButton#aiCommandButton {
 QToolBar#commandBar QToolButton#aiCommandButton:hover { background: #EFE8FF; border-color: #D2C2F6; }
 QLabel#brandWordmark { font-size: 13px; font-weight: 700; color: #1B2432; padding: 0 4px 0 9px; }
 
+/* -------------------------------------------------------------- Ribbon -- */
+QWidget#ribbonBar { background: #FFFFFF; border: 0; border-bottom: 1px solid #E3E7EE; }
+QTabBar#ribbonTabs { background: transparent; qproperty-drawBase: 0; }
+QTabBar#ribbonTabs::tab {
+    background: transparent; color: #4A576E; padding: 7px 14px;
+    border: 0; border-bottom: 2px solid transparent; font-weight: 600;
+}
+QTabBar#ribbonTabs::tab:hover:!selected { color: #3555B7; background: #F5F8FD; }
+QTabBar#ribbonTabs::tab:selected { color: #202A3A; border-bottom: 2px solid #5277E8; }
+QStackedWidget#ribbonPages { background: #FFFFFF; }
+QFrame#ribbonGroup { border: 0; border-right: 1px solid #EDF0F5; background: transparent; }
+QLabel#ribbonGroupTitle { color: #8792A3; font-size: 11px; padding-top: 1px; }
+QToolButton[ribbonCommand="true"] {
+    min-height: 52px; padding: 4px 8px; border: 1px solid transparent;
+    border-radius: 8px; background: transparent; color: #3C485C; font-weight: 500;
+}
+QToolButton[ribbonCommand="true"]:hover { background: #F2F6FD; border-color: #E1E8F8; color: #2F4FA8; }
+QToolButton[ribbonCommand="true"]:pressed { background: #E8EFFB; }
+QToolButton[ribbonCommand="true"]:disabled { color: #B4BDCB; background: transparent; }
+
 /* -------------------------------------------------------------- 按钮 -- */
 /* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
    留着它还会在 32px 的按钮里挤出一块空白。 */

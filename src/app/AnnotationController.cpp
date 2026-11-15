@@ -1,4 +1,5 @@
 ﻿#include "app/AnnotationController.h"
+#include "pdf/SoundFormat.h"
 
 #include "app/PdfPageOperations.h"
 #include "doc/EditCommand.h"
@@ -335,16 +336,22 @@ quint64 AnnotationController::addSoundFromWav(int pageIndex, const QRectF& rect,
     if (wav.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0) {
         return 0;
     }
+    // 原生 /Sound 注释：PDFium 建不出来，所以它**只存在于模型里**，
+    // 保存时由 DocumentWriter 把字典插进页面 /Annots（见 PageAnnotsInjector）。
+    const pdf::SoundPayload payload = pdf::parseWav(wav);
     pdf::Annotation annotation;
     annotation.id = model_.allocateId();
     annotation.pageIndex = pageIndex;
-    // PDFium 这个版本不能创建 /Sound 注释，音频以附件形式随文档保存：
-    // 阅读器里点开附件就能播放，数据一个字节都不少。
-    annotation.type = pdf::AnnotationType::FileAttachment;
+    annotation.type = pdf::AnnotationType::Sound;
     annotation.rect = rect;
-    annotation.attachmentName = name;
-    annotation.attachmentData = wav;
-    annotation.contents = QStringLiteral("声音: %1").arg(name);
+    annotation.soundName = name;
+    annotation.contents = name;
+    if (payload.isValid()) {
+        annotation.soundData = payload.pcm;
+        annotation.soundRate = payload.rate;
+        annotation.soundChannels = payload.channels;
+        annotation.soundBits = payload.bits;
+    }
     annotation.color = pdf::defaultAnnotationColor(pdf::AnnotationType::Sound);
 
     auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);

@@ -1,4 +1,4 @@
-// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
+﻿// 保存路径的测试：serializeForSave 保证「保存下来的文件，批注在别的阅读器里也看得见」。
 //
 // 这一层最容易出的错是"漏补"——保存成功、文件合法、批注却在外单位置集体消失。
 // 所以每条断言都盯着「补了几条」和「补了之后渲染有没有变化」，而不是"没报错"。
@@ -79,6 +79,7 @@ private slots:
     void attachmentIsEmbeddedInSavedBytes();
     void replyAndStateSurviveSaveAndReopen();
     void imageStampAndSoundAreEmbedded();
+    void nativeSoundAnnotationIsInjected();
     void saveEncryptsWrittenFile();
 };
 
@@ -493,6 +494,39 @@ void DocumentWriterTests::saveEncryptsWrittenFile() {
     QCOMPARE(revision, 6);
     QVERIFY(!(permissions & (1 << 4)));  // 复制位：关闭
     QVERIFY(permissions & (1 << 2));     // 打印位：开启
+}
+
+void DocumentWriterTests::nativeSoundAnnotationIsInjected() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    // 声音注释只存在于模型里：PDFium 建不出来，保存时由写入器插进页面 /Annots。
+    Annotation sound;
+    sound.id = 91;
+    sound.pageIndex = 0;
+    sound.type = AnnotationType::Sound;
+    sound.rect = QRectF(200.0, 300.0, 28.0, 28.0);
+    sound.contents = QStringLiteral("voice-note.wav");
+    sound.soundData = QByteArray("\x00\x01\x02\x03\x04\x05\x06\x07", 8);
+    sound.soundRate = 8000;
+    sound.soundChannels = 1;
+    sound.soundBits = 8;
+
+    const SaveBytes saved = DocumentWriter::serializeForSave(opened.document, { sound });
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY2(saved.bytes.contains("/Subtype /Sound"), "没有写出 /Sound 注释");
+
+    const auto reopened = openDocumentFromBytes(saved.bytes);
+    QVERIFY(reopened.document.isValid());
+    auto page = reopened.document.page(0);
+    QVERIFY(page.has_value());
+    bool foundSound = false;
+    for (const Annotation& annotation : page->annotations()) {
+        if (annotation.type == AnnotationType::Sound) {
+            foundSound = true;
+        }
+    }
+    QVERIFY2(foundSound, "声音注释没有被写进页面");
 }
 
 QTEST_MAIN(DocumentWriterTests)

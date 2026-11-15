@@ -6,6 +6,7 @@
 #include "pdf/AnnotationDictionary.h"
 #include "pdf/AppearanceStream.h"
 #include "pdf/IncrementalWriter.h"
+#include "pdf/PageAnnotsInjector.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/PdfSecurity.h"
 #include "pdf/QpdfBackend.h"
@@ -26,10 +27,82 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
     }
     result.ok = true;
 
+    // 原生 /Sound 注释：PDFium 建不出来，只能我们自己把字典插进页面 /Annots。
+    bool injectedApplied = false;
+    {
+        QVector<InlineAnnotationInsert> inserts;
+        const int modelPageCount = document.pageCount();
+        for (const Annotation& annotation : model) {
+            if (annotation.type != AnnotationType::Sound || annotation.soundData.isEmpty() ||
+                annotation.pageIndex < 0 || annotation.pageIndex >= modelPageCount) {
+                continue;
+            }
+            QByteArray sound = "<< /Type /Sound /R ";
+            sound += QByteArray::number(annotation.soundRate);
+            sound += " /C ";
+            sound += QByteArray::number(annotation.soundChannels);
+            sound += " /B ";
+            sound += QByteArray::number(annotation.soundBits);
+            sound += " /Length ";
+            sound += QByteArray::number(annotation.soundData.size());
+            sound += " >>\nstream\n";
+            sound += annotation.soundData;
+            sound += "\nendstream";
+
+            QByteArray dict = "<< /Type /Annot /Subtype /Sound /Rect [";
+            dict += QByteArray::number(annotation.rect.left(), 'f', 2);
+            dict += ' ';
+            dict += QByteArray::number(annotation.rect.top(), 'f', 2);
+            dict += ' ';
+            dict += QByteArray::number(annotation.rect.right(), 'f', 2);
+            dict += ' ';
+            dict += QByteArray::number(annotation.rect.bottom(), 'f', 2);
+            dict += "] /NM (Folixa:";
+            dict += QByteArray::number(annotation.id);
+            dict += ") /Sound @EXTRA0 0 R";
+            if (!annotation.contents.isEmpty()) {
+                dict += " /Contents (";
+                dict += annotation.contents.toLatin1().replace("(", "\\(").replace(")", "\\)");
+                dict += ")";
+            }
+            if (!annotation.author.isEmpty()) {
+                dict += " /T (";
+                dict += annotation.author.toLatin1().replace("(", "\\(").replace(")", "\\)");
+                dict += ")";
+            }
+            dict += " >>";
+
+            InlineAnnotationInsert insert;
+            insert.pageIndex = annotation.pageIndex;
+            insert.dictionary = dict;
+            insert.extraObjects.append(sound);
+            inserts.append(insert);
+        }
+        if (!inserts.isEmpty()) {
+            const InlineWriteResult injected = injectInlineAnnotations(result.bytes, inserts);
+            if (!injected.ok) {
+                result.warning = injected.error;
+            } else {
+                result.bytes = injected.bytes;
+                injectedApplied = true;
+            }
+        }
+    }
+
+    // 注入之后必须换一份句柄：后续补 /AP 的流程要能看到刚插进去的注释。
+    PdfDocument working;
+    const PdfDocument* effective = &document;
+    if (injectedApplied) {
+        working = openDocumentFromBytes(result.bytes).document;
+        if (working.isValid()) {
+            effective = &working;
+        }
+    }
+
     QVector<AppearanceAttachment> attachments;
-    const int pageCount = document.pageCount();
+    const int pageCount = effective->pageCount();
     for (int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
-        const auto page = document.page(pageIndex);
+        const auto page = effective->page(pageIndex);
         if (!page.has_value()) {
             continue;
         }

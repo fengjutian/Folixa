@@ -1,4 +1,4 @@
-#include "app/PdfView.h"
+﻿#include "app/PdfView.h"
 
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"

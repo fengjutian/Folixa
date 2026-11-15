@@ -83,6 +83,26 @@ aipdf_deploy_qt_runtime(I18nWidgetTests)
 
 add_test(NAME I18nWidgetTests COMMAND I18nWidgetTests)
 
+# 加密对话框：只建控件、改状态、读回参数，不碰文档与 PDFium。
+qt_add_executable(EncryptionDialogTests
+    EncryptionDialogTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/EncryptionDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/EncryptionDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
+)
+target_link_libraries(EncryptionDialogTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+target_include_directories(EncryptionDialogTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(EncryptionDialogTests PROPERTIES WIN32_EXECUTABLE FALSE)
+qt_add_resources(EncryptionDialogTests "encryption_dialog_catalogs"
+    PREFIX "/i18n"
+    BASE "${CMAKE_SOURCE_DIR}/src/i18n"
+    FILES ${AIPDF_TEST_I18N_CATALOGS}
+)
+aipdf_deploy_qt_runtime(EncryptionDialogTests)
+add_test(NAME EncryptionDialogTests COMMAND EncryptionDialogTests)
+
 qt_add_executable(WorkerIntegrationTests
     WorkerIntegrationTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
@@ -340,6 +360,8 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
@@ -439,6 +461,8 @@ add_test(NAME IncrementalWriterTests COMMAND IncrementalWriterTests)
 qt_add_executable(DocumentWriterTests
     DocumentWriterTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
@@ -488,6 +512,38 @@ endif()
 
 add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
 
+# ------------------------------------------------------- 页面注释注入 ----
+
+qt_add_executable(PageAnnotsInjectorTests
+    PageAnnotsInjectorTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+)
+
+target_link_libraries(PageAnnotsInjectorTests PRIVATE
+    Qt6::Gui
+    Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PageAnnotsInjectorTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tools/pdfium/include
+)
+target_compile_definitions(PageAnnotsInjectorTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PageAnnotsInjectorTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PageAnnotsInjectorTests)
+aipdf_deploy_pdfium(PageAnnotsInjectorTests)
+add_dependencies(PageAnnotsInjectorTests pdf-fixtures)
+
+add_test(NAME PageAnnotsInjectorTests COMMAND PageAnnotsInjectorTests)
 # ------------------------------------------------------------ 录音 --------
 
 qt_add_executable(AudioRecorderTests
@@ -727,6 +783,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
@@ -785,6 +843,8 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp

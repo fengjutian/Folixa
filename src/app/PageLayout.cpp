@@ -1,4 +1,4 @@
-﻿#include "app/PageLayout.h"
+#include "app/PageLayout.h"
 
 #include <QtGlobal>
 
@@ -42,6 +42,23 @@ void PageLayout::setLayoutMode(LayoutMode mode) {
 
 PageLayout::LayoutMode PageLayout::layoutMode() const {
     return mode_;
+}
+
+void PageLayout::setActivePage(int index) {
+    if (index < 0 || index >= pages_.size()) {
+        return;
+    }
+    if (activePage_ == index) {
+        return;
+    }
+    activePage_ = index;
+    if (mode_ == LayoutMode::SinglePage) {
+        recomputeTops();
+    }
+}
+
+int PageLayout::activePage() const {
+    return activePage_;
 }
 
 void PageLayout::clear() {
@@ -243,6 +260,24 @@ void PageLayout::recomputeTops() {
     tops_.resize(pages_.size());
     for (int i = 0; i < pages_.size(); ++i) {
         columnWidth_ = std::max(columnWidth_, pageSize(i).width());
+    }
+
+    // 翻页模式：只把当前页排进布局。其余页的矩形为空，
+    // 画布不会预取也不会画到邻页——这正是「单页」和「连续」的区别。
+    if (mode_ == LayoutMode::SinglePage) {
+        activePage_ = std::clamp(activePage_, 0, static_cast<int>(pages_.size()) - 1);
+        tops_.fill(0.0);
+        Row row;
+        row.firstPage = activePage_;
+        row.count = 1;
+        row.top = 0.0;
+        row.height = pageSize(activePage_).height();
+        row.width = pageSize(activePage_).width();
+        rows_.append(row);
+        totalHeight_ = row.height;
+        totalWidth_ = row.width;
+        columnWidth_ = row.width;
+        return;
     }
 
     // 按排布方式切行：纵向长卷一页一行，双页两页一行，封面模式第一页单独一行。

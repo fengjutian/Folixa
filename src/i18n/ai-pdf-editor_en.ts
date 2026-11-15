@@ -808,6 +808,66 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>首页</source>
+            <translation>Home</translation>
+        </message>
+        <message>
+            <source>编辑</source>
+            <translation>Edit</translation>
+        </message>
+        <message>
+            <source>对话</source>
+            <translation>Chat</translation>
+        </message>
+        <message>
+            <source>视图</source>
+            <translation>View</translation>
+        </message>
+        <message>
+            <source>文件</source>
+            <translation>File</translation>
+        </message>
+        <message>
+            <source>文档安全</source>
+            <translation>Document security</translation>
+        </message>
+        <message>
+            <source>文档操作</source>
+            <translation>Document actions</translation>
+        </message>
+        <message>
+            <source>显示</source>
+            <translation>Display</translation>
+        </message>
+        <message>
+            <source>注释</source>
+            <translation>Annotations</translation>
+        </message>
+        <message>
+            <source>安装</source>
+            <translation>Install</translation>
+        </message>
+        <message>
+            <source>装载</source>
+            <translation>Load</translation>
+        </message>
+        <message>
+            <source>视图</source>
+            <translation>View</translation>
+        </message>
+        <message>
+            <source>检查</source>
+            <translation>Check</translation>
+        </message>
+        <message>
+            <source>页面布局</source>
+            <translation>Page layout</translation>
+        </message>
+        <message>
+            <source>页面显示</source>
+            <translation>Page display</translation>
+        </message>
+        <message>
             <source>加密与权限…</source>
             <translation>Encryption and permissions…</translation>
         </message>
