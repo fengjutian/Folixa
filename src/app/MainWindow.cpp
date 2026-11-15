@@ -560,7 +560,10 @@ void MainWindow::buildUi() {
         }
     });
     connect(ocrController_, &OcrController::failed, this, [this](int page, const QString& reason) {
+        // 空白页本来就没有文字：自动识别失败不该在状态栏刷一条错误。
+        if (!reason.contains(QStringLiteral("没有识别出文字"))) {
         statusBar()->showMessage(tr("第 %1 页 OCR 失败：%2").arg(page + 1).arg(reason), 10000);
+        }
         trace(QStringLiteral("ocr failed page=%1 reason=%2").arg(page + 1).arg(reason));
     });
     appMenu->addSeparator();
