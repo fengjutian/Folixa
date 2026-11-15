@@ -1,4 +1,4 @@
-#include "app/PageCanvas.h"
+﻿#include "app/PageCanvas.h"
 
 #include "app/RenderThread.h"
 #include "app/Language.h"
@@ -1090,6 +1090,14 @@ double PageCanvas::pageLeft(int index) const {
     // 用最宽页居中会让窄页明显偏左。
     const double rowWidth = layout_.rowWidth(index);
     const double rowLeft = std::max(kPageMargin, (available - rowWidth) / 2.0 + kPageMargin);
+    static int lastWidth = -1;
+    if (index == 0 && viewport()->width() != lastWidth) {
+        lastWidth = viewport()->width();
+        trace(QStringLiteral("pageLeft diag viewport=%1 rowWidth=%2 rowLeft=%3")
+                  .arg(viewport()->width())
+                  .arg(rowWidth)
+                  .arg(rowLeft));
+    }
     return rowLeft + rect.x();
 }
 

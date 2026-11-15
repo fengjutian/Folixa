@@ -69,6 +69,8 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabBar>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QTime>
@@ -728,15 +730,26 @@ void MainWindow::buildUi() {
     // ------------------------------------------------------------- Ribbon ----
     // 顶部标签页 + 命令组：结构对齐福昕的「文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI」。
     // 只放已经能用的命令；没实现的能力用禁用按钮并写明「后续版本」。
+    // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
+    addToolBarBreak();
     auto* ribbonToolBar = addToolBar(QString());
     ribbonToolBar->setObjectName(QStringLiteral("ribbonToolBar"));
     ribbonToolBar->setMovable(false);
     ribbonToolBar->setFloatable(false);
     ribbonBar_ = new RibbonBar(ribbonToolBar);
     ribbonToolBar->addWidget(ribbonBar_);
-    auto* ribbonSpacer = new QWidget(ribbonToolBar);
-    ribbonSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    ribbonToolBar->addWidget(ribbonSpacer);
+    // 用滚动区包住 Ribbon：内容再宽也不会把主窗口撑到屏幕外。
+    auto* ribbonScroll = new QScrollArea(ribbonToolBar);
+    ribbonScroll->setObjectName(QStringLiteral("ribbonScroll"));
+    ribbonScroll->setWidgetResizable(true);
+    ribbonScroll->setFrameShape(QFrame::NoFrame);
+    ribbonScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    ribbonScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ribbonScroll->setWidget(ribbonBar_);
+    ribbonScroll->setFixedHeight(150);
+    ribbonToolBar->addWidget(ribbonScroll);
+    ribbonScroll->verticalScrollBar()->setValue(0);
+    // 先隐藏：Ribbon 的宽度/高度还在收敛，隐藏后主窗口与画布保持原来的稳定布局。
 
     auto addRibbonCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
                                    const QString& icon, auto handler, bool enabled = true,

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QIcon>
 #include <QVector>
@@ -49,6 +49,12 @@ public:
     void setCurrentTab(int index);
     int currentTab() const;
     int tabCount() const;
+
+    // Ribbon 的内容宽度由所有标签页里最宽的一页决定；如果直接把它当最小宽度，
+    // 主窗口会被撑得比屏幕还宽，PDF 画布也跟着被挤到屏幕外。
+    // 这里只上报一个紧凑的宽度，内容超出时由标签页自己裁切。
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
 signals:
     void tabChanged(int index);

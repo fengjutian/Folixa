@@ -862,6 +862,11 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     startRenderThread();
 
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     emit pageCountChanged(pageCount_);
     updateZoomLabel();
     updatePageInfo();
@@ -1057,6 +1062,11 @@ void PdfView::handlePageStructureChanged() {
     emit controllersRefreshed();
 
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     emit pageCountChanged(pageCount_);
     updatePageInfo();
     requestVisiblePages();
@@ -1082,6 +1092,11 @@ void PdfView::clear() {
     layout_.clear();
     cache_.clear();
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     emit pageCountChanged(0);
     updateZoomLabel();
     updatePageInfo();
@@ -1207,6 +1222,11 @@ void PdfView::rotateRight() {
     }
     cache_.clear();
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     updateZoomLabel();
     requestVisiblePages();
 }
@@ -1225,6 +1245,11 @@ void PdfView::rotateLeft() {
     }
     cache_.clear();
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     updateZoomLabel();
     requestVisiblePages();
 }
@@ -1386,6 +1411,7 @@ void PdfView::printAnnotationSummary() {
 }
 
 void PdfView::applyWatermarkDialog() {
+    trace(QStringLiteral("decor watermark dialog"));
     if (!document_.isValid()) {
         return;
     }
@@ -1414,6 +1440,7 @@ void PdfView::applyWatermarkDialog() {
 }
 
 void PdfView::applyHeaderFooterDialog() {
+    trace(QStringLiteral("decor header footer dialog"));
     if (!document_.isValid()) {
         return;
     }
@@ -2008,6 +2035,7 @@ bool PdfView::flattenFormsOnPage(int pageIndex) {
 }
 
 void PdfView::mergeDocumentDialog() {
+    trace(QStringLiteral("document merge dialog"));
     if (!document_.isValid()) {
         return;
     }
@@ -2033,6 +2061,7 @@ void PdfView::mergeDocumentDialog() {
 }
 
 void PdfView::extractCurrentPageDialog() {
+    trace(QStringLiteral("page extract dialog"));
     if (!document_.isValid()) {
         return;
     }
@@ -2377,6 +2406,11 @@ void PdfView::resizeEvent(QResizeEvent* event) {
 void PdfView::rebuildLayout() {
     layout_.setScale(zoom_);
     canvas_->setLayout(layout_);
+    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
+              .arg(canvas_->viewport()->width())
+              .arg(canvas_->width())
+              .arg(layout_.totalWidth())
+              .arg(zoom_));
     updateZoomLabel();
     requestVisiblePages();
 }

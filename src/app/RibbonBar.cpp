@@ -136,6 +136,16 @@ QToolButton* RibbonBar::addLargeCommand(QHBoxLayout* group,
     return button;
 }
 
+
+QSize RibbonBar::sizeHint() const {
+    const int height = QWidget::sizeHint().height();
+    return QSize(640, height);
+}
+
+QSize RibbonBar::minimumSizeHint() const {
+    return QSize(320, QWidget::sizeHint().height());
+}
+
 void RibbonBar::setCurrentTab(int index) {
     if (index >= 0 && index < tabs_->count()) {
         tabs_->setCurrentIndex(index);

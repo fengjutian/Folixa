@@ -88,21 +88,19 @@ try {
         Test-Check 'Ctrl+Shift+N 添加页码' (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'decor page numbers applied' -TimeoutSeconds 10)
 
         # 其余动作会先弹对话框：断言对话框出现，然后 Esc 取消。
+        # 对话框是模态的：断言 trace 里出现"打开对话框"标记，然后 Esc 取消。
         foreach ($entry in ([ordered]@{
-                    'Ctrl+Shift+W 打开水印对话框'   = @('W', '添加水印')
-                    'Ctrl+Shift+H 打开页眉页脚对话框' = @('H', '页眉页脚')
-                    'Ctrl+Shift+M 打开合并对话框'   = @('M', '合并 PDF')
-                    'Ctrl+Shift+E 打开抽取对话框'   = @('E', '抽取当前页')
+                    'Ctrl+Shift+W 打开水印对话框'     = @('W', 'decor watermark dialog')
+                    'Ctrl+Shift+H 打开页眉页脚对话框' = @('H', 'decor header footer dialog')
+                    'Ctrl+Shift+M 打开合并对话框'     = @('M', 'document merge dialog')
+                    'Ctrl+Shift+E 打开抽取对话框'     = @('E', 'page extract dialog')
                 }).GetEnumerator()) {
             $key = $entry.Value[0]
-            $title = $entry.Value[1]
+            $pattern = $entry.Value[1]
             Send-AiPdfKey -Key $key -Ctrl -Shift
-            $dialog = Wait-AiPdfDialog -Process $process -TitlePattern $title -TimeoutSeconds 8
-            Test-Check $entry.Key ($null -ne $dialog)
-            if ($null -ne $dialog) {
-                Send-AiPdfKey -Key 'Escape'
-                Start-Sleep -Milliseconds 400
-            }
+            Test-Check $entry.Key (Wait-AiPdfTraceMatch -Path $tracePath -Pattern $pattern -TimeoutSeconds 8)
+            Send-AiPdfKey -Key 'Escape'
+            Start-Sleep -Milliseconds 500
         }
 
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) {
