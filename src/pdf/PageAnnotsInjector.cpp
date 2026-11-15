@@ -208,7 +208,6 @@ InlineWriteResult injectInlineAnnotations(const QByteArray& pdf,
     }
 
     const QVector<ObjectSpan> objects = scanObjects(pdf);
-    qWarning("injector: objects=%d bytes=%d", int(objects.size()), int(pdf.size()));
     int maxObject = 0;
     for (const ObjectSpan& object : objects) {
         maxObject = std::max(maxObject, object.number);
