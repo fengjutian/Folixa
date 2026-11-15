@@ -187,6 +187,10 @@ MainWindow::MainWindow(QWidget* parent)
     // 欢迎页写着「把 PDF 拖到窗口里」，那窗口就得真的收得下。
     setAcceptDrops(true);
     buildUi();
+    QTimer::singleShot(0, this, [this] {
+        const QRect avail = screen()->availableGeometry();
+        resize(qMin(1100, avail.width()), qMin(680, avail.height()));
+    });
 
     // 切换语言后所有登记过的文案就地重译：不重建窗口，文档与面板状态都留着。
     connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
@@ -221,7 +225,9 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::buildUi() {
     setWindowTitle(QString("Folixa · AI PDF Editor %1").arg(QStringLiteral(AIPDF_VERSION)));
-    resize(1440, 900);
+    // 初始窗口不能超过屏幕可用区域：900 高的窗口在 864 高的屏幕上会把状态栏顶到屏幕外。
+    const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+    resize(qMin(1100, available.width()), qMin(680, available.height()));
 
     auto* tabs = new QTabWidget(this);
     tabs_ = tabs;
@@ -743,7 +749,7 @@ void MainWindow::buildUi() {
     // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
     // Ribbon 放进顶部 Dock：不动中央 QTabWidget，避免换中央控件时的生命周期问题。
     ribbonBar_ = new RibbonBar(this);
-    ribbonBar_->setFixedHeight(108);
+    ribbonBar_->setFixedHeight(118);
     auto* ribbonDock = new QDockWidget(QString(), this);
     ribbonDock->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock->setFeatures(QDockWidget::NoDockWidgetFeatures);

@@ -3,6 +3,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSizePolicy>
+#include <QScrollArea>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
@@ -45,7 +46,15 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 
     pages_ = new QStackedWidget(this);
     pages_->setObjectName(QStringLiteral("ribbonPages"));
-    layout->addWidget(pages_, 1);
+    // 标签页内容放进横向滚动区：命令再多也不参与主窗口的最小宽度。
+    auto* pageScroll = new QScrollArea(this);
+    pageScroll->setObjectName(QStringLiteral("ribbonPageScroll"));
+    pageScroll->setWidgetResizable(true);
+    pageScroll->setFrameShape(QFrame::NoFrame);
+    pageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    pageScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    pageScroll->setWidget(pages_);
+    layout->addWidget(pageScroll, 1);
 
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
         pages_->setCurrentIndex(index);
