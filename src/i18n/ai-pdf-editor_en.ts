@@ -808,6 +808,34 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>主页</source>
+            <translation>Home</translation>
+        </message>
+        <message>
+            <source>审阅</source>
+            <translation>Review</translation>
+        </message>
+        <message>
+            <source>导出</source>
+            <translation>Export</translation>
+        </message>
+        <message>
+            <source>组装</source>
+            <translation>Assemble</translation>
+        </message>
+        <message>
+            <source>装饰</source>
+            <translation>Decorate</translation>
+        </message>
+        <message>
+            <source>面板</source>
+            <translation>Panels</translation>
+        </message>
+        <message>
+            <source>页面管理</source>
+            <translation>Page management</translation>
+        </message>
+        <message>
             <source>首页</source>
             <translation>Home</translation>
         </message>
