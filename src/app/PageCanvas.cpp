@@ -62,8 +62,8 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     // 验收脚本靠它定位画布视口、换算屏幕坐标做拖选。
     setObjectName(QStringLiteral("pdfCanvas"));
     QPalette canvasPalette = palette();
-    canvasPalette.setColor(QPalette::Mid, QColor(QStringLiteral("#D9DEE7")));
-    canvasPalette.setColor(QPalette::Text, QColor(QStringLiteral("#465267")));
+    canvasPalette.setColor(QPalette::Mid, QColor(QStringLiteral("#E7E8EB")));
+    canvasPalette.setColor(QPalette::Text, QColor(QStringLiteral("#52525B")));
     setPalette(canvasPalette);
     setBackgroundRole(QPalette::Mid);
     setFrameShape(QFrame::NoFrame);
@@ -210,9 +210,9 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         const QRectF pageRect(left, top, size.width(), size.height());
 
         // 页面底板和克制的投影，帮助纸张从工作区背景中分离。
-        painter.fillRect(pageRect.translated(0.0, 3.0), QColor(32, 42, 58, 28));
+        painter.fillRect(pageRect.translated(0.0, 3.0), QColor(24, 24, 27, 20));
         painter.fillRect(pageRect, Qt::white);
-        painter.setPen(QPen(QColor(QStringLiteral("#CBD2DE")), 1.0));
+        painter.setPen(QPen(QColor(QStringLiteral("#D4D4D8")), 1.0));
         painter.drawRect(pageRect.adjusted(0.0, 0.0, -1.0, -1.0));
 
         if (cache_ != nullptr) {

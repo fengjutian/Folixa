@@ -29,17 +29,19 @@ S = 1024  # 设计网格边长
 
 # ------------------------------------------------------------------ 设计 Token
 # 颜色全部取自 docs/UI_DESIGN_SYSTEM.md，不另造品牌色。
-TILE_STOPS = [(0.00, "#5E80F5"), (0.52, "#4A69E2"), (1.00, "#3350BE")]  # prism.500 系
+TILE_STOPS = [(0.00, "#C13CC7"), (0.48, "#8C35BB"), (1.00, "#4D46C7")]
 PAGE_STOPS = [(0.00, "#FFFFFF"), (1.00, "#E7EDFA")]                     # paper
 FOLD_STOPS = [(0.00, "#C9B7FB"), (1.00, "#7B5CE0")]                     # ai.300 → ai.600
 LINE_COLOR = "#C9D5EE"
-SHADOW_COLOR = "#0A1230"
+SHADOW_COLOR = "#28133D"
 
-TILE_RADIUS = 228
-PAGE = dict(l=248, t=170, r=716, b=854, rad=46)  # 纸张矩形
+TILE_RADIUS = 196
+PAGE = dict(l=292, t=142, r=760, b=866, rad=44)  # 纸张矩形
 FOLD = 165                                       # 折角边长
 LINE_WIDTH = 34
-LINES = [(470, 310, 610), (546, 310, 654), (622, 310, 520)]  # (y, x1, x2)
+LINES = [(470, 530, 680), (548, 530, 706), (626, 530, 650)]  # (y, x1, x2)
+BADGE = dict(l=112, t=278, r=484, b=748, rad=48)
+BADGE_STOPS = [(0.00, "#72258F"), (0.55, "#642584"), (1.00, "#4D287A")]
 
 OUT_SIZES = [1024, 512, 256, 128, 64, 48, 32, 24, 16]
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
@@ -61,7 +63,7 @@ def svg_document() -> str:
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="Folixa">
   <title>Folixa — Prism Fold</title>
   <defs>
-    <linearGradient id="tile" x1="172" y1="40" x2="880" y2="1000" gradientUnits="userSpaceOnUse">
+    <linearGradient id="tile" x1="120" y1="40" x2="900" y2="980" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="{TILE_STOPS[0][1]}"/>
       <stop offset="0.52" stop-color="{TILE_STOPS[1][1]}"/>
       <stop offset="1" stop-color="{TILE_STOPS[2][1]}"/>
@@ -79,7 +81,7 @@ def svg_document() -> str:
       <stop offset="1" stop-color="{FOLD_STOPS[1][1]}"/>
     </linearGradient>
     <filter id="pageShadow" x="150" y="80" width="740" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="{SHADOW_COLOR}" flood-opacity="0.34"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="{SHADOW_COLOR}" flood-opacity="0.24"/>
     </filter>
     <clipPath id="tileClip"><rect width="1024" height="1024" rx="{TILE_RADIUS}"/></clipPath>
   </defs>
@@ -98,6 +100,20 @@ def svg_document() -> str:
   <g stroke="{LINE_COLOR}" stroke-width="{LINE_WIDTH}" stroke-linecap="round">
 {lines}
   </g>
+
+  <defs>
+    <linearGradient id="badge" x1="112" y1="278" x2="484" y2="748" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="{BADGE_STOPS[0][1]}"/>
+      <stop offset="0.55" stop-color="{BADGE_STOPS[1][1]}"/>
+      <stop offset="1" stop-color="{BADGE_STOPS[2][1]}"/>
+    </linearGradient>
+    <filter id="badgeShadow" x="58" y="208" width="520" height="650" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#24102F" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="112" y="278" width="372" height="470" rx="48" fill="url(#badge)" filter="url(#badgeShadow)"/>
+  <path d="M210 385 H386 V445 H278 V510 H374 V570 H278 V668 H210 Z" fill="#FFFFFF"/>
+  <rect x="120" y="286" width="356" height="454" rx="40" stroke="#FFFFFF" stroke-opacity="0.13" stroke-width="7"/>
 
   <rect x="4" y="4" width="1016" height="1016" rx="{TILE_RADIUS - 4}" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="8"/>
 </svg>
@@ -178,7 +194,7 @@ def render(out_px: int, ss: int = 4) -> Image.Image:
     tile_a = _tile_alpha(size, f)
     canvas = Image.alpha_composite(
         canvas,
-        _layer(size, size, _gradient(size, size, TILE_STOPS, (172 * f, 40 * f), (880 * f, 1000 * f)), tile_a),
+        _layer(size, size, _gradient(size, size, TILE_STOPS, (120 * f, 40 * f), (900 * f, 980 * f)), tile_a),
     )
     sheen = np.clip(1.0 - np.mgrid[0:size, 0:size][0] / (560 * f), 0, 1) * 0.20
     canvas = Image.alpha_composite(
@@ -188,10 +204,10 @@ def render(out_px: int, ss: int = 4) -> Image.Image:
     # 纸张投影
     page_a = _page_alpha(size, f)
     blurred = Image.fromarray((page_a * 255).astype(np.uint8), "L").filter(
-        ImageFilter.GaussianBlur(28 * f)
+        ImageFilter.GaussianBlur(24 * f)
     )
-    sh = np.asarray(blurred, dtype=np.float64) / 255.0 * 0.34
-    dy = int(round(24 * f))
+    sh = np.asarray(blurred, dtype=np.float64) / 255.0 * 0.24
+    dy = int(round(18 * f))
     shifted = np.zeros_like(sh)
     shifted[dy:, :] = sh[: size - dy, :]
     canvas = Image.alpha_composite(canvas, _layer(size, size, _rgb(SHADOW_COLOR), shifted))
@@ -230,6 +246,37 @@ def render(out_px: int, ss: int = 4) -> Image.Image:
     canvas = Image.alpha_composite(
         canvas, _layer(size, size, fold_rgb, np.asarray(fold, dtype=np.float64) / 255.0)
     )
+
+    # 前景字母块借鉴 Office 的分层轮廓，但使用 Folixa 的品牌色与字母 F。
+    badge = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(badge).rounded_rectangle(
+        [BADGE["l"] * f, BADGE["t"] * f, BADGE["r"] * f, BADGE["b"] * f],
+        radius=BADGE["rad"] * f,
+        fill=255,
+    )
+    badge_alpha = np.asarray(badge, dtype=np.float64) / 255.0
+    blurred_badge = badge.filter(ImageFilter.GaussianBlur(18 * f))
+    badge_shadow = np.asarray(blurred_badge, dtype=np.float64) / 255.0 * 0.28
+    badge_dy = max(1, int(round(14 * f)))
+    shifted_badge_shadow = np.zeros_like(badge_shadow)
+    shifted_badge_shadow[badge_dy:, :] = badge_shadow[: size - badge_dy, :]
+    canvas = Image.alpha_composite(
+        canvas, _layer(size, size, _rgb("#15102F"), shifted_badge_shadow)
+    )
+    badge_rgb = _gradient(
+        size, size, BADGE_STOPS,
+        (BADGE["l"] * f, BADGE["t"] * f), (BADGE["r"] * f, BADGE["b"] * f),
+    )
+    canvas = Image.alpha_composite(canvas, _layer(size, size, badge_rgb, badge_alpha))
+
+    mark = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ImageDraw.Draw(mark).polygon(
+        [(210*f,385*f),(386*f,385*f),(386*f,445*f),(278*f,445*f),
+         (278*f,510*f),(374*f,510*f),(374*f,570*f),(278*f,570*f),
+         (278*f,668*f),(210*f,668*f)],
+        fill=(255, 255, 255, 255),
+    )
+    canvas = Image.alpha_composite(canvas, mark)
 
     # 底板描边高光
     edge = Image.new("L", (size, size), 0)

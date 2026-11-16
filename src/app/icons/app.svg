@@ -1,18 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="Folixa">
+  <title>Folixa — Prism Fold</title>
   <defs>
-    <linearGradient id="brandBase" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5B8DEF"/>
-      <stop offset="0.55" stop-color="#627CE8"/>
-      <stop offset="1" stop-color="#7C63DC"/>
+    <linearGradient id="tile" x1="120" y1="40" x2="900" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C13CC7"/>
+      <stop offset="0.52" stop-color="#8C35BB"/>
+      <stop offset="1" stop-color="#4D46C7"/>
     </linearGradient>
-    <linearGradient id="brandSheen" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
+    <linearGradient id="page" x1="300" y1="200" x2="700" y2="840" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E7EDFA"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="595" y1="142" x2="760" y2="307" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C9B7FB"/>
+      <stop offset="1" stop-color="#7B5CE0"/>
+    </linearGradient>
+    <filter id="pageShadow" x="150" y="80" width="740" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#28133D" flood-opacity="0.24"/>
+    </filter>
+    <clipPath id="tileClip"><rect width="1024" height="1024" rx="196"/></clipPath>
   </defs>
-  <rect width="256" height="256" rx="74" fill="url(#brandBase)"/>
-  <rect width="256" height="256" rx="74" fill="url(#brandSheen)"/>
-  <rect x="81.92" y="76.8" width="76.8" height="102.4" rx="12.8" fill="#FFFFFF" fill-opacity="0.955"/>
-  <path d="M95.74 107.52H144.9M95.74 128H144.9M95.74 148.48H124.93" stroke="#546FCE" stroke-opacity="0.65" stroke-width="8.19" stroke-linecap="round"/>
-  <path d="M180.5 46.04Q186.72 74.38 215.06 80.6Q186.72 86.82 180.5 115.16Q174.28 86.82 145.94 80.6Q174.28 74.38 180.5 46.04Z" fill="#FFFFFF" fill-opacity="0.92"/>
+
+  <g clip-path="url(#tileClip)">
+    <rect width="1024" height="1024" fill="url(#tile)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+  </g>
+
+  <g filter="url(#pageShadow)">
+    <path d="M336 142 H595 L760 307 V822 A44 44 0 0 1 716 866 H336 A44 44 0 0 1 292 822 V186 A44 44 0 0 1 336 142 Z" fill="url(#page)"/>
+  </g>
+
+  <path d="M595 142 L760 307 H595 Z" fill="url(#fold)"/>
+
+  <g stroke="#C9D5EE" stroke-width="34" stroke-linecap="round">
+    <path d="M530 470 H680"/>
+    <path d="M530 548 H706"/>
+    <path d="M530 626 H650"/>
+  </g>
+
+  <defs>
+    <linearGradient id="badge" x1="112" y1="278" x2="484" y2="748" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#72258F"/>
+      <stop offset="0.55" stop-color="#642584"/>
+      <stop offset="1" stop-color="#4D287A"/>
+    </linearGradient>
+    <filter id="badgeShadow" x="58" y="208" width="520" height="650" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#24102F" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="112" y="278" width="372" height="470" rx="48" fill="url(#badge)" filter="url(#badgeShadow)"/>
+  <path d="M210 385 H386 V445 H278 V510 H374 V570 H278 V668 H210 Z" fill="#FFFFFF"/>
+  <rect x="120" y="286" width="356" height="454" rx="40" stroke="#FFFFFF" stroke-opacity="0.13" stroke-width="7"/>
+
+  <rect x="4" y="4" width="1016" height="1016" rx="192" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="8"/>
 </svg>
