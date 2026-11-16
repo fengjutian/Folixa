@@ -1213,7 +1213,10 @@ void MainWindow::buildUi() {
                      ":/icons/bookmark.svg", [this] {
         if (auto* view = currentView()) { view->addLinkToSelectionDialog(); }
     }, true, "edit.addLink");
-    addUnavailableEditCommand(linkEditGroup, "网络链接");
+    addRibbonCommand(linkEditGroup, "网络链接", "识别全文网址并创建可点击链接",
+                     ":/icons/search.svg", [this] {
+        if (auto* view = currentView()) { view->detectWebLinks(); }
+    }, true, "edit.detectWebLinks");
 
     auto* navigationEditGroup = ribbonBar_->addGroup(contentEditTab, tr("导航"));
     addRibbonCommand(navigationEditGroup, "书签", "打开书签面板", ":/icons/bookmark.svg",

@@ -2243,6 +2243,26 @@ void PdfView::addLinkToSelectionDialog() {
     emit statusMessage(tr("已添加链接"));
 }
 
+void PdfView::detectWebLinks() {
+    if (!document_.isValid()) {
+        return;
+    }
+    int added = 0;
+    for (int pageIndex = 0; pageIndex < document_.pageCount(); ++pageIndex) {
+        auto page = document_.page(pageIndex);
+        if (page.has_value()) {
+            added += page->addDetectedUriLinks();
+        }
+    }
+    if (added <= 0) {
+        QMessageBox::information(this, tr("网络链接"), tr("没有发现需要添加的网址链接。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已创建 %1 个网络链接").arg(added));
+}
+
 // 显示空间（页面左上原点、y 向下）→ PDF 用户空间（左下原点、y 向上）。
 QPointF PdfView::displayToUser(int pageIndex, const QPointF& displayPoint) const {
     auto page = document_.page(pageIndex);

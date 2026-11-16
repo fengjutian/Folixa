@@ -1,5 +1,7 @@
 ﻿#include "pdf/PdfiumAdapter.h"
 #include <QImage>
+#include <QRegularExpression>
+#include <QUrl>
 #include <functional>
 
 #include "i18n/Translate.h"
@@ -723,6 +725,69 @@ bool PdfPage::addUriLink(const QRectF& rectPoints, const QByteArray& encodedUri)
         FPDFPage_RemoveAnnot(impl_->page, annotationIndex);
     }
     return success;
+}
+
+int PdfPage::addDetectedUriLinks() {
+    const std::optional<TextPage> textPage = extractText();
+    if (!textPage.has_value() || textPage->chars.isEmpty()) {
+        return 0;
+    }
+
+    QString text;
+    QVector<int> starts;
+    QVector<int> ends;
+    starts.reserve(textPage->chars.size());
+    ends.reserve(textPage->chars.size());
+    for (const TextChar& character : textPage->chars) {
+        starts.append(text.size());
+        text.append(character.text);
+        ends.append(text.size());
+    }
+
+    static const QRegularExpression urlPattern(
+        QStringLiteral(R"((?:(?:https?://)|(?:www\.))[^\s<>\[\]{}"']+)"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QVector<PageLink> existing = links();
+    int added = 0;
+    QRegularExpressionMatchIterator matches = urlPattern.globalMatch(text);
+    while (matches.hasNext()) {
+        const QRegularExpressionMatch match = matches.next();
+        int matchStart = match.capturedStart();
+        int matchEnd = match.capturedEnd();
+        QString value = match.captured();
+        while (!value.isEmpty() && QStringLiteral(".,;:!?)]}").contains(value.back())) {
+            value.chop(1);
+            --matchEnd;
+        }
+        if (value.isEmpty() || matchEnd <= matchStart) {
+            continue;
+        }
+
+        QRectF rect;
+        for (int index = 0; index < textPage->chars.size(); ++index) {
+            if (ends.at(index) <= matchStart || starts.at(index) >= matchEnd) {
+                continue;
+            }
+            rect = rect.united(textPage->chars.at(index).box);
+        }
+        if (rect.isEmpty()) {
+            continue;
+        }
+        QUrl url = QUrl::fromUserInput(value);
+        if (!url.isValid() || url.scheme().isEmpty()) {
+            continue;
+        }
+        const QString normalizedUri = QString::fromUtf8(url.toEncoded());
+        const bool duplicate = std::any_of(existing.cbegin(), existing.cend(),
+                                           [&rect, &normalizedUri](const PageLink& link) {
+            return link.uri == normalizedUri &&
+                   link.rect.intersects(rect.adjusted(-1.0, -1.0, 1.0, 1.0));
+        });
+        if (!duplicate && addUriLink(rect, url.toEncoded())) {
+            ++added;
+        }
+    }
+    return added;
 }
 
 QVector<Annotation> PdfPage::annotations() const {

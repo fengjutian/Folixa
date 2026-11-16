@@ -53,6 +53,7 @@ private slots:
     void documentWithoutOutlineIsEmpty();
     void invalidDocumentHasNoLinks();
     void uriLinkCanBeCreatedAndSaved();
+    void textUrlsCanBeDetectedWithoutDuplicates();
 };
 
 // ------------------------------------------------------------------ 大纲 ----
@@ -196,6 +197,21 @@ void PdfNavigationTests::uriLinkCanBeCreatedAndSaved() {
     QVERIFY(!reopenedPage->links().isEmpty());
     QCOMPARE(reopenedPage->links().constLast().uri,
              QStringLiteral("https://example.com/new-link"));
+}
+
+void PdfNavigationTests::textUrlsCanBeDetectedWithoutDuplicates() {
+    PdfDocument document = openFixture("normal.pdf");
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->addTextLayer(QStringLiteral("Visit https://example.com/docs."),
+                               40.0, 80.0, 12.0, Qt::black));
+    QCOMPARE(page->addDetectedUriLinks(), 1);
+    QCOMPARE(page->addDetectedUriLinks(), 0);
+
+    const QVector<PageLink> links = page->links();
+    QVERIFY(!links.isEmpty());
+    QCOMPARE(links.constLast().uri, QStringLiteral("https://example.com/docs"));
 }
 
 QTEST_MAIN(PdfNavigationTests)

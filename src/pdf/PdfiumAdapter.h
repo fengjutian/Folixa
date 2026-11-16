@@ -112,6 +112,10 @@ public:
     // 7-bit ASCII 形式写入（调用方应传入 QUrl::toEncoded() 的结果）。
     bool addUriLink(const QRectF& rectPoints, const QByteArray& encodedUri);
 
+    // 扫描文本层中的 http(s):// 与 www. 地址，并给文字区域创建 URI 链接。
+    // 已经存在的同地址、同区域链接不会重复创建。返回新增链接数量。
+    int addDetectedUriLinks();
+
     // 本页的批注（不含链接注释）。
     //
     // 矩形是 **PDF user space**（左下原点），与字符框同一坐标系。
