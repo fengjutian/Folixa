@@ -9,6 +9,7 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
+#include "app/SettingsDialog.h"
 #include "ai/AuditLog.h"
 #include "app/OcrController.h"
 #include "tools/ProposalValidator.h"
@@ -46,7 +47,6 @@
 #include <QDropEvent>
 #include <QDateTime>
 #include <QFrame>
-#include <QFontDialog>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
 #include <QIcon>
@@ -1664,46 +1664,32 @@ void MainWindow::buildUi() {
     });
     auto* settingsButton = new QToolButton(this);
     settingsButton->setObjectName(QStringLiteral("statusSettingsButton"));
-    settingsButton->setPopupMode(QToolButton::InstantPopup);
     texts_.bind([this, settingsButton] {
-        settingsButton->setText(QStringLiteral("⚙  ") + tr("设置"));
+        settingsButton->setText(QStringLiteral("⚙"));
         settingsButton->setToolTip(tr("设置主题、字体和 AI 服务"));
     });
-
-    auto* settingsMenu = new QMenu(settingsButton);
-    auto* themeMenu = settingsMenu->addMenu(tr("主题"));
-    auto* lightThemeAction = themeMenu->addAction(tr("浅色"));
-    lightThemeAction->setCheckable(true);
-    lightThemeAction->setChecked(true);
-    connect(lightThemeAction, &QAction::triggered, this, [] {
-        QSettings().setValue(QStringLiteral("appearance/theme"), QStringLiteral("light"));
-    });
-
-    auto* fontAction = settingsMenu->addAction(tr("字体…"));
-    connect(fontAction, &QAction::triggered, this, [this] {
-        bool accepted = false;
-        const QFont selected = QFontDialog::getFont(&accepted, qApp->font(), this, tr("选择界面字体"));
-        if (!accepted) {
+    connect(settingsButton, &QToolButton::clicked, this, [this] {
+        SettingsDialog dialog(this);
+        connect(&dialog, &SettingsDialog::aiSettingsRequested, this, [this] {
+            if (aiPanel_ != nullptr) {
+                aiPanel_->openSettings();
+            }
+        });
+        if (dialog.exec() != QDialog::Accepted) {
             return;
         }
+        const QFont selected = dialog.selectedFont();
         qApp->setFont(selected);
         QSettings settings;
+        settings.setValue(QStringLiteral("appearance/theme"), QStringLiteral("light"));
         settings.setValue(QStringLiteral("appearance/fontFamily"), selected.family());
         settings.setValue(QStringLiteral("appearance/fontPointSize"), selected.pointSize());
-        statusBar()->showMessage(tr("界面字体已更新"), 3000);
+        statusBar()->showMessage(tr("设置已保存"), 3000);
     });
-
-    auto* aiSettingsAction = settingsMenu->addAction(tr("AI 设置…"));
-    connect(aiSettingsAction, &QAction::triggered, this, [this] {
-        if (aiPanel_ != nullptr) {
-            aiPanel_->openSettings();
-        }
-    });
-    settingsButton->setMenu(settingsMenu);
     // 不注册成 QStatusBar 的 normal widget：showMessage() 会隐藏所有 normal widget。
     // 直接作为子控件固定在左侧，任务提示和设置入口因此可以同时显示。
     settingsButton->setParent(statusBar());
-    settingsButton->move(2, 2);
+    settingsButton->move(4, 5);
     settingsButton->show();
     settingsButton->raise();
     statusBar()->clearMessage();

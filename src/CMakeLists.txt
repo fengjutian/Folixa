@@ -37,6 +37,8 @@
     app/AiPanel.cpp
     app/AiSettingsDialog.h
     app/AiSettingsDialog.cpp
+    app/SettingsDialog.h
+    app/SettingsDialog.cpp
     app/EncryptionDialog.h
     app/EncryptionDialog.cpp
     app/RibbonBar.h

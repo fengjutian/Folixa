@@ -199,7 +199,7 @@ QListWidget#thumbnailList::item:hover { background: #F1F4FF; }
 QListWidget#thumbnailList::item:selected { color: #3555B7; background: #EEF2FF; border-color: #5277E8; }
 QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
 QStatusBar {
-    min-height: 36px; max-height: 36px; padding-left: 8px;
+    min-height: 36px; max-height: 36px; padding-left: 34px;
     background: #FAFAFB; color: #52525B; border-top: 1px solid #E4E4E7;
 }
 QStatusBar::item { border: 0; }
@@ -212,13 +212,22 @@ QWidget#statusDocumentControls QToolButton {
     padding: 0; border-radius: 6px;
 }
 QStatusBar QToolButton#statusSettingsButton {
-    min-width: 72px; max-width: 72px; min-height: 24px; max-height: 24px;
-    margin: 1px 4px 1px 2px; padding: 0 8px; border: 0; border-radius: 5px;
-    background: transparent; color: #52525B;
+    min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px;
+    margin: 1px 2px; padding: 0; border: 0; border-radius: 5px;
+    background: transparent; color: #52525B; font-size: 15px;
 }
 QStatusBar QToolButton#statusSettingsButton:hover { background: #EDE9FE; color: #6D28D9; }
 QStatusBar QToolButton#statusSettingsButton:pressed,
 QStatusBar QToolButton#statusSettingsButton:checked { background: #DDD6FE; color: #5B21B6; }
+QStatusBar QToolButton#statusSettingsButton::menu-indicator { image: none; width: 0; height: 0; }
+
+QDialog#settingsDialog { background: #FFFFFF; }
+QListWidget#settingsNavigation {
+    background: #F7F7F8; border: 0; border-right: 1px solid #E4E4E7; padding: 12px 8px;
+}
+QListWidget#settingsNavigation::item { min-height: 40px; padding: 0 12px; border-radius: 7px; }
+QListWidget#settingsNavigation::item:selected { background: #EDE9FE; color: #6D28D9; font-weight: 600; }
+QLabel#settingsPageTitle { color: #18181B; font-size: 20px; font-weight: 700; }
 
 /* ------------------------------------------------------------ 欢迎页 -- */
 QScrollArea#welcomeScroll, QScrollArea#welcomeScroll > QWidget { background: transparent; border: 0; }
