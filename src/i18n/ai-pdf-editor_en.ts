@@ -3996,4 +3996,34 @@
         <message><source>发送选定页面</source><translation>Send selected pages</translation></message>
         <message><source>未知</source><translation>Unknown</translation></message>
     </context>
+    <context>
+        <name>aipdf::app::MainWindow</name>
+        <message><source>查重</source><translation>Similarity check</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message><source>分析字符</source><translation>Characters analyzed</translation></message>
+        <message><source>本地自查历史</source><translation>Local check history</translation></message>
+        <message><source>未命名文档</source><translation>Untitled document</translation></message>
+        <message><source>检查时间</source><translation>Check time</translation></message>
+        <message><source>文档名称</source><translation>Document name</translation></message>
+        <message><source>查重历史</source><translation>Check history</translation></message>
+        <message><source>记录仅保存在本机，最多保留最近 30 次。</source><translation>Records are stored only on this device; the latest 30 are retained.</translation></message>
+        <message><source>论文查重</source><translation>Thesis similarity check</translation></message>
+        <message><source>论文查重历史</source><translation>Thesis check history</translation></message>
+        <message><source>论文查重（本地自查）</source><translation>Thesis similarity check (local)</translation></message>
+        <message><source>论文重复段落自查结果</source><translation>Local repeated-passage check results</translation></message>
+        <message><source>还没有查重记录。</source><translation>There are no check records yet.</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::ThesisCheckResult</name>
+        <message><source>出现</source><translation>Occurrences:</translation></message>
+        <message><source>参与分析的字符</source><translation>Characters analyzed</translation></message>
+        <message><source>文内重复比例</source><translation>Internal repetition rate</translation></message>
+        <message><source>未发现长度不少于 12 字符的重复句段。</source><translation>No repeated passage of at least 12 characters was found.</translation></message>
+        <message><source>本地重复段落自查</source><translation>Local repeated-passage check</translation></message>
+        <message><source>此结果只比较当前文档内部的完全重复句段，不连接论文数据库，也不能作为正式查重报告。</source><translation>This result compares only exact repeated passages within the current document. It does not use a thesis database and is not an official similarity report.</translation></message>
+        <message><source>重复句段</source><translation>Repeated passages</translation></message>
+        <message><source>重复字符</source><translation>Repeated characters</translation></message>
+    </context>
 </TS>

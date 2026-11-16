@@ -214,6 +214,9 @@ public:
     void exportAccessibilityReport();
     // 显示 PDF 当前可提取的逻辑文字顺序，便于人工核对阅读顺序。
     void showReadingOrder();
+    // 论文工具：只做当前文档内部的重复段落自查，不冒充在线论文数据库查重。
+    void showThesisCheck();
+    void showThesisCheckHistory();
 
     // -------------------------------------------------------- 索引定位 ----
     //

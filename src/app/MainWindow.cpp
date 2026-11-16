@@ -1505,7 +1505,18 @@ void MainWindow::buildUi() {
     addRibbonCommand(accessibilityReadingGroup, "应用区域顺序",
                      "需要 PDF 标签树写入支持", ":/icons/save.svg",
                      [] {}, false, "accessibility.applyRegionOrder");
-    addPlaceholderTab("论文工具", {{"查重", {"论文查重", "查重历史"}}});
+    const int thesisTab = ribbonBar_->addTab(tr("论文工具"));
+    auto* thesisCheckGroup = ribbonBar_->addGroup(thesisTab, tr("查重"));
+    addRibbonCommand(thesisCheckGroup, "论文查重",
+                     "本地检查当前 PDF 内部的重复段落", ":/icons/proofread.svg", [this] {
+        if (auto* view = currentView()) view->showThesisCheck();
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "thesis.check");
+    addRibbonCommand(thesisCheckGroup, "查重历史",
+                     "查看保存在本机的自查记录", ":/icons/annotation.svg", [this] {
+        if (auto* view = currentView()) view->showThesisCheckHistory();
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "thesis.history");
     // 文档管理页不能走通用占位页：全文检索已经由本地索引实现，应当提供真实入口。
     // 其余入口仍明确禁用，既完整呈现对标界面，也不把尚未实现的流程伪装成可用功能。
     const int documentManagementTab = ribbonBar_->addTab(tr("文档管理"));

@@ -43,6 +43,8 @@
 #include <QPrinter>
 #include <QPrintDialog>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QSettings>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -148,6 +150,82 @@ QString accessibilityReportHtml(const pdf::PdfDocument& document, const QString&
     }
     html += QStringLiteral("<p><small>%1</small></p></body></html>")
                 .arg(QObject::tr("说明：本检查不等同于 PDF/UA 合规认证，标签树、图片替代文本和语义结构仍需专业工具复核。").toHtmlEscaped());
+    return html;
+}
+
+struct ThesisCheckResult {
+    int textCharacters = 0;
+    int repeatedCharacters = 0;
+    QVector<QPair<QString, int>> repeatedSegments;
+
+    double rate() const {
+        return textCharacters > 0
+                   ? qMin(100.0, 100.0 * repeatedCharacters / textCharacters)
+                   : 0.0;
+    }
+};
+
+ThesisCheckResult checkInternalRepetition(const pdf::PdfDocument& document) {
+    ThesisCheckResult result;
+    QHash<QString, QPair<QString, int>> segments;
+    const QRegularExpression separator(QStringLiteral("[。！？!?；;\\n]+"));
+    const QRegularExpression ignored(QStringLiteral("[\\s，,、：:（）()《》〈〉“”‘’\"'—…·.]+"));
+    for (int pageIndex = 0; pageIndex < document.pageCount(); ++pageIndex) {
+        const std::optional<pdf::PdfPage> page = document.page(pageIndex);
+        const std::optional<pdf::TextPage> text = page ? page->extractText() : std::nullopt;
+        if (!text) continue;
+        const QStringList sentences = text->plainText().split(separator, Qt::SkipEmptyParts);
+        for (const QString& sentence : sentences) {
+            QString normalized = sentence.toCaseFolded();
+            normalized.remove(ignored);
+            if (normalized.size() < 12) continue;
+            result.textCharacters += normalized.size();
+            auto it = segments.find(normalized);
+            if (it == segments.end()) {
+                segments.insert(normalized, qMakePair(sentence.trimmed(), 1));
+            } else {
+                ++it.value().second;
+            }
+        }
+    }
+    for (auto it = segments.cbegin(); it != segments.cend(); ++it) {
+        if (it.value().second < 2) continue;
+        result.repeatedCharacters += it.key().size() * (it.value().second - 1);
+        result.repeatedSegments.append(it.value());
+    }
+    std::sort(result.repeatedSegments.begin(), result.repeatedSegments.end(),
+              [](const auto& left, const auto& right) {
+                  if (left.second != right.second) return left.second > right.second;
+                  return left.first.size() > right.first.size();
+              });
+    return result;
+}
+
+QString thesisResultHtml(const ThesisCheckResult& result, const QString& filePath) {
+    QString html = QStringLiteral("<h2>%1</h2><p><b>%2</b></p>")
+                       .arg(QObject::tr("本地重复段落自查").toHtmlEscaped(),
+                            QFileInfo(filePath).fileName().toHtmlEscaped());
+    html += QStringLiteral("<p>%1：%2<br>%3：%4<br>%5：%6%</p>")
+                .arg(QObject::tr("参与分析的字符")).arg(result.textCharacters)
+                .arg(QObject::tr("重复字符")).arg(result.repeatedCharacters)
+                .arg(QObject::tr("文内重复比例")).arg(result.rate(), 0, 'f', 1);
+    html += QStringLiteral("<p><small>%1</small></p>")
+                .arg(QObject::tr("此结果只比较当前文档内部的完全重复句段，不连接论文数据库，也不能作为正式查重报告。")
+                         .toHtmlEscaped());
+    if (result.repeatedSegments.isEmpty()) {
+        html += QStringLiteral("<p>%1</p>").arg(QObject::tr("未发现长度不少于 12 字符的重复句段。"));
+    } else {
+        html += QStringLiteral("<h3>%1</h3><ol>").arg(QObject::tr("重复句段"));
+        const int limit = qMin(50, result.repeatedSegments.size());
+        for (int index = 0; index < limit; ++index) {
+            const auto& segment = result.repeatedSegments.at(index);
+            html += QStringLiteral("<li><b>%1 %2</b> — %3</li>")
+                        .arg(QObject::tr("出现"))
+                        .arg(segment.second)
+                        .arg(segment.first.left(240).toHtmlEscaped());
+        }
+        html += QStringLiteral("</ol>");
+    }
     return html;
 }
 // 缓存上限 128 MiB，按像素字节计。
@@ -3493,6 +3571,72 @@ void PdfView::showReadingOrder() {
     text->setPlainText(extracted ? extracted->plainText() : tr("本页没有可提取文字。"));
     text->setAccessibleName(tr("当前页阅读顺序"));
     layout->addWidget(text);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
+}
+
+void PdfView::showThesisCheck() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("论文查重"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const ThesisCheckResult result = checkInternalRepetition(document_);
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("论文查重（本地自查）"));
+    dialog.resize(680, 520);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* report = new QTextBrowser(&dialog);
+    report->setHtml(thesisResultHtml(result, filePath_));
+    report->setAccessibleName(tr("论文重复段落自查结果"));
+    layout->addWidget(report);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    QStringList history = QSettings().value(QStringLiteral("thesis/checkHistory")).toStringList();
+    const QString fileName = filePath_.isEmpty() ? tr("未命名文档") : QFileInfo(filePath_).fileName();
+    history.prepend(QStringLiteral("%1\t%2\t%3\t%4")
+                        .arg(QDateTime::currentDateTime().toString(Qt::ISODate), fileName)
+                        .arg(result.textCharacters)
+                        .arg(result.rate(), 0, 'f', 1));
+    while (history.size() > 30) history.removeLast();
+    QSettings().setValue(QStringLiteral("thesis/checkHistory"), history);
+    dialog.exec();
+}
+
+void PdfView::showThesisCheckHistory() {
+    const QStringList history =
+        QSettings().value(QStringLiteral("thesis/checkHistory")).toStringList();
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("查重历史"));
+    dialog.resize(660, 440);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* browser = new QTextBrowser(&dialog);
+    QString html = QStringLiteral("<h2>%1</h2>").arg(tr("本地自查历史"));
+    if (history.isEmpty()) {
+        html += QStringLiteral("<p>%1</p>").arg(tr("还没有查重记录。"));
+    } else {
+        html += QStringLiteral("<table cellspacing=\"0\" cellpadding=\"6\" border=\"1\">"
+                               "<tr><th>%1</th><th>%2</th><th>%3</th><th>%4</th></tr>")
+                    .arg(tr("检查时间"), tr("文档名称"), tr("分析字符"), tr("文内重复比例"));
+        for (const QString& entry : history) {
+            const QStringList fields = entry.split('\t');
+            if (fields.size() != 4) continue;
+            const QDateTime time = QDateTime::fromString(fields.at(0), Qt::ISODate);
+            html += QStringLiteral("<tr><td>%1</td><td>%2</td><td>%3</td><td>%4%</td></tr>")
+                        .arg(time.isValid() ? time.toString(QStringLiteral("yyyy-MM-dd HH:mm"))
+                                            : fields.at(0).toHtmlEscaped(),
+                             fields.at(1).toHtmlEscaped(), fields.at(2).toHtmlEscaped(),
+                             fields.at(3).toHtmlEscaped());
+        }
+        html += QStringLiteral("</table><p><small>%1</small></p>")
+                    .arg(tr("记录仅保存在本机，最多保留最近 30 次。"));
+    }
+    browser->setHtml(html);
+    browser->setAccessibleName(tr("论文查重历史"));
+    layout->addWidget(browser);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
