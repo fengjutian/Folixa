@@ -1,6 +1,5 @@
 #include "app/WelcomePage.h"
 
-#include "app/BrandMark.h"
 #include "app/Language.h"
 
 #include "i18n/Translate.h"
@@ -10,6 +9,7 @@
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLinearGradient>
 #include <QMouseEvent>
@@ -26,7 +26,7 @@ namespace aipdf::app {
 namespace {
 
 // 欢迎页的内容列宽：再宽，一行说明文字就会长得不像句子。
-constexpr int kColumnWidth = 720;
+constexpr int kColumnWidth = 1120;
 
 // 文件路径可能很长，直接交给 QLabel 会被硬切成半个字。
 // 这里在每次改宽度时按中间省略重算，只影响这一处，不改全局行为。
@@ -91,24 +91,22 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
 
         const QRectF box = QRectF(rect()).adjusted(1.5, 1.5, -1.5, -1.5);
-        const qreal radius = 20.0;
+        const qreal radius = 14.0;
 
-        const QColor fill = hovered_ ? QColor(0xF2, 0xF7, 0xFF) : QColor(255, 255, 255, 224);
+        const QColor fill = hovered_ ? QColor(0xFA, 0xF8, 0xFF) : QColor(255, 255, 255);
         painter.setBrush(fill);
-        QPen border(hovered_ ? QColor(0x52, 0x77, 0xE8) : QColor(0xC8, 0xD4, 0xE8));
-        border.setWidthF(2.0);
-        border.setStyle(Qt::DashLine);
-        border.setDashPattern({5.0, 4.0});
+        QPen border(hovered_ ? QColor(0x8B, 0x5C, 0xF6) : QColor(0xE4, 0xE4, 0xE7));
+        border.setWidthF(1.0);
         painter.setPen(border);
         painter.drawRoundedRect(box, radius, radius);
 
         // 顶部的上传图标：浅色圆底 + 箭头。
         const QRectF badge(box.center().x() - 22, box.top() + 26, 44, 44);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(hovered_ ? QColor(0xE1, 0xEA, 0xFF) : QColor(0xEF, 0xF3, 0xFF));
+        painter.setBrush(hovered_ ? QColor(0xED, 0xE9, 0xFE) : QColor(0xF5, 0xF3, 0xFF));
         painter.drawEllipse(badge);
 
-        QPen arrow(hovered_ ? QColor(0x35, 0x55, 0xB7) : QColor(0x52, 0x77, 0xE8));
+        QPen arrow(hovered_ ? QColor(0x6D, 0x28, 0xD9) : QColor(0x7C, 0x3A, 0xED));
         arrow.setWidthF(2.0);
         arrow.setCapStyle(Qt::RoundCap);
         arrow.setJoinStyle(Qt::RoundJoin);
@@ -166,7 +164,7 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     auto* content = new QWidget(scroll);
     content->setObjectName(QStringLiteral("welcomeContent"));
     auto* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(48, 28, 48, 22);
+    contentLayout->setContentsMargins(48, 42, 48, 30);
     contentLayout->addStretch(1);
 
     // 内容列：最大 720px，窗口变窄时自动收缩，横向居中。
@@ -185,37 +183,54 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     contentLayout->addLayout(row);
     contentLayout->addStretch(1);
 
-    auto* mark = new BrandMark(56, column);
-    columnLayout->addWidget(mark, 0, Qt::AlignHCenter);
-    columnLayout->addSpacing(14);
-
+    auto* brandRow = new QHBoxLayout();
+    brandRow->setContentsMargins(0, 0, 0, 0);
+    brandRow->setSpacing(14);
+    auto* mark = new QLabel(column);
+    mark->setPixmap(QIcon(QStringLiteral(":/icons/app.svg")).pixmap(QSize(52, 52)));
+    mark->setFixedSize(52, 52);
+    brandRow->addWidget(mark, 0, Qt::AlignVCenter);
+    auto* brandText = new QVBoxLayout();
+    brandText->setContentsMargins(0, 0, 0, 0);
+    brandText->setSpacing(0);
     auto* wordmark = new QLabel(QStringLiteral("Folixa"), column);
     wordmark->setObjectName(QStringLiteral("welcomeWordmark"));
-    wordmark->setAlignment(Qt::AlignCenter);
-    columnLayout->addWidget(wordmark);
-    columnLayout->addSpacing(4);
+    brandText->addWidget(wordmark);
 
     auto* eyebrow = new QLabel(QStringLiteral("AI PDF EDITOR"), column);
     eyebrow->setObjectName(QStringLiteral("welcomeEyebrow"));
-    eyebrow->setAlignment(Qt::AlignCenter);
     QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.6);
+    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.2);
     eyebrow->setFont(eyebrowFont);
-    columnLayout->addWidget(eyebrow);
-    columnLayout->addSpacing(22);
+    brandText->addWidget(eyebrow);
+    brandRow->addLayout(brandText);
+    brandRow->addStretch(1);
+    columnLayout->addLayout(brandRow);
+    columnLayout->addSpacing(18);
 
     auto* tagline = new QLabel(QString(), column);
     tagline->setObjectName(QStringLiteral("welcomeTagline"));
-    tagline->setAlignment(Qt::AlignCenter);
+    tagline->setAlignment(Qt::AlignLeft);
     tagline->setWordWrap(true);
     texts_.bind(
         [this, tagline] { tagline->setText(tr("专注阅读，也为文档智能留出恰到好处的空间")); });
     columnLayout->addWidget(tagline);
-    columnLayout->addSpacing(26);
+    columnLayout->addSpacing(24);
+
+    auto* workspace = new QHBoxLayout();
+    workspace->setContentsMargins(0, 0, 0, 0);
+    workspace->setSpacing(24);
+    auto* openPanel = new QWidget(column);
+    auto* openLayout = new QVBoxLayout(openPanel);
+    openLayout->setContentsMargins(0, 0, 0, 0);
+    auto* recentPanel = new QWidget(column);
+    auto* recentLayout = new QVBoxLayout(recentPanel);
+    recentLayout->setContentsMargins(0, 0, 0, 0);
+    recentLayout->setSpacing(0);
 
     auto* dropZone = new DropZone(column);
     dropZone->setObjectName(QStringLiteral("dropZone"));
-    dropZone->setFixedHeight(200);
+    dropZone->setFixedHeight(286);
     dropZone->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     dropZone->onClick = [this] { emit openPdfRequested(); };
     {
@@ -244,8 +259,8 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
             openButton->setText(tr("打开 PDF"));
         });
     }
-    columnLayout->addWidget(dropZone);
-    columnLayout->addSpacing(28);
+    openLayout->addWidget(dropZone);
+    workspace->addWidget(openPanel, 5);
 
     auto* recentHeader = new QHBoxLayout();
     recentHeader->setContentsMargins(4, 0, 4, 0);
@@ -262,10 +277,13 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
         });
         recentHeader->addWidget(recentCount);
     }
-    columnLayout->addLayout(recentHeader);
-    columnLayout->addSpacing(8);
-    columnLayout->addWidget(createRecentCard(recentFiles));
-    columnLayout->addSpacing(20);
+    recentLayout->addLayout(recentHeader);
+    recentLayout->addSpacing(8);
+    recentLayout->addWidget(createRecentCard(recentFiles));
+    recentLayout->addStretch(1);
+    workspace->addWidget(recentPanel, 6);
+    columnLayout->addLayout(workspace);
+    columnLayout->addSpacing(18);
 
     auto* footnote = new QLabel(QString(), column);
     footnote->setObjectName(QStringLiteral("welcomeFootnote"));
@@ -383,25 +401,7 @@ void WelcomePage::paintEvent(QPaintEvent*) {
 
     const QRectF area = rect();
 
-    QLinearGradient base(area.topLeft(), area.bottomLeft());
-    base.setColorAt(0.0, QColor(0xFE, 0xFE, 0xFF));
-    base.setColorAt(0.55, QColor(0xF8, 0xFA, 0xFD));
-    base.setColorAt(1.0, QColor(0xF1, 0xF4, 0xFA));
-    painter.fillRect(area, base);
-
-    // 两团极淡的棱光：上面偏蓝，右下偏紫。不做动画，不抢文字。
-    QRadialGradient topGlow(QPointF(area.width() * 0.5, area.top() - area.height() * 0.12),
-                            area.width() * 0.55);
-    topGlow.setColorAt(0.0, QColor(0x5B, 0x8D, 0xEF, 20));
-    topGlow.setColorAt(1.0, QColor(0x5B, 0x8D, 0xEF, 0));
-    painter.fillRect(area, topGlow);
-
-    QRadialGradient violetGlow(
-        QPointF(area.right() + area.width() * 0.08, area.bottom() + area.height() * 0.14),
-        area.width() * 0.5);
-    violetGlow.setColorAt(0.0, QColor(0x7C, 0x63, 0xDC, 14));
-    violetGlow.setColorAt(1.0, QColor(0x7C, 0x63, 0xDC, 0));
-    painter.fillRect(area, violetGlow);
+    painter.fillRect(area, QColor(0xF7, 0xF7, 0xF8));
 }
 
 }  // namespace aipdf::app

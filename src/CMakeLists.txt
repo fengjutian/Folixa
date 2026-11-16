@@ -251,6 +251,8 @@ configure_file(
     @ONLY
 )
 target_sources(AiPdfEditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/version.rc APPEND PROPERTY
+    OBJECT_DEPENDS "${AIPDF_APP_ICON}")
 
 aipdf_deploy_qt_runtime(AiPdfEditor)
 aipdf_deploy_pdfium(AiPdfEditor)

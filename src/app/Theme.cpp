@@ -2,6 +2,9 @@
 
 #include <QApplication>
 #include <QFont>
+#include <QSettings>
+
+#include <algorithm>
 
 namespace aipdf::app::theme {
 
@@ -9,8 +12,6 @@ QString lightStyleSheet() {
     return QStringLiteral(R"(
 QWidget {
     color: #202A3A;
-    font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Segoe UI", sans-serif;
-    font-size: 13px;
 }
 QMainWindow, QDialog { background: #F3F4F6; }
 QMenuBar { background: #FFFFFF; border-bottom: 1px solid #E6EAF2; padding: 2px 8px; }
@@ -112,12 +113,12 @@ QPushButton[iconOnly="true"] {
 }
 QPushButton[iconOnly="true"]:disabled { background: #F7F8FA; }
 QPushButton#primaryButton {
-    color: #FFFFFF; background: #5277E8; border: 1px solid #4A6DDE;
-    border-radius: 10px; font-weight: 600; font-size: 14px;
+    color: #FFFFFF; background: #7C3AED; border: 1px solid #6D28D9;
+    border-radius: 8px; font-weight: 600; font-size: 14px;
     min-height: 40px; padding: 0 22px;
 }
-QPushButton#primaryButton:hover { background: #476BDF; border-color: #3F63D6; }
-QPushButton#primaryButton:pressed { background: #3B5ECB; }
+QPushButton#primaryButton:hover { background: #6D28D9; border-color: #5B21B6; }
+QPushButton#primaryButton:pressed { background: #5B21B6; }
 QPushButton#aiButton { color: #634CB4; background: #F6F2FF; border-color: #C6B6F4; font-weight: 600; }
 
 QLineEdit {
@@ -197,21 +198,40 @@ QListWidget#thumbnailList::item { color: #465267; background: transparent; borde
 QListWidget#thumbnailList::item:hover { background: #F1F4FF; }
 QListWidget#thumbnailList::item:selected { color: #3555B7; background: #EEF2FF; border-color: #5277E8; }
 QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
-QStatusBar { min-height: 28px; max-height: 28px; background: #FAFAFB; color: #52525B; border-top: 1px solid #E4E4E7; }
+QStatusBar {
+    min-height: 36px; max-height: 36px; padding-left: 8px;
+    background: #FAFAFB; color: #52525B; border-top: 1px solid #E4E4E7;
+}
 QStatusBar::item { border: 0; }
+QWidget#statusDocumentControls { background: transparent; }
+QWidget#statusDocumentControls QLineEdit {
+    min-height: 26px; max-height: 26px; border-radius: 6px; padding: 0 6px;
+}
+QWidget#statusDocumentControls QToolButton {
+    min-width: 28px; max-width: 28px; min-height: 26px; max-height: 26px;
+    padding: 0; border-radius: 6px;
+}
+QStatusBar QToolButton#statusSettingsButton {
+    min-width: 72px; max-width: 72px; min-height: 24px; max-height: 24px;
+    margin: 1px 4px 1px 2px; padding: 0 8px; border: 0; border-radius: 5px;
+    background: transparent; color: #52525B;
+}
+QStatusBar QToolButton#statusSettingsButton:hover { background: #EDE9FE; color: #6D28D9; }
+QStatusBar QToolButton#statusSettingsButton:pressed,
+QStatusBar QToolButton#statusSettingsButton:checked { background: #DDD6FE; color: #5B21B6; }
 
 /* ------------------------------------------------------------ 欢迎页 -- */
 QScrollArea#welcomeScroll, QScrollArea#welcomeScroll > QWidget { background: transparent; border: 0; }
 QWidget#welcomeContent { background: transparent; }
-QLabel#welcomeWordmark { font-size: 30px; font-weight: 600; color: #1B2432; }
+QLabel#welcomeWordmark { font-size: 25px; font-weight: 650; color: #18181B; }
 QLabel#welcomeEyebrow { font-size: 11px; font-weight: 600; color: #7C8AA5; }
-QLabel#welcomeTagline { font-size: 14px; color: #66748C; }
+QLabel#welcomeTagline { font-size: 15px; color: #52525B; }
 QLabel#dropZoneTitle { font-size: 16px; font-weight: 600; color: #1B2432; }
 QLabel#dropZoneHint { font-size: 12px; color: #8792A3; }
 QLabel#welcomeSectionTitle { font-size: 13px; font-weight: 600; color: #465267; }
 QLabel#welcomeSectionMeta { font-size: 12px; color: #98A2B3; }
 QLabel#welcomeFootnote { font-size: 11px; color: #9AA5B8; }
-QFrame#recentCard { background: #FFFFFF; border: 1px solid #E6EAF2; border-radius: 16px; }
+QFrame#recentCard { background: #FFFFFF; border: 1px solid #E4E4E7; border-radius: 12px; }
 QPushButton#recentRow { background: transparent; border: 0; border-radius: 12px; padding: 0; min-height: 56px; text-align: left; }
 QPushButton#recentRow:hover { background: #F5F8FD; }
 QPushButton#recentRow:pressed { background: #EDF2FC; }
@@ -237,8 +257,12 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 }
 
 void apply(QApplication& application) {
-    QFont font(QStringLiteral("Segoe UI Variable"));
-    font.setPointSize(10);
+    QSettings settings;
+    const QString family = settings.value(QStringLiteral("appearance/fontFamily"),
+                                          QStringLiteral("Segoe UI Variable")).toString();
+    const int pointSize = settings.value(QStringLiteral("appearance/fontPointSize"), 10).toInt();
+    QFont font(family);
+    font.setPointSize(std::clamp(pointSize, 8, 24));
     application.setFont(font);
     application.setStyleSheet(lightStyleSheet());
 }

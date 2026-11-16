@@ -83,23 +83,28 @@ void SearchPanel::buildUi() {
     optionsRow->addWidget(caseSensitiveBox_);
     optionsRow->addWidget(wholeWordBox_);
     optionsRow->addWidget(regexBox_);
+    optionsRow->addStretch(1);
+    layout->addLayout(optionsRow);
 
     // 页码范围：0 表示"不限"，用户改完立刻重搜。
-    optionsRow->addSpacing(8);
+    auto* rangeRow = new QHBoxLayout();
+    rangeRow->setSpacing(6);
     auto* fromPageLabel = new QLabel(QString(), this);
-    optionsRow->addWidget(fromPageLabel);
+    rangeRow->addWidget(fromPageLabel);
     fromPageSpin_ = new QSpinBox(this);
     fromPageSpin_->setObjectName(QStringLiteral("searchFromPage"));
     fromPageSpin_->setRange(0, 99999);
-    optionsRow->addWidget(fromPageSpin_);
+    fromPageSpin_->setMinimumWidth(76);
+    rangeRow->addWidget(fromPageSpin_);
     auto* toPageLabel = new QLabel(QString(), this);
-    optionsRow->addWidget(toPageLabel);
+    rangeRow->addWidget(toPageLabel);
     toPageSpin_ = new QSpinBox(this);
     toPageSpin_->setObjectName(QStringLiteral("searchToPage"));
     toPageSpin_->setRange(0, 99999);
-    optionsRow->addWidget(toPageSpin_);
+    toPageSpin_->setMinimumWidth(76);
+    rangeRow->addWidget(toPageSpin_);
     auto* pageLabel = new QLabel(QString(), this);
-    optionsRow->addWidget(pageLabel);
+    rangeRow->addWidget(pageLabel);
     texts_.bind([this, fromPageLabel, toPageLabel, pageLabel] {
         fromPageLabel->setText(tr("第"));
         toPageLabel->setText(tr("至"));
@@ -107,8 +112,8 @@ void SearchPanel::buildUi() {
         fromPageSpin_->setSpecialValueText(tr("不限"));
         toPageSpin_->setSpecialValueText(tr("不限"));
     });
-    optionsRow->addStretch(1);
-    layout->addLayout(optionsRow);
+    rangeRow->addStretch(1);
+    layout->addLayout(rangeRow);
 
     auto restartSearch = [this]() {
         if (controller_ == nullptr || queryEdit_->text().trimmed().isEmpty()) {

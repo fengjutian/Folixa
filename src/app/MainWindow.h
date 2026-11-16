@@ -157,6 +157,7 @@ private:
     QLabel* statusPageTotal_ = nullptr;
     QLabel* statusZoomLabel_ = nullptr;
     QSlider* statusZoomSlider_ = nullptr;
+    QWidget* statusDocumentControls_ = nullptr;
     bool updatingStatusZoom_ = false;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;

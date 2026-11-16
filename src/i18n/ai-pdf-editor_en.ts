@@ -808,6 +808,38 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>设置</source>
+            <translation>Settings</translation>
+        </message>
+        <message>
+            <source>设置主题、字体和 AI 服务</source>
+            <translation>Theme, font, and AI service settings</translation>
+        </message>
+        <message>
+            <source>主题</source>
+            <translation>Theme</translation>
+        </message>
+        <message>
+            <source>浅色</source>
+            <translation>Light</translation>
+        </message>
+        <message>
+            <source>字体…</source>
+            <translation>Font…</translation>
+        </message>
+        <message>
+            <source>选择界面字体</source>
+            <translation>Choose interface font</translation>
+        </message>
+        <message>
+            <source>界面字体已更新</source>
+            <translation>Interface font updated</translation>
+        </message>
+        <message>
+            <source>AI 设置…</source>
+            <translation>AI Settings…</translation>
+        </message>
+        <message>
             <source>标记</source>
             <translation>Markup</translation>
         </message>

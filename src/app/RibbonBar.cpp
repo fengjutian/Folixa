@@ -214,6 +214,16 @@ int RibbonBar::tabCount() const {
     return tabs_->count();
 }
 
+void RibbonBar::setCompactMode(bool compact) {
+    if (compactMode_ == compact) {
+        return;
+    }
+    compactMode_ = compact;
+    pages_->setVisible(!compact);
+    setFixedHeight(compact ? tabs_->height() : 112);
+    updateGeometry();
+}
+
 void RibbonBar::setTabOrder(const QStringList& titles) {
     for (int target = 0; target < titles.size() && target < tabs_->count(); ++target) {
         int source = -1;

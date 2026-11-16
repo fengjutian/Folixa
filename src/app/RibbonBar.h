@@ -50,6 +50,8 @@ public:
     void setCurrentTab(int index);
     int currentTab() const;
     int tabCount() const;
+    // 欢迎页只保留标签导航；打开文档后恢复完整命令区。
+    void setCompactMode(bool compact);
     // 按标题重排标签与对应内容页；未列出的标签保持在末尾。
     void setTabOrder(const QStringList& titles);
 
@@ -71,6 +73,7 @@ private:
     QVector<QWidget*> pageContainers_;
     QVector<QWidget*> pageWidgets_;
     QVector<QHBoxLayout*> pageLayouts_;
+    bool compactMode_ = false;
 };
 
 }  // namespace aipdf::app

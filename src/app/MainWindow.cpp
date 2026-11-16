@@ -37,6 +37,7 @@
 #include <QTableWidget>
 #include <QShortcut>
 #include <QButtonGroup>
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
@@ -45,6 +46,7 @@
 #include <QDropEvent>
 #include <QDateTime>
 #include <QFrame>
+#include <QFontDialog>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
 #include <QIcon>
@@ -54,6 +56,7 @@
 #include <QIntValidator>
 #include <QJsonDocument>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -405,13 +408,16 @@ void MainWindow::buildUi() {
     commandBar->setFixedHeight(42);
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
-    appMenuButton->setText(QStringLiteral("▣  工作台"));
+    appMenuButton->setIcon(QIcon(QStringLiteral(":/icons/app.svg")));
+    appMenuButton->setIconSize(QSize(20, 20));
+    appMenuButton->setText(QStringLiteral("工作台"));
+    appMenuButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     texts_.bind([this, appMenuButton] { appMenuButton->setToolTip(tr("主菜单")); });
     // 必须走 setMenu：菜单里的「查找…」靠 QAction 快捷键（Ctrl+F）生效，
     // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
     // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
-    appMenuButton->setFixedSize(100, 34);
+    appMenuButton->setFixedSize(112, 30);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
@@ -766,9 +772,6 @@ void MainWindow::buildUi() {
             action->setToolTip(tr("将在后续版本中提供"));
         });
     }
-    auto* commandSpacer = new QWidget(commandBar);
-    commandSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    commandBar->addWidget(commandSpacer);
     auto* aiAction = commandBar->addAction(QString());
     texts_.bind([this, aiAction] { aiAction->setText(tr("✦ AI 助手")); });
     aiAction->setObjectName(QStringLiteral("aiCommand"));
@@ -1602,9 +1605,6 @@ void MainWindow::buildUi() {
     statusPageTotal_ = new QLabel(this);
     statusPageTotal_->setObjectName(QStringLiteral("secondaryText"));
     statusPageTotal_->setText(tr("/ 0 页"));
-    statusBar()->addPermanentWidget(pagePrefix);
-    statusBar()->addPermanentWidget(statusPageEdit_);
-    statusBar()->addPermanentWidget(statusPageTotal_);
     connect(statusPageEdit_, &QLineEdit::returnPressed, this, [this] {
         PdfView* view = currentView();
         if (view == nullptr) {
@@ -1632,10 +1632,22 @@ void MainWindow::buildUi() {
     statusZoomSlider_->setRange(25, 400);
     statusZoomSlider_->setValue(100);
     statusZoomSlider_->setFixedWidth(110);
-    statusBar()->addPermanentWidget(zoomOutButton);
-    statusBar()->addPermanentWidget(statusZoomSlider_);
-    statusBar()->addPermanentWidget(zoomInButton);
-    statusBar()->addPermanentWidget(statusZoomLabel_);
+    statusDocumentControls_ = new QWidget(this);
+    statusDocumentControls_->setObjectName(QStringLiteral("statusDocumentControls"));
+    statusDocumentControls_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    auto* statusControlsLayout = new QHBoxLayout(statusDocumentControls_);
+    statusControlsLayout->setSizeConstraint(QLayout::SetFixedSize);
+    statusControlsLayout->setContentsMargins(0, 0, 0, 0);
+    statusControlsLayout->setSpacing(6);
+    statusControlsLayout->addWidget(pagePrefix);
+    statusControlsLayout->addWidget(statusPageEdit_);
+    statusControlsLayout->addWidget(statusPageTotal_);
+    statusControlsLayout->addSpacing(8);
+    statusControlsLayout->addWidget(zoomOutButton);
+    statusControlsLayout->addWidget(statusZoomSlider_);
+    statusControlsLayout->addWidget(zoomInButton);
+    statusControlsLayout->addWidget(statusZoomLabel_);
+    statusBar()->addPermanentWidget(statusDocumentControls_);
     connect(zoomOutButton, &QToolButton::clicked, this, [this] {
         if (auto* view = currentView()) { view->zoomOut(); }
     });
@@ -1650,7 +1662,51 @@ void MainWindow::buildUi() {
             view->setZoom(value / 100.0);
         }
     });
-    statusBar()->showMessage(tr("就绪"));
+    auto* settingsButton = new QToolButton(this);
+    settingsButton->setObjectName(QStringLiteral("statusSettingsButton"));
+    settingsButton->setPopupMode(QToolButton::InstantPopup);
+    texts_.bind([this, settingsButton] {
+        settingsButton->setText(QStringLiteral("⚙  ") + tr("设置"));
+        settingsButton->setToolTip(tr("设置主题、字体和 AI 服务"));
+    });
+
+    auto* settingsMenu = new QMenu(settingsButton);
+    auto* themeMenu = settingsMenu->addMenu(tr("主题"));
+    auto* lightThemeAction = themeMenu->addAction(tr("浅色"));
+    lightThemeAction->setCheckable(true);
+    lightThemeAction->setChecked(true);
+    connect(lightThemeAction, &QAction::triggered, this, [] {
+        QSettings().setValue(QStringLiteral("appearance/theme"), QStringLiteral("light"));
+    });
+
+    auto* fontAction = settingsMenu->addAction(tr("字体…"));
+    connect(fontAction, &QAction::triggered, this, [this] {
+        bool accepted = false;
+        const QFont selected = QFontDialog::getFont(&accepted, qApp->font(), this, tr("选择界面字体"));
+        if (!accepted) {
+            return;
+        }
+        qApp->setFont(selected);
+        QSettings settings;
+        settings.setValue(QStringLiteral("appearance/fontFamily"), selected.family());
+        settings.setValue(QStringLiteral("appearance/fontPointSize"), selected.pointSize());
+        statusBar()->showMessage(tr("界面字体已更新"), 3000);
+    });
+
+    auto* aiSettingsAction = settingsMenu->addAction(tr("AI 设置…"));
+    connect(aiSettingsAction, &QAction::triggered, this, [this] {
+        if (aiPanel_ != nullptr) {
+            aiPanel_->openSettings();
+        }
+    });
+    settingsButton->setMenu(settingsMenu);
+    // 不注册成 QStatusBar 的 normal widget：showMessage() 会隐藏所有 normal widget。
+    // 直接作为子控件固定在左侧，任务提示和设置入口因此可以同时显示。
+    settingsButton->setParent(statusBar());
+    settingsButton->move(2, 2);
+    settingsButton->show();
+    settingsButton->raise();
+    statusBar()->clearMessage();
     // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
     // 触发工具栏溢出，导致画布高度变化、滚动范围漂移。
     metricsLabel_ = new QLabel(QString(), this);
@@ -1690,6 +1746,17 @@ void MainWindow::syncTabBar() {
     const bool onlyWelcome = tabs_->count() == 1 && page != nullptr &&
                              page->property("welcomePage").toBool();
     tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWelcome);
+    if (ribbonBar_ != nullptr) {
+        ribbonBar_->setCompactMode(onlyWelcome);
+        if (onlyWelcome) {
+            ribbonBar_->setCurrentTab(0);
+        }
+    }
+    if (statusDocumentControls_ != nullptr) {
+        statusDocumentControls_->setVisible(!onlyWelcome);
+    }
+    // 设置入口位于状态栏，欢迎页也需要保持可见；没有文档时只隐藏页码与缩放。
+    statusBar()->setVisible(true);
 
     // 欢迎页上没有文档：左侧导航栏与 AI 浮动入口都没有操作对象，
     // 留着只是一排点不出结果的图标。打开第一份文档时再按用户原意恢复。
@@ -1990,13 +2057,14 @@ QWidget* MainWindow::createFormTab() {
     formValueEdit_->setObjectName(QStringLiteral("formValueInput"));
     formValueEdit_->setPlaceholderText(tr("输入要写入的值"));
     editorLayout->addWidget(formValueEdit_);
-    auto* buttons = new QHBoxLayout();
+    auto* buttons = new QGridLayout();
+    buttons->setContentsMargins(0, 0, 0, 0);
+    buttons->setHorizontalSpacing(6);
+    buttons->setVerticalSpacing(6);
     formApplyButton_ = new QPushButton(tr("写入所选字段"), editor);
     formApplyButton_->setObjectName(QStringLiteral("formApply"));
     formFlattenButton_ = new QPushButton(tr("扁平化本页"), editor);
     formFlattenButton_->setObjectName(QStringLiteral("formFlatten"));
-    buttons->addWidget(formApplyButton_);
-    buttons->addWidget(formFlattenButton_);
     formExportCsvButton_ = new QPushButton(tr("导出 CSV…"), editor);
     formExportCsvButton_->setObjectName(QStringLiteral("formExportCsv"));
     formImportCsvButton_ = new QPushButton(tr("导入 CSV…"), editor);
@@ -2005,10 +2073,12 @@ QWidget* MainWindow::createFormTab() {
     formExportFdfButton_->setObjectName(QStringLiteral("formExportFdf"));
     formImportFdfButton_ = new QPushButton(tr("导入 FDF…"), editor);
     formImportFdfButton_->setObjectName(QStringLiteral("formImportFdf"));
-    buttons->addWidget(formExportCsvButton_);
-    buttons->addWidget(formImportCsvButton_);
-    buttons->addWidget(formExportFdfButton_);
-    buttons->addWidget(formImportFdfButton_);
+    buttons->addWidget(formApplyButton_, 0, 0);
+    buttons->addWidget(formFlattenButton_, 0, 1);
+    buttons->addWidget(formExportCsvButton_, 1, 0);
+    buttons->addWidget(formImportCsvButton_, 1, 1);
+    buttons->addWidget(formExportFdfButton_, 2, 0);
+    buttons->addWidget(formImportFdfButton_, 2, 1);
     editorLayout->addLayout(buttons);
     layout->addWidget(editor);
 
