@@ -55,6 +55,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
@@ -80,6 +81,7 @@
 #include <QPainter>
 #include <QPointer>
 #include <QProcess>
+#include <QProgressDialog>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -458,7 +460,8 @@ void MainWindow::buildUi() {
     menuBar()->hide();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
-    auto* commandBar = addToolBar(QString());
+    auto* commandBar = new QToolBar(this);
+    addToolBar(Qt::BottomToolBarArea, commandBar);
     texts_.bind([this, commandBar] { commandBar->setWindowTitle(tr("功能导航")); });
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
@@ -665,7 +668,7 @@ void MainWindow::buildUi() {
     texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
-    // 福昕式快速访问区：常用文件动作留在紫色顶栏，不占 Ribbon 命令区。
+    // 快速访问区放在窗口底部、状态栏上方，不占 Ribbon 命令区。
     auto addQuickButton = [commandBar](const QIcon& icon, const QString& tip,
                                        const std::function<void()>& handler,
                                        const QString& objectName) {
@@ -837,7 +840,7 @@ void MainWindow::buildUi() {
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
         aiButton->setObjectName(QStringLiteral("aiCommandButton"));
     }
-    // 顶部只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
+    // 底部工具栏只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
     // 注意不能遍历 commandBar->actions() 全隐藏——菜单按钮与品牌是 QWidgetAction，
     // 一起隐藏会把主菜单也弄没。
     homeAction->setVisible(false);
@@ -3388,14 +3391,29 @@ void MainWindow::importWatchedDirectory(const QString& directory) {
     const QFileInfoList files = dir.entryInfoList({QStringLiteral("*.pdf"), QStringLiteral("*.PDF")},
                                                    QDir::Files, QDir::Time);
     QStringList imported = QSettings().value(QStringLiteral("documentManagement/autoImportedFiles")).toStringList();
+    bool hasUnstableFiles = false;
     for (const QFileInfo& info : files) {
         const QString path = info.canonicalFilePath();
-        if (path.isEmpty() || imported.contains(path, Qt::CaseInsensitive)) continue;
-        imported.prepend(path);
+        if (path.isEmpty()) continue;
+        const QString fingerprint = QStringLiteral("%1|%2|%3")
+                                        .arg(path).arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
+        if (imported.contains(fingerprint, Qt::CaseInsensitive)) continue;
+        // 目录变更信号经常在大文件仍在复制时到达。连续两次扫描大小一致后再打开，
+        // 避免把半截 PDF 记成“已导入”而永远不再重试。
+        if (!autoImportSizes_.contains(path) || autoImportSizes_.value(path) != info.size()) {
+            autoImportSizes_.insert(path, info.size());
+            hasUnstableFiles = true;
+            continue;
+        }
         openPdfFile(path);
+        imported.prepend(fingerprint);
+        autoImportSizes_.remove(path);
     }
     while (imported.size() > 500) imported.removeLast();
     QSettings().setValue(QStringLiteral("documentManagement/autoImportedFiles"), imported);
+    if (hasUnstableFiles) {
+        QTimer::singleShot(1200, this, [this, directory] { importWatchedDirectory(directory); });
+    }
 }
 
 void MainWindow::archiveInvoice() {
@@ -3461,16 +3479,44 @@ void MainWindow::batchConvertOfd() {
     if (files.isEmpty()) return;
     int converted = 0;
     QStringList failures;
-    for (const QString& input : files) {
-        const QString output = QFileInfo(input).dir().filePath(QFileInfo(input).completeBaseName() + QStringLiteral(".pdf"));
+    QProgressDialog progress(tr("正在转换 OFD 文件…"), tr("取消"), 0, files.size(), this);
+    progress.setWindowTitle(tr("OFD 批量转换"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    for (int index = 0; index < files.size() && !progress.wasCanceled(); ++index) {
+        const QString& input = files.at(index);
+        progress.setValue(index);
+        progress.setLabelText(tr("正在转换：%1").arg(QFileInfo(input).fileName()));
+        QApplication::processEvents();
+        const QFileInfo inputInfo(input);
+        QString output = inputInfo.dir().filePath(inputInfo.completeBaseName() + QStringLiteral(".pdf"));
+        if (QFileInfo::exists(output)) {
+            output = inputInfo.dir().filePath(inputInfo.completeBaseName() + QStringLiteral("-converted.pdf"));
+        }
         QProcess process;
         process.start(converter, {input, output});
-        if (process.waitForFinished(120000) && process.exitStatus() == QProcess::NormalExit &&
-            process.exitCode() == 0 && QFileInfo::exists(output)) {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 120000 &&
+               !progress.wasCanceled()) {
+            process.waitForFinished(100);
+            QApplication::processEvents();
+        }
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(3000);
+        }
+        if (!progress.wasCanceled() && process.exitStatus() == QProcess::NormalExit &&
+            process.exitCode() == 0 && QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
             ++converted;
         } else {
             failures.append(QFileInfo(input).fileName());
         }
+    }
+    progress.setValue(files.size());
+    if (progress.wasCanceled()) {
+        statusBar()->showMessage(tr("OFD 转换已取消；已完成 %1 个文件。").arg(converted), 5000);
+        return;
     }
     if (!failures.isEmpty()) {
         QMessageBox::warning(this, tr("OFD 批量转换"),

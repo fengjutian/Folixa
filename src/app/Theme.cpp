@@ -23,10 +23,10 @@ QMenuBar::item:selected, QMenu::item:selected { background: #F1F4FF; color: #355
 QMenu { background: #FFFFFF; border: 1px solid #E3E7EE; padding: 6px; }
 QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
 
-/* ---------------------------------------------------------- 顶部命令栏 -- */
+/* ---------------------------------------------------------- 底部命令栏 -- */
 QToolBar#commandBar {
     min-height: 42px; max-height: 42px; padding: 0 8px; spacing: 2px;
-    background: #FAFAFB; border: 0; border-bottom: 1px solid #E4E4E7;
+    background: #FAFAFB; border: 0; border-top: 1px solid #E4E4E7;
 }
 QToolBar::separator { background: #E8ECF3; width: 1px; margin: 11px 9px; }
 QToolBar#commandBar QToolButton {

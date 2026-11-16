@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <QMainWindow>
+#include <QHash>
 
 #include "i18n/Translate.h"
 
@@ -264,6 +265,7 @@ private:
     QActionGroup* languageActions_ = nullptr;
     QAction* followSystemAction_ = nullptr;
     QFileSystemWatcher* autoImportWatcher_ = nullptr;
+    QHash<QString, qint64> autoImportSizes_;
 };
 
 }  // namespace aipdf::app

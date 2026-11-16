@@ -4088,4 +4088,67 @@ Folixa requires no purchase or activation and offers no paid subscription.</tran
         <message><source>重复句段</source><translation>Repeated passages</translation></message>
         <message><source>重复字符</source><translation>Repeated characters</translation></message>
     </context>
+    <context>
+        <name>aipdf::app::MainWindow</name>
+        <message><source>CSV 文件 (*.csv)</source><translation>CSV files (*.csv)</translation></message>
+        <message><source>OFD 批量转换</source><translation>Batch OFD Conversion</translation></message>
+        <message><source>OFD 文件 (*.ofd *.OFD)</source><translation>OFD files (*.ofd *.OFD)</translation></message>
+        <message><source>保存报销单</source><translation>Save Reimbursement List</translation></message>
+        <message><source>保存报销单失败。</source><translation>Failed to save the reimbursement list.</translation></message>
+        <message><source>分类名称：</source><translation>Category name:</translation></message>
+        <message><source>发票已归档：%1</source><translation>Invoice archived: %1</translation></message>
+        <message><source>发票库中还没有已归档的 PDF。</source><translation>There are no archived PDFs in the invoice library.</translation></message>
+        <message><source>发票归档</source><translation>Invoice Archive</translation></message>
+        <message><source>发票管理</source><translation>Invoice Manager</translation></message>
+        <message><source>可执行文件 (*.exe)</source><translation>Executables (*.exe)</translation></message>
+        <message><source>否</source><translation>No</translation></message>
+        <message><source>已取消星标。</source><translation>Star removed.</translation></message>
+        <message><source>已添加星标。</source><translation>Star added.</translation></message>
+        <message><source>已生成包含 %1 张发票的报销单。 </source><translation>Created a reimbursement list containing %1 invoices.</translation></message>
+        <message><source>已转换 %1 个 OFD 文件。 </source><translation>Converted %1 OFD files.</translation></message>
+        <message><source>已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。
+失败：%3</source><translation>Converted %1 files; %2 failed. The converter must accept “input-file output-file” arguments.
+Failed: %3</translation></message>
+        <message><source>文件柜</source><translation>File Cabinet</translation></message>
+        <message><source>文件：%1
+页数：%2
+大小：%3 KB
+修改时间：%4
+分类：%5
+标签：%6
+星标：%7</source><translation>File: %1
+Pages: %2
+Size: %3 KB
+Modified: %4
+Category: %5
+Tags: %6
+Starred: %7</translation></message>
+        <message><source>文档分类</source><translation>Document Category</translation></message>
+        <message><source>文档分类已保存。</source><translation>Document category saved.</translation></message>
+        <message><source>文档标签</source><translation>Document Tags</translation></message>
+        <message><source>文档标签已保存。</source><translation>Document tags saved.</translation></message>
+        <message><source>文档概述</source><translation>Document Overview</translation></message>
+        <message><source>无</source><translation>None</translation></message>
+        <message><source>无法写入所选文件。</source><translation>Cannot write to the selected file.</translation></message>
+        <message><source>无法复制发票到归档目录。</source><translation>Cannot copy the invoice to the archive directory.</translation></message>
+        <message><source>无法打开发票归档目录。</source><translation>Cannot open the invoice archive directory.</translation></message>
+        <message><source>无法打开目录：%1</source><translation>Cannot open directory: %1</translation></message>
+        <message><source>是</source><translation>Yes</translation></message>
+        <message><source>未分类</source><translation>Uncategorized</translation></message>
+        <message><source>标签（用逗号分隔）：</source><translation>Tags (comma-separated):</translation></message>
+        <message><source>正在监控自动导入目录：%1</source><translation>Monitoring auto-import directory: %1</translation></message>
+        <message><source>生成报销单</source><translation>Create Reimbursement List</translation></message>
+        <message><source>选择 OFD 文件</source><translation>Select OFD Files</translation></message>
+        <message><source>选择 OFD 转 PDF 工具</source><translation>Select OFD-to-PDF Tool</translation></message>
+        <message><source>选择自动导入目录</source><translation>Select Auto-import Directory</translation></message>
+        <message><source>正在转换 OFD 文件…</source><translation>Converting OFD files…</translation></message>
+        <message><source>取消</source><translation>Cancel</translation></message>
+        <message><source>正在转换：%1</source><translation>Converting: %1</translation></message>
+        <message><source>OFD 转换已取消；已完成 %1 个文件。</source><translation>OFD conversion canceled; %1 files completed.</translation></message>
+        <message><source>关于</source><translation>About</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message><source>文内重复比例</source><translation>Internal repetition ratio</translation></message>
+    </context>
 </TS>
