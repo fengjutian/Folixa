@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Folixa">
+  <defs><linearGradient id="a" x1="12" y1="8" x2="50" y2="58" gradientUnits="userSpaceOnUse"><stop stop-color="#6f8ff0"/><stop offset="1" stop-color="#4165d4"/></linearGradient></defs>
+  <path fill="url(#a)" d="M15 6h24l12 12v36a4 4 0 0 1-4 4H15a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4Z"/>
+  <path fill="#aebcf4" d="M39 6v12h12z"/><path fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" d="M22 29h18M22 39h14M22 49h9"/>
+</svg>

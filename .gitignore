@@ -145,6 +145,13 @@ credentials.json
 # Generated packages and archives
 /dist/
 /packages/
+node_modules/
+.astro/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.msi
 *.msix
 *.appx

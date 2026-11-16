@@ -1557,11 +1557,81 @@ void MainWindow::buildUi() {
     addPlaceholderTab("录制", {
         {"录制", {"PDF 录制", "屏幕录制", "声音录制", "截图", "录制列表"}},
     });
-    addPlaceholderTab("帮助", {
-        {"帮助", {"用户手册", "帮助中心", "命令行帮助", "发表想法", "在线教程", "插件管理"}},
-        {"关于", {"默认 PDF 阅读器", "插件商店", "关于"}},
-        {"商业", {"立即购买", "激活", "产品信息", "订阅"}},
-    });
+    // 帮助页不能继续使用整页占位按钮：这些入口不依赖 PDF 编辑能力，应该在
+    // 离线安装包里也能给出明确、可执行的结果。商业版的「立即购买 / 激活」不属于
+    // 本项目，刻意不创建按钮（而不是创建后禁用），避免误导用户。
+    const int helpTab = ribbonBar_->addTab(tr("帮助"));
+    auto* helpGroup = ribbonBar_->addGroup(helpTab, tr("帮助"));
+    const QUrl projectUrl(QStringLiteral("https://github.com/fengjutian/Folixa"));
+    auto openHelpUrl = [this](const QUrl& url) {
+        if (!QDesktopServices::openUrl(url)) {
+            QMessageBox::warning(this, tr("无法打开链接"),
+                                 tr("无法调用系统浏览器，请手动访问：\n%1")
+                                     .arg(url.toString()));
+        }
+    };
+    addRibbonCommand(helpGroup, "用户手册", "打开 Folixa 用户手册", ":/icons/book.svg",
+                     [openHelpUrl, projectUrl] { openHelpUrl(projectUrl); }, true,
+                     "help.userManual");
+    addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/tools.svg",
+                     [openHelpUrl, projectUrl] {
+                         openHelpUrl(projectUrl.resolved(QUrl(QStringLiteral("/fengjutian/Folixa/wiki"))));
+                     }, true, "help.center");
+    addRibbonCommand(helpGroup, "命令行帮助", "查看命令行用法", ":/icons/note.svg", [this] {
+        QMessageBox::information(
+            this, tr("命令行帮助"),
+            tr("用法：\n"
+               "  AiPdfEditor.exe [PDF 文件]\n\n"
+               "示例：\n"
+               "  AiPdfEditor.exe C:\\\\Documents\\\\example.pdf\n\n"
+               "把 PDF 路径作为第一个参数传入，即可在启动时直接打开文档。"));
+    }, true, "help.commandLine");
+    addRibbonCommand(helpGroup, "发表想法", "提交建议或问题", ":/icons/send.svg",
+                     [openHelpUrl] {
+                         openHelpUrl(QUrl(QStringLiteral(
+                             "https://github.com/fengjutian/Folixa/issues/new/choose")));
+                     }, true, "help.feedback");
+    addRibbonCommand(helpGroup, "在线教程", "查看构建与使用教程", ":/icons/book.svg",
+                     [openHelpUrl, projectUrl] {
+                         openHelpUrl(projectUrl.resolved(QUrl(QStringLiteral(
+                             "/fengjutian/Folixa/blob/main/README.md"))));
+                     }, true, "help.tutorial");
+    addRibbonCommand(helpGroup, "插件管理", "Folixa 当前不支持第三方插件",
+                     ":/icons/tools.svg", [] {}, false, "help.plugins");
+
+    auto* aboutGroup = ribbonBar_->addGroup(helpTab, tr("关于"));
+    addRibbonCommand(aboutGroup, "默认 PDF 阅读器", "打开 Windows 默认应用设置",
+                     ":/icons/book.svg", [this] {
+#ifdef Q_OS_WIN
+        if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:defaultapps")))) {
+            QMessageBox::warning(this, tr("无法打开设置"),
+                                 tr("请在 Windows 设置中打开“应用 > 默认应用”，"
+                                    "然后为 .pdf 选择 Folixa。"));
+        }
+#else
+        QMessageBox::information(this, tr("默认 PDF 阅读器"),
+                                 tr("请在系统设置中把 Folixa 设为 .pdf 文件的默认应用。"));
+#endif
+    }, true, "help.defaultPdfReader");
+    addRibbonCommand(aboutGroup, "插件商店", "Folixa 当前不提供插件商店",
+                     ":/icons/tools.svg", [] {}, false, "help.pluginStore");
+    addRibbonCommand(aboutGroup, "关于", "查看版本和项目信息", ":/icons/tools.svg", [this] {
+        QMessageBox::about(
+            this, tr("关于 Folixa"),
+            tr("<h3>Folixa · AI PDF Editor %1</h3>"
+               "<p>原生、轻量的 PDF 阅读与编辑工具。</p>"
+               "<p>基于 Qt 6 与 PDFium 构建。</p>"
+               "<p>项目主页：<a href=\"https://github.com/fengjutian/Folixa\">"
+               "github.com/fengjutian/Folixa</a></p>")
+                .arg(QCoreApplication::applicationVersion()));
+    }, true, "help.about");
+
+    auto* productGroup = ribbonBar_->addGroup(helpTab, tr("产品"));
+    addRibbonCommand(productGroup, "产品信息", "查看 Folixa 产品信息", ":/icons/note.svg",
+                     [openHelpUrl, projectUrl] { openHelpUrl(projectUrl); }, true,
+                     "help.productInfo");
+    addRibbonCommand(productGroup, "订阅", "Folixa 当前不提供付费订阅",
+                     ":/icons/note.svg", [] {}, false, "help.subscription");
 
     ribbonBar_->setTabOrder({tr("文件"), tr("主页"), tr("转换"), tr("编辑"),
                              tr("页面管理"), tr("注释"), tr("视图"), tr("表单"),
