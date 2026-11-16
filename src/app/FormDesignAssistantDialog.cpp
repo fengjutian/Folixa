@@ -7,9 +7,7 @@
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonParseError>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -17,64 +15,6 @@
 #include <QVBoxLayout>
 
 namespace aipdf::app {
-namespace {
-
-// 模型看到的系统提示词。
-//
-// 为什么要求"只输出 JSON"：我们要的是一份能落盘的字段清单，不是散文。
-// 让模型自己套代码块、加解释，解析就得写一堆容错——所以在提示词里就把格式钉死。
-QString designSystemPrompt() {
-    return QStringLiteral(
-        "你是一个 PDF 表单设计助手。只输出一个 JSON 数组，不要任何解释文字，也不要用代码块包裹。\n"
-        "数组的每一项形如：\n"
-        "{\"name\":\"字段名（英文或中文均可，但不能为空）\","
-        "\"tooltip\":\"给填表人看的提示\","
-        "\"kind\":\"text 或 checkbox 或 radio 或 combo 或 list 或 button\","
-        "\"x\":0.1,\"y\":0.2,\"width\":0.3,\"height\":0.03}\n"
-        "x、y、width、height 都是相对页面尺寸的比例，取 0 到 1 之间的小数；"
-        "y 从页面顶部往下算。同一行的字段 y 相同、x 依次增大。");
-}
-
-// 模型的种类名 → 建域用的类型。
-pdf::FormFieldKind kindOf(const QString& name) {
-    const QString key = name.trimmed().toLower();
-    if (key == QLatin1String("checkbox")) return pdf::FormFieldKind::CheckBox;
-    if (key == QLatin1String("radio")) return pdf::FormFieldKind::RadioButton;
-    if (key == QLatin1String("combo")) return pdf::FormFieldKind::ComboBox;
-    if (key == QLatin1String("list")) return pdf::FormFieldKind::ListBox;
-    if (key == QLatin1String("button")) return pdf::FormFieldKind::PushButton;
-    return pdf::FormFieldKind::Text;
-}
-
-QString kindName(pdf::FormFieldKind kind) {
-    switch (kind) {
-        case pdf::FormFieldKind::CheckBox:
-            return QStringLiteral("checkbox");
-        case pdf::FormFieldKind::RadioButton:
-            return QStringLiteral("radio");
-        case pdf::FormFieldKind::ComboBox:
-            return QStringLiteral("combo");
-        case pdf::FormFieldKind::ListBox:
-            return QStringLiteral("list");
-        case pdf::FormFieldKind::PushButton:
-            return QStringLiteral("button");
-        default:
-            return QStringLiteral("text");
-    }
-}
-
-// 把模型可能加上的代码块围栏去掉。
-QString stripCodeFence(const QString& text) {
-    QString result = text.trimmed();
-    if (!result.startsWith(QStringLiteral("```"))) return result;
-    const int firstNewline = result.indexOf(QLatin1Char('\n'));
-    if (firstNewline < 0) return result;
-    const int lastFence = result.lastIndexOf(QStringLiteral("```"));
-    if (lastFence <= firstNewline) return result;
-    return result.mid(firstNewline + 1, lastFence - firstNewline - 1).trimmed();
-}
-
-}  // namespace
 
 FormDesignAssistantDialog::FormDesignAssistantDialog(ipc::WorkerClient* client, QWidget* parent)
     : QDialog(parent), client_(client) {
@@ -153,7 +93,7 @@ void FormDesignAssistantDialog::requestDesign() {
     QJsonArray messages;
     QJsonObject system;
     system.insert(QStringLiteral("role"), QStringLiteral("system"));
-    system.insert(QStringLiteral("content"), designSystemPrompt());
+    system.insert(QStringLiteral("content"), pdf::designSystemPrompt());
     messages.append(system);
     QJsonObject user;
     user.insert(QStringLiteral("role"), QStringLiteral("user"));
@@ -191,7 +131,7 @@ void FormDesignAssistantDialog::handleEvent(const QString& requestId, const QStr
         setBusy(false);
         QString error;
         QVector<DesignedFormField> parsed;
-        if (!parseAnswer(answer_, &parsed, &error)) {
+        if (!pdf::parseDesignedFields(answer_, &parsed, &error)) {
             status_->setText(error);
             return;
         }
@@ -218,61 +158,13 @@ void FormDesignAssistantDialog::handleFailed(const QString& requestId, const QSt
     status_->setText(tr("AI 服务调用失败：%1").arg(message));
 }
 
-bool FormDesignAssistantDialog::parseAnswer(const QString& answer,
-                                            QVector<DesignedFormField>* out, QString* error) {
-    const QString text = stripCodeFence(answer);
-    const int begin = text.indexOf(QLatin1Char('['));
-    const int end = text.lastIndexOf(QLatin1Char(']'));
-    if (begin < 0 || end <= begin) {
-        if (error != nullptr) *error = tr("模型没有返回可用的 JSON 字段清单。");
-        return false;
-    }
-    QJsonParseError parseError;
-    const QJsonDocument document =
-        QJsonDocument::fromJson(text.mid(begin, end - begin + 1).toUtf8(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-        if (error != nullptr) *error = tr("模型返回的字段清单解析失败：%1").arg(parseError.errorString());
-        return false;
-    }
-    QVector<DesignedFormField> fields;
-    for (const QJsonValue& value : document.array()) {
-        const QJsonObject object = value.toObject();
-        const QString name = object.value(QStringLiteral("name")).toString().trimmed();
-        if (name.isEmpty()) continue;
-        DesignedFormField field;
-        field.name = name;
-        field.toolTip = object.value(QStringLiteral("tooltip")).toString().trimmed();
-        field.kind = kindOf(object.value(QStringLiteral("kind")).toString());
-        field.relX = object.value(QStringLiteral("x")).toDouble(0.1);
-        field.relY = object.value(QStringLiteral("y")).toDouble(0.1);
-        field.relWidth = object.value(QStringLiteral("width")).toDouble(0.3);
-        field.relHeight = object.value(QStringLiteral("height")).toDouble(0.03);
-        // 比例必须落在 0..1：模型偶尔会给出 85 这种百分数或负数。
-        auto clamp = [](double value, double fallback) {
-            if (value < 0.0 || value > 1.0) return fallback;
-            return value;
-        };
-        field.relX = clamp(field.relX, 0.1);
-        field.relY = clamp(field.relY, 0.1);
-        field.relWidth = clamp(field.relWidth, 0.3);
-        field.relHeight = clamp(field.relHeight, 0.03);
-        fields.append(field);
-    }
-    if (fields.isEmpty()) {
-        if (error != nullptr) *error = tr("模型没有给出任何字段。");
-        return false;
-    }
-    *out = fields;
-    return true;
-}
-
 void FormDesignAssistantDialog::fillTable() {
     table_->setRowCount(fields_.size());
     for (int row = 0; row < fields_.size(); ++row) {
         const DesignedFormField& field = fields_.at(row);
         table_->setItem(row, 0, new QTableWidgetItem(field.name));
         table_->setItem(row, 1, new QTableWidgetItem(field.toolTip));
-        auto* kindItem = new QTableWidgetItem(kindName(field.kind));
+        auto* kindItem = new QTableWidgetItem(pdf::kindName(field.kind));
         kindItem->setFlags(kindItem->flags() & ~Qt::ItemIsEditable);
         table_->setItem(row, 2, kindItem);
         table_->setItem(row, 3, new QTableWidgetItem(QString::number(field.relX * 100.0, 'f', 1)));

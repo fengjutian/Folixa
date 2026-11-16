@@ -34,7 +34,9 @@
     app/AnnotationController.h
     app/AnnotationController.cpp
     app/PdfPageOperations.h
+    app/PageChunkBuilder.h
     app/PdfPageOperations.cpp
+    app/PageChunkBuilder.cpp
     app/LinkHitTest.h
     app/LinkHitTest.cpp
     app/SearchPanel.h
@@ -118,6 +120,7 @@
     pdf/FormScriptStore.h
     pdf/BarcodeEncoder.h
     pdf/FormToolSettings.h
+    pdf/FormDesignParser.h
     pdf/PageAnnotsInjector.h
     pdf/PageAnnotsInjector.cpp
     pdf/OutlineWriter.h
@@ -129,6 +132,12 @@
     pdf/FormScriptStore.cpp
     pdf/BarcodeEncoder.cpp
     pdf/FormToolSettings.cpp
+    pdf/FormDesignParser.cpp
+    pdf/FormDesignParser.cpp
+    pdf/DocumentProperties.cpp
+    pdf/DocumentProperties.h
+    pdf/OutlineGenerator.cpp
+    pdf/OutlineGenerator.h
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
@@ -170,6 +179,8 @@
     doc/ChunkBuilder.cpp
     doc/ChunkBuilder.h
     doc/DocumentChunk.h
+    doc/DocumentStatistics.cpp
+    doc/DocumentStatistics.h
     doc/EditCommand.cpp
     doc/EditCommand.h
     doc/EditContext.h

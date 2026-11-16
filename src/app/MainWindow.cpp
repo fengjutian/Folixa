@@ -37,6 +37,7 @@
 #include "pdf/FormTemplateStore.h"
 #include "pdf/Xfdf.h"
 #include "pdf/Navigation.h"
+#include "pdf/OutlineEditor.h"
 
 #include "i18n/Translate.h"
 
@@ -195,87 +196,6 @@ void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem
         }
         addOutlineItems(node, item.children);
     }
-}
-
-pdf::OutlineItem* outlineItemAt(std::vector<pdf::OutlineItem>* items, int target, int* cursor) {
-    if (items == nullptr || cursor == nullptr) return nullptr;
-    for (pdf::OutlineItem& item : *items) {
-        if ((*cursor)++ == target) return &item;
-        if (pdf::OutlineItem* found = outlineItemAt(&item.children, target, cursor)) return found;
-    }
-    return nullptr;
-}
-
-bool removeOutlineItemAt(std::vector<pdf::OutlineItem>* items, int target, int* cursor) {
-    if (items == nullptr || cursor == nullptr) return false;
-    for (auto it = items->begin(); it != items->end(); ++it) {
-        if ((*cursor)++ == target) { items->erase(it); return true; }
-        if (removeOutlineItemAt(&it->children, target, cursor)) return true;
-    }
-    return false;
-}
-
-// 找到第 target 个条目在树里的路径（每层一个下标）。
-//
-// 为什么需要路径：排序和层级调整都是"在树里挪位置"，光有扁平行号不够——
-// 同一个行号可能是顶层第 3 条，也可能是别人下面的第 2 个子项。
-bool outlinePathAt(std::vector<pdf::OutlineItem>* items, int target, int* cursor,
-                   std::vector<int>* path) {
-    if (items == nullptr || cursor == nullptr || path == nullptr) return false;
-    for (std::size_t i = 0; i < items->size(); ++i) {
-        path->push_back(static_cast<int>(i));
-        if ((*cursor)++ == target) {
-            return true;
-        }
-        if (outlinePathAt(&(*items)[i].children, target, cursor, path)) {
-            return true;
-        }
-        path->pop_back();
-    }
-    return false;
-}
-
-// 按路径找到条目所在的"那一层容器"（顶层就是 items 本身）。
-std::vector<pdf::OutlineItem>* outlineLevelAt(std::vector<pdf::OutlineItem>* items,
-                                              const std::vector<int>& path) {
-    if (items == nullptr) return nullptr;
-    std::vector<pdf::OutlineItem>* level = items;
-    for (std::size_t depth = 0; depth + 1 < path.size(); ++depth) {
-        if (path[depth] < 0 || path[depth] >= static_cast<int>(level->size())) {
-            return nullptr;
-        }
-        level = &(*level)[path[depth]].children;
-    }
-    return level;
-}
-
-// 一个条目连同它所有后代，一共有多少条。
-int outlineSubtreeSize(const pdf::OutlineItem* item) {
-    if (item == nullptr) return 0;
-    int size = 0;
-    for (const pdf::OutlineItem& child : item->children) {
-        size += 1 + outlineSubtreeSize(&child);
-    }
-    return size;
-}
-
-// 算出某条路径在摊平之后（书签面板那种一行一条的列表）里的行号。
-// 结构一改，行号就变了；想保持选中项，就得重新算一次。
-int outlineRowOfPath(const std::vector<pdf::OutlineItem>* items, const std::vector<int>& path) {
-    if (items == nullptr || path.empty()) return -1;
-    const std::vector<pdf::OutlineItem>* level = items;
-    int row = 0;
-    for (std::size_t depth = 0; depth < path.size(); ++depth) {
-        const int index = path[depth];
-        if (index < 0 || index >= static_cast<int>(level->size())) return -1;
-        // 走到这一条之前，前面的兄弟连同它们的子树都要占行。
-        for (int i = 0; i < index; ++i) {
-            row += 1 + outlineSubtreeSize(&(*level)[i]);
-        }
-        if (depth + 1 == path.size()) return row;
-        level = &(*level)[index].children;
-    }
-    return row;
 }
 
 // 欢迎页「最近文档」的上限：再多就把欢迎页撑成文件管理器的样子。
@@ -962,6 +882,10 @@ void MainWindow::buildUi() {
                      [this] { saveDocument(); }, true, "document.save");
     addRibbonCommand(fileGroup, "另存为", "另存为新的 PDF", ":/icons/save.svg",
                      [this] { saveDocumentAs(); }, true, "ribbonSaveAs");
+    addRibbonCommand(fileGroup, "文档属性", "查看与修改文档属性（标题、作者等）", ":/icons/book.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->showDocumentPropertiesDialog(); }
+    }, true, "document.properties");
     auto* exportGroup = ribbonBar_->addGroup(fileTab, tr("导出"));
     addRibbonCommand(exportGroup, "打印", "打印当前文档", ":/icons/book.svg", [this] {
         if (auto* view = currentView()) { view->printDocument(); }
@@ -1176,6 +1100,11 @@ void MainWindow::buildUi() {
     addRibbonCommand(showGroup, "AI 助手", "显示或隐藏 AI 面板", ":/icons/chat.svg", [this] {
         aiDock_->setVisible(!aiDock_->isVisible());
     });
+    auto* viewStatsGroup = ribbonBar_->addGroup(viewTab, tr("统计"));
+    addRibbonCommand(viewStatsGroup, "字数统计", "统计总字数、字符数与每页分布", ":/icons/search.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->showDocumentStatisticsDialog(); }
+    }, true, "view.wordCount");
 
     const int protectTab = ribbonBar_->addTab(tr("保护"));
     auto* securityGroup = ribbonBar_->addGroup(protectTab, tr("文档安全"));
@@ -1396,7 +1325,10 @@ void MainWindow::buildUi() {
     }
     addShapeButton->setMenu(shapeMenu);
     addShapeButton->setPopupMode(QToolButton::MenuButtonPopup);
-    addUnavailableEditCommand(insertEditGroup, "添加文章框");
+    addRibbonCommand(insertEditGroup, "添加文章框", "在当前页插入一个多行文本框", ":/icons/edit.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->addArticleFrameDialog(); }
+    }, true, "edit.addArticleFrame");
 
     auto* linkEditGroup = ribbonBar_->addGroup(contentEditTab, tr("链接"));
     QToolButton* addLinkButton = addRibbonCommand(
@@ -1450,8 +1382,14 @@ void MainWindow::buildUi() {
     connect(outdentBookmarkAction, &QAction::triggered, this, &MainWindow::outdentBookmark);
     bookmarkButton->setMenu(bookmarkMenu);
     bookmarkButton->setPopupMode(QToolButton::MenuButtonPopup);
-    addUnavailableEditCommand(navigationEditGroup, "自动创建书签");
-    addUnavailableEditCommand(navigationEditGroup, "交叉引用");
+    addRibbonCommand(navigationEditGroup, "自动创建书签", "按标题样式生成书签", ":/icons/bookmark.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->createOutlineFromHeadingsDialog(); }
+    }, true, "edit.autoOutline");
+    addRibbonCommand(navigationEditGroup, "交叉引用", "插入一段跳到书签的引用文字", ":/icons/bookmark.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->insertCrossReferenceDialog(); }
+    }, true, "edit.crossReference");
 
     auto* attachmentEditGroup = ribbonBar_->addGroup(contentEditTab, tr("附件"));
     addEditTool(attachmentEditGroup, "文件附件", "在页面上添加文件附件",
@@ -1668,8 +1606,8 @@ void MainWindow::buildUi() {
                      "核对当前页文字的逻辑顺序", ":/icons/pages.svg",
                      showReadingOrder, true, "accessibility.readingOrder");
     addRibbonCommand(accessibilityReadingGroup, "替代文本",
-                     "需要 PDF 标签树写入支持", ":/icons/edit.svg",
-                     [] {}, false, "accessibility.alternativeText");
+                     "给选中的批注写一句给读屏软件念的说明", ":/icons/edit.svg",
+                     [this] { setSelectedAnnotationAltText(); }, true, "accessibility.alternativeText");
     addRibbonCommand(accessibilityReadingGroup, "区域阅读顺序",
                      "需要 PDF 标签树写入支持", ":/icons/pages.svg",
                      [] {}, false, "accessibility.regionReadingOrder");
@@ -3551,6 +3489,40 @@ void MainWindow::setSelectedAnnotationState() {
     boundAnnotations_->setReviewState(id, state);
 }
 
+// 给选中的批注写替代文本。
+//
+// 为什么放在「辅助工具」而不是批注属性里：替代文本是给读屏软件念的，
+// 只有做无障碍的人会关心它，跟颜色线宽混在一起反而找不到。
+void MainWindow::setSelectedAnnotationAltText() {
+    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = annotationList_->currentItem();
+    if (item == nullptr) {
+        statusBar()->showMessage(tr("先在批注面板里选中一条批注"), 3000);
+        return;
+    }
+    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+    QString current;
+    for (const pdf::Annotation& annotation : boundAnnotations_->allAnnotations()) {
+        if (annotation.id == id) {
+            current = annotation.altText;
+            break;
+        }
+    }
+    bool accepted = false;
+    const QString text = QInputDialog::getMultiLineText(
+        this, tr("替代文本"), tr("给读屏软件念的说明（留空表示清除）:"), current, &accepted);
+    if (!accepted) {
+        return;
+    }
+    if (!boundAnnotations_->setAltText(id, text.trimmed())) {
+        statusBar()->showMessage(tr("替代文本没有写进去"), 3000);
+        return;
+    }
+    statusBar()->showMessage(tr("已设置替代文本"), 3000);
+}
+
 void MainWindow::removeSelectedAnnotation() {
     if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
         return;
@@ -4631,7 +4603,7 @@ void MainWindow::renameSelectedBookmark() {
     }
     std::vector<pdf::OutlineItem> outline = view->outline();
     int cursor = 0;
-    pdf::OutlineItem* item = outlineItemAt(&outline, row, &cursor);
+    pdf::OutlineItem* item = pdf::OutlineEditor::itemAt(&outline, row);
     if (item == nullptr) return;
     bool accepted = false;
     const QString title = QInputDialog::getText(this, tr("重命名书签"), tr("书签标题:"),
@@ -4655,8 +4627,7 @@ void MainWindow::deleteSelectedBookmark() {
         return;
     }
     std::vector<pdf::OutlineItem> outline = view->outline();
-    int cursor = 0;
-    if (!removeOutlineItemAt(&outline, row, &cursor)) return;
+    if (!pdf::OutlineEditor::removeAt(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("删除书签"), error);
@@ -4674,8 +4645,7 @@ std::vector<int> MainWindow::selectedBookmarkPath(PdfView* view,
     }
     *outline = view->outline();
     std::vector<int> path;
-    int cursor = 0;
-    if (!outlinePathAt(outline, row, &cursor, &path)) {
+    if (!pdf::OutlineEditor::pathAt(outline, row, &path)) {
         QMessageBox::information(this, tr("书签"), tr("选中的书签已经不在文档里了。"));
         return {};
     }
@@ -4691,14 +4661,14 @@ void MainWindow::moveBookmarkUp() {
     std::vector<pdf::OutlineItem> outline;
     std::vector<int> path = selectedBookmarkPath(view, &outline);
     if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = outlineLevelAt(&outline, path);
+    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
     if (level == nullptr) return;
     const int index = path.back();
     if (index <= 0) {
         statusBar()->showMessage(tr("已经是第一个了"), 3000);
         return;
     }
-    std::swap((*level)[index - 1], (*level)[index]);
+    if (!pdf::OutlineEditor::moveUp(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4706,7 +4676,7 @@ void MainWindow::moveBookmarkUp() {
     }
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(outlineRowOfPath(&outline, path));
+        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, path));
     }
     statusBar()->showMessage(tr("书签已上移"), 3000);
 }
@@ -4716,14 +4686,14 @@ void MainWindow::moveBookmarkDown() {
     std::vector<pdf::OutlineItem> outline;
     std::vector<int> path = selectedBookmarkPath(view, &outline);
     if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = outlineLevelAt(&outline, path);
+    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
     if (level == nullptr) return;
     const int index = path.back();
     if (index + 1 >= static_cast<int>(level->size())) {
         statusBar()->showMessage(tr("已经是最后一个了"), 3000);
         return;
     }
-    std::swap((*level)[index], (*level)[index + 1]);
+    if (!pdf::OutlineEditor::moveDown(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4731,7 +4701,7 @@ void MainWindow::moveBookmarkDown() {
     }
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(outlineRowOfPath(&outline, path));
+        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, path));
     }
     statusBar()->showMessage(tr("书签已下移"), 3000);
 }
@@ -4742,16 +4712,14 @@ void MainWindow::indentBookmark() {
     std::vector<pdf::OutlineItem> outline;
     std::vector<int> path = selectedBookmarkPath(view, &outline);
     if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = outlineLevelAt(&outline, path);
+    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
     if (level == nullptr) return;
     const int index = path.back();
     if (index <= 0) {
         statusBar()->showMessage(tr("前面没有可以当父级的书签"), 3000);
         return;
     }
-    pdf::OutlineItem item = (*level)[index];
-    (*level)[index - 1].children.push_back(std::move(item));
-    level->erase(level->begin() + index);
+    if (!pdf::OutlineEditor::indent(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4763,7 +4731,7 @@ void MainWindow::indentBookmark() {
     newPath.push_back(static_cast<int>((*level)[index - 1].children.size()) - 1);
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(outlineRowOfPath(&outline, newPath));
+        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, newPath));
     }
     statusBar()->showMessage(tr("书签已降级"), 3000);
 }
@@ -4779,16 +4747,12 @@ void MainWindow::outdentBookmark() {
         return;
     }
     std::vector<int> parentPath(path.begin(), path.end() - 1);
-    std::vector<pdf::OutlineItem>* grand = outlineLevelAt(&outline, parentPath);
+    std::vector<pdf::OutlineItem>* grand = pdf::OutlineEditor::containerAt(&outline, parentPath);
     if (grand == nullptr) return;
     const int parentIndex = parentPath.back();
     if (parentIndex < 0 || parentIndex >= static_cast<int>(grand->size())) return;
-    pdf::OutlineItem& parent = (*grand)[parentIndex];
     const int itemIndex = path.back();
-    if (itemIndex < 0 || itemIndex >= static_cast<int>(parent.children.size())) return;
-    pdf::OutlineItem item = parent.children[itemIndex];
-    parent.children.erase(parent.children.begin() + itemIndex);
-    grand->insert(grand->begin() + parentIndex + 1, std::move(item));
+    if (!pdf::OutlineEditor::outdent(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4798,7 +4762,7 @@ void MainWindow::outdentBookmark() {
     newPath.push_back(parentIndex + 1);
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(outlineRowOfPath(&outline, newPath));
+        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, newPath));
     }
     statusBar()->showMessage(tr("书签已升级"), 3000);
 }

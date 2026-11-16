@@ -662,6 +662,29 @@ bool AnnotationController::updateAnnotation(quint64 id,
     return true;
 }
 
+// 设置替代文本（/Alt）。
+//
+// 为什么单独一个命令而不是并进 updateAnnotation：
+// updateAnnotation 一次改两样东西（颜色、正文），是属性面板用的；
+// 替代文本是「给读屏软件念的一句说明」，只在无障碍那条路上出现，
+// 混进去会让属性面板多一个看不懂的输入框。
+bool AnnotationController::setAltText(quint64 id, const QString& altText) {
+    const pdf::Annotation* annotation = model_.find(id);
+    if (annotation == nullptr) {
+        return false;
+    }
+    pdf::Annotation before = *annotation;
+    pdf::Annotation after = before;
+    after.altText = altText;
+    auto command = std::make_unique<doc::UpdateAnnotationCommand>(before, after);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("annotation alt id=%1").arg(id));
+    emit undoStateChanged();
+    return true;
+}
+
 bool AnnotationController::undo() {
     if (!undoStack_.undo(this)) {
         return false;

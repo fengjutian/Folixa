@@ -152,6 +152,7 @@ QJsonObject annotationToJson(const Annotation& annotation) {
                     annotation.rect.width(), annotation.rect.height()};
     object.insert(QStringLiteral("rect"), rect);
     object.insert(QStringLiteral("contents"), annotation.contents);
+    object.insert(QStringLiteral("alt"), annotation.altText);
     object.insert(QStringLiteral("author"), annotation.author);
     return object;
 }
@@ -180,6 +181,7 @@ bool annotationFromJson(const QJsonObject& object, Annotation* annotation) {
         result.color = defaultAnnotationColor(result.type);
     }
     result.contents = object.value(QStringLiteral("contents")).toString();
+    result.altText = object.value(QStringLiteral("alt")).toString();
     result.author = object.value(QStringLiteral("author")).toString();
 
     for (const QJsonValue& value : quads) {

@@ -125,6 +125,8 @@ private:
     void applyAnnotationAppearance();
     void pickAnnotationColor();
     void setSelectedAnnotationState();
+    // 给批注面板里选中的批注写替代文本（/Alt）。
+    void setSelectedAnnotationAltText();
     // ------------------------------------------------------- 页面管理 ----
     // 下面几个都作用在当前页上（页面页的按钮）。
     void insertBlankPage();

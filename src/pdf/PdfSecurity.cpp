@@ -8,6 +8,7 @@
 #include <qpdf/Buffer.hh>
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFExc.hh>
+#include <qpdf/QPDFEmbeddedFileDocumentHelper.hh>
 #include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFWriter.hh>
 #endif
@@ -41,10 +42,35 @@ QString randomOwnerPassword() {
     return result;
 }
 
+// 这个批注还挂着嵌入文件吗？
+//
+// /FS → /EF → 至少一个流：说明文件还在（要么是我们没清掉的，要么是别的附件）。
+// 文件已经被清掉时 /EF 没了，批注只剩空壳，这时应该把批注一起清掉。
+bool carriesEmbeddedFile(const QPDFObjectHandle& annot) {
+    const QPDFObjectHandle spec = annot.getKey("/FS");
+    if (!spec.isDictionary()) {
+        return false;
+    }
+    const QPDFObjectHandle embeddedFiles = spec.getKey("/EF");
+    if (!embeddedFiles.isDictionary()) {
+        return false;
+    }
+    for (const std::string& key : embeddedFiles.getKeys()) {
+        if (embeddedFiles.getKey(key).isStream()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 #else
 
 QString missingQpdfError() {
     return QStringLiteral("本次构建没有启用 qpdf，加密与权限位不可用");
+}
+
+QString missingQpdfEmbeddedFilesError() {
+    return QStringLiteral("本次构建没有启用 qpdf，嵌入文件清理不可用");
 }
 
 #endif
@@ -191,6 +217,104 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
     }
 #else
     if (error != nullptr) *error = missingQpdfError();
+    return {};
+#endif
+}
+
+QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
+    if (input.isEmpty()) {
+        if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
+        return {};
+    }
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        pdf.processMemoryFile("embedded-files.pdf", input.constData(),
+                              static_cast<size_t>(input.size()));
+
+        QPDFObjectHandle root = pdf.getRoot();
+
+        // 1) 名称树里的嵌入文件：用 qpdf 官方的接口。
+        //    removeEmbeddedFile() 不只是把名字从树上摘掉，它还会「掏空」文件规格字典，
+        //    于是批注里指向同一个文件规格的引用一起失效——qpdf 自己的注释就是这么说的：
+        //    这才叫附件真的从文件里消失，而不只是从附件列表里消失。
+        try {
+            QPDFEmbeddedFileDocumentHelper& embedded =
+                QPDFEmbeddedFileDocumentHelper::get(pdf);
+            std::vector<std::string> names;
+            for (const auto& entry : embedded.getEmbeddedFiles()) {
+                names.push_back(entry.first);
+            }
+            for (const std::string& name : names) {
+                embedded.removeEmbeddedFile(name);
+            }
+        } catch (const std::exception&) {
+            // 名称树结构不合法（qpdf 的校验过不去）时不能整个放弃：
+            // 下面的手工清理照样能把索引与引用点断掉。
+        }
+
+        // 2) 名称树索引：即便上一步没能走通，也要把索引摘掉，
+        //    否则文件在阅读器里仍然「可见、可点」。
+        if (root.hasKey("/Names")) {
+            QPDFObjectHandle names = root.getKey("/Names");
+            if (names.isDictionary()) {
+                names.removeKey("/EmbeddedFiles");
+            }
+        }
+
+        // 3) catalog 的 /AF（Associated Files）：把文件规格拉进文档的另一条路。
+        root.removeKey("/AF");
+
+        // 4) 页面上的 /FileAttachment 批注：附件本体也是嵌入文件。
+        //    只删名称树索引时，批注里的 /FS 会让整条链路继续可达，
+        //    文件本体照样被写进输出文件——这正是 sanitizeHiddenData 留下的缺口。
+        //    文件被清掉之后，批注只剩一个空壳（挂附件的批注没有附件就没有意义），
+        //    所以连批注一起删掉。
+        for (QPDFObjectHandle page : pdf.getAllPages()) {
+            QPDFObjectHandle annots = page.getKey("/Annots");
+            if (!annots.isArray()) {
+                continue;
+            }
+            std::vector<QPDFObjectHandle> kept;
+            bool removed = false;
+            for (const QPDFObjectHandle& annot : annots.getArrayAsVector()) {
+                const QPDFObjectHandle subtype = annot.getKey("/Subtype");
+                if (annot.isDictionary() && subtype.isName() &&
+                    subtype.getName() == "/FileAttachment" && !carriesEmbeddedFile(annot)) {
+                    removed = true;
+                    continue;
+                }
+                kept.push_back(annot);
+            }
+            if (removed) {
+                page.replaceKey("/Annots", QPDFObjectHandle::newArray(kept));
+            }
+        }
+
+        QPDFWriter writer(pdf);
+        writer.setOutputMemory();
+        writer.setObjectStreamMode(qpdf_o_generate);
+        // 明确要求「不可达的对象不写出去」。
+        // qpdf 12.4.2 的默认行为本来就是丢弃（保留要显式开 --preserve-unreferenced），
+        // 这里仍然显式写一遍：断了引用却把流本体写出去，等于「声称已清理、实际没清」。
+        writer.setPreserveUnreferencedObjects(false);
+        writer.write();
+        std::unique_ptr<Buffer> buffer(writer.getBuffer());
+        if (!buffer || buffer->getSize() == 0) {
+            if (error != nullptr) *error = toLocal(QStringLiteral("qpdf 没有写出清理结果"));
+            return {};
+        }
+        return QByteArray(reinterpret_cast<const char*>(buffer->getBuffer()),
+                          static_cast<int>(buffer->getSize()));
+    } catch (const std::exception& exception) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("嵌入文件清理失败：%1")
+                                 .arg(QString::fromUtf8(exception.what())));
+        }
+        return {};
+    }
+#else
+    if (error != nullptr) *error = missingQpdfEmbeddedFilesError();
     return {};
 #endif
 }

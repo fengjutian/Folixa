@@ -158,8 +158,13 @@ def rotated_pdf():
 
 def multipage_pdf(page_count=12, width=300, height=400):
     """多页文档：每页有页码，用来验证连续滚动。"""
-    font_id = 4
     first_page_id = 3
+    # 字体对象号必须排在所有页与内容流之后。
+    #
+    # 页对象号是 3,5,7,…，内容流是 4,6,8,…；字体如果也用 4，就与首页的
+    # 内容流撞号——文件里会有两个 "4 0 obj"，xref 只能指向一个，
+    # 结果首页变成空白（这个坑踩过一次：字体曾硬编码成 4）。
+    font_id = first_page_id + page_count * 2
     kids = []
     objects = []
 

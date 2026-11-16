@@ -1669,3 +1669,15 @@ aipdf_deploy_qt_runtime(FuzzTests)
 
 add_test(NAME FuzzTests COMMAND FuzzTests)
 set_tests_properties(FuzzTests PROPERTIES LABELS "fuzz")
+
+# ------------------------------------------------------------ 新增能力 ----
+#
+# 每个测试目标一个片段：片段是完整的可 include 定义，
+# 这份清单里只留一行 include，不必再往这里塞细节。
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FormDesignParserTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FormToolSettingsTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentStatisticsTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentPropertiesTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineGeneratorTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineEditorTests.cmake)

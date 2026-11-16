@@ -6,6 +6,7 @@
 #include "app/NavigationHistory.h"
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
+#include "doc/DocumentChunk.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/PdfSecurity.h"
 #include "pdf/FormFieldWriter.h"
@@ -180,6 +181,16 @@ public slots:
     void addLinkToSelectionDialog();
     void addInternalLinkToSelectionDialog();
     void detectWebLinks();
+    // 交叉引用：插入一段「见第 N 页」式的引用文字，并让它点得动（跳到对应书签）。
+    void insertCrossReferenceDialog();
+    // 添加文章框：在当前页放一个多行文本框（正文框，与批注文本框同一套外观）。
+    void addArticleFrameDialog();
+    // 字数统计：总字数、字符数、页数与每页分布。
+    void showDocumentStatisticsDialog();
+    // 文档属性：读 PDF 的 /Info 并可写回。
+    void showDocumentPropertiesDialog();
+    // 自动创建书签：按标题样式（字高）生成大纲。
+    void createOutlineFromHeadingsDialog();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();
     // 本地电子签章：选中的签章在下一次点击页面时落下；骑缝章会拆分到全部页面。
@@ -306,6 +317,9 @@ protected:
 private:
     void buildUi();
     void buildAnnotationToolBar();
+    // 整篇文档切块（与建索引同一套排版规则）。
+    // 字数统计与自动创建书签都要用，所以放在一处，避免两处判断打架。
+    QVector<doc::DocumentChunk> buildDocumentChunks() const;
     // 切换语言后就地重译常驻文案，并让动态标签按新语言重算。
     void retranslateUi();
     void rebuildLayout();

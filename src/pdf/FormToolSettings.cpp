@@ -26,8 +26,17 @@ QString FormToolSettings::appearance() const {
 }
 
 FormToolSettings FormToolSettings::load() {
-    FormToolSettings settings;
     QSettings values;
+    return loadFrom(values);
+}
+
+void FormToolSettings::save() const {
+    QSettings values;
+    saveTo(values);
+}
+
+FormToolSettings FormToolSettings::loadFrom(const QSettings& values) {
+    FormToolSettings settings;
     const QString font = values.value(QStringLiteral("formTools/fontName")).toString();
     if (!font.isEmpty() && fontChoices().contains(font)) settings.fontName = font;
     const double size = values.value(QStringLiteral("formTools/fontSize"),
@@ -42,8 +51,7 @@ FormToolSettings FormToolSettings::load() {
     return settings;
 }
 
-void FormToolSettings::save() const {
-    QSettings values;
+void FormToolSettings::saveTo(QSettings& values) const {
     values.setValue(QStringLiteral("formTools/fontName"), fontName);
     values.setValue(QStringLiteral("formTools/fontSize"), fontSize);
     values.setValue(QStringLiteral("formTools/textColor"), textColor.name());

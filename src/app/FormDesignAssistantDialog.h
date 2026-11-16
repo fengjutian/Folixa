@@ -5,7 +5,7 @@
 #include <QString>
 #include <QVector>
 
-#include "pdf/FormFieldWriter.h"
+#include "pdf/FormDesignParser.h"
 
 class QLabel;
 class QPlainTextEdit;
@@ -18,18 +18,11 @@ class WorkerClient;
 
 namespace aipdf::app {
 
-// 设计出来的一个字段。
+// 设计出来的一个字段现在住在 pdf 层（解析逻辑要能单独测）。
 //
-// 用比例坐标（相对页面尺寸）而不是绝对点：同一份设计套到 A4 与 Letter 上都能对齐。
-struct DesignedFormField {
-    QString name;
-    QString toolTip;
-    pdf::FormFieldKind kind = pdf::FormFieldKind::Text;
-    double relX = 0.1;
-    double relY = 0.1;
-    double relWidth = 0.3;
-    double relHeight = 0.03;
-};
+// 这里保留别名：调用点写的是 aipdf::app::DesignedFormField，
+// 为了搬家去改别人的代码不划算。类型本身是同一个，别名不是新类型。
+using DesignedFormField = pdf::DesignedFormField;
 
 // 「设计助手」对话框：写一句描述，让模型给出表单字段设计，用户确认后再建域。
 //
@@ -48,8 +41,6 @@ private:
     void requestDesign();
     void handleEvent(const QString& requestId, const QString& event, const QJsonObject& payload);
     void handleFailed(const QString& requestId, const QString& message);
-    // 把模型返回的文本变成字段列表。解析不出来时返回空并写明原因。
-    bool parseAnswer(const QString& answer, QVector<DesignedFormField>* out, QString* error);
     void fillTable();
     void setBusy(bool busy);
 

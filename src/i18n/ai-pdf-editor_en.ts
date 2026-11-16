@@ -2161,6 +2161,38 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>表单工具设置已保存，新建字段将使用这套外观。</source>
             <translation>Form tool settings saved; new fields will use this appearance.</translation>
         </message>
+        <message>
+            <source>添加文章框</source>
+            <translation>Article frame</translation>
+        </message>
+        <message>
+            <source>交叉引用</source>
+            <translation>Cross-reference</translation>
+        </message>
+        <message>
+            <source>统计</source>
+            <translation>Statistics</translation>
+        </message>
+        <message>
+            <source>替代文本</source>
+            <translation>Alternative text</translation>
+        </message>
+        <message>
+            <source>给读屏软件念的说明（留空表示清除）:</source>
+            <translation>Description for screen readers (leave empty to clear):</translation>
+        </message>
+        <message>
+            <source>先在批注面板里选中一条批注</source>
+            <translation>Select an annotation in the annotation panel first</translation>
+        </message>
+        <message>
+            <source>替代文本没有写进去</source>
+            <translation>The alternative text could not be written</translation>
+        </message>
+        <message>
+            <source>已设置替代文本</source>
+            <translation>Alternative text set</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -3345,6 +3377,152 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message>
             <source>条码下方的说明文字</source>
             <translation>Caption printed below the barcode</translation>
+        </message>
+        <message>
+            <source>引用哪个书签:</source>
+            <translation>Which bookmark to reference:</translation>
+        </message>
+        <message>
+            <source>引用文字:</source>
+            <translation>Reference text:</translation>
+        </message>
+        <message>
+            <source>文档里还没有书签。先在「编辑 &gt; 导航 &gt; 书签」里建书签，再来做交叉引用。</source>
+            <translation>This document has no bookmarks yet. Create one under Edit &gt; Navigation &gt; Bookmarks first.</translation>
+        </message>
+        <message>
+            <source>这个书签没有有效的目标页。</source>
+            <translation>This bookmark has no valid target page.</translation>
+        </message>
+        <message>
+            <source>已插入交叉引用，跳转到第 %1 页</source>
+            <translation>Cross-reference inserted; jumps to page %1</translation>
+        </message>
+        <message>
+            <source>框里的文字:</source>
+            <translation>Text in the frame:</translation>
+        </message>
+        <message>
+            <source>字号（点）:</source>
+            <translation>Font size (points):</translation>
+        </message>
+        <message>
+            <source>这一页放不下这个框。</source>
+            <translation>This frame does not fit on the page.</translation>
+        </message>
+        <message>
+            <source>添加失败。</source>
+            <translation>Failed to add.</translation>
+        </message>
+        <message>
+            <source>已添加文章框</source>
+            <translation>Article frame added</translation>
+        </message>
+        <message>
+            <source>交叉引用</source>
+            <translation>Cross-reference</translation>
+        </message>
+        <message>
+            <source>添加文章框</source>
+            <translation>Article frame</translation>
+        </message>
+        <message>
+            <source>字数统计</source>
+            <translation>Word count</translation>
+        </message>
+        <message>
+            <source>总字数：%1
+字符数：%2（不含空白 %3）
+页数：%4
+识别到的标题：%5</source>
+            <translation>Total words: %1
+Characters: %2 (excluding spaces %3)
+Pages: %4
+Headings found: %5</translation>
+        </message>
+        <message>
+            <source>页</source>
+            <translation>Page</translation>
+        </message>
+        <message>
+            <source>字数</source>
+            <translation>Words</translation>
+        </message>
+        <message>
+            <source>字符数</source>
+            <translation>Characters</translation>
+        </message>
+        <message>
+            <source>文档属性</source>
+            <translation>Document properties</translation>
+        </message>
+        <message>
+            <source>标题:</source>
+            <translation>Title:</translation>
+        </message>
+        <message>
+            <source>作者:</source>
+            <translation>Author:</translation>
+        </message>
+        <message>
+            <source>主题:</source>
+            <translation>Subject:</translation>
+        </message>
+        <message>
+            <source>关键字:</source>
+            <translation>Keywords:</translation>
+        </message>
+        <message>
+            <source>创建程序:</source>
+            <translation>Creator:</translation>
+        </message>
+        <message>
+            <source>生成程序:</source>
+            <translation>Producer:</translation>
+        </message>
+        <message>
+            <source>创建时间:</source>
+            <translation>Created:</translation>
+        </message>
+        <message>
+            <source>修改时间:</source>
+            <translation>Modified:</translation>
+        </message>
+        <message>
+            <source>已保存文档属性</source>
+            <translation>Document properties saved</translation>
+        </message>
+        <message>
+            <source>自动创建书签</source>
+            <translation>Auto-create bookmarks</translation>
+        </message>
+        <message>
+            <source>没有识别到标题。标题是按字高比正文大的行判定的，这份文档里没有这样的行。</source>
+            <translation>No headings found. Headings are detected as lines whose text is taller than the body text; this document has none.</translation>
+        </message>
+        <message>
+            <source>…还有 %1 条</source>
+            <translation>... and %1 more</translation>
+        </message>
+        <message>
+            <source>按标题样式识别出 %1 条书签：
+
+%2
+
+确定要写入文档吗？</source>
+            <translation>Found %1 bookmarks by heading style:
+
+%2
+
+Write them into the document?</translation>
+        </message>
+        <message>
+            <source>已生成 %1 条书签</source>
+            <translation>Generated %1 bookmarks</translation>
+        </message>
+        <message>
+            <source>以下内容按页面上的视觉顺序排列（多栏与表格已按位置重排），可用于人工核对屏幕阅读器的阅读次序。</source>
+            <translation>The text below is in visual order on the page (multi-column and table layouts are reordered by position); use it to check a screen reader's reading order.</translation>
         </message>
 </context>
     <context>

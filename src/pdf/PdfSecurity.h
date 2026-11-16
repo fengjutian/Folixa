@@ -59,6 +59,20 @@ bool inspectEncryption(const QByteArray& input,
 // 结果由 qpdf 完整重写，失败时返回空数组，绝不回退成“原样保存却声称已清理”。
 QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr);
 
+// 把文档级嵌入文件的**本体**也清掉。
+//
+// 为什么还需要这个函数：sanitizeHiddenData() 只删了 /Names 里的 /EmbeddedFiles
+// **索引**。文件规格（/Filespec）与 EmbeddedFile 流本体还会被别的引用点拉活——
+// 页面上的 /FileAttachment 批注、catalog 的 /AF 关联文件——于是照样写进输出文件。
+// 实测（qpdf 12.4.2）：只删索引时，附件本体仍在输出字节里。
+//
+// 这个函数把所有指向嵌入文件的引用点都断开（名称树索引、catalog 的 /AF、
+// 页面上的 /FileAttachment 批注），并要求写出时不保留不可达对象，
+// 被断开的对象因此不会再进到输出字节里。
+//
+// 需要 qpdf；未启用 qpdf 时返回空 QByteArray 并写中文错误。
+QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error = nullptr);
+
 // 用 qpdf 区分用户密码和所有者密码。仅“能打开”不足以解除权限限制。
 bool verifyOwnerPassword(const QByteArray& input,
                          const QString& password,

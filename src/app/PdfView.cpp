@@ -5,10 +5,16 @@
 #include "app/EncryptionDialog.h"
 #include "app/PdfPageOperations.h"
 #include "app/Language.h"
+#include "app/PageChunkBuilder.h"
+#include "doc/ChunkBuilder.h"
+#include "doc/DocumentStatistics.h"
 #include "pdf/AnnotationSummary.h"
+#include "pdf/DocumentProperties.h"
 #include "pdf/FormData.h"
 #include "pdf/FormFieldWriter.h"
 #include "pdf/FormToolSettings.h"
+#include "pdf/OutlineGenerator.h"
+#include "pdf/PageSplitPlanner.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
@@ -33,6 +39,8 @@
 #include "pdf/ContentStream.h"
 
 #include <QColorDialog>
+#include <QAbstractItemView>
+#include <QApplication>
 #include <QBuffer>
 #include <QCheckBox>
 #include <QClipboard>
@@ -43,6 +51,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
+#include <QHeaderView>
 #include <QPrinter>
 #include <QPrintDialog>
 #include <QPushButton>
@@ -2152,20 +2161,21 @@ void PdfView::splitDocumentDialog() {
         return;
     }
     const int count = document_.pageCount();
+    // 切法交给 pdf 层算：界面只负责选参数、拼文件名、写文件。
+    const QVector<pdf::PageRange> ranges = pdf::PageSplitPlanner::byCount(count, perFile);
+    const QString base = QFileInfo(filePath_).completeBaseName();
     int written = 0;
-    for (int start = 0; start < count; start += perFile) {
-        const int end = std::min(count, start + perFile);
-        const QString base = QFileInfo(filePath_).completeBaseName();
+    for (const pdf::PageRange& range : ranges) {
         const QString name = QStringLiteral("%1_%2-%3.pdf")
                                  .arg(base.isEmpty() ? QStringLiteral("part") : base)
-                                 .arg(start + 1)
-                                 .arg(end);
+                                 .arg(range.first + 1)
+                                 .arg(range.last);
         QString error;
-        if (writePageRange(start, end, QDir(directory).filePath(name), &error)) {
+        if (writePageRange(range.first, range.last, QDir(directory).filePath(name), &error)) {
             ++written;
         } else {
             trace(QStringLiteral("split part failed range=%1-%2 error=%3")
-                      .arg(start + 1).arg(end).arg(error));
+                      .arg(range.first + 1).arg(range.last).arg(error));
         }
     }
     trace(QStringLiteral("split pages=%1 perFile=%2 written=%3")
@@ -2181,17 +2191,10 @@ void PdfView::splitDocumentByOutlineDialog() {
     if (!document_.isValid()) {
         return;
     }
-    const auto outlineTree = outline();
-    QVector<int> starts;
-    for (const pdf::OutlineItem& item : outlineTree) {
-        if (item.pageIndex >= 0 && item.pageIndex < document_.pageCount()) {
-            starts.append(item.pageIndex);
-        }
-    }
-    // 去重并升序：多个书签可能指向同一页，那一页只能归到第一段里。
-    std::sort(starts.begin(), starts.end());
-    starts.erase(std::unique(starts.begin(), starts.end()), starts.end());
-    if (starts.size() < 2) {
+    // 切法交给 pdf 层算：只看顶层书签、起点去重升序、最后一段到文档末尾。
+    const QVector<pdf::PageRange> ranges =
+        pdf::PageSplitPlanner::byOutline(document_.pageCount(), outline());
+    if (ranges.size() < 2) {
         QMessageBox::information(this, tr("按书签拆分"),
                                  tr("书签少于两个（或者都指向同一页），没法按书签拆。"));
         return;
@@ -2200,29 +2203,22 @@ void PdfView::splitDocumentByOutlineDialog() {
     if (directory.isEmpty()) {
         return;
     }
-    const int count = document_.pageCount();
     const QString base = QFileInfo(filePath_).completeBaseName();
     int written = 0;
-    for (int i = 0; i < starts.size(); ++i) {
-        const int start = starts.at(i);
-        // 最后一段一直到最后；中间段到下一个书签之前。
-        const int end = (i + 1 < starts.size()) ? starts.at(i + 1) : count;
-        if (end <= start) {
-            continue;
-        }
+    for (const pdf::PageRange& range : ranges) {
         const QString name = QStringLiteral("%1_%2-%3.pdf")
                                  .arg(base.isEmpty() ? QStringLiteral("part") : base)
-                                 .arg(start + 1)
-                                 .arg(end);
+                                 .arg(range.first + 1)
+                                 .arg(range.last);
         QString error;
-        if (writePageRange(start, end, QDir(directory).filePath(name), &error)) {
+        if (writePageRange(range.first, range.last, QDir(directory).filePath(name), &error)) {
             ++written;
         } else {
             trace(QStringLiteral("split by outline failed range=%1-%2 error=%3")
-                      .arg(start + 1).arg(end).arg(error));
+                      .arg(range.first + 1).arg(range.last).arg(error));
         }
     }
-    trace(QStringLiteral("split by outline parts=%1 written=%2").arg(starts.size()).arg(written));
+    trace(QStringLiteral("split by outline parts=%1 written=%2").arg(ranges.size()).arg(written));
     emit statusMessage(tr("已按书签拆分出 %1 个文件").arg(written));
 }
 
@@ -2247,10 +2243,11 @@ void PdfView::splitDocumentBySizeDialog() {
     }
     const qint64 limit = static_cast<qint64>(limitMb * 1024 * 1024);
     const int count = document_.pageCount();
-    const QString base = QFileInfo(filePath_).completeBaseName();
-    int start = 0;
-    qint64 accumulated = 0;
-    int written = 0;
+    // 先量每页单独序列化后的字节数。体积是估出来的，不是精确值——
+    // 合并成一个文件时还要加交叉引用表和文档目录，实际会略大于累加值。
+    // 这个偏差不影响使用：切出来的文件会比上限略大一点，但不会差出数量级。
+    QVector<qint64> pageSizes;
+    pageSizes.reserve(count);
     for (int page = 0; page < count; ++page) {
         const pdf::PdfDocument single = document_.backupPage(page);
         qint64 pageSize = 0;
@@ -2259,38 +2256,26 @@ void PdfView::splitDocumentBySizeDialog() {
             const QByteArray bytes = single.serialize(&sizeError);
             pageSize = bytes.isEmpty() ? 0 : bytes.size();
         }
-        // 已经在当前段里，且再加一页就超限 → 先把当前段落盘，再开新段。
-        if (page > start && accumulated + pageSize > limit) {
-            const QString name = QStringLiteral("%1_%2-%3.pdf")
-                                     .arg(base.isEmpty() ? QStringLiteral("part") : base)
-                                     .arg(start + 1)
-                                     .arg(page);
-            QString error;
-            if (writePageRange(start, page, QDir(directory).filePath(name), &error)) {
-                ++written;
-            } else {
-                trace(QStringLiteral("split by size failed range=%1-%2 error=%3")
-                          .arg(start + 1).arg(page).arg(error));
-            }
-            start = page;
-            accumulated = 0;
-        }
-        accumulated += pageSize;
+        pageSizes.append(pageSize);
     }
-    if (start < count) {
+    // 切法交给 pdf 层算（单页超限就自成一档，不会把一页切两半）。
+    const QVector<pdf::PageRange> ranges = pdf::PageSplitPlanner::bySize(pageSizes, limit);
+    const QString base = QFileInfo(filePath_).completeBaseName();
+    int written = 0;
+    for (const pdf::PageRange& range : ranges) {
         const QString name = QStringLiteral("%1_%2-%3.pdf")
                                  .arg(base.isEmpty() ? QStringLiteral("part") : base)
-                                 .arg(start + 1)
-                                 .arg(count);
+                                 .arg(range.first + 1)
+                                 .arg(range.last);
         QString error;
-        if (writePageRange(start, count, QDir(directory).filePath(name), &error)) {
+        if (writePageRange(range.first, range.last, QDir(directory).filePath(name), &error)) {
             ++written;
         } else {
             trace(QStringLiteral("split by size failed range=%1-%2 error=%3")
-                      .arg(start + 1).arg(count).arg(error));
+                      .arg(range.first + 1).arg(range.last).arg(error));
         }
     }
-    trace(QStringLiteral("split by size parts=%1 written=%2").arg(written).arg(written));
+    trace(QStringLiteral("split by size parts=%1 written=%2").arg(ranges.size()).arg(written));
     emit statusMessage(tr("已按体积拆分出 %1 个文件").arg(written));
 }
 
@@ -2518,11 +2503,18 @@ void PdfView::extractPagesDialog() {
     if (!accepted) {
         return;
     }
-    pdf::PdfDocument part = document_.backupPage(first - 1);
+    // 范围换算交给 pdf 层算（1 基含两端 → 0 基半开区间，越界自动夹住）。
+    const QVector<pdf::PageRange> ranges = pdf::PageSplitPlanner::extract(count, first, last);
+    if (ranges.isEmpty()) {
+        QMessageBox::warning(this, tr("提取页面"), tr("提取失败。"));
+        return;
+    }
+    const pdf::PageRange range = ranges.first();
+    pdf::PdfDocument part = document_.backupPage(range.first);
     if (!part.isValid()) {
         return;
     }
-    for (int page = first; page < last; ++page) {
+    for (int page = range.first + 1; page < range.last; ++page) {
         if (!part.restorePageFrom(document_.backupPage(page), part.pageCount())) {
             QMessageBox::warning(this, tr("提取页面"), tr("提取失败。"));
             return;
@@ -4150,6 +4142,368 @@ void PdfView::detectWebLinks() {
     emit statusMessage(tr("已创建 %1 个网络链接").arg(added));
 }
 
+// 插入类命令的默认落点：内容区左上角，留一点边距。
+//
+// 为什么不用页面正中：正文框与引用通常写在段落开头，
+// 放正中会盖住正在读的内容。
+static QRectF defaultInsertRect(const pdf::PdfDocument& document, int pageIndex,
+                                 double width, double height) {
+    auto page = document.page(pageIndex);
+    if (!page.has_value()) {
+        return QRectF();
+    }
+    const pdf::MediaBox box = page->contentBox();
+    if (box.width() <= 0.0 || box.height() <= 0.0) {
+        return QRectF();
+    }
+    return QRectF(box.left + 36.0, box.top - 48.0, width, height);
+}
+
+// 交叉引用：插一段「见第 N 页」式的引用文字，并让它点得动。
+//
+// 为什么文字与链接分两步写：可见文字走批注文本框（我们自己画外观，
+// 中文才不会被别的阅读器显示成方块），跳转走 PDF 的 Link 批注
+// （PDF 里唯一能跨页跳的批注类型）。两者叠在同一块区域上。
+void PdfView::insertCrossReferenceDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const auto entries = pdf::flattenOutline(outline());
+    if (entries.empty()) {
+        QMessageBox::information(this, tr("交叉引用"),
+                                 tr("文档里还没有书签。先在「编辑 > 导航 > 书签」里建书签，再来做交叉引用。"));
+        return;
+    }
+    QStringList labels;
+    labels.reserve(static_cast<int>(entries.size()));
+    for (const pdf::OutlineEntry& entry : entries) {
+        // 层级用缩进体现：书签面板是扁平的，引用列表要让人一眼看出层级。
+        const QString indent(static_cast<int>(entry.depth) * 2, QLatin1Char(' '));
+        labels.append(indent + entry.title + QStringLiteral(" · 第 %1 页").arg(entry.pageIndex + 1));
+    }
+    bool accepted = false;
+    const QString chosen = QInputDialog::getItem(this, tr("交叉引用"), tr("引用哪个书签:"),
+                                                 labels, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int choice = labels.indexOf(chosen);
+    if (choice < 0) {
+        return;
+    }
+    const pdf::OutlineEntry target = entries.at(choice);
+    if (target.pageIndex < 0 || target.pageIndex >= document_.pageCount()) {
+        QMessageBox::warning(this, tr("交叉引用"), tr("这个书签没有有效的目标页。"));
+        return;
+    }
+    const QString defaultText = target.title.trimmed().isEmpty()
+        ? QStringLiteral("第 %1 页").arg(target.pageIndex + 1)
+        : target.title.trimmed();
+    const QString text = QInputDialog::getText(this, tr("交叉引用"), tr("引用文字:"),
+                                               QLineEdit::Normal, defaultText, &accepted);
+    if (!accepted || text.trimmed().isEmpty()) {
+        return;
+    }
+
+    const int pageIndex = currentPage();
+    QRectF userRect;
+    if (textController_ != nullptr && textController_->selectionPage() == pageIndex) {
+        const QVector<QRectF> displayRects = textController_->selectionRects();
+        for (const QRectF& rect : displayRects) {
+            userRect = userRect.united(
+                QRectF(displayToUser(pageIndex, rect.topLeft()),
+                       displayToUser(pageIndex, rect.bottomRight())).normalized());
+        }
+    }
+    if (userRect.width() <= 1.0 || userRect.height() <= 1.0) {
+        userRect = defaultInsertRect(document_, pageIndex, 220.0, 20.0);
+    }
+    if (userRect.isEmpty()) {
+        return;
+    }
+
+    // 链接批注：先写进文件字节，再重开文档。
+    QString error;
+    const QByteArray serialized = document_.serialize(&error);
+    if (serialized.isEmpty()) {
+        QMessageBox::warning(this, tr("交叉引用"), error);
+        return;
+    }
+    QByteArray dictionary = "<< /Type /Annot /Subtype /Link /Rect [";
+    dictionary += QByteArray::number(userRect.left(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.top(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.right(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.bottom(), 'f', 2);
+    dictionary += "] /Border [0 0 0] /Contents (" + text.trimmed().toUtf8() + ") /Dest [@PAGE0 0 R /Fit] >>";
+    pdf::InlineAnnotationInsert insert;
+    insert.pageIndex = pageIndex;
+    insert.dictionary = dictionary;
+    insert.targetPages.append(target.pageIndex);
+    const pdf::InlineWriteResult written = pdf::injectInlineAnnotations(serialized, {insert});
+    if (!written.ok) {
+        QMessageBox::warning(this, tr("交叉引用"), written.error);
+        return;
+    }
+    pdf::PdfOpenResult reopened = pdf::openDocumentFromBytes(written.bytes, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("交叉引用"), reopened.errorMessage);
+        return;
+    }
+    const int pageBefore = currentPage();
+    const double zoomBefore = zoom();
+    setDocument(std::move(reopened.document), filePath_);
+    goToPage(pageBefore);
+    setZoom(zoomBefore);
+    // 可见文字：重开之后批注模型是新的，这时候加进去才不会被重开冲掉。
+    if (annotationController_ != nullptr) {
+        annotationController_->addFreeText(pageIndex, userRect, text.trimmed(), 11.0);
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已插入交叉引用，跳转到第 %1 页").arg(target.pageIndex + 1));
+}
+
+// 添加文章框：在当前页放一个多行文本框。
+//
+// 与批注里的「文本框」是同一套外观（FreeText），区别只在用途：
+// 文章框是正文容器，通常放多段文字，所以默认给一个更大的框与字号。
+void PdfView::addArticleFrameDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const QString text = QInputDialog::getMultiLineText(
+        this, tr("添加文章框"), tr("框里的文字:"), QString(), &accepted);
+    if (!accepted || text.trimmed().isEmpty()) {
+        return;
+    }
+    const double width = QInputDialog::getDouble(this, tr("添加文章框"), tr("宽度（点）:"),
+                                                 260.0, 60.0, 2000.0, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const double height = QInputDialog::getDouble(this, tr("添加文章框"), tr("高度（点）:"),
+                                                  160.0, 30.0, 2000.0, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const double fontSize = QInputDialog::getDouble(this, tr("添加文章框"), tr("字号（点）:"),
+                                                    12.0, 6.0, 72.0, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int pageIndex = currentPage();
+    const QRectF userRect = defaultInsertRect(document_, pageIndex, width, height);
+    if (userRect.isEmpty()) {
+        QMessageBox::warning(this, tr("添加文章框"), tr("这一页放不下这个框。"));
+        return;
+    }
+    if (annotationController_ == nullptr ||
+        annotationController_->addFreeText(pageIndex, userRect, text.trimmed(), fontSize) == 0) {
+        QMessageBox::warning(this, tr("添加文章框"), tr("添加失败。"));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已添加文章框"));
+}
+
+// 整篇文档切块：与建索引同一套排版规则。
+//
+// 为什么同步做：字数统计与自动创建书签都是用户点一次要一个结果的交互，
+// 而建索引是后台渐进式（几百页要几秒）。这里抽文本会卡一下界面，
+// 所以外面要显示等待光标。
+QVector<doc::DocumentChunk> PdfView::buildDocumentChunks() const {
+    QVector<doc::DocumentChunk> chunks;
+    int order = 0;
+    for (int pageIndex = 0; pageIndex < document_.pageCount(); ++pageIndex) {
+        auto page = document_.page(pageIndex);
+        if (!page.has_value()) {
+            continue;
+        }
+        const auto text = page->extractText();
+        if (!text.has_value()) {
+            continue;
+        }
+        const QVector<doc::ChunkLine> lines = buildPageLines(*text);
+        if (lines.isEmpty()) {
+            continue;
+        }
+        const QVector<doc::DocumentChunk> pageChunks =
+            doc::ChunkBuilder::build(pageIndex, lines, QString(), order);
+        order += pageChunks.size();
+        chunks += pageChunks;
+    }
+    return chunks;
+}
+
+// 字数统计：总字数、字符数、页数与每页分布。
+void PdfView::showDocumentStatisticsDialog() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("字数统计"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const QVector<doc::DocumentChunk> chunks = buildDocumentChunks();
+    QApplication::restoreOverrideCursor();
+
+    const doc::DocumentStatistics stats =
+        doc::DocumentStatisticsBuilder::fromChunks(chunks, document_.pageCount());
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("字数统计"));
+    dialog.resize(520, 460);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* summary = new QLabel(
+        tr("总字数：%1\n字符数：%2（不含空白 %3）\n页数：%4\n识别到的标题：%5")
+            .arg(stats.words)
+            .arg(stats.characters)
+            .arg(stats.charactersNoSpaces)
+            .arg(stats.pages)
+            .arg(stats.headings),
+        &dialog);
+    summary->setTextFormat(Qt::PlainText);
+    layout->addWidget(summary);
+    auto* table = new QTableWidget(&dialog);
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels(QStringList{tr("页"), tr("字数"), tr("字符数")});
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setRowCount(stats.perPage.size());
+    for (int row = 0; row < stats.perPage.size(); ++row) {
+        const doc::PageStatistics& page = stats.perPage.at(row);
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(page.pageIndex + 1)));
+        table->setItem(row, 1, new QTableWidgetItem(QString::number(page.words)));
+        table->setItem(row, 2, new QTableWidgetItem(QString::number(page.characters)));
+    }
+    table->horizontalHeader()->setStretchLastSection(true);
+    layout->addWidget(table, 1);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
+}
+
+// 文档属性：读 PDF 的 /Info，可改可写回。
+void PdfView::showDocumentPropertiesDialog() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("文档属性"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QString error;
+    const QByteArray serialized = document_.serialize(&error);
+    if (serialized.isEmpty()) {
+        QMessageBox::warning(this, tr("文档属性"), error);
+        return;
+    }
+    pdf::DocumentProperties properties;
+    if (!pdf::readDocumentProperties(serialized, &properties, &error)) {
+        QMessageBox::warning(this, tr("文档属性"), error);
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("文档属性"));
+    dialog.resize(480, 420);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* form = new QFormLayout();
+    struct Field {
+        QString label;
+        QString* value;
+        bool editable;
+    };
+    const QVector<Field> fields = {
+        {tr("标题:"), &properties.title, true},
+        {tr("作者:"), &properties.author, true},
+        {tr("主题:"), &properties.subject, true},
+        {tr("关键字:"), &properties.keywords, true},
+        {tr("创建程序:"), &properties.creator, true},
+        {tr("生成程序:"), &properties.producer, true},
+        {tr("创建时间:"), &properties.creationDate, false},
+        {tr("修改时间:"), &properties.modificationDate, false},
+    };
+    for (const Field& field : fields) {
+        auto* edit = new QLineEdit(*field.value, &dialog);
+        edit->setReadOnly(!field.editable);
+        edit->setObjectName(QStringLiteral("docProperty.") + field.label.left(field.label.size() - 1));
+        form->addRow(field.label, edit);
+        // 日期只读；其余字段改了要能存回去。
+        if (field.editable) {
+            connect(edit, &QLineEdit::textChanged, &dialog, [field](const QString& text) {
+                *field.value = text;
+            });
+        }
+    }
+    layout->addLayout(form);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const QByteArray written = pdf::writeDocumentProperties(serialized, properties, &error);
+    if (written.isEmpty()) {
+        QMessageBox::warning(this, tr("文档属性"), error);
+        return;
+    }
+    QString reloadError;
+    if (!document_.reloadFromBytes(written, &reloadError)) {
+        QMessageBox::warning(this, tr("文档属性"), reloadError);
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已保存文档属性"));
+}
+
+// 自动创建书签：按标题样式（字高比正文大）生成大纲。
+void PdfView::createOutlineFromHeadingsDialog() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("自动创建书签"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const QVector<doc::DocumentChunk> chunks = buildDocumentChunks();
+    QApplication::restoreOverrideCursor();
+
+    pdf::OutlineGeneratorOptions options;
+    const std::vector<pdf::OutlineItem> generated = pdf::generateOutlineFromChunks(chunks, options);
+    if (generated.empty()) {
+        QMessageBox::information(this, tr("自动创建书签"),
+                                 tr("没有识别到标题。标题是按字高比正文大的行判定的，"
+                                    "这份文档里没有这样的行。"));
+        return;
+    }
+    const auto entries = pdf::flattenOutline(generated);
+    QStringList preview;
+    for (int i = 0; i < entries.size() && i < 20; ++i) {
+        preview.append(QString(entries.at(static_cast<size_t>(i)).depth * 2, QLatin1Char(' ')) +
+                       entries.at(static_cast<size_t>(i)).title);
+    }
+    if (entries.size() > preview.size()) {
+        preview.append(tr("…还有 %1 条").arg(entries.size() - preview.size()));
+    }
+    QMessageBox box(this);
+    box.setWindowTitle(tr("自动创建书签"));
+    box.setText(tr("按标题样式识别出 %1 条书签：\n\n%2\n\n确定要写入文档吗？")
+                     .arg(entries.size())
+                     .arg(preview.join('\n')));
+    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    box.setDefaultButton(QMessageBox::Yes);
+    if (box.exec() != QMessageBox::Yes) {
+        return;
+    }
+    QString error;
+    if (!replaceOutline(generated, &error)) {
+        QMessageBox::warning(this, tr("自动创建书签"), error);
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已生成 %1 条书签").arg(entries.size()));
+}
+
 // 显示空间（页面左上原点、y 向下）→ PDF 用户空间（左下原点、y 向上）。
 QPointF PdfView::displayToUser(int pageIndex, const QPointF& displayPoint) const {
     PageTransform transform;
@@ -4966,7 +5320,7 @@ void PdfView::showReadingOrder() {
     dialog.setWindowTitle(tr("阅读顺序 - 第 %1 页").arg(currentPage() + 1));
     dialog.resize(620, 500);
     auto* layout = new QVBoxLayout(&dialog);
-    auto* hint = new QLabel(tr("以下内容按 PDF 文本层的逻辑顺序显示，可用于人工核对屏幕阅读器的阅读次序。"),
+    auto* hint = new QLabel(tr("以下内容按页面上的视觉顺序排列（多栏与表格已按位置重排），可用于人工核对屏幕阅读器的阅读次序。"),
                             &dialog);
     hint->setWordWrap(true);
     layout->addWidget(hint);
@@ -4974,7 +5328,19 @@ void PdfView::showReadingOrder() {
     text->setReadOnly(true);
     const std::optional<pdf::PdfPage> page = document_.page(currentPage());
     const std::optional<pdf::TextPage> extracted = page ? page->extractText() : std::nullopt;
-    text->setPlainText(extracted ? extracted->plainText() : tr("本页没有可提取文字。"));
+    // 阅读顺序优先用排版后的视觉顺序：PDFium 给的是内容流顺序，
+    // 多栏、表格、图注混排时直接显示会是乱的（与屏幕阅读器看到的也不一致）。
+    QString ordered;
+    if (textController_ != nullptr) {
+        const TextLayout* textLayout = textController_->layout(currentPage());
+        if (textLayout != nullptr && !textLayout->isEmpty()) {
+            ordered = textLayout->textForRange(0, textLayout->charCount());
+        }
+    }
+    if (ordered.isEmpty() && extracted.has_value()) {
+        ordered = extracted->plainText();
+    }
+    text->setPlainText(ordered.isEmpty() ? tr("本页没有可提取文字。") : ordered);
     text->setAccessibleName(tr("当前页阅读顺序"));
     layout->addWidget(text);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);

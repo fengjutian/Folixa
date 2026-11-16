@@ -58,6 +58,105 @@ int previousSignificant(const QVector<ContentToken>& tokens, int index) {
     return -1;
 }
 
+// 一次内容流改写的口径。
+struct PdfTextRewritePlan {
+    QVector<int> pageIndexes;
+    // 空页号列表是否表示「整篇」。
+    // rewritePdfText 的空列表是「哪页都不改」，rewritePdfTextWith 的空列表是「整篇」，
+    // 两者语义不同，所以这里显式区分，不靠调用顺序去猜。
+    bool emptyMeansAllPages = false;
+    // qpdf 写出空字节时算不算错误：旧接口不报（保持原行为），新接口要报，
+    // 因为调用方需要区分「没有改动」与「写盘失败」。
+    bool emptyOutputIsError = false;
+};
+
+// rewritePdfText 与 rewritePdfTextWith 共用的骨架：打开 PDF、逐页取内容流、
+// 把每个文本操作数交给回调、必要时写回并重新序列化。
+//
+// 为什么抽成一份：PDF 解析（打开、取页、合并内容流、写回）只有一份实现才靠得住。
+// 两条路径各抄一遍的话，迟早会在「什么时候该写回」这种细节上漂移。
+//
+// 计数口径交给调用方：onStreamFinished 在每个内容流处理完后调用一次，
+// 参数是「这个流是否真的被写回」。普通字符串替换要按「写回后才算数」统计
+// （查询词与替换词相同时内容流不会变，那次命中不算），
+// 回调式改写则按「改动的操作数」统计。
+QByteArray rewritePdfTextInternal(const QByteArray& pdfBytes,
+                                   const PdfTextRewritePlan& plan,
+                                   const std::function<QString(const QString&)>& rewrite,
+                                   const std::function<void(bool)>& onStreamFinished,
+                                   int* changedOperands,
+                                   QString* error) {
+    if (changedOperands) *changedOperands = 0;
+    if (error) error->clear();
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        pdf.processMemoryFile("content-edit.pdf", pdfBytes.constData(),
+                              static_cast<size_t>(pdfBytes.size()));
+        const std::vector<QPDFObjectHandle> pages = pdf.getAllPages();
+        QVector<int> targets = plan.pageIndexes;
+        if (plan.emptyMeansAllPages && targets.isEmpty()) {
+            targets.reserve(static_cast<int>(pages.size()));
+            for (size_t i = 0; i < pages.size(); ++i) targets.append(static_cast<int>(i));
+        }
+        int totalChanged = 0;
+        for (int pageIndex : targets) {
+            if (pageIndex < 0 || pageIndex >= static_cast<int>(pages.size())) continue;
+            QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
+            page.coalesceContentStreams();
+            for (QPDFObjectHandle stream : page.getPageContents()) {
+                if (!stream.isStream()) continue;
+                const std::shared_ptr<Buffer> data = stream.getStreamData(qpdf_dl_generalized);
+                if (!data) continue;
+                const QByteArray original(reinterpret_cast<const char*>(data->getBuffer()),
+                                          static_cast<qsizetype>(data->getSize()));
+                int streamChanged = 0;
+                QString rewriteError;
+                const QByteArray rewritten = ContentStream::rewriteText(original, [&](const QString& input) {
+                    const QString output = rewrite(input);
+                    if (output != input) ++streamChanged;
+                    return output;
+                }, &rewriteError);
+                if (!rewriteError.isEmpty()) {
+                    if (error) *error = rewriteError;
+                    return {};
+                }
+                const bool committed = streamChanged > 0 && rewritten != original;
+                if (committed) {
+                    stream.replaceStreamData(rewritten.toStdString(),
+                                             QPDFObjectHandle::newNull(),
+                                             QPDFObjectHandle::newNull());
+                    totalChanged += streamChanged;
+                }
+                if (onStreamFinished) onStreamFinished(committed);
+            }
+        }
+        if (totalChanged <= 0) return {};
+        QPDFWriter writer(pdf);
+        writer.setOutputMemory();
+        writer.write();
+        std::unique_ptr<Buffer> output(writer.getBuffer());
+        if (!output || output->getSize() == 0) {
+            if (plan.emptyOutputIsError && error) *error = QStringLiteral("qpdf 写出的 PDF 为空");
+            return {};
+        }
+        if (changedOperands) *changedOperands = totalChanged;
+        return QByteArray(reinterpret_cast<const char*>(output->getBuffer()),
+                          static_cast<qsizetype>(output->getSize()));
+    } catch (const std::exception& exception) {
+        if (error) *error = QString::fromUtf8(exception.what());
+        return {};
+    }
+#else
+    Q_UNUSED(pdfBytes)
+    Q_UNUSED(plan)
+    Q_UNUSED(rewrite)
+    Q_UNUSED(onStreamFinished)
+    if (error) *error = QStringLiteral("qpdf is unavailable");
+    return {};
+#endif
+}
+
 }  // namespace
 
 ContentParseResult ContentStream::tokenize(const QByteArray& bytes) {
@@ -189,63 +288,47 @@ QByteArray ContentStream::rewritePdfText(const QByteArray& pdfBytes,
     if (replacements) *replacements = 0;
     if (error) error->clear();
     if (pdfBytes.isEmpty() || query.isEmpty()) return {};
-#ifdef AIPDF_WITH_QPDF
-    try {
-        QPDF pdf;
-        pdf.processMemoryFile("content-edit.pdf", pdfBytes.constData(),
-                              static_cast<size_t>(pdfBytes.size()));
-        std::vector<QPDFObjectHandle> pages = pdf.getAllPages();
-        int total = 0;
-        for (int pageIndex : pageIndexes) {
-            if (pageIndex < 0 || pageIndex >= static_cast<int>(pages.size())) continue;
-            QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
-            page.coalesceContentStreams();
-            for (QPDFObjectHandle stream : page.getPageContents()) {
-                if (!stream.isStream()) continue;
-                const std::shared_ptr<Buffer> data = stream.getStreamData(qpdf_dl_generalized);
-                if (!data) continue;
-                const QByteArray original(reinterpret_cast<const char*>(data->getBuffer()),
-                                          static_cast<qsizetype>(data->getSize()));
-                int streamCount = 0;
-                QString rewriteError;
-                const QByteArray rewritten = rewriteText(original, [&](const QString& input) {
-                    QString output = input;
-                    streamCount += output.count(query, sensitivity);
-                    output.replace(query, replacement, sensitivity);
-                    return output;
-                }, &rewriteError);
-                if (!rewriteError.isEmpty()) {
-                    if (error) *error = rewriteError;
-                    return {};
-                }
-                if (streamCount > 0 && rewritten != original) {
-                    stream.replaceStreamData(rewritten.toStdString(),
-                                             QPDFObjectHandle::newNull(),
-                                             QPDFObjectHandle::newNull());
-                    total += streamCount;
-                }
-            }
-        }
-        if (total <= 0) return {};
-        QPDFWriter writer(pdf);
-        writer.setOutputMemory();
-        writer.write();
-        std::unique_ptr<Buffer> output(writer.getBuffer());
-        if (!output || output->getSize() == 0) return {};
-        if (replacements) *replacements = total;
-        return QByteArray(reinterpret_cast<const char*>(output->getBuffer()),
-                          static_cast<qsizetype>(output->getSize()));
-    } catch (const std::exception& exception) {
-        if (error) *error = QString::fromUtf8(exception.what());
-        return {};
-    }
-#else
-    Q_UNUSED(pageIndexes)
-    Q_UNUSED(replacement)
-    Q_UNUSED(sensitivity)
-    if (error) *error = QStringLiteral("qpdf is unavailable");
-    return {};
-#endif
+    PdfTextRewritePlan plan;
+    plan.pageIndexes = pageIndexes;
+    // 计数口径与旧实现一致：只算真正被写回的内容流里的命中数。
+    // 查询词与替换词相同时内容流不会变，那次命中也不算数。
+    int total = 0;
+    int streamMatches = 0;
+    const QByteArray output = rewritePdfTextInternal(
+        pdfBytes, plan,
+        [&](const QString& input) {
+            QString result = input;
+            streamMatches += result.count(query, sensitivity);
+            result.replace(query, replacement, sensitivity);
+            return result;
+        },
+        [&](bool committed) {
+            if (committed) total += streamMatches;
+            streamMatches = 0;
+        },
+        nullptr, error);
+    if (output.isEmpty()) return {};
+    if (replacements) *replacements = total;
+    return output;
+}
+
+QByteArray ContentStream::rewritePdfTextWith(const QByteArray& pdfBytes,
+                                             const QVector<int>& pageIndexes,
+                                             const std::function<QString(const QString&)>& rewrite,
+                                             int* replacements,
+                                             QString* error) {
+    if (replacements) *replacements = 0;
+    if (error) error->clear();
+    if (pdfBytes.isEmpty()) return {};
+    PdfTextRewritePlan plan;
+    plan.pageIndexes = pageIndexes;
+    plan.emptyMeansAllPages = true;
+    plan.emptyOutputIsError = true;
+    int changed = 0;
+    const QByteArray output = rewritePdfTextInternal(pdfBytes, plan, rewrite, {}, &changed, error);
+    if (output.isEmpty()) return {};
+    if (replacements) *replacements = changed;
+    return output;
 }
 
 }  // namespace aipdf::pdf

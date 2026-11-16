@@ -39,8 +39,10 @@ struct FormFieldInsert {
     // 条形码下方的说明文字（kind == Barcode 时生效），留空就不画。
     QString barcodeCaption;
 
-    // 字段的外观串（写进 /DA）。留空时用默认的 "(/Helv 10 Tf 0 g)"。
+    // 字段的外观串（写进 /DA）。留空时用默认的 "(/Helv 10.0 Tf 0 g)"。
     // 由「表单工具设置」统一决定，避免每个域都要单独调外观。
+    // 注意字号带 ".0"：默认值是 double，写出来就是 10.0；已有 PDF 产物里也是
+    // "10.0"，别为了好看改成 "10"（会让新旧文档的外观串对不上）。
     QString appearance;
 };
 

@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 
+class QSettings;
+
 namespace aipdf::pdf {
 
 // 新建表单域时用的默认外观。
@@ -29,6 +31,14 @@ struct FormToolSettings {
 
     // 写回设置。
     void save() const;
+
+    // 可注入的版本：读写调用方自己给的设置对象。
+    //
+    // 为什么要有这两个：load()/save() 走默认 QSettings（Windows 上落用户注册表），
+    // 单元测试碰不得用户设置；换成自己的一份 QSettings，既能测，
+    // 将来要按场景分开存也不必再改结构。
+    static FormToolSettings loadFrom(const QSettings& values);
+    void saveTo(QSettings& values) const;
 };
 
 }  // namespace aipdf::pdf

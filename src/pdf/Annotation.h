@@ -63,6 +63,12 @@ struct Annotation {
     bool hasAppearance = false;
     // 便签正文与备注。
     QString contents;
+    // 替代文本（/Alt）：给读屏软件念的说明。
+    //
+    // 为什么放在批注上：PDF 的无障碍信息就挂在批注的 /Alt 里，
+    // 屏幕阅读器读的是它，不是正文。图形类批注（图章、图注、附件）
+    // 没有替代文本就等于对读屏用户是空的。
+    QString altText;
     // 文本框的字号（点）。0 表示用默认值。
     double fontSize = 0.0;
     // 外观属性（0 表示用该类型的默认值）。属性面板改的就是这两个。

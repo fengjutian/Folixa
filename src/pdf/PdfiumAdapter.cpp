@@ -1474,7 +1474,12 @@ bool PdfDocument::appendDocumentPages(const PdfDocument& source) {
     }
     const detail::PdfiumGuard guard;
     // 空页码范围表示"全部页面"。
-    return FPDF_ImportPages(impl_->handle, source.impl_->handle, "", 0) != 0;
+    //
+    // 插入位置必须给当前页数：FPDF_ImportPages 的最后一个参数是 0 基的插入页号，
+    // 传 0 会把对方的页插到**最前面**——与「合并（追加到末尾）」的预期正好相反，
+    // 用户选了要合并的文件，结果它跑到了自己文档前面。
+    const int insertAt = FPDF_GetPageCount(impl_->handle);
+    return FPDF_ImportPages(impl_->handle, source.impl_->handle, "", insertAt) != 0;
 }
 
 QByteArray PdfDocument::extractPagesToBytes(const QVector<int>& pages) const {

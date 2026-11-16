@@ -133,6 +133,8 @@ public:
                           double opacity);
     // 修改批注（颜色、正文）。
     bool updateAnnotation(quint64 id, const QColor& color, const QString& contents);
+    // 设置替代文本（写进批注的 /Alt）。空字符串表示清除。
+    bool setAltText(quint64 id, const QString& altText);
 
     // 撤销 / 重做。
     bool undo();

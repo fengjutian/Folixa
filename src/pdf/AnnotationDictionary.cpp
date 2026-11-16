@@ -131,6 +131,13 @@ QByteArray commonExtras(const Annotation& annotation) {
         extras += textString(annotation.reviewState);
         extras += " /StateModel /Review ";
     }
+    // 替代文本：读屏软件念的就是这一句。
+    // PDF 规范里它是 /Alt（可替换文本），和 /Contents（正文备注）不是一回事。
+    if (!annotation.altText.isEmpty()) {
+        extras += "/Alt ";
+        extras += textString(annotation.altText);
+        extras += ' ';
+    }
     // 外观属性：/BS /W 是线宽，/CA 是整体不透明度。别的阅读器靠这两个键
     // 复现我们在外观流里画的粗细与透明。
     if (annotation.lineWidth > 0.0) {
