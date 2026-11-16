@@ -17,7 +17,7 @@
 #include <QPaintEvent>
 #include <QPolygonF>
 #include <QLineF>
-#include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QKeyEvent>
 #include <QScrollBar>
 
@@ -1340,28 +1340,55 @@ void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRect
     inlineEditPage_ = pageIndex;
     inlineEditObject_ = objectIndex;
     inlineEditDisplayRect_ = displayRect;
-    inlineEditor_ = new QLineEdit(viewport());
-    inlineEditor_->setText(text);
+    inlineEditor_ = new QPlainTextEdit(viewport());
+    inlineEditor_->setPlainText(text);
+    inlineEditor_->setTabChangesFocus(false);
+    inlineEditor_->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     QFont font = inlineEditor_->font();
     font.setPointSizeF(qMax(6.0, fontSize * layout_.zoom()));
     inlineEditor_->setFont(font);
     inlineEditor_->setStyleSheet(QStringLiteral(
-        "QLineEdit { border: 2px solid #6D45E5; background: rgba(255,255,255,235); padding: 1px; }"));
+        "QPlainTextEdit { border: 2px solid #6D45E5; background: rgba(255,255,255,235); padding: 2px; }"));
+    inlineEditor_->installEventFilter(this);
     repositionInlineEditor();
     inlineEditor_->show();
     inlineEditor_->setFocus();
-    inlineEditor_->setCursorPosition(inlineEditor_->text().size());
-    connect(inlineEditor_, &QLineEdit::editingFinished, this, [this]() {
-        if (!inlineEditor_) return;
-        const QString text = inlineEditor_->text();
-        const int page = inlineEditPage_;
-        const int object = inlineEditObject_;
-        inlineEditor_->deleteLater();
-        inlineEditor_ = nullptr;
-        inlineEditPage_ = -1;
-        inlineEditObject_ = -1;
-        emit inlineTextEditCommitted(page, object, text);
-    });
+    QTextCursor cursor = inlineEditor_->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    inlineEditor_->setTextCursor(cursor);
+}
+
+bool PageCanvas::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == inlineEditor_ && inlineEditor_) {
+        if (event->type() == QEvent::KeyPress) {
+            auto* key = static_cast<QKeyEvent*>(event);
+            if (key->key() == Qt::Key_Escape) {
+                finishInlineTextEdit(false);
+                return true;
+            }
+            if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
+                key->modifiers().testFlag(Qt::ControlModifier)) {
+                finishInlineTextEdit(true);
+                return true;
+            }
+        } else if (event->type() == QEvent::FocusOut) {
+            finishInlineTextEdit(true);
+        }
+    }
+    return QAbstractScrollArea::eventFilter(watched, event);
+}
+
+void PageCanvas::finishInlineTextEdit(bool commit) {
+    if (!inlineEditor_) return;
+    const QString text = inlineEditor_->toPlainText();
+    const int page = inlineEditPage_;
+    const int object = inlineEditObject_;
+    inlineEditor_->removeEventFilter(this);
+    inlineEditor_->deleteLater();
+    inlineEditor_ = nullptr;
+    inlineEditPage_ = -1;
+    inlineEditObject_ = -1;
+    if (commit) emit inlineTextEditCommitted(page, object, text);
 }
 
 void PageCanvas::repositionInlineEditor() {
@@ -1373,7 +1400,7 @@ void PageCanvas::repositionInlineEditor() {
                           layout_.pageRect(inlineEditPage_).height());
     QRectF rect = toViewportRect(inlineEditDisplayRect_, pageRect, zoom).adjusted(-3, -3, 3, 3);
     rect.setWidth(qMax(80.0, rect.width()));
-    rect.setHeight(qMax(28.0, rect.height()));
+    rect.setHeight(qMax(56.0, rect.height()));
     inlineEditor_->setGeometry(rect.toAlignedRect());
 }
 

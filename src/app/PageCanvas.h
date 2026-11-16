@@ -16,7 +16,8 @@
 class QMouseEvent;
 class QKeyEvent;
 class QPainter;
-class QLineEdit;
+class QPlainTextEdit;
+class QEvent;
 
 namespace aipdf::app {
 
@@ -125,6 +126,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     // 切换语言后就地重译画布上的常驻文案（未打开文档时的占位提示）。
@@ -167,7 +169,7 @@ private:
     double objectRotationDegrees_ = 0.0;
     double objectGuideX_ = std::numeric_limits<double>::quiet_NaN();
     double objectGuideY_ = std::numeric_limits<double>::quiet_NaN();
-    QLineEdit* inlineEditor_ = nullptr;
+    QPlainTextEdit* inlineEditor_ = nullptr;
     int inlineEditPage_ = -1;
     int inlineEditObject_ = -1;
     QRectF inlineEditDisplayRect_;
@@ -215,6 +217,7 @@ private:
     // 批注工具激活时把光标换成十字，退出时恢复。
     void updateToolCursor();
     void repositionInlineEditor();
+    void finishInlineTextEdit(bool commit);
 
     // 没有打开文档时画在画布中央的占位提示。
     QString emptyText_;

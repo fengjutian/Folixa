@@ -1,6 +1,7 @@
 ﻿#include "pdf/PdfiumAdapter.h"
 #include <QImage>
 #include <QPainter>
+#include <QPolygonF>
 #include <QRegularExpression>
 #include <QtMath>
 #include <QUrl>
@@ -1683,7 +1684,11 @@ QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
         if (area <= 0.0 || overlap.width() * overlap.height() < area * minimumOverlap) continue;
         PageObjectInfo info;
         info.index = index;
+        info.objectPath = {index};
         info.bounds = bounds;
+        info.hasTransparency = FPDFPageObj_HasTransparency(object) != 0;
+        if (FPDF_CLIPPATH clipPath = FPDFPageObj_GetClipPath(object))
+            info.clipPathCount = qMax(0, FPDFClipPath_CountPaths(clipPath));
         switch (FPDFPageObj_GetType(object)) {
         case FPDF_PAGEOBJ_TEXT: info.type = PageObjectType::Text; break;
         case FPDF_PAGEOBJ_PATH: info.type = PageObjectType::Path; break;
@@ -1696,6 +1701,12 @@ QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
         if (info.type == PageObjectType::Text && FPDFTextObj_GetFontSize(object, &size)) info.fontSize = size;
         if (info.type == PageObjectType::Text) {
             FPDF_FONT font = FPDFTextObj_GetFont(object);
+            if (font) {
+                info.fontEmbedded = FPDFFont_GetIsEmbedded(font) == 1;
+                info.fontFlags = FPDFFont_GetFlags(font);
+                info.fontWeight = FPDFFont_GetWeight(font);
+                FPDFFont_GetItalicAngle(font, &info.italicAngle);
+            }
             const size_t length = font ? FPDFFont_GetFamilyName(font, nullptr, 0) : 0;
             if (length > 1 && length < 4096) {
                 QByteArray name(static_cast<qsizetype>(length), Qt::Uninitialized);
@@ -1736,12 +1747,212 @@ QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
     return result;
 }
 
+QVector<PageObjectInfo> PdfPage::objectsInRectDeep(const QRectF& rectPoints,
+                                                   double minimumOverlap) const {
+    QVector<PageObjectInfo> result;
+    if (!impl_ || !impl_->page || rectPoints.isEmpty()) return result;
+    minimumOverlap = std::clamp(minimumOverlap, 0.0, 1.0);
+    const detail::PdfiumGuard guard;
+    FPDF_TEXTPAGE textPage = FPDFText_LoadPage(impl_->page);
+    struct Matrix { double a = 1, b = 0, c = 0, d = 1, e = 0, f = 0; };
+    const auto compose = [](const Matrix& parent, const FS_MATRIX& local) {
+        return Matrix{
+            parent.a * local.a + parent.c * local.b,
+            parent.b * local.a + parent.d * local.b,
+            parent.a * local.c + parent.c * local.d,
+            parent.b * local.c + parent.d * local.d,
+            parent.a * local.e + parent.c * local.f + parent.e,
+            parent.b * local.e + parent.d * local.f + parent.f};
+    };
+    const auto mapPoint = [](const Matrix& matrix, double x, double y) {
+        return QPointF(matrix.a * x + matrix.c * y + matrix.e,
+                       matrix.b * x + matrix.d * y + matrix.f);
+    };
+    std::function<void(FPDF_PAGEOBJECT, const QVector<int>&, const Matrix&)> visit;
+    visit = [&](FPDF_PAGEOBJECT object, const QVector<int>& path, const Matrix& parent) {
+        if (!object) return;
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) return;
+        const QPolygonF corners{mapPoint(parent, left, bottom), mapPoint(parent, right, bottom),
+                                mapPoint(parent, right, top), mapPoint(parent, left, top)};
+        const QRectF bounds = corners.boundingRect();
+        const QRectF overlap = bounds.intersected(rectPoints);
+        const double area = bounds.width() * bounds.height();
+        if (area > 0.0 && overlap.width() * overlap.height() >= area * minimumOverlap) {
+            PageObjectInfo info;
+            info.index = path.size() == 1 ? path.constFirst() : -1;
+            info.objectPath = path;
+            info.nestingDepth = path.size() - 1;
+            info.bounds = bounds;
+            info.hasTransparency = FPDFPageObj_HasTransparency(object) != 0;
+            if (FPDF_CLIPPATH clip = FPDFPageObj_GetClipPath(object))
+                info.clipPathCount = qMax(0, FPDFClipPath_CountPaths(clip));
+            switch (FPDFPageObj_GetType(object)) {
+            case FPDF_PAGEOBJ_TEXT: info.type = PageObjectType::Text; break;
+            case FPDF_PAGEOBJ_PATH: info.type = PageObjectType::Path; break;
+            case FPDF_PAGEOBJ_IMAGE: info.type = PageObjectType::Image; break;
+            case FPDF_PAGEOBJ_SHADING: info.type = PageObjectType::Shading; break;
+            case FPDF_PAGEOBJ_FORM: info.type = PageObjectType::Form; break;
+            default: break;
+            }
+            if (info.type == PageObjectType::Text) {
+                float size = 0.0F;
+                if (FPDFTextObj_GetFontSize(object, &size)) info.fontSize = size;
+                if (FPDF_FONT font = FPDFTextObj_GetFont(object)) {
+                    info.fontEmbedded = FPDFFont_GetIsEmbedded(font) == 1;
+                    info.fontFlags = FPDFFont_GetFlags(font);
+                    info.fontWeight = FPDFFont_GetWeight(font);
+                    FPDFFont_GetItalicAngle(font, &info.italicAngle);
+                    const size_t length = FPDFFont_GetFamilyName(font, nullptr, 0);
+                    if (length > 1 && length < 4096) {
+                        QByteArray name(static_cast<qsizetype>(length), Qt::Uninitialized);
+                        if (FPDFFont_GetFamilyName(font, name.data(), name.size()) > 0)
+                            info.fontFamily = QString::fromUtf8(name.constData());
+                    }
+                }
+                if (textPage) {
+                    const unsigned long bytes = FPDFTextObj_GetText(object, textPage, nullptr, 0);
+                    if (bytes >= 2 && bytes < 1024 * 1024) {
+                        QVector<FPDF_WCHAR> buffer(bytes / sizeof(FPDF_WCHAR));
+                        if (FPDFTextObj_GetText(object, textPage, buffer.data(), bytes))
+                            info.text = QString::fromUtf16(
+                                reinterpret_cast<const char16_t*>(buffer.constData())).remove(QChar::Null);
+                    }
+                }
+            }
+            unsigned int red = 0, green = 0, blue = 0, alpha = 255;
+            if (FPDFPageObj_GetFillColor(object, &red, &green, &blue, &alpha))
+                info.fillColor = QColor(red, green, blue, alpha);
+            result.append(info);
+        }
+        if (FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_FORM) return;
+        FS_MATRIX local{};
+        if (!FPDFPageObj_GetMatrix(object, &local)) local = FS_MATRIX{1, 0, 0, 1, 0, 0};
+        const Matrix childParent = compose(parent, local);
+        const int childCount = FPDFFormObj_CountObjects(object);
+        for (int child = 0; child < childCount; ++child) {
+            QVector<int> childPath = path;
+            childPath.append(child);
+            visit(FPDFFormObj_GetObject(object, static_cast<unsigned long>(child)), childPath,
+                  childParent);
+        }
+    };
+    const Matrix identity;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    for (int index = 0; index < count; ++index)
+        visit(FPDFPage_GetObject(impl_->page, index), QVector<int>{index}, identity);
+    if (textPage) FPDFText_ClosePage(textPage);
+    return result;
+}
+
+bool PdfPage::setTextObjectText(const QVector<int>& objectPath, const QString& text) {
+    if (objectPath.isEmpty()) return false;
+    if (objectPath.size() == 1) return setTextObjectText(objectPath.constFirst(), text);
+    if (!impl_ || !impl_->page) return false;
+    const detail::PdfiumGuard guard;
+    FPDF_PAGEOBJECT object = nullptr;
+    for (int depth = 0; depth < objectPath.size(); ++depth) {
+        const int index = objectPath.at(depth);
+        if (index < 0) return false;
+        if (depth == 0) {
+            if (index >= FPDFPage_CountObjects(impl_->page)) return false;
+            object = FPDFPage_GetObject(impl_->page, index);
+        } else {
+            if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_FORM ||
+                index >= FPDFFormObj_CountObjects(object)) return false;
+            object = FPDFFormObj_GetObject(object, static_cast<unsigned long>(index));
+        }
+    }
+    if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT || text.contains(QLatin1Char('\n')))
+        return false;
+    const std::u16string wide = text.toStdU16String();
+    return FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str())) &&
+           FPDFPage_GenerateContent(impl_->page);
+}
+
 bool PdfPage::setTextObjectText(int index, const QString& text) {
     if (!impl_ || impl_->page == nullptr || index < 0 ||
         index >= FPDFPage_CountObjects(impl_->page)) return false;
     const detail::PdfiumGuard guard;
     FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
     if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT) return false;
+    QString normalizedText = text;
+    normalizedText.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    normalizedText.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+    if (normalizedText.contains(QLatin1Char('\n'))) {
+        float fontSize = 12.0F;
+        FPDFTextObj_GetFontSize(object, &fontSize);
+        QString family = QStringLiteral("Helvetica");
+        if (FPDF_FONT oldFont = FPDFTextObj_GetFont(object)) {
+            const size_t length = FPDFFont_GetFamilyName(oldFont, nullptr, 0);
+            if (length > 1 && length < 4096) {
+                QByteArray name(static_cast<qsizetype>(length), Qt::Uninitialized);
+                if (FPDFFont_GetFamilyName(oldFont, name.data(), name.size()) > 0)
+                    family = QString::fromUtf8(name.constData());
+            }
+        }
+        // Reuse the original font first.  This preserves CID/subset font
+        // metrics whenever PDFium can encode every requested line; only fall
+        // back to an editing font when the original font rejects a glyph.
+        FPDF_FONT originalFont = FPDFTextObj_GetFont(object);
+        FPDF_FONT font = originalFont;
+        if (!font)
+            font = loadEditingFont(impl_->document.get(), normalizedText,
+                                   QStringLiteral("Microsoft YaHei"));
+        FS_MATRIX baseMatrix{};
+        unsigned int red = 0, green = 0, blue = 0, alpha = 255;
+        if (!font || !FPDFPageObj_GetMatrix(object, &baseMatrix) ||
+            !FPDFPageObj_GetFillColor(object, &red, &green, &blue, &alpha)) return false;
+        const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
+        const QStringList lines = normalizedText.split(QLatin1Char('\n'), Qt::KeepEmptyParts);
+        QVector<FPDF_PAGEOBJECT> replacements;
+        replacements.reserve(lines.size());
+        const double leading = qMax(1.0, static_cast<double>(fontSize) * 1.2);
+        for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+            if (lines.at(lineIndex).isEmpty()) continue;
+            FPDF_PAGEOBJECT replacement = createEditingTextObject(
+                impl_->document->handle, font, lines.at(lineIndex), fontSize);
+            if (!replacement && font == originalFont) {
+                font = loadEditingFont(impl_->document.get(), normalizedText, family);
+                if (!font)
+                    font = loadEditingFont(impl_->document.get(), normalizedText,
+                                           QStringLiteral("Microsoft YaHei"));
+                replacement = font ? createEditingTextObject(
+                    impl_->document->handle, font, lines.at(lineIndex), fontSize) : nullptr;
+            }
+            if (!replacement) {
+                for (FPDF_PAGEOBJECT created : replacements) FPDFPageObj_Destroy(created);
+                return false;
+            }
+            FS_MATRIX matrix = baseMatrix;
+            matrix.e -= static_cast<float>(baseMatrix.c * leading * lineIndex);
+            matrix.f -= static_cast<float>(baseMatrix.d * leading * lineIndex);
+            FPDFPageObj_SetMatrix(replacement, &matrix);
+            FPDFPageObj_SetFillColor(replacement, red, green, blue, alpha);
+            copyPageObjectStrokeStyle(object, replacement);
+            FPDFTextObj_SetTextRenderMode(replacement, mode);
+            for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex)
+                if (FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(
+                        object, static_cast<unsigned long>(markIndex)))
+                    FPDFPageObj_AddExistingMark(replacement, mark);
+            replacements.append(replacement);
+        }
+        if (replacements.isEmpty()) {
+            const std::u16string empty;
+            if (!FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(empty.c_str())))
+                return false;
+            return FPDFPage_GenerateContent(impl_->page) != 0;
+        }
+        if (!FPDFPage_RemoveObject(impl_->page, object)) {
+            for (FPDF_PAGEOBJECT replacement : replacements) FPDFPageObj_Destroy(replacement);
+            return false;
+        }
+        for (int lineIndex = 0; lineIndex < replacements.size(); ++lineIndex)
+            FPDFPage_InsertObjectAtIndex(impl_->page, replacements.at(lineIndex),
+                                         static_cast<size_t>(index + lineIndex));
+        FPDFPageObj_Destroy(object);
+        return FPDFPage_GenerateContent(impl_->page) != 0;
+    }
     const std::u16string wide = text.toStdU16String();
     if (!needsEmbeddedUnicodeFont(text) &&
         FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str())))
