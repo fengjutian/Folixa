@@ -158,6 +158,8 @@ public slots:
     void replaceSelectionWithImageDialog();
     void deleteSelectionImagesDialog();
     void replaceSelectionTextDialog();
+    void editSelectedObjectsDialog();
+    void reflowSelectionDialog(bool paragraph);
     void searchReplaceDialog();
     void addLinkToSelectionDialog();
     void addInternalLinkToSelectionDialog();
@@ -176,6 +178,7 @@ private:
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
     void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);
+    void editObjectsInRect(int pageIndex, const QRectF& userRect);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 

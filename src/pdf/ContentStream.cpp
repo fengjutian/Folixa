@@ -86,6 +86,32 @@ ContentParseResult ContentStream::tokenize(const QByteArray& bytes) {
         while (i < bytes.size() && !delimiter(bytes[i])) ++i;
         if (i == start) { ++i; result.error = QStringLiteral("Unexpected delimiter at %1").arg(start); return result; }
         const QByteArray word = bytes.mid(start, i - start);
+        if (word == "BI") {
+            // Inline-image data is arbitrary binary and may contain parentheses, brackets or
+            // operator-looking bytes. Keep the entire BI ... ID ... EI construct opaque.
+            int id = i;
+            while (id + 2 < bytes.size()) {
+                if (delimiter(bytes[id]) && bytes.mid(id + 1, 2) == "ID" &&
+                    id + 3 < bytes.size() && white(bytes[id + 3])) break;
+                ++id;
+            }
+            if (id + 3 >= bytes.size()) { result.error = QStringLiteral("Inline image has no ID at %1").arg(start); return result; }
+            int end = id + 4;
+            bool found = false;
+            while (end + 2 < bytes.size()) {
+                if (white(bytes[end]) && bytes.mid(end + 1, 2) == "EI" &&
+                    (end + 3 == bytes.size() || delimiter(bytes[end + 3]))) {
+                    end += 3;
+                    found = true;
+                    break;
+                }
+                ++end;
+            }
+            if (!found) { result.error = QStringLiteral("Inline image has no EI at %1").arg(start); return result; }
+            add(ContentTokenType::InlineImage, start, end);
+            i = end;
+            continue;
+        }
         bool numeric = false;
         if (numberStart(c)) word.toDouble(&numeric);
         add(numeric ? ContentTokenType::Number : ContentTokenType::Operator, start, i);

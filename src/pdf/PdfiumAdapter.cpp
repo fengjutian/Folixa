@@ -66,6 +66,7 @@ struct DocumentImpl {
     // 编辑文字时复用已加载字体，避免每替换一行就在 PDF 中重复嵌入整套字体。
     FPDF_FONT latinEditingFont = nullptr;
     FPDF_FONT unicodeEditingFont = nullptr;
+    QHash<QString, FPDF_FONT> editingFonts;
     // 表单填充环境：懒创建，关闭文档前必须先退出。
     FPDF_FORMHANDLE form = nullptr;
 
@@ -75,6 +76,7 @@ struct DocumentImpl {
             const detail::PdfiumGuard guard;
             if (latinEditingFont != nullptr) FPDFFont_Close(latinEditingFont);
             if (unicodeEditingFont != nullptr) FPDFFont_Close(unicodeEditingFont);
+            for (FPDF_FONT font : std::as_const(editingFonts)) FPDFFont_Close(font);
             // 不调用 FPDFDOC_ExitFormFillEnvironment：
             // 本仓库固定的 PDFium 构建在退出表单环境时会 0xC0000005 崩溃
             // （与我们的自定义 FPDF_FILEACCESS 文档组合复现）。泄漏只有
@@ -175,18 +177,32 @@ bool needsEmbeddedUnicodeFont(const QString& text) {
     return false;
 }
 
-FPDF_FONT loadEditingFont(detail::DocumentImpl* impl, const QString& text) {
+FPDF_FONT loadEditingFont(detail::DocumentImpl* impl, const QString& text,
+                          const QString& requestedFamily = QStringLiteral("Helvetica")) {
     if (impl == nullptr || impl->handle == nullptr) return nullptr;
     if (!needsEmbeddedUnicodeFont(text)) {
-        if (impl->latinEditingFont == nullptr) {
-            impl->latinEditingFont = FPDFText_LoadStandardFont(impl->handle, "Helvetica");
-        }
-        return impl->latinEditingFont;
+        const QHash<QString, QByteArray> standardFonts{
+            {QStringLiteral("Helvetica"), "Helvetica"},
+            {QStringLiteral("Times Roman"), "Times-Roman"},
+            {QStringLiteral("Courier"), "Courier"},
+            {QStringLiteral("Symbol"), "Symbol"},
+            {QStringLiteral("Zapf Dingbats"), "ZapfDingbats"},
+        };
+        const QString family = standardFonts.contains(requestedFamily)
+            ? requestedFamily : QStringLiteral("Helvetica");
+        if (!impl->editingFonts.contains(family))
+            impl->editingFonts.insert(family, FPDFText_LoadStandardFont(
+                impl->handle, standardFonts.value(family).constData()));
+        return impl->editingFonts.value(family);
     }
-    if (impl->unicodeEditingFont != nullptr) return impl->unicodeEditingFont;
+    const QString unicodeKey = QStringLiteral("unicode:") + requestedFamily;
+    if (impl->editingFonts.contains(unicodeKey)) return impl->editingFonts.value(unicodeKey);
     QStringList candidates;
     const QString configured = qEnvironmentVariable("AIPDF_CJK_FONT");
     if (!configured.isEmpty()) candidates.append(configured);
+    if (requestedFamily == QStringLiteral("SimHei")) candidates.append(QStringLiteral("C:/Windows/Fonts/simhei.ttf"));
+    else if (requestedFamily == QStringLiteral("SimSun")) candidates.append(QStringLiteral("C:/Windows/Fonts/simsun.ttc"));
+    else if (requestedFamily == QStringLiteral("Microsoft YaHei")) candidates.append(QStringLiteral("C:/Windows/Fonts/msyh.ttc"));
     candidates.append({QStringLiteral("C:/Windows/Fonts/msyh.ttc"),
                        QStringLiteral("C:/Windows/Fonts/simhei.ttf"),
                        QStringLiteral("C:/Windows/Fonts/simsunb.ttf"),
@@ -202,7 +218,7 @@ FPDF_FONT loadEditingFont(detail::DocumentImpl* impl, const QString& text) {
                                            static_cast<uint32_t>(data.size()),
                                            FPDF_FONT_TRUETYPE, 1);
         if (font != nullptr) {
-            impl->unicodeEditingFont = font;
+            impl->editingFonts.insert(unicodeKey, font);
             return font;
         }
     }
@@ -1646,6 +1662,15 @@ QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
         }
         float size = 0.0F;
         if (info.type == PageObjectType::Text && FPDFTextObj_GetFontSize(object, &size)) info.fontSize = size;
+        if (info.type == PageObjectType::Text) {
+            FPDF_FONT font = FPDFTextObj_GetFont(object);
+            const size_t length = font ? FPDFFont_GetFamilyName(font, nullptr, 0) : 0;
+            if (length > 1 && length < 4096) {
+                QByteArray name(static_cast<qsizetype>(length), Qt::Uninitialized);
+                if (FPDFFont_GetFamilyName(font, name.data(), name.size()) > 0)
+                    info.fontFamily = QString::fromUtf8(name.constData());
+            }
+        }
         unsigned int r = 0, g = 0, b = 0, a = 255;
         if (FPDFPageObj_GetFillColor(object, &r, &g, &b, &a)) info.fillColor = QColor(r, g, b, a);
         result.append(info);
@@ -1659,7 +1684,9 @@ bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, d
     const detail::PdfiumGuard guard;
     const int count = FPDFPage_CountObjects(impl_->page);
     bool changed = false;
-    for (int index : indexes) {
+    QVector<int> sorted = indexes;
+    std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+    for (int index : sorted) {
         if (index < 0 || index >= count) continue;
         FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
         if (!object) continue;
@@ -1690,26 +1717,41 @@ bool PdfPage::removeObjects(const QVector<int>& indexes) {
     return changed && FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
-bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, double fontSize,
-                                      const QColor& color) {
+bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
+                                      double fontSize, const QColor& color) {
     if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || fontSize <= 0.0) return false;
     const detail::PdfiumGuard guard;
     const int count = FPDFPage_CountObjects(impl_->page);
+    FPDF_TEXTPAGE textPage = FPDFText_LoadPage(impl_->page);
+    if (!textPage) return false;
     bool changed = false;
-    for (int index : indexes) {
+    QVector<int> sorted = indexes;
+    std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+    for (int index : sorted) {
         if (index < 0 || index >= count) continue;
         FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
         if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT) continue;
-        float oldSize = 0.0F;
-        if (!FPDFTextObj_GetFontSize(object, &oldSize) || oldSize <= 0.0F) continue;
-        float left = 0, bottom = 0, right = 0, top = 0;
-        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
-        const double scale = fontSize / oldSize;
-        FPDFPageObj_Transform(object, scale, 0.0, 0.0, scale,
-                              left * (1.0 - scale), bottom * (1.0 - scale));
-        FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(), color.alpha());
+        const unsigned long bytes = FPDFTextObj_GetText(object, textPage, nullptr, 0);
+        if (bytes < 2 || bytes > 1024 * 1024) continue;
+        QVector<FPDF_WCHAR> buffer(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+        if (!FPDFTextObj_GetText(object, textPage, buffer.data(), bytes)) continue;
+        const QString text = QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.constData()));
+        FPDF_FONT font = loadEditingFont(impl_->document.get(), text, fontFamily);
+        if (!font) continue;
+        FPDF_PAGEOBJECT replacement = createEditingTextObject(impl_->document->handle, font, text, fontSize);
+        if (!replacement) continue;
+        FS_MATRIX matrix{};
+        if (!FPDFPageObj_GetMatrix(object, &matrix) || !FPDFPageObj_SetMatrix(replacement, &matrix)) {
+            FPDFPageObj_Destroy(replacement);
+            continue;
+        }
+        FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(), color.alpha());
+        FPDFPage_InsertObject(impl_->page, replacement);
+        FPDFPage_RemoveObject(impl_->page, object);
+        FPDFPageObj_Destroy(object);
         changed = true;
     }
+    FPDFText_ClosePage(textPage);
     return changed && FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
@@ -1751,7 +1793,8 @@ bool PdfPage::redactByRasterizing(const QRectF& rectPoints, double scale) {
 }
 
 bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
-                           const QColor& color, double rotationDegrees, double opacity) {
+                           const QColor& color, double rotationDegrees, double opacity,
+                           const QString& fontFamily) {
     if (!impl_ || impl_->page == nullptr || text.isEmpty() || fontSize <= 0.0) {
         return false;
     }
@@ -1760,7 +1803,7 @@ bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, 
     if (document == nullptr) {
         return false;
     }
-    FPDF_FONT font = loadEditingFont(impl_->document.get(), text);
+    FPDF_FONT font = loadEditingFont(impl_->document.get(), text, fontFamily);
     if (font == nullptr) {
         return false;
     }

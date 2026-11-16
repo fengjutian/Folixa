@@ -68,6 +68,7 @@ public slots:
     void goToPage(int index);
     // 下一次在页面上拖出的矩形用于创建表单字段；空字符串取消。
     void setFormFieldPlacementKind(const QString& kind);
+    void beginObjectSelection();
 
 signals:
     void currentPageChanged(int index);
@@ -99,6 +100,7 @@ signals:
     void inkAnnotationRequested(int pageIndex, const QVector<QPointF>& userSpaceStroke);
     void formFieldRectRequested(const QString& kind, int pageIndex,
                                 const QRectF& userSpaceRect);
+    void objectRectSelected(int pageIndex, const QRectF& userSpaceRect);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -137,6 +139,7 @@ private:
     bool drawingEllipse_ = false;
     bool drawingFreeText_ = false;
     bool drawingFormField_ = false;
+    bool drawingObjectSelection_ = false;
     QString formFieldKind_;
     bool drawingLine_ = false;
     pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;

@@ -690,6 +690,16 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
+    if (drawingObjectSelection_) {
+        selecting_ = false;
+        drawingSquare_ = true;
+        drawPage_ = pageIndex;
+        drawAnchor_ = displayPoint;
+        drawCurrent_ = displayPoint;
+        viewport()->update();
+        return;
+    }
+
     // 表单建域工具优先：拖框完成前不触发批注、文字选择或链接。
     if (!formFieldKind_.isEmpty()) {
         selecting_ = false;
@@ -912,7 +922,7 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
 
 void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
     // 批注工具激活时，光标归工具管：链接判定不能把它改成手型或箭头。
-    if (!formFieldKind_.isEmpty() || (annotationController_ != nullptr &&
+    if (drawingObjectSelection_ || !formFieldKind_.isEmpty() || (annotationController_ != nullptr &&
         annotationController_->tool() != AnnotationController::Tool::None)) {
         viewport()->setCursor(Qt::CrossCursor);
         return;
@@ -981,6 +991,12 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
             viewport()->update();
             if (a != b) {
                 const QRectF rect = QRectF(a, b).normalized();
+                if (drawingObjectSelection_) {
+                    drawingObjectSelection_ = false;
+                    emit objectRectSelected(pageIndex, rect);
+                    updateToolCursor();
+                    return;
+                }
                 if (drawingFormField_) {
                     const QString kind = formFieldKind_;
                     drawingFormField_ = false;
@@ -1022,6 +1038,14 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
                   .arg(traceText(text)));
     }
     selecting_ = false;
+}
+
+void PageCanvas::beginObjectSelection() {
+    drawingObjectSelection_ = true;
+    drawingSquare_ = false;
+    drawingFormField_ = false;
+    formFieldKind_.clear();
+    viewport()->setCursor(Qt::CrossCursor);
 }
 
 void PageCanvas::setFormFieldPlacementKind(const QString& kind) {
@@ -1080,7 +1104,7 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void PageCanvas::updateToolCursor() {
-    const bool drawing = !formFieldKind_.isEmpty() ||
+    const bool drawing = drawingObjectSelection_ || !formFieldKind_.isEmpty() ||
                          (annotationController_ != nullptr &&
                           annotationController_->tool() != AnnotationController::Tool::None);
     if (drawing) {

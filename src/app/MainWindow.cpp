@@ -1244,9 +1244,9 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) { view->replaceSelectionTextDialog(); }
     }, true, "edit.replaceText");
     QToolButton* editObjectButton = addRibbonCommand(
-        contentEditGroup, "编辑对象", "替换或删除当前选区内的图片", ":/icons/edit.svg",
+        contentEditGroup, "编辑对象", "框选页面对象并移动、缩放、删除或修改文字属性", ":/icons/edit.svg",
         [this] {
-            if (auto* view = currentView()) { view->replaceSelectionWithImageDialog(); }
+            if (auto* view = currentView()) { view->editSelectedObjectsDialog(); }
         }, true, "edit.replaceObject");
     auto* editObjectMenu = new QMenu(editObjectButton);
     QAction* replaceImageAction = editObjectMenu->addAction(tr("替换图片"));
@@ -1261,8 +1261,14 @@ void MainWindow::buildUi() {
     });
     editObjectButton->setMenu(editObjectMenu);
     editObjectButton->setPopupMode(QToolButton::MenuButtonPopup);
-    addUnavailableEditCommand(contentEditGroup, "链接并合并文本");
-    addUnavailableEditCommand(contentEditGroup, "流式编辑");
+    addRibbonCommand(contentEditGroup, "链接并合并文本", "把选中文字合并并在一行内自动换行",
+                     ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) view->reflowSelectionDialog(false);
+    }, true, "edit.inlineReflow");
+    addRibbonCommand(contentEditGroup, "流式编辑", "在选区宽度内重新排列段落",
+                     ":/icons/edit.svg", [this] {
+        if (auto* view = currentView()) view->reflowSelectionDialog(true);
+    }, true, "edit.paragraphReflow");
 
     auto* textEditGroup = ribbonBar_->addGroup(contentEditTab, tr("文本工具"));
     addUnavailableEditCommand(textEditGroup, "拼写检查");

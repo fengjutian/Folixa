@@ -28,6 +28,7 @@
 #include "pdf/DocumentWriter.h"
 #include "pdf/PageAnnotsInjector.h"
 #include "pdf/OutlineWriter.h"
+#include "pdf/TextReflow.h"
 
 #include <QColorDialog>
 #include <QBuffer>
@@ -438,6 +439,8 @@ void PdfView::buildUi() {
             [this](const QString& kind, int pageIndex, const QRectF& rect) {
         createFormFieldAt(kind, pageIndex, rect);
     });
+    connect(canvas_, &PageCanvas::objectRectSelected, this,
+            [this](int pageIndex, const QRectF& rect) { editObjectsInRect(pageIndex, rect); });
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -2746,6 +2749,199 @@ void PdfView::replaceSelectionTextDialog() {
     refreshAfterDecoration();
     setModified(true);
     emit statusMessage(tr("已替换选中文字（行级）"));
+}
+
+void PdfView::editSelectedObjectsDialog() {
+    if (!document_.isValid() || textController_ == nullptr) return;
+    if (!requirePermission(effectivePermissions().allowModifying, tr("编辑页面对象"))) return;
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        canvas_->beginObjectSelection();
+        emit statusMessage(tr("请在页面上拖框选择一个或多个对象"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page) return;
+    QRectF userRect;
+    for (const QRectF& rect : displayRects)
+        userRect = userRect.united(QRectF(displayToUser(pageIndex, rect.topLeft()),
+                                         displayToUser(pageIndex, rect.bottomRight())).normalized());
+    editObjectsInRect(pageIndex, userRect);
+}
+
+void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
+    auto page = document_.page(pageIndex);
+    if (!page || userRect.isEmpty()) return;
+    const QVector<pdf::PageObjectInfo> objects = page->objectsInRect(userRect);
+    if (objects.isEmpty()) {
+        QMessageBox::information(this, tr("编辑对象"), tr("选区内没有可编辑的页面对象。"));
+        return;
+    }
+    QVector<int> indexes;
+    for (const auto& object : objects) indexes.append(object.index);
+    const QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性")};
+    bool accepted = false;
+    const QString action = QInputDialog::getItem(this, tr("编辑对象"),
+                                                  tr("已选择 %1 个对象：").arg(objects.size()),
+                                                  actions, 0, false, &accepted);
+    if (!accepted) return;
+    bool changed = false;
+    if (action == actions[0]) {
+        const double dx = QInputDialog::getDouble(this, tr("移动对象"), tr("水平移动（点）:"), 0, -10000, 10000, 1, &accepted);
+        if (!accepted) return;
+        const double dy = QInputDialog::getDouble(this, tr("移动对象"), tr("垂直移动（点）:"), 0, -10000, 10000, 1, &accepted);
+        if (!accepted) return;
+        changed = page->transformObjects(indexes, dx, dy);
+    } else if (action == actions[1]) {
+        const double horizontal = QInputDialog::getDouble(this, tr("缩放对象"), tr("水平缩放（%）:"), 100, 1, 1000, 1, &accepted);
+        if (!accepted) return;
+        const double vertical = QInputDialog::getDouble(this, tr("缩放对象"), tr("垂直缩放（%）:"), 100, 1, 1000, 1, &accepted);
+        if (!accepted) return;
+        changed = page->transformObjects(indexes, 0, 0, horizontal / 100.0, vertical / 100.0);
+    } else if (action == actions[2]) {
+        if (QMessageBox::question(this, tr("删除对象"), tr("永久删除选中的 %1 个页面对象？").arg(objects.size())) != QMessageBox::Yes) return;
+        changed = page->removeObjects(indexes);
+    } else {
+        QVector<int> textIndexes;
+        double initialSize = 12.0;
+        QString initialFamily = QStringLiteral("Helvetica");
+        QColor initialColor = Qt::black;
+        for (const auto& object : objects) if (object.type == pdf::PageObjectType::Text) {
+            textIndexes.append(object.index);
+            if (object.fontSize > 0) initialSize = object.fontSize;
+            if (!object.fontFamily.isEmpty()) initialFamily = object.fontFamily;
+            initialColor = object.fillColor;
+        }
+        if (textIndexes.isEmpty()) {
+            QMessageBox::information(this, tr("文字属性"), tr("选区内没有文字对象。"));
+            return;
+        }
+        const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Times Roman"),
+                                   QStringLiteral("Courier"), QStringLiteral("Microsoft YaHei"),
+                                   QStringLiteral("SimSun"), QStringLiteral("SimHei")};
+        int familyIndex = families.indexOf(initialFamily);
+        if (familyIndex < 0) familyIndex = 0;
+        const QString family = QInputDialog::getItem(this, tr("文字属性"), tr("字体:"),
+                                                      families, familyIndex, false, &accepted);
+        if (!accepted) return;
+        const double size = QInputDialog::getDouble(this, tr("文字属性"), tr("字号:"), initialSize, 1, 500, 1, &accepted);
+        if (!accepted) return;
+        const QColor color = QColorDialog::getColor(initialColor, this, tr("文字颜色"));
+        if (!color.isValid()) return;
+        changed = page->setTextObjectProperties(textIndexes, family, size, color);
+    }
+    if (!changed) {
+        QMessageBox::warning(this, tr("编辑对象"), tr("页面对象没有修改。"));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已修改 %1 个页面对象").arg(objects.size()));
+}
+
+void PdfView::reflowSelectionDialog(bool paragraph) {
+    if (!document_.isValid() || textController_ == nullptr) return;
+    if (!requirePermission(effectivePermissions().allowModifying, tr("流式编辑"))) return;
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    const QString source = textController_->selectedText();
+    if (pageIndex < 0 || displayRects.isEmpty() || source.trimmed().isEmpty()) {
+        QMessageBox::information(this, tr("流式编辑"), tr("先选中要重排的文字。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page) return;
+    QRectF rect;
+    for (const QRectF& displayRect : displayRects)
+        rect = rect.united(QRectF(displayToUser(pageIndex, displayRect.topLeft()),
+                                 displayToUser(pageIndex, displayRect.bottomRight())).normalized());
+    bool accepted = false;
+    const double fontSize = QInputDialog::getDouble(this, tr("流式编辑"), tr("字号:"),
+                                                     qMax(8.0, rect.height() * 0.8), 1, 200, 1, &accepted);
+    if (!accepted) return;
+    pdf::TextStyle style;
+    style.fontSize = fontSize;
+    const QStringList alignments{tr("左对齐"), tr("居中"), tr("右对齐"), tr("两端对齐")};
+    const QString alignment = QInputDialog::getItem(this, tr("流式编辑"), tr("对齐方式:"),
+                                                     alignments, 0, false, &accepted);
+    if (!accepted) return;
+    style.alignment = alignment == alignments[1] ? pdf::TextAlignment::Center
+        : alignment == alignments[2] ? pdf::TextAlignment::Right
+        : alignment == alignments[3] ? pdf::TextAlignment::Justify
+                                     : pdf::TextAlignment::Left;
+    const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Times Roman"),
+                               QStringLiteral("Courier"), QStringLiteral("Microsoft YaHei"),
+                               QStringLiteral("SimSun"), QStringLiteral("SimHei")};
+    style.family = QInputDialog::getItem(this, tr("流式编辑"), tr("字体:"), families, 0,
+                                         false, &accepted);
+    if (!accepted) return;
+    const double pageHeight = page->heightPoints();
+    QVector<QRectF> linkedFrames;
+    if (paragraph && displayRects.size() > 1) {
+        for (const QRectF& displayRect : displayRects) {
+            const QRectF userFrame = QRectF(displayToUser(pageIndex, displayRect.topLeft()),
+                                             displayToUser(pageIndex, displayRect.bottomRight())).normalized();
+            linkedFrames.append(QRectF(userFrame.left(), pageHeight - userFrame.bottom(),
+                                       userFrame.width(), qMax(userFrame.height(), fontSize * 1.5)));
+        }
+        std::sort(linkedFrames.begin(), linkedFrames.end(), [](const QRectF& a, const QRectF& b) {
+            return !qFuzzyCompare(a.top(), b.top()) ? a.top() < b.top() : a.left() < b.left();
+        });
+    }
+    const QRectF localBox(0, 0, rect.width(), paragraph ? qMax(rect.height(), fontSize * 8) : fontSize * 1.5);
+    const pdf::ReflowResult layout = !linkedFrames.isEmpty()
+        ? pdf::TextReflow::layoutFrames(source, linkedFrames, style)
+        : paragraph ? pdf::TextReflow::layoutParagraph(source.simplified(), localBox, style)
+                    : pdf::TextReflow::layoutLine(source.simplified(), localBox, style);
+    const pdf::PdfDocument backup = document_.backupPage(pageIndex);
+    if (!backup.isValid()) {
+        QMessageBox::warning(this, tr("流式编辑"), tr("无法创建页面安全备份，文档没有修改。"));
+        return;
+    }
+    const auto rollback = [this, pageIndex, &backup] {
+        if (document_.deletePage(pageIndex)) document_.restorePageFrom(backup, pageIndex);
+        refreshAfterDecoration();
+    };
+    QVector<int> textIndexes;
+    if (!linkedFrames.isEmpty()) {
+        for (const QRectF& displayRect : displayRects) {
+            const QRectF userFrame = QRectF(displayToUser(pageIndex, displayRect.topLeft()),
+                                             displayToUser(pageIndex, displayRect.bottomRight())).normalized();
+            for (const auto& object : page->objectsInRect(userFrame, 0.5))
+                if (object.type == pdf::PageObjectType::Text && !textIndexes.contains(object.index))
+                    textIndexes.append(object.index);
+        }
+    } else {
+        for (const auto& object : page->objectsInRect(rect, 0.5))
+            if (object.type == pdf::PageObjectType::Text) textIndexes.append(object.index);
+    }
+    if (textIndexes.isEmpty()) {
+        QMessageBox::warning(this, tr("流式编辑"), tr("无法安全移除原文字对象。"));
+        return;
+    }
+    if (!page->removeObjects(textIndexes)) {
+        rollback();
+        QMessageBox::warning(this, tr("流式编辑"), tr("无法安全移除原文字对象。"));
+        return;
+    }
+    bool ok = true;
+    for (const pdf::ReflowLine& line : layout.lines) {
+        const bool linked = !linkedFrames.isEmpty();
+        const double baselineY = linked ? pageHeight - line.baseline.y()
+                                        : rect.bottom() - line.baseline.y();
+        const double baselineX = linked ? line.baseline.x() : rect.left() + line.baseline.x();
+        ok = page->addTextLayer(line.text, baselineX, baselineY,
+                                fontSize, Qt::black, 0.0, 1.0, style.family) && ok;
+    }
+    if (!ok) {
+        rollback();
+        QMessageBox::warning(this, tr("流式编辑"), tr("部分文字无法用当前字体写入，已恢复原页面。"));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(paragraph ? tr("已完成段落重排") : tr("已完成行内自动换行"));
 }
 
 void PdfView::searchReplaceDialog() {

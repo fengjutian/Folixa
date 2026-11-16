@@ -2942,6 +2942,44 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>无法安全地应用遮盖，文档没有修改。</source><translation>The redaction could not be applied safely. The document was not modified.</translation></message>
         <message><source>密文遮盖已烧入第 %1 页；请保存文档</source><translation>Redaction was burned into page %1. Save the document.</translation></message>
         <message><source>文档权限限制</source><translation>Document permission restriction</translation></message>
+        <message><source>编辑页面对象</source><translation>Edit page objects</translation></message>
+        <message><source>框选页面对象并移动、缩放、删除或修改文字属性</source><translation>Box-select page objects to move, scale, delete, or edit text properties</translation></message>
+        <message><source>编辑对象</source><translation>Edit objects</translation></message>
+        <message><source>先框选或选中页面对象。</source><translation>Select or box-select page objects first.</translation></message>
+        <message><source>请在页面上拖框选择一个或多个对象</source><translation>Drag a box on the page to select one or more objects</translation></message>
+        <message><source>选区内没有可编辑的页面对象。</source><translation>There are no editable page objects in the selection.</translation></message>
+        <message><source>移动</source><translation>Move</translation></message>
+        <message><source>缩放</source><translation>Scale</translation></message>
+        <message><source>删除</source><translation>Delete</translation></message>
+        <message><source>文字属性</source><translation>Text properties</translation></message>
+        <message><source>已选择 %1 个对象：</source><translation>%1 objects selected:</translation></message>
+        <message><source>移动对象</source><translation>Move objects</translation></message>
+        <message><source>水平移动（点）:</source><translation>Horizontal movement (points):</translation></message>
+        <message><source>垂直移动（点）:</source><translation>Vertical movement (points):</translation></message>
+        <message><source>缩放对象</source><translation>Scale objects</translation></message>
+        <message><source>缩放比例（%）:</source><translation>Scale (%):</translation></message>
+        <message><source>水平缩放（%）:</source><translation>Horizontal scale (%):</translation></message>
+        <message><source>垂直缩放（%）:</source><translation>Vertical scale (%):</translation></message>
+        <message><source>删除对象</source><translation>Delete objects</translation></message>
+        <message><source>永久删除选中的 %1 个页面对象？</source><translation>Permanently delete the selected %1 page objects?</translation></message>
+        <message><source>选区内没有文字对象。</source><translation>There are no text objects in the selection.</translation></message>
+        <message><source>字号:</source><translation>Font size:</translation></message>
+        <message><source>字体:</source><translation>Font:</translation></message>
+        <message><source>对齐方式:</source><translation>Alignment:</translation></message>
+        <message><source>左对齐</source><translation>Align left</translation></message>
+        <message><source>居中</source><translation>Center</translation></message>
+        <message><source>右对齐</source><translation>Align right</translation></message>
+        <message><source>两端对齐</source><translation>Justify</translation></message>
+        <message><source>文字颜色</source><translation>Text color</translation></message>
+        <message><source>页面对象没有修改。</source><translation>No page objects were modified.</translation></message>
+        <message><source>已修改 %1 个页面对象</source><translation>Modified %1 page objects</translation></message>
+        <message><source>流式编辑</source><translation>Reflow editing</translation></message>
+        <message><source>先选中要重排的文字。</source><translation>Select the text to reflow first.</translation></message>
+        <message><source>无法安全移除原文字对象。</source><translation>The original text objects could not be removed safely.</translation></message>
+        <message><source>无法创建页面安全备份，文档没有修改。</source><translation>Could not create a safe page backup. The document was not modified.</translation></message>
+        <message><source>部分文字无法用当前字体写入，已恢复原页面。</source><translation>Some text could not be written with the current font. The original page was restored.</translation></message>
+        <message><source>已完成段落重排</source><translation>Paragraph reflow completed</translation></message>
+        <message><source>已完成行内自动换行</source><translation>Inline wrapping completed</translation></message>
         <message><source>文档所有者已禁止“%1”。是否输入所有者密码，为本次会话解除限制？</source><translation>The document owner has prohibited “%1”. Enter the owner password to unlock it for this session?</translation></message>
         <message><source>解除权限限制</source><translation>Unlock permissions</translation></message>
         <message><source>请先保存当前修改，再输入所有者密码解除权限限制。</source><translation>Save the current changes before entering the owner password to unlock permissions.</translation></message>

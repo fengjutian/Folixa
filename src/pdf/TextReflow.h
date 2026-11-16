@@ -7,11 +7,14 @@
 
 namespace aipdf::pdf {
 
+enum class TextAlignment { Left, Center, Right, Justify };
+
 struct TextStyle {
     QString family = QStringLiteral("Helvetica");
     double fontSize = 12.0;
     QColor color = Qt::black;
     double lineHeight = 1.2;
+    TextAlignment alignment = TextAlignment::Left;
 };
 
 struct ReflowLine { QString text; QPointF baseline; double width = 0.0; };
@@ -21,6 +24,8 @@ class TextReflow final {
 public:
     static ReflowResult layoutLine(const QString& text, const QRectF& box, const TextStyle& style);
     static ReflowResult layoutParagraph(const QString& text, const QRectF& box, const TextStyle& style);
+    static ReflowResult layoutFrames(const QString& text, const QVector<QRectF>& frames,
+                                     const TextStyle& style);
 };
 
 }  // namespace aipdf::pdf

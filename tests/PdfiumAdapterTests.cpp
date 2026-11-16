@@ -73,6 +73,7 @@ private slots:
     void textReplacementSwapsContent();
     void textReplacementSupportsChinese();
     void textReplacementAllowsEmptyText();
+    void pageObjectsCanBeSelectedTransformedStyledAndRemoved();
     void redactionRasterizesAndRemovesTextLayer();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
@@ -84,6 +85,43 @@ private:
 
 void PdfiumAdapterTests::initTestCase() {
     hasEncryptedFixture_ = QFile::exists(fixturePath(QStringLiteral("encrypted.pdf")));
+}
+
+void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
+    using namespace aipdf::pdf;
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->addTextLayer(QStringLiteral("OBJECT"), 40, 40, 14, Qt::black));
+
+    const QRectF hitArea(35, 30, 120, 40);
+    QVector<PageObjectInfo> objects = page->objectsInRect(hitArea, 0.1);
+    auto match = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.type == PageObjectType::Text && info.bounds.intersects(QRectF(35, 30, 120, 40));
+    });
+    QVERIFY(match != objects.end());
+    const int index = match->index;
+    const QRectF before = match->bounds;
+    QVERIFY(page->transformObjects({index}, 12, 8, 1.25, 1.25));
+    objects = page->objectsInRect(before.adjusted(-5, -5, 80, 60), 0.01);
+    match = std::find_if(objects.begin(), objects.end(), [index](const PageObjectInfo& info) {
+        return info.index == index;
+    });
+    QVERIFY(match != objects.end());
+    QVERIFY(match->bounds.left() > before.left());
+    QVERIFY(match->bounds.width() > before.width());
+    QVERIFY(page->setTextObjectProperties({index}, QStringLiteral("Courier"), 20, QColor(Qt::red)));
+    objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    match = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.type == PageObjectType::Text && info.fontFamily.contains(QStringLiteral("Courier")) &&
+               info.fillColor.red() > 200 && info.fillColor.green() < 80;
+    });
+    QVERIFY(match != objects.end());
+    QVERIFY(page->removeObjects({match->index}));
+    const QByteArray bytes = opened.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+    QVERIFY(openDocumentFromBytes(bytes).document.isValid());
 }
 
 void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {

@@ -28,6 +28,7 @@ struct PageObjectInfo {
     PageObjectType type = PageObjectType::Unknown;
     QRectF bounds;
     double fontSize = 0.0;
+    QString fontFamily;
     QColor fillColor = Qt::black;
 };
 
@@ -87,8 +88,8 @@ public:
     bool transformObjects(const QVector<int>& indexes, double translateX, double translateY,
                           double scaleX = 1.0, double scaleY = 1.0);
     bool removeObjects(const QVector<int>& indexes);
-    bool setTextObjectProperties(const QVector<int>& indexes, double fontSize,
-                                 const QColor& color);
+    bool setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
+                                 double fontSize, const QColor& color);
 
     // 安全遮盖：把当前页以指定分辨率渲染，在像素层烧入黑块，然后删除原内容对象和
     // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。
@@ -96,7 +97,8 @@ public:
     bool redactByRasterizing(const QRectF& rectPoints, double scale = 2.0);
 
     bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
-                      const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0);
+                      const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0,
+                      const QString& fontFamily = QStringLiteral("Helvetica"));
 
     // 提取本页文本层。页面没有文本层时返回空值。
     //
