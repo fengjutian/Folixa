@@ -1839,6 +1839,55 @@
             <source>帮助</source>
             <translation>Help</translation>
         </message>
+        <message><source>产品</source><translation>Product</translation></message>
+        <message><source>无法打开链接</source><translation>Could Not Open Link</translation></message>
+        <message><source>无法调用系统浏览器，请手动访问：
+%1</source><translation>Could not launch the system browser. Open this address manually:
+%1</translation></message>
+        <message><source>命令行帮助</source><translation>Command-Line Help</translation></message>
+        <message><source>用法：
+  AiPdfEditor.exe [PDF 文件]
+
+示例：
+  AiPdfEditor.exe C:\Documents\example.pdf
+
+把 PDF 路径作为第一个参数传入，即可在启动时直接打开文档。</source><translation>Usage:
+  AiPdfEditor.exe [PDF file]
+
+Example:
+  AiPdfEditor.exe C:\Documents\example.pdf
+
+Pass a PDF path as the first argument to open the document at startup.</translation></message>
+        <message><source>无法打开设置</source><translation>Could Not Open Settings</translation></message>
+        <message><source>请在 Windows 设置中打开“应用 &gt; 默认应用”，然后为 .pdf 选择 Folixa。</source><translation>Open Apps &gt; Default apps in Windows Settings, then select Folixa for .pdf files.</translation></message>
+        <message><source>默认 PDF 阅读器</source><translation>Default PDF Reader</translation></message>
+        <message><source>请在系统设置中把 Folixa 设为 .pdf 文件的默认应用。</source><translation>Set Folixa as the default application for .pdf files in system settings.</translation></message>
+        <message><source>关于 Folixa</source><translation>About Folixa</translation></message>
+        <message><source>&lt;h3&gt;Folixa · AI PDF Editor %1&lt;/h3&gt;&lt;p&gt;原生、轻量的 PDF 阅读与编辑工具。&lt;/p&gt;&lt;p&gt;基于 Qt 6 与 PDFium 构建。&lt;/p&gt;&lt;p&gt;项目主页：&lt;a href="https://github.com/fengjutian/Folixa"&gt;github.com/fengjutian/Folixa&lt;/a&gt;&lt;/p&gt;</source><translation>&lt;h3&gt;Folixa · AI PDF Editor %1&lt;/h3&gt;&lt;p&gt;A native, lightweight PDF reader and editor.&lt;/p&gt;&lt;p&gt;Built with Qt 6 and PDFium.&lt;/p&gt;&lt;p&gt;Project: &lt;a href="https://github.com/fengjutian/Folixa"&gt;github.com/fengjutian/Folixa&lt;/a&gt;&lt;/p&gt;</translation></message>
+        <message><source>Folixa 用户手册</source><translation>Folixa User Guide</translation></message>
+        <message><source>&lt;h3&gt;快速开始&lt;/h3&gt;&lt;p&gt;&lt;b&gt;打开文档&lt;/b&gt;：使用“文件 &amp;gt; 打开”，把 PDF 拖入窗口，或在命令行中传入文件路径。&lt;/p&gt;&lt;p&gt;&lt;b&gt;阅读&lt;/b&gt;：在“主页”调整缩放和旋转；在“视图”切换连续、单页或双页布局。&lt;/p&gt;&lt;p&gt;&lt;b&gt;编辑&lt;/b&gt;：使用“编辑”“注释”“页面管理”和“表单”中的工具。修改后按 Ctrl+S 保存，或使用“另存为”保留原文件。&lt;/p&gt;&lt;p&gt;&lt;b&gt;搜索与 AI&lt;/b&gt;：左侧搜索面板用于全文查找；AI 助手只会在你主动操作时发送所选文档内容。&lt;/p&gt;&lt;p&gt;&lt;b&gt;获取帮助&lt;/b&gt;：遇到问题可打开“帮助中心”或“发表想法”。&lt;/p&gt;</source><translation>&lt;h3&gt;Quick Start&lt;/h3&gt;&lt;p&gt;&lt;b&gt;Open a document&lt;/b&gt;: choose File &amp;gt; Open, drag a PDF into the window, or pass its path on the command line.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Read&lt;/b&gt;: adjust zoom and rotation on Home; switch between continuous, single-page, and facing layouts on View.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Edit&lt;/b&gt;: use the tools on Edit, Comment, Page Management, and Form. Press Ctrl+S to save, or use Save As to preserve the original.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Search and AI&lt;/b&gt;: use the left search panel for full-text search. The AI assistant sends selected document content only when you explicitly request it.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Get help&lt;/b&gt;: open Help Center or Share Feedback when you encounter a problem.&lt;/p&gt;</translation></message>
+        <message><source>产品信息</source><translation>Product Information</translation></message>
+        <message><source>Folixa %1
+
+本地优先的原生 PDF 阅读与编辑器。
+支持阅读、批注、页面管理、表单、OCR、全文检索与 AI 辅助。
+
+Folixa 不需要购买或激活，也不提供付费订阅。</source><translation>Folixa %1
+
+A local-first, native PDF reader and editor.
+Supports reading, comments, page management, forms, OCR, full-text search, and AI assistance.
+
+Folixa requires no purchase or activation and offers no paid subscription.</translation></message>
+        <message><source>屏幕录制</source><translation>Screen Recording</translation></message>
+        <message><source>无法打开 Windows 游戏栏。请在“设置 &gt; 游戏 &gt; Xbox Game Bar”中启用它，或按 Win+Alt+R 开始录制。</source><translation>Could not open Windows Game Bar. Enable it under Settings &gt; Gaming &gt; Xbox Game Bar, or press Win+Alt+R to start recording.</translation></message>
+        <message><source>已打开 Windows 游戏栏；按 Win+Alt+R 开始或停止录制。</source><translation>Windows Game Bar is open. Press Win+Alt+R to start or stop recording.</translation></message>
+        <message><source>请使用系统自带的屏幕录制工具录制 Folixa 窗口。</source><translation>Use your system screen recorder to record the Folixa window.</translation></message>
+        <message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
+        <message><source>保存截图</source><translation>Save Screenshot</translation></message>
+        <message><source>PNG 图片 (*.png)</source><translation>PNG Image (*.png)</translation></message>
+        <message><source>截图无法写入所选位置。</source><translation>The screenshot could not be written to the selected location.</translation></message>
+        <message><source>截图已保存到 %1</source><translation>Screenshot saved to %1</translation></message>
+        <message><source>声音录制保存在声音批注中。</source><translation>Audio recordings are stored as sound annotations.</translation></message>
     </context>
     <context>
         <name>aipdf::app::OcrController</name>

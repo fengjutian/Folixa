@@ -77,6 +77,7 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QStackedWidget>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QScrollArea>
@@ -1554,15 +1555,78 @@ void MainWindow::buildUi() {
                      ":/icons/edit.svg", [this] { batchRenameDocuments(); }, true,
                      "documentManagement.batchRename");
     addDocumentManagementCommand(documentBatchGroup, "OFD 批量转换", "documentManagement.ofdConvert");
-    addPlaceholderTab("录制", {
-        {"录制", {"PDF 录制", "屏幕录制", "声音录制", "截图", "录制列表"}},
-    });
+    // 录制：复用 Windows 自带的录屏能力，声音直接写成 PDF 声音批注；
+    // 截图保存当前 Folixa 窗口，不把尚未实现的自有视频编码器伪装成可用功能。
+    const int recordTab = ribbonBar_->addTab(tr("录制"));
+    auto* recordGroup = ribbonBar_->addGroup(recordTab, tr("录制"));
+    const auto openScreenRecorder = [this] {
+#ifdef Q_OS_WIN
+        if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-gamingoverlay:")))) {
+            QMessageBox::warning(
+                this, tr("屏幕录制"),
+                tr("无法打开 Windows 游戏栏。请在“设置 > 游戏 > Xbox Game Bar”中启用它，"
+                   "或按 Win+Alt+R 开始录制。"));
+        } else {
+            statusBar()->showMessage(tr("已打开 Windows 游戏栏；按 Win+Alt+R 开始或停止录制。"),
+                                     8000);
+        }
+#else
+        QMessageBox::information(this, tr("屏幕录制"),
+                                 tr("请使用系统自带的屏幕录制工具录制 Folixa 窗口。"));
+#endif
+    };
+    addRibbonCommand(recordGroup, "PDF 录制", "放映当前 PDF，并打开系统录屏工具",
+                     ":/icons/book.svg", [this, openScreenRecorder] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        view->startPresentation();
+        openScreenRecorder();
+    }, true, "record.pdf");
+    addRibbonCommand(recordGroup, "屏幕录制", "使用 Windows 游戏栏录制 Folixa 窗口",
+                     ":/icons/convert.svg", openScreenRecorder, true, "record.screen");
+    addRibbonCommand(recordGroup, "声音录制", "录音并插入当前页声音批注",
+                     ":/icons/annotation.svg", [this] {
+        if (PdfView* view = currentView()) {
+            view->recordSoundAnnotationDialog();
+        } else {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        }
+    }, true, "record.audio");
+    addRibbonCommand(recordGroup, "截图", "把当前 Folixa 窗口保存为 PNG 图片",
+                     ":/icons/square.svg", [this] {
+        const QString suggested =
+            QDir(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation))
+                .filePath(QStringLiteral("Folixa-%1.png")
+                              .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss")));
+        const QString path = QFileDialog::getSaveFileName(
+            this, tr("保存截图"), suggested, tr("PNG 图片 (*.png)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        if (!grab().save(path, "PNG")) {
+            QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
+            return;
+        }
+        statusBar()->showMessage(tr("截图已保存到 %1").arg(QDir::toNativeSeparators(path)), 8000);
+    }, true, "record.screenshot");
+    addRibbonCommand(recordGroup, "录制列表", "在批注面板中查看声音录制",
+                     ":/icons/annotation.svg", [this] {
+        if (currentView() == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        navigationDock_->setVisible(true);
+        showNavigationPage(4);
+        statusBar()->showMessage(tr("声音录制保存在声音批注中。"), 5000);
+    }, true, "record.list");
     // 帮助页不能继续使用整页占位按钮：这些入口不依赖 PDF 编辑能力，应该在
     // 离线安装包里也能给出明确、可执行的结果。商业版的「立即购买 / 激活」不属于
     // 本项目，刻意不创建按钮（而不是创建后禁用），避免误导用户。
     const int helpTab = ribbonBar_->addTab(tr("帮助"));
     auto* helpGroup = ribbonBar_->addGroup(helpTab, tr("帮助"));
-    const QUrl projectUrl(QStringLiteral("https://github.com/fengjutian/Folixa"));
     auto openHelpUrl = [this](const QUrl& url) {
         if (!QDesktopServices::openUrl(url)) {
             QMessageBox::warning(this, tr("无法打开链接"),
@@ -1571,11 +1635,29 @@ void MainWindow::buildUi() {
         }
     };
     addRibbonCommand(helpGroup, "用户手册", "打开 Folixa 用户手册", ":/icons/book.svg",
-                     [openHelpUrl, projectUrl] { openHelpUrl(projectUrl); }, true,
-                     "help.userManual");
+                     [this] {
+                         QMessageBox manual(this);
+                         manual.setWindowTitle(tr("Folixa 用户手册"));
+                         manual.setIcon(QMessageBox::Information);
+                         manual.setTextFormat(Qt::RichText);
+                         manual.setText(tr(
+                             "<h3>快速开始</h3>"
+                             "<p><b>打开文档</b>：使用“文件 &gt; 打开”，把 PDF 拖入窗口，"
+                             "或在命令行中传入文件路径。</p>"
+                             "<p><b>阅读</b>：在“主页”调整缩放和旋转；在“视图”切换"
+                             "连续、单页或双页布局。</p>"
+                             "<p><b>编辑</b>：使用“编辑”“注释”“页面管理”和“表单”"
+                             "中的工具。修改后按 Ctrl+S 保存，或使用“另存为”保留原文件。</p>"
+                             "<p><b>搜索与 AI</b>：左侧搜索面板用于全文查找；AI 助手只会在"
+                             "你主动操作时发送所选文档内容。</p>"
+                             "<p><b>获取帮助</b>：遇到问题可打开“帮助中心”或“发表想法”。</p>"));
+                         manual.setStandardButtons(QMessageBox::Close);
+                         manual.exec();
+                     }, true, "help.userManual");
     addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/tools.svg",
-                     [openHelpUrl, projectUrl] {
-                         openHelpUrl(projectUrl.resolved(QUrl(QStringLiteral("/fengjutian/Folixa/wiki"))));
+                     [openHelpUrl] {
+                         openHelpUrl(QUrl(QStringLiteral(
+                             "https://github.com/fengjutian/Folixa/issues")));
                      }, true, "help.center");
     addRibbonCommand(helpGroup, "命令行帮助", "查看命令行用法", ":/icons/note.svg", [this] {
         QMessageBox::information(
@@ -1583,7 +1665,7 @@ void MainWindow::buildUi() {
             tr("用法：\n"
                "  AiPdfEditor.exe [PDF 文件]\n\n"
                "示例：\n"
-               "  AiPdfEditor.exe C:\\\\Documents\\\\example.pdf\n\n"
+               "  AiPdfEditor.exe C:\\Documents\\example.pdf\n\n"
                "把 PDF 路径作为第一个参数传入，即可在启动时直接打开文档。"));
     }, true, "help.commandLine");
     addRibbonCommand(helpGroup, "发表想法", "提交建议或问题", ":/icons/send.svg",
@@ -1592,9 +1674,9 @@ void MainWindow::buildUi() {
                              "https://github.com/fengjutian/Folixa/issues/new/choose")));
                      }, true, "help.feedback");
     addRibbonCommand(helpGroup, "在线教程", "查看构建与使用教程", ":/icons/book.svg",
-                     [openHelpUrl, projectUrl] {
-                         openHelpUrl(projectUrl.resolved(QUrl(QStringLiteral(
-                             "/fengjutian/Folixa/blob/main/README.md"))));
+                     [openHelpUrl] {
+                         openHelpUrl(QUrl(QStringLiteral(
+                             "https://github.com/fengjutian/Folixa/blob/main/README.md")));
                      }, true, "help.tutorial");
     addRibbonCommand(helpGroup, "插件管理", "Folixa 当前不支持第三方插件",
                      ":/icons/tools.svg", [] {}, false, "help.plugins");
@@ -1628,8 +1710,15 @@ void MainWindow::buildUi() {
 
     auto* productGroup = ribbonBar_->addGroup(helpTab, tr("产品"));
     addRibbonCommand(productGroup, "产品信息", "查看 Folixa 产品信息", ":/icons/note.svg",
-                     [openHelpUrl, projectUrl] { openHelpUrl(projectUrl); }, true,
-                     "help.productInfo");
+                     [this] {
+                         QMessageBox::information(
+                             this, tr("产品信息"),
+                             tr("Folixa %1\n\n"
+                                "本地优先的原生 PDF 阅读与编辑器。\n"
+                                "支持阅读、批注、页面管理、表单、OCR、全文检索与 AI 辅助。\n\n"
+                                "Folixa 不需要购买或激活，也不提供付费订阅。")
+                                 .arg(QCoreApplication::applicationVersion()));
+                     }, true, "help.productInfo");
     addRibbonCommand(productGroup, "订阅", "Folixa 当前不提供付费订阅",
                      ":/icons/note.svg", [] {}, false, "help.subscription");
 
