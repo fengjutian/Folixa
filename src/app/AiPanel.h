@@ -12,6 +12,7 @@
 #include <QWidget>
 
 class QButtonGroup;
+class QJsonArray;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -74,6 +75,8 @@ public:
 
     // 把焦点放到输入框（欢迎页的「开始聊天」按钮用）。
     void focusPrompt();
+    // 清空多轮历史并回到当前文档的欢迎状态。
+    void startNewConversation();
 
     // 范围。
     Scope scope() const;
@@ -131,6 +134,10 @@ private:
     QString currentPageText() const;
     QString currentSelection() const;
     void appendMessage(const QString& html);
+    // 把已完成的多轮对话放进下一次模型请求；文档材料仍只属于当前轮。
+    void appendConversationHistory(QJsonArray& messages) const;
+    void commitPendingTurn();
+    QString retrievalQuestion(const QString& question) const;
     void setBusy(bool busy);
     void refreshProviderStatus();
     // 把正文里的 [n] 变成可点击的引用链接。
@@ -164,6 +171,7 @@ private:
     QPushButton* explainButton_ = nullptr;
     QPushButton* translateButton_ = nullptr;
     QPushButton* settingsButton_ = nullptr;
+    QPushButton* newChatButton_ = nullptr;
     QPushButton* scopePageButton_ = nullptr;
     QPushButton* scopeDocumentButton_ = nullptr;
     QButtonGroup* scopeGroup_ = nullptr;
@@ -215,6 +223,11 @@ private:
     bool documentQaActive_ = false;
     // Worker 在不在：Worker 掉线后不能把「发送」按钮点亮。
     bool workerReady_ = false;
+
+    // 只保存完成的 user/assistant 对；失败或取消的半轮不会污染后续上下文。
+    // 历史使用用户的自然语言问题，不重复保存每轮附带的整页材料。
+    QVector<ai::ChatMessage> conversationHistory_;
+    QString pendingUserTurn_;
 };
 
 }  // namespace aipdf::app

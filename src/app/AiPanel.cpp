@@ -57,6 +57,8 @@ void trace(const QString& message) {
 // 送整页已经够模型回答了；再多的内容对当前这四个任务没有帮助，
 // 只会让用户多花钱。超出就截断，并说明截断了。
 constexpr int kMaximumMaterialCharacters = 4000;
+constexpr int kMaximumHistoryMessages = 12;
+constexpr int kMaximumHistoryCharacters = 12000;
 
 QString formatCost(double cost) {
     if (cost <= 0.0) {
@@ -101,8 +103,13 @@ void AiPanel::buildUi() {
     settingsButton_->setObjectName(QStringLiteral("aiSettingsButton"));
     texts_.bind([this] { settingsButton_->setText(tr("设置")); });
     texts_.bind([this] { settingsButton_->setToolTip(tr("设置服务商与 API 密钥")); });
+    newChatButton_ = new QPushButton(QString(), this);
+    newChatButton_->setObjectName(QStringLiteral("aiNewChatButton"));
+    texts_.bind([this] { newChatButton_->setText(tr("新对话")); });
+    texts_.bind([this] { newChatButton_->setToolTip(tr("清空当前对话历史")); });
     titleRow->addWidget(title);
     titleRow->addStretch(1);
+    titleRow->addWidget(newChatButton_);
     titleRow->addWidget(settingsButton_);
     headerLayout->addLayout(titleRow);
     headerLayout->addWidget(subtitle);
@@ -263,6 +270,7 @@ void AiPanel::buildUi() {
     });
     connect(cancelButton_, &QPushButton::clicked, this, &AiPanel::cancelRequest);
     connect(settingsButton_, &QPushButton::clicked, this, &AiPanel::openSettings);
+    connect(newChatButton_, &QPushButton::clicked, this, &AiPanel::startNewConversation);
     connect(prompt_, &QLineEdit::returnPressed, this, [this]() {
         requestAsk(prompt_->text());
     });
@@ -384,6 +392,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     if (documentQaActive_) {
                         finishDocumentQa();
                     }
+                    commitPendingTurn();
                     setBusy(false);
                     // 收完后才把「正在生成…」换成费用行；顺序反了会停在进度文案上。
                     refreshUsageLabel();
@@ -395,6 +404,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     trace(QStringLiteral("ai error code=%1")
                               .arg(payload.value("code").toString()));
                     documentQaActive_ = false;
+                    pendingUserTurn_.clear();
                     setBusy(false);
                     return;
                 }
@@ -402,6 +412,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     appendMessage(tr("<i>（已停止）</i>"));
                     trace(QStringLiteral("ai cancelled"));
                     documentQaActive_ = false;
+                    pendingUserTurn_.clear();
                     setBusy(false);
                     return;
                 }
@@ -444,6 +455,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     return;
                 }
                 appendMessage(tr("<b>错误：</b>") + message.toHtmlEscaped());
+                pendingUserTurn_.clear();
                 setBusy(false);
             });
 }
@@ -452,10 +464,14 @@ void AiPanel::setTextSource(TextController* controller) {
     if (textController_ == controller) {
         return;
     }
+    const bool switchingDocument = textController_ != nullptr;
     if (textController_ != nullptr) {
         disconnect(textController_, nullptr, this, nullptr);
     }
     textController_ = controller;
+    if (switchingDocument) {
+        startNewConversation();
+    }
     if (textController_ != nullptr) {
         // 文本层到了：之前等着要发的任务可以发了。
         connect(textController_, &TextController::textPageReady, this,
@@ -598,7 +614,10 @@ void AiPanel::sendDocumentQa(const QString& question) {
     }
 
     // 检索：关键词 + 向量，RRF 融合。
-    const QVector<ai::ContextBlock> context = qaController_->retrieve(question, 6);
+    // 把最近的问题并入检索词，使“继续解释上一点”这类省略主语的追问
+    // 仍能召回上一轮相关的文档块；真正显示给用户和模型的当前问题保持原样。
+    const QVector<ai::ContextBlock> context =
+        qaController_->retrieve(retrievalQuestion(question), 6);
     if (context.isEmpty()) {
         appendMessage(tr("<b>提示：</b>没有检索到相关材料，换个说法再问试试。"));
         trace(QStringLiteral("ai qa skipped reason=no_hits"));
@@ -641,6 +660,7 @@ void AiPanel::sendDocumentQa(const QString& question) {
     system.insert(QStringLiteral("role"), QStringLiteral("system"));
     system.insert(QStringLiteral("content"), ai::qaSystemPrompt());
     messages.append(system);
+    appendConversationHistory(messages);
     QJsonObject user;
     user.insert(QStringLiteral("role"), QStringLiteral("user"));
     user.insert(QStringLiteral("content"),
@@ -666,6 +686,7 @@ void AiPanel::sendDocumentQa(const QString& question) {
     payload.insert(QStringLiteral("context"), contextArray);
 
     lastAnswer_.clear();
+    pendingUserTurn_ = question;
     lastCitationReport_ = doc::CitationReport();
     citationStatusVisible_ = false;
     citationStatusLabel_->clear();
@@ -826,6 +847,7 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     system.insert(QStringLiteral("role"), QStringLiteral("system"));
     system.insert(QStringLiteral("content"), ai::systemPromptForTask(task));
     messages.append(system);
+    appendConversationHistory(messages);
     QJsonObject user;
     user.insert(QStringLiteral("role"), QStringLiteral("user"));
     user.insert(QStringLiteral("content"),
@@ -843,6 +865,15 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     prompt_->clear();
 
     lastAnswer_.clear();
+    if (!question.trimmed().isEmpty()) {
+        pendingUserTurn_ = question.trimmed();
+    } else if (task == QLatin1String("summary")) {
+        pendingUserTurn_ = tr("请总结第 %1 页的要点").arg(currentPage_ + 1);
+    } else if (task == QLatin1String("explain")) {
+        pendingUserTurn_ = tr("请解释我选中的内容");
+    } else if (task == QLatin1String("translate")) {
+        pendingUserTurn_ = tr("请翻译我选中的内容");
+    }
     answerCursor_ = conversation_->textCursor();
     answerCursor_.movePosition(QTextCursor::End);
     conversationStarted_ = true;
@@ -865,6 +896,31 @@ void AiPanel::focusPrompt() {
     if (prompt_ != nullptr) {
         prompt_->setFocus();
     }
+}
+
+void AiPanel::startNewConversation() {
+    if (busy_) {
+        cancelRequest();
+        // 新会话不接收上一轮迟到的流事件；requestId 不再匹配后会被忽略。
+        setBusy(false);
+    }
+    documentQaActive_ = false;
+    conversationHistory_.clear();
+    pendingUserTurn_.clear();
+    lastAnswer_.clear();
+    qaContext_.clear();
+    lastCitationReport_ = doc::CitationReport();
+    citationStatusVisible_ = false;
+    citationList_->clear();
+    citationList_->setVisible(false);
+    citationStatusLabel_->clear();
+    usageKnown_ = false;
+    usageLabel_->clear();
+    conversationStarted_ = false;
+    conversation_->clear();
+    // 欢迎内容由常驻文案绑定生成；这样切换语言后仍只有一套文案来源。
+    retranslateUi();
+    focusPrompt();
 }
 
 void AiPanel::openSettings() {
@@ -1045,6 +1101,60 @@ void AiPanel::appendMessage(const QString& html) {
     conversation_->append(html);
     conversation_->verticalScrollBar()->setValue(
         conversation_->verticalScrollBar()->maximum());
+}
+
+void AiPanel::appendConversationHistory(QJsonArray& messages) const {
+    for (const ai::ChatMessage& turn : conversationHistory_) {
+        QJsonObject message;
+        message.insert(QStringLiteral("role"), turn.roleName());
+        message.insert(QStringLiteral("content"), turn.content);
+        messages.append(message);
+    }
+}
+
+void AiPanel::commitPendingTurn() {
+    const QString user = pendingUserTurn_.trimmed();
+    const QString assistant = lastAnswer_.trimmed();
+    pendingUserTurn_.clear();
+    if (user.isEmpty() || assistant.isEmpty()) {
+        return;
+    }
+
+    conversationHistory_.append(ai::ChatMessage::user(user));
+    conversationHistory_.append(ai::ChatMessage::assistant(assistant));
+
+    // 同时限制轮数和字符数。始终成对删除，避免历史从一条孤立的 assistant 开始。
+    auto historyCharacters = [this]() {
+        int total = 0;
+        for (const ai::ChatMessage& message : conversationHistory_) {
+            total += message.content.size();
+        }
+        return total;
+    };
+    while (conversationHistory_.size() > kMaximumHistoryMessages ||
+           historyCharacters() > kMaximumHistoryCharacters) {
+        if (!conversationHistory_.isEmpty()) {
+            conversationHistory_.removeFirst();
+        }
+        if (!conversationHistory_.isEmpty()) {
+            conversationHistory_.removeFirst();
+        }
+    }
+}
+
+QString AiPanel::retrievalQuestion(const QString& question) const {
+    QStringList parts;
+    int userTurns = 0;
+    for (int index = conversationHistory_.size() - 1; index >= 0 && userTurns < 3; --index) {
+        const ai::ChatMessage& message = conversationHistory_.at(index);
+        if (message.role != ai::ChatMessage::Role::User) {
+            continue;
+        }
+        parts.prepend(message.content.left(300));
+        ++userTurns;
+    }
+    parts.append(question.trimmed());
+    return parts.join(QLatin1Char('\n'));
 }
 
 QString AiPanel::providerDisplayName() const {
