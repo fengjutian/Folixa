@@ -896,13 +896,13 @@ void MainWindow::buildUi() {
     auto* exportGroup = ribbonBar_->addGroup(fileTab, tr("导出"));
     addRibbonCommand(exportGroup, "打印", "打印当前文档", ":/icons/book.svg", [this] {
         if (auto* view = currentView()) { view->printDocument(); }
-    });
+    }, true, "permission.print");
     addRibbonCommand(exportGroup, "图片", "把页面导出为图片", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->exportPageImages(); }
-    });
+    }, true, "permission.exportImages");
     addRibbonCommand(exportGroup, "文本", "导出纯文本", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->exportPlainText(); }
-    });
+    }, true, "permission.exportText");
 
     const int homeTab = ribbonBar_->addTab(tr("主页"));
     auto* zoomGroup = ribbonBar_->addGroup(homeTab, tr("显示"));
@@ -996,17 +996,17 @@ void MainWindow::buildUi() {
     const int pageTab = ribbonBar_->addTab(tr("页面管理"));
     auto* pageGroup = ribbonBar_->addGroup(pageTab, tr("页面"));
     addRibbonCommand(pageGroup, "插入", "在当前页后插入空白页", ":/icons/page-insert.svg",
-                     [this] { insertBlankPage(); });
+                     [this] { insertBlankPage(); }, true, "permission.pageInsert");
     addRibbonCommand(pageGroup, "删除", "删除当前页", ":/icons/page-delete.svg",
-                     [this] { deleteCurrentPage(); });
+                     [this] { deleteCurrentPage(); }, true, "permission.pageDelete");
     addRibbonCommand(pageGroup, "左旋", "向左旋转页面", ":/icons/rotate-left.svg",
-                     [this] { rotateCurrentPageLeft(); });
+                     [this] { rotateCurrentPageLeft(); }, true, "permission.pageRotateLeft");
     addRibbonCommand(pageGroup, "右旋", "向右旋转页面", ":/icons/rotate-right.svg",
-                     [this] { rotateCurrentPageRight(); });
+                     [this] { rotateCurrentPageRight(); }, true, "permission.pageRotateRight");
     addRibbonCommand(pageGroup, "上移", "当前页上移", ":/icons/move-up.svg",
-                     [this] { moveCurrentPageUp(); });
+                     [this] { moveCurrentPageUp(); }, true, "permission.pageMoveUp");
     addRibbonCommand(pageGroup, "下移", "当前页下移", ":/icons/move-down.svg",
-                     [this] { moveCurrentPageDown(); });
+                     [this] { moveCurrentPageDown(); }, true, "permission.pageMoveDown");
     addRibbonCommand(pageGroup, "复制页", "复制当前页", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->duplicateCurrentPage(); }
     }, true, "ribbonDuplicate");

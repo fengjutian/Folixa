@@ -2941,6 +2941,19 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>遮盖会永久删除该页原始内容，并把整页转换为 144 DPI 位图。该页将失去文本搜索和内容编辑能力，操作不可在保存后恢复。继续吗？</source><translation>Redaction permanently removes the original page content and converts the whole page to a 144 DPI bitmap. Text search and content editing will no longer work on this page, and the operation cannot be recovered after saving. Continue?</translation></message>
         <message><source>无法安全地应用遮盖，文档没有修改。</source><translation>The redaction could not be applied safely. The document was not modified.</translation></message>
         <message><source>密文遮盖已烧入第 %1 页；请保存文档</source><translation>Redaction was burned into page %1. Save the document.</translation></message>
+        <message><source>文档权限限制</source><translation>Document permission restriction</translation></message>
+        <message><source>文档所有者已禁止“%1”。请输入所有者密码解除限制，或联系文档所有者。</source><translation>The document owner has prohibited “%1”. Enter the owner password to remove the restriction, or contact the document owner.</translation></message>
+        <message><source>操作被文档权限阻止：%1</source><translation>Operation blocked by document permissions: %1</translation></message>
+        <message><source>复制内容</source><translation>Copy content</translation></message>
+        <message><source>填写表单</source><translation>Fill forms</translation></message>
+        <message><source>扁平化表单</source><translation>Flatten forms</translation></message>
+        <message><source>合并页面</source><translation>Merge pages</translation></message>
+        <message><source>抽取页面</source><translation>Extract pages</translation></message>
+        <message><source>添加批注</source><translation>Add annotation</translation></message>
+        <message><source>删除页面</source><translation>Delete page</translation></message>
+        <message><source>旋转页面</source><translation>Rotate page</translation></message>
+        <message><source>移动页面</source><translation>Move page</translation></message>
+        <message><source>导出页面图片</source><translation>Export page images</translation></message>
     </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>

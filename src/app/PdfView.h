@@ -134,6 +134,8 @@ public slots:
 
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;
+    pdf::DocumentPermissions effectivePermissions() const;
+    bool unlockPermissionsWithOwnerPassword();
     void configureEncryptionDialog();
     void sanitizeHiddenData();
     void redactSelection();
@@ -228,6 +230,7 @@ public:
     void showIndexedChunk(int pageIndex, const QString& chunkId);
 
 signals:
+    void permissionsChanged();
     void zoomChanged(double factor);
     void pageCountChanged(int pages);
     void currentPageChanged(int index);
@@ -363,6 +366,7 @@ private:
     // 保存时的加密设置（v1.6.0）。encryptionEnabled_ 为假时按明文保存。
     pdf::PdfEncryptionOptions encryptionOptions_;
     bool encryptionEnabled_ = false;
+    bool ownerPermissionsUnlocked_ = false;
     QByteArray pendingSignatureImage_;
     QString pendingSignatureName_;
     // 一次设定、长期显示的界面文案：切换语言时就地重译。

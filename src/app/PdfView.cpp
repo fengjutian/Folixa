@@ -799,6 +799,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
 
     document_ = std::move(document);
     filePath_ = path;
+    ownerPermissionsUnlocked_ = false;
     pageCount_ = document_.isValid() ? document_.pageCount() : 0;
     // 换文档就把历史清掉：旧页码对新文档没有意义，留着只会在后退时跳到无关位置。
     history_.reset(ViewState{});
@@ -814,6 +815,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     fitToPage_ = false;
     cache_.clear();
     modified_ = false;
+    emit permissionsChanged();
 
     // XFA 表单：PDFium 没有 XFA 引擎，页面会是空白的。必须当面说清楚，
     // 不能让用户以为文件坏了（F6）。
@@ -1472,16 +1474,18 @@ void PdfView::rotateLeft() {
 
 bool PdfView::requirePermission(bool allowed, const QString& action) {
     if (allowed) return true;
-    QMessageBox::warning(this, tr("文档权限限制"),
-                         tr("文档所有者已禁止“%1”。请输入所有者密码解除限制，或联系文档所有者。")
-                             .arg(action));
+    const auto choice = QMessageBox::question(
+        this, tr("文档权限限制"),
+        tr("文档所有者已禁止“%1”。是否输入所有者密码，为本次会话解除限制？").arg(action),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    if (choice == QMessageBox::Yes && unlockPermissionsWithOwnerPassword()) return true;
     emit statusMessage(tr("操作被文档权限阻止：%1").arg(action));
     trace(QStringLiteral("permission denied action=%1").arg(action));
     return false;
 }
 
 void PdfView::copySelection() {
-    if (!requirePermission(document_.permissions().allowCopying, tr("复制内容"))) return;
+    if (!requirePermission(effectivePermissions().allowCopying, tr("复制内容"))) return;
     if (!textController_) {
         return;
     }
@@ -1726,6 +1730,58 @@ void PdfView::applyPageNumbersDialog() {
 
 bool PdfView::encryptionEnabled() const {
     return encryptionEnabled_;
+}
+
+pdf::DocumentPermissions PdfView::effectivePermissions() const {
+    pdf::DocumentPermissions permissions = document_.permissions();
+    if (ownerPermissionsUnlocked_) {
+        permissions.allowPrinting = true;
+        permissions.allowHighQualityPrinting = true;
+        permissions.allowCopying = true;
+        permissions.allowAccessibility = true;
+        permissions.allowAnnotations = true;
+        permissions.allowFormFilling = true;
+        permissions.allowAssembly = true;
+        permissions.allowModifying = true;
+    }
+    return permissions;
+}
+
+bool PdfView::unlockPermissionsWithOwnerPassword() {
+    if (!document_.isValid() || !document_.permissions().encrypted || ownerPermissionsUnlocked_)
+        return true;
+    if (modified_) {
+        QMessageBox::information(this, tr("解除权限限制"),
+                                 tr("请先保存当前修改，再输入所有者密码解除权限限制。"));
+        return false;
+    }
+    bool accepted = false;
+    const QString password = QInputDialog::getText(
+        this, tr("所有者密码"), tr("输入 PDF 所有者密码："), QLineEdit::Password,
+        QString(), &accepted);
+    if (!accepted) return false;
+    QFile file(filePath_);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("解除权限限制"), tr("无法读取原始 PDF。"));
+        return false;
+    }
+    const QByteArray bytes = file.readAll();
+    QString error;
+    if (!pdf::verifyOwnerPassword(bytes, password, &error)) {
+        QMessageBox::warning(this, tr("所有者密码无效"), error);
+        return false;
+    }
+    pdf::PdfOpenResult reopened = pdf::openDocumentFromBytes(bytes, filePath_, password);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("解除权限限制"), reopened.errorMessage);
+        return false;
+    }
+    setDocument(std::move(reopened.document), filePath_);
+    ownerPermissionsUnlocked_ = true;
+    emit permissionsChanged();
+    emit statusMessage(tr("已使用所有者密码解除本次会话的权限限制"));
+    trace(QStringLiteral("permissions unlocked by owner password"));
+    return true;
 }
 
 void PdfView::configureEncryptionDialog() {
@@ -2316,7 +2372,7 @@ QVector<pdf::FormField> PdfView::formFields() const {
 }
 
 bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QString& value) {
-    if (!requirePermission(document_.permissions().allowFormFilling, tr("填写表单"))) return false;
+    if (!requirePermission(effectivePermissions().allowFormFilling, tr("填写表单"))) return false;
     if (!document_.setFormFieldValue(pageIndex, name, value)) {
         return false;
     }
@@ -2336,7 +2392,7 @@ bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QStrin
 }
 
 bool PdfView::flattenFormsOnPage(int pageIndex) {
-    if (!requirePermission(document_.permissions().allowModifying, tr("扁平化表单"))) return false;
+    if (!requirePermission(effectivePermissions().allowModifying, tr("扁平化表单"))) return false;
     if (!document_.flattenPage(pageIndex)) {
         return false;
     }
@@ -2355,7 +2411,7 @@ bool PdfView::flattenFormsOnPage(int pageIndex) {
 }
 
 void PdfView::createFormFieldDialog(const QString& kind) {
-    if (!requirePermission(document_.permissions().allowModifying, tr("创建表单域"))) return;
+    if (!requirePermission(effectivePermissions().allowModifying, tr("创建表单域"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("创建表单域"), tr("请先打开一份 PDF。"));
         return;
@@ -2531,7 +2587,7 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
 }
 
 void PdfView::mergeDocumentDialog() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("合并页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("合并页面"))) return;
     trace(QStringLiteral("document merge dialog"));
     if (!document_.isValid()) {
         return;
@@ -2558,7 +2614,7 @@ void PdfView::mergeDocumentDialog() {
 }
 
 void PdfView::extractCurrentPageDialog() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("抽取页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("抽取页面"))) return;
     trace(QStringLiteral("page extract dialog"));
     if (!document_.isValid()) {
         return;
@@ -3083,7 +3139,7 @@ void PdfView::setToolBarsVisible(bool visible) {
 }
 
 void PdfView::activateAnnotationTool(const QString& id) {
-    if (!requirePermission(document_.permissions().allowAnnotations, tr("添加批注"))) return;
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("添加批注"))) return;
     if (canvas_ != nullptr) canvas_->setFormFieldPlacementKind(QString());
     if (id != QStringLiteral("imagestamp")) {
         pendingSignatureImage_.clear();
@@ -3342,7 +3398,7 @@ double PdfView::fitZoomForPage() const {
 // --------------------------------------------------- 页面管理（v0.8.0）----
 
 void PdfView::insertBlankPageAfterCurrent() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("插入页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("插入页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3365,7 +3421,7 @@ void PdfView::insertBlankPageAfterCurrent() {
 }
 
 void PdfView::deleteCurrentPage() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("删除页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("删除页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3386,7 +3442,7 @@ void PdfView::deleteCurrentPage() {
 }
 
 void PdfView::rotateCurrentPageRight() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("旋转页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("旋转页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3403,7 +3459,7 @@ void PdfView::rotateCurrentPageRight() {
 }
 
 void PdfView::rotateCurrentPageLeft() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("旋转页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("旋转页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3420,7 +3476,7 @@ void PdfView::rotateCurrentPageLeft() {
 }
 
 void PdfView::moveCurrentPageUp() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("移动页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("移动页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3437,7 +3493,7 @@ void PdfView::moveCurrentPageUp() {
 }
 
 void PdfView::moveCurrentPageDown() {
-    if (!requirePermission(document_.permissions().allowAssembly, tr("移动页面"))) return;
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("移动页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3527,7 +3583,7 @@ bool PdfView::isModified() const {
 // ------------------------------------------------------------ 打印与导出 ----
 
 void PdfView::printDocument() {
-    if (!requirePermission(document_.permissions().allowPrinting, tr("打印"))) return;
+    if (!requirePermission(effectivePermissions().allowPrinting, tr("打印"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("打印"), tr("先打开一份 PDF。"));
         return;
@@ -3563,7 +3619,7 @@ void PdfView::printDocument() {
 }
 
 void PdfView::exportPageImages() {
-    if (!requirePermission(document_.permissions().allowCopying, tr("导出页面图片"))) return;
+    if (!requirePermission(effectivePermissions().allowCopying, tr("导出页面图片"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("导出图片"), tr("先打开一份 PDF。"));
         return;
@@ -3588,7 +3644,7 @@ void PdfView::exportPageImages() {
 }
 
 void PdfView::exportPlainText() {
-    if (!requirePermission(document_.permissions().allowCopying, tr("导出文本"))) return;
+    if (!requirePermission(effectivePermissions().allowCopying, tr("导出文本"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("导出文本"), tr("先打开一份 PDF。"));
         return;

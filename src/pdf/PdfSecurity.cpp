@@ -195,6 +195,38 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
 #endif
 }
 
+bool verifyOwnerPassword(const QByteArray& input, const QString& password, QString* error) {
+    if (input.isEmpty() || password.isEmpty()) {
+        if (error != nullptr) *error = toLocal(QStringLiteral("所有者密码不能为空"));
+        return false;
+    }
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        const QByteArray utf8 = password.toUtf8();
+        pdf.processMemoryFile("owner-check.pdf", input.constData(),
+                              static_cast<size_t>(input.size()), utf8.constData());
+        if (!pdf.isEncrypted()) {
+            if (error != nullptr) *error = toLocal(QStringLiteral("文档没有加密"));
+            return false;
+        }
+        if (!pdf.ownerPasswordMatched()) {
+            if (error != nullptr) *error = toLocal(QStringLiteral("密码可以打开文档，但不是所有者密码"));
+            return false;
+        }
+        return true;
+    } catch (const std::exception& exception) {
+        if (error != nullptr) *error = toLocal(QString::fromUtf8(exception.what()));
+        return false;
+    }
+#else
+    Q_UNUSED(input);
+    Q_UNUSED(password);
+    if (error != nullptr) *error = missingQpdfError();
+    return false;
+#endif
+}
+
 bool inspectEncryption(const QByteArray& input,
                        const QString& password,
                        int* revision,

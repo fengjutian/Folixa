@@ -59,4 +59,9 @@ bool inspectEncryption(const QByteArray& input,
 // 结果由 qpdf 完整重写，失败时返回空数组，绝不回退成“原样保存却声称已清理”。
 QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr);
 
+// 用 qpdf 区分用户密码和所有者密码。仅“能打开”不足以解除权限限制。
+bool verifyOwnerPassword(const QByteArray& input,
+                         const QString& password,
+                         QString* error = nullptr);
+
 }  // namespace aipdf::pdf

@@ -116,6 +116,7 @@ private:
     void moveCurrentPageDown();
     // 更新页面管理按钮的可用状态。
     void updatePageActionState();
+    void updatePermissionActionState();
     // ---------------------------------------------------------- 保存 ----
     void saveDocument();
     void saveDocumentAs();
