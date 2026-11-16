@@ -2193,6 +2193,18 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>已设置替代文本</source>
             <translation>Alternative text set</translation>
         </message>
+        <message>
+            <source>已经是本级的最后一个了</source>
+            <translation>It is already the last one at this level</translation>
+        </message>
+        <message>
+            <source>已经是本级的第一个了</source>
+            <translation>It is already the first one at this level</translation>
+        </message>
+        <message>
+            <source>朗读</source>
+            <translation>Read aloud</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -3523,6 +3535,296 @@ Write them into the document?</translation>
         <message>
             <source>以下内容按页面上的视觉顺序排列（多栏与表格已按位置重排），可用于人工核对屏幕阅读器的阅读次序。</source>
             <translation>The text below is in visual order on the page (multi-column and table layouts are reordered by position); use it to check a screen reader's reading order.</translation>
+        </message>
+        <message>
+            <source>%1 已完成</source>
+            <translation>%1 completed</translation>
+        </message>
+        <message>
+            <source>「%1」：%2</source>
+            <translation>"%1": %2</translation>
+        </message>
+        <message>
+            <source>为避免旋转坐标误判，请先把该页旋转回 0° 再执行。</source>
+            <translation>To avoid misjudging rotated coordinates, rotate the page back to 0° first.</translation>
+        </message>
+        <message>
+            <source>以下规则没有生效：
+%1</source>
+            <translation>The following rules did not take effect:
+%1</translation>
+        </message>
+        <message>
+            <source>删除选中规则</source>
+            <translation>Delete selected rules</translation>
+        </message>
+        <message>
+            <source>可疑的词</source>
+            <translation>Suspicious word</translation>
+        </message>
+        <message>
+            <source>处理失败，文档没有修改。</source>
+            <translation>Processing failed; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>处理方式:</source>
+            <translation>Processing method:</translation>
+        </message>
+        <message>
+            <source>密文处理</source>
+            <translation>Redaction</translation>
+        </message>
+        <message>
+            <source>应用密文</source>
+            <translation>Apply redaction</translation>
+        </message>
+        <message>
+            <source>应用密文（整页位图化，文字层全部消失，页面失去搜索与编辑能力）</source>
+            <translation>Apply redaction (the whole page becomes a bitmap, the text layer disappears and the page loses search and editing)</translation>
+        </message>
+        <message>
+            <source>建议</source>
+            <translation>Suggestions</translation>
+        </message>
+        <message>
+            <source>开始替换</source>
+            <translation>Start replacing</translation>
+        </message>
+        <message>
+            <source>开始朗读</source>
+            <translation>Starting to read aloud</translation>
+        </message>
+        <message>
+            <source>批量替换</source>
+            <translation>Batch replace</translation>
+        </message>
+        <message>
+            <source>批量替换完成：共改了 %1 处</source>
+            <translation>Batch replace finished: %1 replacements in total</translation>
+        </message>
+        <message>
+            <source>拼写检查</source>
+            <translation>Spell check</translation>
+        </message>
+        <message>
+            <source>擦除</source>
+            <translation>Erase</translation>
+        </message>
+        <message>
+            <source>擦除（删掉该区域的对象，页面其余部分仍是矢量文字）</source>
+            <translation>Erase (objects in the area are removed; the rest of the page stays vector text)</translation>
+        </message>
+        <message>
+            <source>替换为</source>
+            <translation>Replace with</translation>
+        </message>
+        <message>
+            <source>替换失败，文档没有修改。</source>
+            <translation>Replacement failed; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>替换结果无法重新打开，文档没有修改：%1</source>
+            <translation>The replacement result cannot be reopened; the document was not modified: %1</translation>
+        </message>
+        <message>
+            <source>朗读</source>
+            <translation>Read aloud</translation>
+        </message>
+        <message>
+            <source>朗读失败：%1</source>
+            <translation>Reading failed: %1</translation>
+        </message>
+        <message>
+            <source>朗读结束</source>
+            <translation>Finished reading aloud</translation>
+        </message>
+        <message>
+            <source>查找</source>
+            <translation>Find</translation>
+        </message>
+        <message>
+            <source>标记为密文</source>
+            <translation>Mark as redacted</translation>
+        </message>
+        <message>
+            <source>标记为密文（只盖黑块，原文仍在文件里，文字层照样能搜到）</source>
+            <translation>Mark as redacted (draws a black box only; the original text is still in the file and can still be found)</translation>
+        </message>
+        <message>
+            <source>检查范围:</source>
+            <translation>Check range:</translation>
+        </message>
+        <message>
+            <source>正在提取文本，请稍候</source>
+            <translation>Extracting text, please wait</translation>
+        </message>
+        <message>
+            <source>正在朗读：%1</source>
+            <translation>Reading: %1</translation>
+        </message>
+        <message>
+            <source>没有可执行的替换规则。</source>
+            <translation>There are no replacement rules to run.</translation>
+        </message>
+        <message>
+            <source>添加规则</source>
+            <translation>Add rule</translation>
+        </message>
+        <message>
+            <source>系统没有可用的语音：%1</source>
+            <translation>No voice is available on this system: %1</translation>
+        </message>
+        <message>
+            <source>请先选中要处理的文字区域。</source>
+            <translation>Select the text area to process first.</translation>
+        </message>
+        <message>
+            <source>这一页没有可朗读的文字。</source>
+            <translation>There is no readable text on this page.</translation>
+        </message>
+        <message>
+            <source>选区无效，文档没有修改。</source>
+            <translation>The selection is invalid; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>马赛克</source>
+            <translation>Mosaic</translation>
+        </message>
+        <message>
+            <source>马赛克（把区域像素化，文字层里读不到该区域）</source>
+            <translation>Mosaic (pixelates the area; the text layer can no longer read it)</translation>
+        </message>
+        <message>
+            <source>全字匹配</source>
+            <translation>Whole word match</translation>
+        </message>
+        <message>
+            <source>区分大小写</source>
+            <translation>Case sensitive</translation>
+        </message>
+        <message>
+            <source>正则</source>
+            <translation>Regular expression</translation>
+        </message>
+        <message>
+            <source>签名列表</source>
+            <translation>Signature list</translation>
+        </message>
+        <message>
+            <source>签名域</source>
+            <translation>Signature field</translation>
+        </message>
+        <message>
+            <source>签署人</source>
+            <translation>Signer</translation>
+        </message>
+        <message>
+            <source>签署时间</source>
+            <translation>Signing time</translation>
+        </message>
+        <message>
+            <source>算法</source>
+            <translation>Algorithm</translation>
+        </message>
+        <message>
+            <source>覆盖检查</source>
+            <translation>Coverage check</translation>
+        </message>
+        <message>
+            <source>证书链</source>
+            <translation>Certificate chain</translation>
+        </message>
+        <message>
+            <source>主体</source>
+            <translation>Subject</translation>
+        </message>
+        <message>
+            <source>签发者</source>
+            <translation>Issuer</translation>
+        </message>
+        <message>
+            <source>序列号</source>
+            <translation>Serial number</translation>
+        </message>
+        <message>
+            <source>SHA-1 指纹</source>
+            <translation>SHA-1 thumbprint</translation>
+        </message>
+        <message>
+            <source>生效</source>
+            <translation>Valid from</translation>
+        </message>
+        <message>
+            <source>失效</source>
+            <translation>Valid to</translation>
+        </message>
+        <message>
+            <source>状态</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <source>受信任</source>
+            <translation>Trusted</translation>
+        </message>
+        <message>
+            <source>自签（不受系统信任）</source>
+            <translation>Self-signed (not trusted by the system)</translation>
+        </message>
+        <message>
+            <source>不受系统信任</source>
+            <translation>Not trusted by the system</translation>
+        </message>
+        <message>
+            <source>覆盖完整</source>
+            <translation>Coverage is complete</translation>
+        </message>
+        <message>
+            <source>覆盖不完整</source>
+            <translation>Coverage is incomplete</translation>
+        </message>
+        <message>
+            <source>签名域：%1</source>
+            <translation>Signature field: %1</translation>
+        </message>
+        <message>
+            <source>签署人：%1</source>
+            <translation>Signer: %1</translation>
+        </message>
+        <message>
+            <source>签署时间：%1</source>
+            <translation>Signing time: %1</translation>
+        </message>
+        <message>
+            <source>签名理由：%1</source>
+            <translation>Signing reason: %1</translation>
+        </message>
+        <message>
+            <source>算法：%1</source>
+            <translation>Algorithm: %1</translation>
+        </message>
+        <message>
+            <source>覆盖区间：</source>
+            <translation>Covered ranges:</translation>
+        </message>
+        <message>
+            <source>从第 %1 字节起共 %2 字节</source>
+            <translation>%2 bytes starting at byte %1</translation>
+        </message>
+        <message>
+            <source>这个版本没有启用签名解析（构建时没有 qpdf）。</source>
+            <translation>This build does not include signature inspection (qpdf was not enabled at build time).</translation>
+        </message>
+        <message>
+            <source>这份文档里没有数字签名。</source>
+            <translation>This document has no digital signature.</translation>
+        </message>
+        <message>
+            <source>覆盖检查：%1</source>
+            <translation>Coverage check: %1</translation>
+        </message>
+        <message>
+            <source>（没有读到覆盖区间）</source>
+            <translation>(no covered range was read)</translation>
         </message>
 </context>
     <context>

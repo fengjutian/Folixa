@@ -76,8 +76,10 @@ QByteArray buildTextPdf(const QStringList& pages) {
     const int count = objects.size() + 1;
     out += QStringLiteral("xref\n0 %1\n0000000000 65535 f \n").arg(count).toLatin1();
     for (int id = 1; id < count; ++id) {
-        out += QStringLiteral("%1 00000 n \n")
-                   .arg(offsets.value(id, 0), 10, QLatin1Char('0'))
+        // xref 里的偏移必须是定长十进制：QString::arg 的重载太多，
+        // 这里用 number() + rightJustified() 写死格式，免得踩到 base 的坑。
+        out += (QString::number(offsets.value(id, 0)).rightJustified(10, QLatin1Char('0')) +
+                QStringLiteral(" 00000 n \n"))
                    .toLatin1();
     }
     out += QStringLiteral("trailer\n<< /Size %1 /Root 1 0 R >>\nstartxref\n%2\n%%%%EOF\n")
@@ -173,9 +175,11 @@ void BatchReplaceTests::singleRuleReplacesEveryOccurrence() {
 void BatchReplaceTests::caseSensitivityControlsMatching() {
     const QByteArray source = buildTextPdf({QStringLiteral("Cat cat CAT")});
 
+    ReplaceRule sensitiveRule = literalRule(QStringLiteral("cat"), QStringLiteral("dog"));
+    sensitiveRule.caseSensitive = true;
     BatchReplaceResult sensitive;
     const QByteArray sensitiveOutput = aipdf::pdf::applyBatchReplace(
-        source, {literalRule(QStringLiteral("cat"), QStringLiteral("dog"))}, {}, &sensitive, nullptr);
+        source, {sensitiveRule}, {}, &sensitive, nullptr);
     QVERIFY(!sensitiveOutput.isEmpty());
     QCOMPARE(sensitive.replacements, 1);
     QCOMPARE(pageText(sensitiveOutput, 0), QStringLiteral("Cat dog CAT"));

@@ -113,8 +113,11 @@ int applyLiteralRule(const ReplaceRule& rule, const QString& input, QString* out
         if (index < 0) break;
         const int end = index + rule.find.size();
         if (rule.wholeWord && !hasWholeWordBoundary(input, index, end)) {
-            // 不是完整单词：从下一个位置继续找，不能整段跳过。
-            pos = index + 1;
+            // 不是完整单词：这一段原文原样留下，继续找下一个候选。
+            // 注意这里必须把跳过的原文拷回去——只挪动 pos 会把中间的字符弄丢。
+            result += input.mid(pos, index - pos);
+            result += input.mid(index, rule.find.size());
+            pos = end;
             continue;
         }
         const QString matched = input.mid(index, rule.find.size());
@@ -145,7 +148,10 @@ int applyRegexRule(const ReplaceRule& rule, const QRegularExpression& regex, con
             continue;
         }
         if (rule.wholeWord && !hasWholeWordBoundary(input, start, start + length)) {
-            pos = start + 1;
+            // 不是完整单词：这一段原文原样留下，继续找下一个候选。
+            result += input.mid(pos, start - pos);
+            result += input.mid(start, length);
+            pos = start + length;
             continue;
         }
         const QString expanded = expandReplacementTemplate(rule.replace, match);

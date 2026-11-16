@@ -1105,6 +1105,14 @@ void MainWindow::buildUi() {
                      [this] {
         if (auto* view = currentView()) { view->showDocumentStatisticsDialog(); }
     }, true, "view.wordCount");
+    auto* speechGroup = ribbonBar_->addGroup(viewTab, tr("朗读"));
+    addRibbonCommand(speechGroup, "朗读", "逐词朗读当前页，并在页面上高亮正在读的那个词",
+                     ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->speakCurrentPage(); }
+    }, true, "view.readAloud");
+    addRibbonCommand(speechGroup, "停止朗读", "停止朗读并清除高亮", ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->stopSpeaking(); }
+    }, true, "view.stopReadAloud");
 
     const int protectTab = ribbonBar_->addTab(tr("保护"));
     auto* securityGroup = ribbonBar_->addGroup(protectTab, tr("文档安全"));
@@ -1119,6 +1127,10 @@ void MainWindow::buildUi() {
                      ":/icons/protect.svg", [this] {
         if (auto* view = currentView()) view->redactSelection();
     }, true, "ribbonRedaction");
+    addRibbonCommand(securityGroup, "密文处理", "对选区做标记、马赛克、擦除或应用密文",
+                     ":/icons/protect.svg", [this] {
+        if (auto* view = currentView()) view->redactionModeDialog();
+    }, true, "ribbonRedactionModes");
 
     const int aiTab = ribbonBar_->addTab(tr("AI 助手"));
     auto* aiGroup = ribbonBar_->addGroup(aiTab, tr("对话"));
@@ -1286,14 +1298,17 @@ void MainWindow::buildUi() {
     }, true, "edit.paragraphReflow");
 
     auto* textEditGroup = ribbonBar_->addGroup(contentEditTab, tr("文本工具"));
-    addUnavailableEditCommand(textEditGroup, "拼写检查");
+    addRibbonCommand(textEditGroup, "拼写检查", "列出当前页或整篇里可疑的拼写并给出建议",
+                     ":/icons/proofread.svg", [this] {
+        if (auto* view = currentView()) { view->spellCheckDialog(); }
+    }, true, "edit.spellCheck");
     addRibbonCommand(textEditGroup, "搜索替换", "替换当前页或整个文档中的文字", ":/icons/search.svg",
                      [this] {
         if (auto* view = currentView()) { view->searchReplaceDialog(); }
     }, true, "edit.search");
-    addRibbonCommand(textEditGroup, "批量替换", "在当前页或整个文档中批量替换",
+    addRibbonCommand(textEditGroup, "批量替换", "按规则表批量替换多条内容，规则按顺序依次生效",
                      ":/icons/search.svg", [this] {
-        if (auto* view = currentView()) { view->searchReplaceDialog(); }
+        if (auto* view = currentView()) { view->batchReplaceDialog(); }
     }, true, "edit.replaceAll");
 
     auto* insertEditGroup = ribbonBar_->addGroup(contentEditTab, tr("插入"));
@@ -1500,6 +1515,10 @@ void MainWindow::buildUi() {
     addRibbonCommand(certificateGroup, "验证签名", "验证签名完整性、证书链、时间戳和文档改动",
                      ":/icons/search.svg", [this] { verifyDigitalSignatures(); }, true,
                      "signature.verify");
+    addRibbonCommand(certificateGroup, "签名列表", "列出文档里的数字签名与证书链",
+                     ":/icons/protect.svg", [this] {
+        if (auto* view = currentView()) { view->showSignatureListDialog(); }
+    }, true, "signature.list");
     auto* sealGroup = ribbonBar_->addGroup(signatureTab, tr("签章"));
     addRibbonCommand(sealGroup, "管理签章", "导入、手写或删除本地签章", ":/icons/annotation.svg",
                      [this] { SignatureDialog(false, this).exec(); }, true, "signature.manage");
@@ -4636,39 +4655,45 @@ void MainWindow::deleteSelectedBookmark() {
     statusBar()->showMessage(tr("已删除书签"), 3000);
 }
 
-std::vector<int> MainWindow::selectedBookmarkPath(PdfView* view,
-                                                   std::vector<pdf::OutlineItem>* outline) {
-    const int row = bookmarkList_ != nullptr ? bookmarkList_->currentRow() : -1;
-    if (view == nullptr || row < 0) {
+// 取当前选中的书签：行号、整棵大纲与它在大纲树里的路径。
+//
+// 为什么三样都要：树操作用的是**摊平行号**（和界面上的行一一对应），
+// 而「升级」要知道父节点是谁、该插到哪，所以还要路径。
+// 注意树一改行号就变，所以新行号要在改完之后按规则重新算。
+bool MainWindow::currentBookmarkContext(std::vector<pdf::OutlineItem>* outline,
+                                        int* row,
+                                        std::vector<int>* path) {
+    PdfView* view = currentView();
+    const int selected = bookmarkList_ != nullptr ? bookmarkList_->currentRow() : -1;
+    if (view == nullptr || selected < 0) {
         QMessageBox::information(this, tr("书签"), tr("请先在书签面板中选择一个书签。"));
-        return {};
+        return false;
     }
     *outline = view->outline();
-    std::vector<int> path;
-    if (!pdf::OutlineEditor::pathAt(outline, row, &path)) {
+    if (!pdf::OutlineEditor::pathAt(*outline, selected, path)) {
         QMessageBox::information(this, tr("书签"), tr("选中的书签已经不在文档里了。"));
-        return {};
+        return false;
     }
-    return path;
+    *row = selected;
+    return true;
 }
 
 // 书签在同级里换位。
 //
-// 为什么必须走"路径"而不是行号：行号是摊平后的位置，
-// 两个同名条目可能一个在顶层、一个在别人下面，按行号改会改错对象。
+// 为什么只允许同级换位：把子节点提到父节点前面会破坏树，
+// 界面上的拖拽也只允许同层移动，所以这里跟界面的语义保持一致。
 void MainWindow::moveBookmarkUp() {
     PdfView* view = currentView();
     std::vector<pdf::OutlineItem> outline;
-    std::vector<int> path = selectedBookmarkPath(view, &outline);
-    if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
-    if (level == nullptr) return;
-    const int index = path.back();
-    if (index <= 0) {
-        statusBar()->showMessage(tr("已经是第一个了"), 3000);
+    std::vector<int> path;
+    int row = -1;
+    if (!currentBookmarkContext(&outline, &row, &path)) {
         return;
     }
-    if (!pdf::OutlineEditor::moveUp(&outline, row)) return;
+    if (!pdf::OutlineEditor::moveUp(&outline, row)) {
+        statusBar()->showMessage(tr("已经是本级的第一个了"), 3000);
+        return;
+    }
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4676,7 +4701,8 @@ void MainWindow::moveBookmarkUp() {
     }
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, path));
+        // 同级上移一位：摊平行号正好减一（兄弟在摊平序列里是紧挨着的）。
+        bookmarkList_->setCurrentRow(row - 1);
     }
     statusBar()->showMessage(tr("书签已上移"), 3000);
 }
@@ -4684,16 +4710,15 @@ void MainWindow::moveBookmarkUp() {
 void MainWindow::moveBookmarkDown() {
     PdfView* view = currentView();
     std::vector<pdf::OutlineItem> outline;
-    std::vector<int> path = selectedBookmarkPath(view, &outline);
-    if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
-    if (level == nullptr) return;
-    const int index = path.back();
-    if (index + 1 >= static_cast<int>(level->size())) {
-        statusBar()->showMessage(tr("已经是最后一个了"), 3000);
+    std::vector<int> path;
+    int row = -1;
+    if (!currentBookmarkContext(&outline, &row, &path)) {
         return;
     }
-    if (!pdf::OutlineEditor::moveDown(&outline, row)) return;
+    if (!pdf::OutlineEditor::moveDown(&outline, row)) {
+        statusBar()->showMessage(tr("已经是本级的最后一个了"), 3000);
+        return;
+    }
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
@@ -4701,68 +4726,71 @@ void MainWindow::moveBookmarkDown() {
     }
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, path));
+        bookmarkList_->setCurrentRow(row + 1);
     }
     statusBar()->showMessage(tr("书签已下移"), 3000);
 }
 
 // 降级：把书签变成前一个兄弟的子节点。
+//
+// 为什么降级后行号不变：摊平序列是「先父后子、深度优先」，
+// 前一个兄弟的整棵子树本来就紧挨着这个书签；把它挂到那个兄弟底下，
+// 它仍然是那一串里的下一个，摊平行号一动不动。
 void MainWindow::indentBookmark() {
     PdfView* view = currentView();
     std::vector<pdf::OutlineItem> outline;
-    std::vector<int> path = selectedBookmarkPath(view, &outline);
-    if (path.empty()) return;
-    std::vector<pdf::OutlineItem>* level = pdf::OutlineEditor::containerAt(&outline, path);
-    if (level == nullptr) return;
-    const int index = path.back();
-    if (index <= 0) {
+    std::vector<int> path;
+    int row = -1;
+    if (!currentBookmarkContext(&outline, &row, &path)) {
+        return;
+    }
+    if (!pdf::OutlineEditor::indent(&outline, row)) {
         statusBar()->showMessage(tr("前面没有可以当父级的书签"), 3000);
         return;
     }
-    if (!pdf::OutlineEditor::indent(&outline, row)) return;
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
         return;
     }
-    // 变成子节点后路径也变了：父级是前一个兄弟，自己是新路径的最后一位。
-    std::vector<int> newPath(path.begin(), path.end() - 1);
-    newPath.push_back(index - 1);
-    newPath.push_back(static_cast<int>((*level)[index - 1].children.size()) - 1);
     refreshOutline(view);
     if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, newPath));
+        bookmarkList_->setCurrentRow(row);
     }
     statusBar()->showMessage(tr("书签已降级"), 3000);
 }
 
-// 升级：把书签从父节点里挪出来，变成父节点自己的兄弟。
+// 升级：把书签从父节点里挪出来，变成父节点自己的兄弟（插在父节点后面）。
+//
+// 为什么新行号是「父节点的行号 + 1」：升级后它紧跟在父节点后面，
+// 排在父节点原有的其它孩子之前。
 void MainWindow::outdentBookmark() {
     PdfView* view = currentView();
     std::vector<pdf::OutlineItem> outline;
-    std::vector<int> path = selectedBookmarkPath(view, &outline);
-    if (path.empty()) return;
+    std::vector<int> path;
+    int row = -1;
+    if (!currentBookmarkContext(&outline, &row, &path)) {
+        return;
+    }
     if (path.size() < 2) {
         statusBar()->showMessage(tr("这个书签已经是顶层了"), 3000);
         return;
     }
+    // 父节点的摊平行号要在改结构**之前**算好：改完之后原来的路径就失效了。
     std::vector<int> parentPath(path.begin(), path.end() - 1);
-    std::vector<pdf::OutlineItem>* grand = pdf::OutlineEditor::containerAt(&outline, parentPath);
-    if (grand == nullptr) return;
-    const int parentIndex = parentPath.back();
-    if (parentIndex < 0 || parentIndex >= static_cast<int>(grand->size())) return;
-    const int itemIndex = path.back();
-    if (!pdf::OutlineEditor::outdent(&outline, row)) return;
+    const int parentRow = pdf::OutlineEditor::rowOfPath(&outline, parentPath);
+    if (!pdf::OutlineEditor::outdent(&outline, row)) {
+        statusBar()->showMessage(tr("这个书签已经是顶层了"), 3000);
+        return;
+    }
     QString error;
     if (!view->replaceOutline(outline, &error)) {
         QMessageBox::warning(this, tr("书签"), error);
         return;
     }
-    std::vector<int> newPath(parentPath);
-    newPath.push_back(parentIndex + 1);
     refreshOutline(view);
-    if (bookmarkList_ != nullptr) {
-        bookmarkList_->setCurrentRow(pdf::OutlineEditor::rowOfPath(&outline, newPath));
+    if (bookmarkList_ != nullptr && parentRow >= 0) {
+        bookmarkList_->setCurrentRow(parentRow + 1);
     }
     statusBar()->showMessage(tr("书签已升级"), 3000);
 }

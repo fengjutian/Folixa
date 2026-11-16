@@ -1,4 +1,4 @@
-﻿#include "app/PdfView.h"
+#include "app/PdfView.h"
 
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
@@ -13,8 +13,13 @@
 #include "pdf/FormData.h"
 #include "pdf/FormFieldWriter.h"
 #include "pdf/FormToolSettings.h"
+#include "pdf/BatchReplace.h"
 #include "pdf/OutlineGenerator.h"
 #include "pdf/PageSplitPlanner.h"
+#include "pdf/Redaction.h"
+#include "pdf/SignatureInspector.h"
+#include "pdf/SpellChecker.h"
+#include "speech/SpeechEngine.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
@@ -23,6 +28,7 @@
 #include "app/PageCanvas.h"
 #include "app/RenderThread.h"
 #include "app/TextController.h"
+#include "app/TextLayout.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/IndexController.h"
@@ -39,6 +45,7 @@
 #include "pdf/ContentStream.h"
 
 #include <QColorDialog>
+#include <QComboBox>
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QBuffer>
@@ -268,6 +275,47 @@ void trace(const QString& message) {
 
 PdfView::PdfView(QWidget* parent) : QWidget(parent), cache_(kCacheBytes) {
     buildUi();
+
+    // 朗读引擎：自己起子进程合成语音，逐词回报「读到哪个词了」。
+    speechEngine_ = std::make_unique<speech::SpeechEngine>(this);
+    connect(speechEngine_.get(), &speech::SpeechEngine::wordStarted, this,
+            [this](int index, const QString& word) {
+        if (speechPage_ < 0 || index < 0 || index >= speechWords_.size()) {
+            return;
+        }
+        const speech::SpeechWord& current = speechWords_.at(index);
+        // 词的偏移在整页文本里，要换算回阅读顺序区间才能拿到高亮矩形。
+        int firstOrder = -1;
+        int lastOrder = -1;
+        for (int unit = current.start; unit < current.start + current.length; ++unit) {
+            if (unit < 0 || unit >= pageOrderPerUnit_.size()) {
+                continue;
+            }
+            const int order = pageOrderPerUnit_.at(unit);
+            if (firstOrder < 0) {
+                firstOrder = order;
+            }
+            lastOrder = order;
+        }
+        if (firstOrder >= 0 && lastOrder >= firstOrder && textController_ != nullptr) {
+            const TextLayout* layout = textController_->layout(speechPage_);
+            if (layout != nullptr) {
+                canvas_->setSpeechHighlight(speechPage_,
+                                            layout->highlightRects(firstOrder, lastOrder + 1));
+            }
+        }
+        emit statusMessage(tr("正在朗读：%1").arg(word));
+    });
+    connect(speechEngine_.get(), &speech::SpeechEngine::finished, this, [this]() {
+        canvas_->setSpeechHighlight(-1, QVector<QRectF>());
+        speechPage_ = -1;
+        emit statusMessage(tr("朗读结束"));
+    });
+    connect(speechEngine_.get(), &speech::SpeechEngine::failed, this, [this](const QString& message) {
+        canvas_->setSpeechHighlight(-1, QVector<QRectF>());
+        speechPage_ = -1;
+        emit statusMessage(tr("朗读失败：%1").arg(message));
+    });
 
     // 切换语言后所有登记过的文案就地重译：不重建视图，文档与滚动位置都留着。
     connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
@@ -1124,8 +1172,14 @@ void PdfView::setupControllers() {
     connect(textController_.get(), &TextController::searchFinished, this, [this](bool) {
         canvas_->viewport()->update();
     });
-    connect(textController_.get(), &TextController::textPageReady, this, [this](int) {
+    connect(textController_.get(), &TextController::textPageReady, this, [this](int pageIndex) {
         canvas_->viewport()->update();
+        // 文本层是后台提取的：用户点的朗读可能要等它提取完才开得起来。
+        if (pendingSpeechPage_ >= 0 && pendingSpeechPage_ == pageIndex) {
+            const int waiting = pendingSpeechPage_;
+            pendingSpeechPage_ = -1;
+            startSpeechOnPage(waiting);
+        }
     });
 
     // 导航控制器同样自己持有一份独立句柄，在后台线程取大纲与链接。
@@ -5428,6 +5482,618 @@ void PdfView::setModified(bool modified) {
     }
     modified_ = modified;
     emit modifiedChanged(modified_);
+}
+
+
+// --------------------------------------------------- 朗读（系统语音合成）----
+//
+// 为什么朗读要自己算阅读顺序：PDFium 给的字符顺序是内容流顺序，
+// 多栏、表格、图注混排时读出来是乱序。朗读必须按视觉顺序走，
+// 所以这里用 TextController 排好的阅读顺序，而不是原始字符顺序。
+
+void PdfView::speakCurrentPage() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    if (!speech::SpeechEngine::isSupported()) {
+        QMessageBox::information(this, tr("朗读"),
+                                 tr("系统没有可用的语音：%1")
+                                     .arg(speechEngine_->unavailableReason()));
+        return;
+    }
+    const int pageIndex = currentPage();
+    if (!textController_->hasTextPage(pageIndex)) {
+        // 文本层是后台提取的：先排队，提取完再读。
+        pendingSpeechPage_ = pageIndex;
+        textController_->requestTextPage(pageIndex);
+        emit statusMessage(tr("正在提取文本，请稍候"));
+        return;
+    }
+    startSpeechOnPage(pageIndex);
+}
+
+void PdfView::stopSpeaking() {
+    pendingSpeechPage_ = -1;
+    if (speechEngine_ != nullptr) {
+        speechEngine_->stop();
+    }
+    canvas_->setSpeechHighlight(-1, QVector<QRectF>());
+    speechPage_ = -1;
+}
+
+bool PdfView::collectPageText(int pageIndex) {
+    pageText_.clear();
+    pageOrderPerUnit_.clear();
+    if (textController_ == nullptr) {
+        return false;
+    }
+    const TextLayout* layout = textController_->layout(pageIndex);
+    if (layout == nullptr || layout->isEmpty()) {
+        return false;
+    }
+    const QVector<int>& order = layout->readingOrder();
+    const QVector<LayoutChar>& chars = layout->chars();
+    for (int position = 0; position < order.size(); ++position) {
+        const int source = order.at(position);
+        if (source < 0 || source >= chars.size()) {
+            continue;
+        }
+        const QString& piece = chars.at(source).text;
+        if (piece.isEmpty()) {
+            continue;
+        }
+        pageText_ += piece;
+        // 一个字符可能不止一个 UTF-16 码元：按实际长度记，别想当然当成 1。
+        for (int unit = 0; unit < piece.size(); ++unit) {
+            pageOrderPerUnit_.append(position);
+        }
+    }
+    return !pageText_.isEmpty();
+}
+
+void PdfView::startSpeechOnPage(int pageIndex) {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    if (!collectPageText(pageIndex)) {
+        QMessageBox::information(this, tr("朗读"), tr("这一页没有可朗读的文字。"));
+        return;
+    }
+    speechWords_ = speech::splitIntoWords(pageText_);
+    if (speechWords_.isEmpty()) {
+        QMessageBox::information(this, tr("朗读"), tr("这一页没有可朗读的文字。"));
+        return;
+    }
+    speechPage_ = pageIndex;
+    emit statusMessage(tr("开始朗读"));
+    speechEngine_->speak(pageText_);
+}
+
+
+// ------------------------------------------ 批量替换 / 拼写 / 密文处理 ----
+
+// 批量替换：一次改多条规则，规则按表里的顺序依次生效。
+//
+// 为什么做成一张规则表而不是一问一答：一条一条问没法表达
+// 「先把 A 换成 B，再把 B 换成 C」这种顺序语义，
+// 用户也没法在执行前看到整批要做什么。
+void PdfView::batchReplaceDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("批量替换"));
+    dialog.resize(760, 460);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* scopeRow = new QHBoxLayout;
+    scopeRow->addWidget(new QLabel(tr("替换范围:"), &dialog));
+    auto* scopeBox = new QComboBox(&dialog);
+    scopeBox->setObjectName(QStringLiteral("batchReplace.scope"));
+    scopeBox->addItem(tr("整个文档"));
+    scopeBox->addItem(tr("当前页"));
+    scopeRow->addWidget(scopeBox);
+    scopeRow->addStretch(1);
+    layout->addLayout(scopeRow);
+
+    auto* table = new QTableWidget(0, 5, &dialog);
+    table->setObjectName(QStringLiteral("batchReplace.rules"));
+    table->setHorizontalHeaderLabels({tr("查找"), tr("替换为"), tr("区分大小写"), tr("全字匹配"), tr("正则")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layout->addWidget(table);
+
+    auto* addRule = new QPushButton(tr("添加规则"), &dialog);
+    addRule->setObjectName(QStringLiteral("batchReplace.addRule"));
+    auto* removeRule = new QPushButton(tr("删除选中规则"), &dialog);
+    removeRule->setObjectName(QStringLiteral("batchReplace.removeRule"));
+    auto* ruleButtons = new QHBoxLayout;
+    ruleButtons->addWidget(addRule);
+    ruleButtons->addWidget(removeRule);
+    ruleButtons->addStretch(1);
+    layout->addLayout(ruleButtons);
+
+    // 规则行：前三列是文本，后三列是勾选框。
+    // 勾选框放在单元格里而不是用文字列，是为了让「区分大小写 / 全字 / 正则」
+    // 一眼能看出是开关，不用猜。
+    auto addRuleRow = [&table, &dialog](const QString& find, const QString& replace) {
+        const int row = table->rowCount();
+        table->insertRow(row);
+        table->setItem(row, 0, new QTableWidgetItem(find));
+        table->setItem(row, 1, new QTableWidgetItem(replace));
+        for (int column = 2; column < 5; ++column) {
+            auto* box = new QCheckBox(&dialog);
+            box->setObjectName(QStringLiteral("batchReplace.rule%1.%2").arg(row).arg(column));
+            table->setCellWidget(row, column, box);
+        }
+    };
+    addRuleRow(QString(), QString());
+
+    connect(addRule, &QPushButton::clicked, &dialog, [&addRuleRow] {
+        addRuleRow(QString(), QString());
+    });
+    connect(removeRule, &QPushButton::clicked, &dialog, [&table] {
+        const QList<QModelIndex> rows = table->selectionModel()->selectedRows();
+        for (int i = rows.size() - 1; i >= 0; --i) {
+            table->removeRow(rows.at(i).row());
+        }
+    });
+
+    auto* dialogButtons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    dialogButtons->button(QDialogButtonBox::Ok)->setText(tr("开始替换"));
+    layout->addWidget(dialogButtons);
+    connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QVector<pdf::ReplaceRule> rules;
+    for (int row = 0; row < table->rowCount(); ++row) {
+        const QTableWidgetItem* findItem = table->item(row, 0);
+        const QTableWidgetItem* replaceItem = table->item(row, 1);
+        if (findItem == nullptr || findItem->text().isEmpty()) {
+            // 查找内容为空的规则直接丢掉：它本来就不可能命中任何东西。
+            continue;
+        }
+        pdf::ReplaceRule rule;
+        rule.find = findItem->text();
+        rule.replace = replaceItem != nullptr ? replaceItem->text() : QString();
+        for (int column = 2; column < 5; ++column) {
+            auto* box = qobject_cast<QCheckBox*>(table->cellWidget(row, column));
+            if (box == nullptr) {
+                continue;
+            }
+            if (column == 2) {
+                rule.caseSensitive = box->isChecked();
+            } else if (column == 3) {
+                rule.wholeWord = box->isChecked();
+            } else {
+                rule.regex = box->isChecked();
+            }
+        }
+        rules.append(rule);
+    }
+    if (rules.isEmpty()) {
+        QMessageBox::information(this, tr("批量替换"), tr("没有可执行的替换规则。"));
+        return;
+    }
+
+    pdf::BatchReplaceOptions options;
+    if (scopeBox->currentIndex() == 1) {
+        options.pageIndexes.append(currentPage());
+    }
+
+    QString serializeError;
+    const QByteArray input = document_.serialize(&serializeError);
+    if (input.isEmpty()) {
+        QMessageBox::warning(this, tr("批量替换"), serializeError);
+        return;
+    }
+    pdf::BatchReplaceResult result;
+    QString error;
+    const QByteArray rewritten = pdf::applyBatchReplace(input, rules, options, &result, &error);
+    if (rewritten.isEmpty()) {
+        QMessageBox::warning(this, tr("批量替换"),
+                             error.isEmpty() ? tr("替换失败，文档没有修改。") : error);
+        return;
+    }
+    QString reloadError;
+    if (!document_.reloadFromBytes(rewritten, &reloadError)) {
+        QMessageBox::warning(this, tr("批量替换"),
+                             tr("替换结果无法重新打开，文档没有修改：%1").arg(reloadError));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("批量替换完成：共改了 %1 处").arg(result.replacements));
+
+    // 逐条结果里有失败的规则要报出来：否则用户以为全部生效了。
+    QStringList failed;
+    for (const pdf::ReplaceRuleResult& rule : result.perRule) {
+        if (!rule.ok) {
+            failed.append(tr("「%1」：%2").arg(rule.find, rule.error));
+        }
+    }
+    if (!failed.isEmpty()) {
+        QMessageBox::warning(this, tr("批量替换"),
+                             tr("以下规则没有生效：\n%1").arg(failed.join('\n')));
+    }
+}
+
+// 拼写检查：列出可疑的词，给出建议，双击跳到那一处。
+//
+// 为什么只标「明显可疑」的词：内置词表只有一千个高频词，
+// 词表覆盖不到的词会被漏判。漏判只是少画一条波浪线；
+// 误判却会在满篇正常文字里到处画红线。
+void PdfView::spellCheckDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("拼写检查"));
+    dialog.resize(720, 480);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* scopeRow = new QHBoxLayout;
+    scopeRow->addWidget(new QLabel(tr("检查范围:"), &dialog));
+    auto* scopeBox = new QComboBox(&dialog);
+    scopeBox->setObjectName(QStringLiteral("spellCheck.scope"));
+    scopeBox->addItem(tr("当前页"));
+    scopeBox->addItem(tr("整个文档"));
+    scopeRow->addWidget(scopeBox);
+    scopeRow->addStretch(1);
+    layout->addLayout(scopeRow);
+
+    auto* table = new QTableWidget(0, 3, &dialog);
+    table->setObjectName(QStringLiteral("spellCheck.issues"));
+    table->setHorizontalHeaderLabels({tr("页"), tr("可疑的词"), tr("建议")});
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(table);
+
+    auto* dialogButtons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    layout->addWidget(dialogButtons);
+    connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+
+    // 每条问题带着它所在的页与在该页文本里的区间，跳转时要用。
+    struct IssueRow {
+        int pageIndex = 0;
+        int start = 0;
+        int length = 0;
+        QString word;
+    };
+    QVector<IssueRow> issueRows;
+
+    // 逐页取文本：整篇检查要调 PDFium 提取每一页，放到后台线程做，
+    // 主线程做会卡住界面。这里先在主线程做当前页，整篇走等待光标。
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const pdf::SpellChecker checker = pdf::SpellChecker::builtin();
+    const bool wholeDocument = scopeBox->currentIndex() == 1;
+    const int firstPage = wholeDocument ? 0 : currentPage();
+    const int lastPage = wholeDocument ? document_.pageCount() - 1 : currentPage();
+    for (int pageIndex = firstPage; pageIndex <= lastPage; ++pageIndex) {
+        QString pageText;
+        if (wholeDocument) {
+            auto page = document_.page(pageIndex);
+            if (!page.has_value()) {
+                continue;
+            }
+            const std::optional<pdf::TextPage> extracted = page->extractText();
+            if (!extracted.has_value() || extracted->chars.isEmpty()) {
+                continue;
+            }
+            for (const pdf::TextChar& character : extracted->chars) {
+                pageText += character.text;
+            }
+        } else {
+            // 当前页：优先用排好阅读顺序的文本层。
+            // 排版结果还没有时不能静默跳过这一页——那会让用户以为
+            // 「这一页没有拼写问题」，其实是根本没查。
+            if (!collectPageText(pageIndex)) {
+                auto fallbackPage = document_.page(pageIndex);
+                if (!fallbackPage.has_value()) {
+                    continue;
+                }
+                const std::optional<pdf::TextPage> extracted = fallbackPage->extractText();
+                if (!extracted.has_value() || extracted->chars.isEmpty()) {
+                    continue;
+                }
+                for (const pdf::TextChar& character : extracted->chars) {
+                    pageText += character.text;
+                }
+            } else {
+                pageText = pageText_;
+            }
+        }
+        for (const pdf::SpellIssue& issue : checker.check(pageText)) {
+            IssueRow row;
+            row.pageIndex = pageIndex;
+            row.start = issue.start;
+            row.length = issue.length;
+            row.word = issue.word;
+            issueRows.append(row);
+        }
+    }
+    QApplication::restoreOverrideCursor();
+
+    for (const IssueRow& issue : issueRows) {
+        const int row = table->rowCount();
+        table->insertRow(row);
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(issue.pageIndex + 1)));
+        table->setItem(row, 1, new QTableWidgetItem(issue.word));
+        table->setItem(row, 2, new QTableWidgetItem(checker.suggestions(issue.word).join(QStringLiteral("、"))));
+    }
+
+    // 双击跳到那一处：页码 + 选中那个词。
+    connect(table, &QTableWidget::cellDoubleClicked, &dialog,
+            [this, &issueRows, &table, &scopeBox](int row, int) {
+        if (row < 0 || row >= issueRows.size()) {
+            return;
+        }
+        const IssueRow& issue = issueRows.at(row);
+        goToPage(issue.pageIndex);
+        const TextLayout* layoutOfPage = textController_ != nullptr
+                                             ? textController_->layout(issue.pageIndex)
+                                             : nullptr;
+        if (layoutOfPage == nullptr) {
+            // 这一页没有排版结果（整篇检查时未必都排过）：跳到页就够了，
+            // 选不中具体那个词也不能算失败。
+            return;
+        }
+        // 该页文本的偏移 → 阅读顺序区间。
+        // 只有当前页作用域下 pageOrderPerUnit_ 才是这一页的映射；
+        // 整篇检查时它是上一页的残留，不能拿来用。
+        if (scopeBox->currentIndex() != 0) {
+            return;
+        }
+        int firstOrder = -1;
+        int lastOrder = -1;
+        for (int unit = issue.start; unit < issue.start + issue.length; ++unit) {
+            if (unit < 0 || unit >= pageOrderPerUnit_.size()) {
+                continue;
+            }
+            const int order = pageOrderPerUnit_.at(unit);
+            if (firstOrder < 0) {
+                firstOrder = order;
+            }
+            lastOrder = order;
+        }
+        if (firstOrder >= 0 && lastOrder >= firstOrder) {
+            textController_->setSelection(issue.pageIndex, firstOrder, lastOrder + 1);
+        }
+    });
+
+    dialog.exec();
+}
+
+// 密文四件套：标记 / 马赛克 / 擦除 / 应用密文。
+//
+// 为什么不是四个分散的按钮：这四件事对同一块区域做的是不同深度的处理，
+// 放在一起让用户按「要多狠」选，比让用户先知道四个技术名词更容易。
+//
+// 诚实性边界（界面上必须写清楚）：标记只是盖一块黑块，原文仍在文件里；
+// 马赛克与擦除改的是渲染层，原字形数据未必真的从字节里消失；
+// 应用密文最接近「落实」，但整页会变成位图。
+void PdfView::redactionModeDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("密文处理"), tr("请先选中要处理的文字区域。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    if (page->rotationDegrees() != 0) {
+        QMessageBox::warning(this, tr("密文处理"),
+                             tr("为避免旋转坐标误判，请先把该页旋转回 0° 再执行。"));
+        return;
+    }
+
+    const QStringList modes{
+        tr("标记为密文（只盖黑块，原文仍在文件里，文字层照样能搜到）"),
+        tr("马赛克（把区域像素化，文字层里读不到该区域）"),
+        tr("擦除（删掉该区域的对象，页面其余部分仍是矢量文字）"),
+        tr("应用密文（整页位图化，文字层全部消失，页面失去搜索与编辑能力）"),
+    };
+    bool accepted = false;
+    const QString chosen =
+        QInputDialog::getItem(this, tr("密文处理"), tr("处理方式:"), modes, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int modeIndex = modes.indexOf(chosen);
+    if (modeIndex < 0) {
+        return;
+    }
+
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(
+            QRectF(displayToUser(pageIndex, rect.topLeft()),
+                   displayToUser(pageIndex, rect.bottomRight())).normalized());
+    }
+    if (userRect.isEmpty()) {
+        QMessageBox::warning(this, tr("密文处理"), tr("选区无效，文档没有修改。"));
+        return;
+    }
+
+    const pdf::RedactionMark mark{userRect, pageIndex};
+    const QVector<pdf::RedactionMark> marks{mark};
+
+    QString error;
+    bool ok = false;
+    QString title;
+    switch (modeIndex) {
+        case 0:
+            title = tr("标记为密文");
+            ok = pdf::markRedactions(document_, marks, &error);
+            break;
+        case 1:
+            title = tr("马赛克");
+            ok = pdf::mosaicRedactions(document_, marks, &error);
+            break;
+        case 2:
+            title = tr("擦除");
+            ok = pdf::eraseRedactions(document_, marks, &error);
+            break;
+        default:
+            title = tr("应用密文");
+            ok = pdf::applyRedactions(document_, marks, &error);
+            break;
+    }
+    if (!ok) {
+        QMessageBox::warning(this, title,
+                             error.isEmpty() ? tr("处理失败，文档没有修改。") : error);
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("%1 已完成").arg(title));
+}
+
+
+// ------------------------------------------------------- 验签：签名列表 ----
+//
+// 为什么要有这个面板：pyHanko 的验签只能给一段纯文本，
+// 用户看不到「这份文件里有几个签名、分别是谁签的、证书链长什么样」。
+// 这个面板把结构化的签名信息摆出来，证书链一眼能看全；
+// pyHanko 仍然负责真正的密码学验签，两边互补而不是互相替代。
+void PdfView::showSignatureListDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    if (!pdf::signatureInspectionAvailable()) {
+        QMessageBox::information(this, tr("签名列表"),
+                                 tr("这个版本没有启用签名解析（构建时没有 qpdf）。"));
+        return;
+    }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("签名列表"), serializeError);
+        return;
+    }
+    QString error;
+    const QVector<pdf::SignatureInfo> signatures = pdf::inspectSignatures(bytes, &error);
+    if (signatures.isEmpty()) {
+        QMessageBox::information(this, tr("签名列表"),
+                                 error.isEmpty() ? tr("这份文档里没有数字签名。") : error);
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("签名列表"));
+    dialog.resize(900, 600);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* table = new QTableWidget(signatures.size(), 5, &dialog);
+    table->setObjectName(QStringLiteral("signature.list"));
+    table->setHorizontalHeaderLabels(
+        {tr("签名域"), tr("签署人"), tr("签署时间"), tr("算法"), tr("覆盖检查")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    for (int row = 0; row < signatures.size(); ++row) {
+        const pdf::SignatureInfo& signature = signatures.at(row);
+        table->setItem(row, 0, new QTableWidgetItem(signature.fieldName));
+        table->setItem(row, 1, new QTableWidgetItem(signature.signerName));
+        table->setItem(row, 2, new QTableWidgetItem(signature.signingTime));
+        table->setItem(row, 3, new QTableWidgetItem(signature.subFilter));
+        QString coverage;
+        if (signature.coversDocument) {
+            coverage = tr("覆盖完整");
+        } else if (!signature.coverError.isEmpty()) {
+            coverage = signature.coverError;
+        } else {
+            coverage = tr("覆盖不完整");
+        }
+        table->setItem(row, 4, new QTableWidgetItem(coverage));
+    }
+    layout->addWidget(table);
+
+    layout->addWidget(new QLabel(tr("证书链"), &dialog));
+    auto* chainTable = new QTableWidget(0, 7, &dialog);
+    chainTable->setObjectName(QStringLiteral("signature.chain"));
+    chainTable->setHorizontalHeaderLabels({tr("主体"), tr("签发者"), tr("序列号"), tr("SHA-1 指纹"),
+                                           tr("生效"), tr("失效"), tr("状态")});
+    chainTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    chainTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(chainTable);
+
+    auto* detail = new QTextBrowser(&dialog);
+    detail->setObjectName(QStringLiteral("signature.detail"));
+    layout->addWidget(detail);
+
+    // 选中某个签名 → 换证书链与详情。
+    const auto showSignature = [&](int row) {
+        if (row < 0 || row >= signatures.size()) {
+            return;
+        }
+        const pdf::SignatureInfo& signature = signatures.at(row);
+        chainTable->setRowCount(0);
+        for (const pdf::SignerCertificate& certificate : signature.chain) {
+            const int chainRow = chainTable->rowCount();
+            chainTable->insertRow(chainRow);
+            chainTable->setItem(chainRow, 0, new QTableWidgetItem(certificate.subject));
+            chainTable->setItem(chainRow, 1, new QTableWidgetItem(certificate.issuer));
+            chainTable->setItem(chainRow, 2, new QTableWidgetItem(certificate.serialNumber));
+            chainTable->setItem(chainRow, 3, new QTableWidgetItem(certificate.thumbprintSha1));
+            chainTable->setItem(chainRow, 4, new QTableWidgetItem(certificate.notBefore));
+            chainTable->setItem(chainRow, 5, new QTableWidgetItem(certificate.notAfter));
+            QString state;
+            if (certificate.trusted) {
+                state = tr("受信任");
+            } else if (certificate.selfSigned) {
+                state = tr("自签（不受系统信任）");
+            } else {
+                state = tr("不受系统信任");
+            }
+            chainTable->setItem(chainRow, 6, new QTableWidgetItem(state));
+        }
+        QStringList ranges;
+        for (int i = 0; i + 1 < signature.byteRange.size(); i += 2) {
+            ranges.append(tr("从第 %1 字节起共 %2 字节")
+                              .arg(signature.byteRange.at(i))
+                              .arg(signature.byteRange.at(i + 1)));
+        }
+        QStringList lines;
+        lines.append(tr("签名域：%1").arg(signature.fieldName));
+        lines.append(tr("签署人：%1").arg(signature.signerName));
+        lines.append(tr("签署时间：%1").arg(signature.signingTime));
+        lines.append(tr("签名理由：%1").arg(signature.reason));
+        lines.append(tr("算法：%1").arg(signature.subFilter));
+        lines.append(tr("覆盖检查：%1")
+                         .arg(signature.coversDocument ? tr("覆盖完整") : signature.coverError));
+        lines.append(tr("覆盖区间："));
+        lines.append(ranges.isEmpty() ? tr("（没有读到覆盖区间）") : ranges.join('\n'));
+        detail->setPlainText(lines.join('\n'));
+    };
+    connect(table, &QTableWidget::currentCellChanged, &dialog,
+            [showSignature](int row, int, int, int) { showSignature(row); });
+    if (!signatures.isEmpty()) {
+        table->setCurrentCell(0, 0);
+        showSignature(0);
+    }
+
+    auto* dialogButtons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    layout->addWidget(dialogButtons);
+    connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+
+    dialog.exec();
 }
 
 }  // namespace aipdf::app

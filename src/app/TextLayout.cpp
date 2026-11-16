@@ -106,6 +106,10 @@ const QVector<int>& TextLayout::readingOrder() const {
     return order_;
 }
 
+const QVector<LayoutChar>& TextLayout::chars() const {
+    return chars_;
+}
+
 const QVector<TextLayout::Line>& TextLayout::lines() const {
     return lines_;
 }

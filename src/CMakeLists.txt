@@ -1,4 +1,4 @@
-﻿qt_add_executable(AiPdfEditor WIN32
+qt_add_executable(AiPdfEditor WIN32
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
@@ -133,11 +133,22 @@
     pdf/BarcodeEncoder.cpp
     pdf/FormToolSettings.cpp
     pdf/FormDesignParser.cpp
-    pdf/FormDesignParser.cpp
     pdf/DocumentProperties.cpp
     pdf/DocumentProperties.h
     pdf/OutlineGenerator.cpp
     pdf/OutlineGenerator.h
+    pdf/OutlineEditor.cpp
+    pdf/OutlineEditor.h
+    pdf/PageSplitPlanner.cpp
+    pdf/PageSplitPlanner.h
+    pdf/Redaction.cpp
+    pdf/Redaction.h
+    pdf/BatchReplace.cpp
+    pdf/BatchReplace.h
+    pdf/SpellChecker.cpp
+    pdf/SpellChecker.h
+    pdf/SignatureInspector.cpp
+    pdf/SignatureInspector.h
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
@@ -220,6 +231,10 @@
     ocr/WindowsOcrEngine.h
     ocr/OcrTextUtils.cpp
     ocr/OcrTextUtils.h
+    speech/SpeechText.h
+    speech/SpeechText.cpp
+    speech/SpeechEngine.h
+    speech/SpeechEngine.cpp
     tools/ToolRegistry.cpp
     tools/ToolRegistry.h
     tools/ProposalValidator.cpp
@@ -268,8 +283,9 @@ target_link_libraries(AiPdfEditor PRIVATE
 )
 
 # Windows 凭据管理器（API 密钥）：advapi32。
+# 验签的证书链解析走 crypt32，证书 SHA-1 指纹走 bcrypt。
 if (WIN32)
-    target_link_libraries(AiPdfEditor PRIVATE advapi32)
+    target_link_libraries(AiPdfEditor PRIVATE advapi32 crypt32 bcrypt)
 endif()
 
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

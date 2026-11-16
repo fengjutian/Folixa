@@ -64,6 +64,7 @@ private slots:
     void suggestionsAreOneEditAway();
     void addedWordBecomesKnown();
     void knownWordLookupIsCaseInsensitive();
+    void commonParagraphHasNoIssues();
 };
 
 void SpellCheckerTests::correctSentenceHasNoIssues() {
@@ -71,7 +72,24 @@ void SpellCheckerTests::correctSentenceHasNoIssues() {
     const QString text = QStringLiteral("This is a simple sentence about a page of text.");
     const QVector<SpellIssue> issues = checker.check(text);
     for (const SpellIssue& issue : issues)
-        qWarning("误报：%1 (%2)", qPrintable(issue.word), qPrintable(text.mid(issue.start, issue.length)));
+        qWarning("FALSEPOS: %s", issue.word.toUtf8().constData());
+    QCOMPARE(issues.size(), 0);
+}
+
+// 一整段正常文字不该有波浪线。
+//
+// 这条是误报率的守门人：内置词表只覆盖常用词，一旦词表漏了词、
+// 或者近邻规则太激进，整段话就会到处冒红线。
+void SpellCheckerTests::commonParagraphHasNoIssues() {
+    const SpellChecker checker = SpellChecker::builtin();
+    const QString text = QStringLiteral(
+        "The quick brown fox jumps over the lazy dog. This is a simple sentence about a page of text. "
+        "Documents may contain words like workflow, metadata, bookmark, annotation, signature, hyperlink, "
+        "checkbox, dropdown, template, and other technical terms that are not in the built-in dictionary. "
+        "We have been working on this for three weeks and the result is quite good.");
+    const QVector<SpellIssue> issues = checker.check(text);
+    for (const SpellIssue& issue : issues)
+        qWarning("FALSEPOS: %s", issue.word.toUtf8().constData());
     QCOMPARE(issues.size(), 0);
 }
 

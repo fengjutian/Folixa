@@ -61,7 +61,14 @@ public:
     // 传 pageIndex = -1 或空列表就是取消高亮。
     void setIndexHighlight(int pageIndex, const QVector<QRectF>& displayRects);
 
-    // 当前视口顶页（从 1 开始，供界面显示）。
+    // 高亮朗读中的那个词（显示空间矩形）。
+    //
+    // 为什么单独一套：朗读高亮与搜索高亮、选区高亮同时存在时不能互相覆盖——
+    // 用户一边朗读一边选中另一段文字是常事。
+    // 传 pageIndex = -1 或空列表就是取消高亮。
+    void setSpeechHighlight(int pageIndex, const QVector<QRectF>& displayRects);
+
+    // 当前视口顶页（从 0 开始，供界面显示）。
     int currentPage() const;
 
     // 视口内可见的页区间（含预取邻页）。
@@ -141,6 +148,9 @@ private:
     // 索引结果定位的高亮：页序号 + 显示空间矩形。
     int indexHighlightPage_ = -1;
     QVector<QRectF> indexHighlightRects_;
+    // 朗读高亮：正在读的那个词。
+    int speechHighlightPage_ = -1;
+    QVector<QRectF> speechHighlightRects_;
     int currentPage_ = 0;
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;

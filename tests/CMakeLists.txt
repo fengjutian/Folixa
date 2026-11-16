@@ -1,4 +1,4 @@
-﻿qt_add_executable(IpcProtocolTests
+qt_add_executable(IpcProtocolTests
     IpcProtocolTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
@@ -1185,6 +1185,8 @@ qt_add_executable(PdfIndexTests
     ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
@@ -1325,6 +1327,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.h
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/app/TextController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/TextController.h
     ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.cpp
@@ -1681,3 +1685,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentStatisticsTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentPropertiesTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineGeneratorTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineEditorTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PageAssemblyTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/RedactionTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbeddedFileTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SpeechTextTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SpeechEngineTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BatchReplaceTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SpellCheckerTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignatureInspectorTests.cmake)

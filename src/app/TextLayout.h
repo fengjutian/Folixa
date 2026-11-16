@@ -41,6 +41,11 @@ public:
     // 阅读顺序 → 原始字符下标。
     const QVector<int>& readingOrder() const;
 
+    // 显示空间里的字符（按原始字符下标排列）。
+    // 朗读高亮要用它把「整页文本里的字符区间」换算回阅读顺序区间：
+    // PDFium 给的字符顺序是内容流顺序，只有这里排过行之后才对得上视觉顺序。
+    const QVector<LayoutChar>& chars() const;
+
     // 重新分行后的行列表（按阅读顺序排列）。
     const QVector<Line>& lines() const;
 

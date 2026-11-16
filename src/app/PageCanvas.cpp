@@ -1,4 +1,4 @@
-﻿#include "app/PageCanvas.h"
+#include "app/PageCanvas.h"
 
 #include "app/RenderThread.h"
 #include "app/Language.h"
@@ -565,6 +565,12 @@ void PageCanvas::setIndexHighlight(int pageIndex, const QVector<QRectF>& display
     viewport()->update();
 }
 
+void PageCanvas::setSpeechHighlight(int pageIndex, const QVector<QRectF>& displayRects) {
+    speechHighlightPage_ = pageIndex;
+    speechHighlightRects_ = displayRects;
+    viewport()->update();
+}
+
 void PageCanvas::paintHighlights(QPainter& painter,
                                  int pageIndex,
                                  const QRectF& pageRect,
@@ -597,6 +603,16 @@ void PageCanvas::paintHighlights(QPainter& painter,
         painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(64, 124, 235, 90));
         for (const QRectF& rect : selection) {
+            painter.drawRect(toViewportRect(rect, pageRect, zoom));
+        }
+    }
+
+    // 朗读高亮画在最后：它是「此刻正在读」的位置，
+    // 应该是页面上最显眼的一块。
+    if (speechHighlightPage_ == pageIndex && !speechHighlightRects_.isEmpty()) {
+        painter.setPen(QPen(QColor(214, 90, 49), 1.2));
+        painter.setBrush(QColor(255, 153, 0, 110));
+        for (const QRectF& rect : speechHighlightRects_) {
             painter.drawRect(toViewportRect(rect, pageRect, zoom));
         }
     }

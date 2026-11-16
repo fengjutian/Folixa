@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QMainWindow>
 #include <QHash>
@@ -181,9 +181,10 @@ private:
     void moveBookmarkDown();
     void indentBookmark();
     void outdentBookmark();
-    // 书签结构编辑的公共准备：取选中书签、拿到大纲、算出它在大纲树里的路径。
-    // 失败时已经给过用户提示，这里返回空路径。
-    std::vector<int> selectedBookmarkPath(PdfView* view, std::vector<pdf::OutlineItem>* outline);
+    // 书签结构编辑的公共准备：取选中书签的行号、整棵大纲与它在大纲树里的路径。
+    // 失败时已经给过用户提示，这里返回 false。
+    bool currentBookmarkContext(std::vector<pdf::OutlineItem>* outline, int* row,
+                                std::vector<int>* path);
     // 切换导航页签时把该页签的条目数记进轨迹（验收脚本据此断言面板真的有内容）。
     void traceNavigationPanel(int index);
     // 切到导航栏的某一页并把它显示出来。

@@ -20,7 +20,7 @@ struct SpellIssue {
 //
 // 为什么不是完整词典：仓库里没有可用的词典资源，也不允许为此引入新依赖、
 // 不允许联网下载。完整英文词典是十万词量级的数据，凭空手写既不现实也不可靠。
-// 所以这里的口径是「一千个左右的高频词 + 若干启发式规则 + 用户自己的词典」。
+// 所以这里的口径是「三千个左右的常用词 + 若干启发式规则 + 用户自己的词典」。
 //
 // 为什么这样取舍：词表覆盖不到的词会被漏判，这是刻意的。
 // 漏判只是少画一条波浪线；误判却会在满篇正常文字里到处画红线，
@@ -54,7 +54,7 @@ private:
 
     void insertWord(const QString& word, int rank);
     // 宽松查找：除了原形，还认常见的所有格与复数、过去式、进行时尾巴。
-    // 内置词表只有一千个词，不做这一步的话 "cars"、"running" 会被当成生词。
+    // 内置词表只有三千个词，不做这一步的话 "cars"、"running" 会被当成生词。
     bool isKnownRelaxed(const QString& lower) const;
     QStringList collectNeighbors(const QString& word, int maxCount, bool allowTransposition) const;
 

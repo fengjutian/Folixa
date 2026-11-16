@@ -150,122 +150,136 @@ QVector<int> intersectingObjects(PdfPage& page, const QRectF& rect) {
     return indexes;
 }
 
+// ------------------------------------------------------------------ 四种做法 ----
+//
+// 每种做法对「一页的一块标记」的处理。返回 false 表示这一块没处理成功，
+// 错误原因写进 error。
+
+// 标记：只盖黑块，内容一个字都不动，文字层照样能读到原文。
+bool markOnPage(PdfPage& page, const Target& target, QString* error) {
+    if (!page.addImageLayer(target.rect, solidImage(Qt::black))) {
+        setError(error, QStringLiteral("第 %1 页写入密文标记失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    return true;
+}
+
+// 马赛克：把区域像素化，并删掉与区域相交的对象。
+bool mosaicOnPage(PdfPage& page, const Target& target, QString* error) {
+    // 先渲染再删：马赛克要的就是「原来那一片像素」。
+    const QImage pageImage = page.render(kMosaicRenderScale);
+    if (pageImage.isNull()) {
+        setError(error, QStringLiteral("第 %1 页渲染失败，无法做马赛克").arg(target.pageIndex + 1));
+        return false;
+    }
+    const MediaBox box = page.contentBox();
+    const QRect pixelRect = pixelRectFor(box, target.rect, kMosaicRenderScale, pageImage.size());
+    if (pixelRect.isEmpty()) {
+        setError(error, QStringLiteral("第 %1 页的密文区域没有对应像素").arg(target.pageIndex + 1));
+        return false;
+    }
+    const QImage mosaic = pixelate(pageImage.copy(pixelRect));
+    if (mosaic.isNull()) {
+        setError(error, QStringLiteral("第 %1 页生成马赛克失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    // 删掉与区域相交的对象：像素化只是「看不清」，不删对象的话
+    // 文字层里还是能搜到原文，那就不是马赛克而是障眼法。
+    const QVector<int> indexes = intersectingObjects(page, target.rect);
+    if (!indexes.isEmpty() && !page.removeObjects(indexes)) {
+        setError(error, QStringLiteral("第 %1 页删除马赛克区域内的对象失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    // 只把马赛克贴回该区域，不整页贴：整页贴会把别处的矢量文字也毁掉。
+    if (!page.addImageLayer(target.rect, mosaic)) {
+        setError(error, QStringLiteral("第 %1 页写入马赛克失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    return true;
+}
+
+// 擦除：删掉与区域相交的对象（文字层里也不再出现），必要时补一块白底。
+bool eraseOnPage(PdfPage& page, const Target& target, QString* error) {
+    const QVector<int> indexes = intersectingObjects(page, target.rect);
+    if (indexes.isEmpty()) {
+        return true;
+    }
+    if (!page.removeObjects(indexes)) {
+        setError(error, QStringLiteral("第 %1 页删除密文区域内的对象失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    // 补一块白底：字形被整个对象删掉时不会留半截，
+    // 但共享的图形对象（表格线、下划线）可能还留着痕迹。
+    if (!page.addImageLayer(target.rect, solidImage(Qt::white))) {
+        setError(error, QStringLiteral("第 %1 页补白底失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    return true;
+}
+
+// 应用密文：整页位图化 + 标记区域刷黑 + 删掉原对象与批注。
+bool applyOnPage(PdfPage& page, const Target& target, QString* error) {
+    // 代价是整页失去文字层——这正是它与「擦除」的区别。
+    if (!page.redactByRasterizing(target.rect, kApplyRasterScale)) {
+        setError(error, QStringLiteral("第 %1 页应用密文失败").arg(target.pageIndex + 1));
+        return false;
+    }
+    return true;
+}
+
+// 四种做法共用的骨架：先解析标记（全部校验通过才动手），再按模式逐页处理。
+bool runRedactions(PdfDocument& document,
+                   const QVector<RedactionMark>& marks,
+                   RedactionMode mode,
+                   QString* error) {
+    QVector<Target> targets;
+    if (!resolveTargets(document, marks, &targets, error)) {
+        return false;
+    }
+    for (const Target& target : targets) {
+        auto page = document.page(target.pageIndex);
+        if (!page.has_value()) {
+            setError(error, QStringLiteral("取不到第 %1 页").arg(target.pageIndex + 1));
+            return false;
+        }
+        bool ok = false;
+        switch (mode) {
+        case RedactionMode::Mark:
+            ok = markOnPage(*page, target, error);
+            break;
+        case RedactionMode::Mosaic:
+            ok = mosaicOnPage(*page, target, error);
+            break;
+        case RedactionMode::Erase:
+            ok = eraseOnPage(*page, target, error);
+            break;
+        case RedactionMode::Apply:
+            ok = applyOnPage(*page, target, error);
+            break;
+        }
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 bool markRedactions(PdfDocument& document, const QVector<RedactionMark>& marks, QString* error) {
-    QVector<Target> targets;
-    if (!resolveTargets(document, marks, &targets, error)) {
-        return false;
-    }
-    for (const Target& target : targets) {
-        auto page = document.page(target.pageIndex);
-        if (!page.has_value()) {
-            setError(error, QStringLiteral("取不到第 %1 页").arg(target.pageIndex + 1));
-            return false;
-        }
-        // 只盖黑块：内容一个字都不动，文字层照样能读到原文。
-        if (!page->addImageLayer(target.rect, solidImage(Qt::black))) {
-            setError(error, QStringLiteral("第 %1 页写入密文标记失败").arg(target.pageIndex + 1));
-            return false;
-        }
-    }
-    return true;
+    return runRedactions(document, marks, RedactionMode::Mark, error);
 }
 
 bool mosaicRedactions(PdfDocument& document, const QVector<RedactionMark>& marks, QString* error) {
-    QVector<Target> targets;
-    if (!resolveTargets(document, marks, &targets, error)) {
-        return false;
-    }
-    for (const Target& target : targets) {
-        auto page = document.page(target.pageIndex);
-        if (!page.has_value()) {
-            setError(error, QStringLiteral("取不到第 %1 页").arg(target.pageIndex + 1));
-            return false;
-        }
-        // 先渲染再删：马赛克要的就是「原来那一片像素」。
-        const QImage pageImage = page->render(kMosaicRenderScale);
-        if (pageImage.isNull()) {
-            setError(error, QStringLiteral("第 %1 页渲染失败，无法做马赛克").arg(target.pageIndex + 1));
-            return false;
-        }
-        const MediaBox box = page->contentBox();
-        const QRect pixelRect =
-            pixelRectFor(box, target.rect, kMosaicRenderScale, pageImage.size());
-        if (pixelRect.isEmpty()) {
-            setError(error, QStringLiteral("第 %1 页的密文区域没有对应像素").arg(target.pageIndex + 1));
-            return false;
-        }
-        const QImage mosaic = pixelate(pageImage.copy(pixelRect));
-        if (mosaic.isNull()) {
-            setError(error, QStringLiteral("第 %1 页生成马赛克失败").arg(target.pageIndex + 1));
-            return false;
-        }
-        // 删掉与区域相交的对象：像素化只是「看不清」，不删对象的话
-        // 文字层里还是能搜到原文，那就不是马赛克而是障眼法。
-        const QVector<int> indexes = intersectingObjects(*page, target.rect);
-        if (!indexes.isEmpty() && !page->removeObjects(indexes)) {
-            setError(error, QStringLiteral("第 %1 页删除马赛克区域内的对象失败")
-                                .arg(target.pageIndex + 1));
-            return false;
-        }
-        // 只把马赛克贴回该区域，不整页贴：整页贴会把别处的矢量文字也毁掉。
-        if (!page->addImageLayer(target.rect, mosaic)) {
-            setError(error, QStringLiteral("第 %1 页写入马赛克失败").arg(target.pageIndex + 1));
-            return false;
-        }
-    }
-    return true;
+    return runRedactions(document, marks, RedactionMode::Mosaic, error);
 }
 
 bool eraseRedactions(PdfDocument& document, const QVector<RedactionMark>& marks, QString* error) {
-    QVector<Target> targets;
-    if (!resolveTargets(document, marks, &targets, error)) {
-        return false;
-    }
-    for (const Target& target : targets) {
-        auto page = document.page(target.pageIndex);
-        if (!page.has_value()) {
-            setError(error, QStringLiteral("取不到第 %1 页").arg(target.pageIndex + 1));
-            return false;
-        }
-        const QVector<int> indexes = intersectingObjects(*page, target.rect);
-        if (!indexes.isEmpty()) {
-            if (!page->removeObjects(indexes)) {
-                setError(error, QStringLiteral("第 %1 页删除密文区域内的对象失败")
-                                    .arg(target.pageIndex + 1));
-                return false;
-            }
-            // 补一块白底：字形被整个对象删掉时不会留半截，
-            // 但共享的图形对象（表格线、下划线）可能还留着痕迹。
-            if (!page->addImageLayer(target.rect, solidImage(Qt::white))) {
-                setError(error, QStringLiteral("第 %1 页补白底失败").arg(target.pageIndex + 1));
-                return false;
-            }
-        }
-    }
-    return true;
+    return runRedactions(document, marks, RedactionMode::Erase, error);
 }
 
 bool applyRedactions(PdfDocument& document, const QVector<RedactionMark>& marks, QString* error) {
-    QVector<Target> targets;
-    if (!resolveTargets(document, marks, &targets, error)) {
-        return false;
-    }
-    for (const Target& target : targets) {
-        auto page = document.page(target.pageIndex);
-        if (!page.has_value()) {
-            setError(error, QStringLiteral("取不到第 %1 页").arg(target.pageIndex + 1));
-            return false;
-        }
-        // 落实标记：整页位图化 + 标记区域刷黑 + 删掉原对象与批注。
-        // 代价是整页失去文字层——这正是它与「擦除」的区别。
-        if (!page->redactByRasterizing(target.rect, kApplyRasterScale)) {
-            setError(error, QStringLiteral("第 %1 页应用密文失败").arg(target.pageIndex + 1));
-            return false;
-        }
-    }
-    return true;
+    return runRedactions(document, marks, RedactionMode::Apply, error);
 }
 
 }  // namespace aipdf::pdf

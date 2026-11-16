@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QWidget>
 #include <QImage>
@@ -12,12 +12,17 @@
 #include "pdf/FormFieldWriter.h"
 #include "pdf/FormScriptStore.h"
 #include "i18n/Translate.h"
+#include "speech/SpeechText.h"
 
 #include <memory>
 
 class QLabel;
 class QTimer;
 class QToolButton;
+
+namespace aipdf::speech {
+class SpeechEngine;
+}
 
 namespace aipdf::app {
 
@@ -191,6 +196,17 @@ public slots:
     void showDocumentPropertiesDialog();
     // 自动创建书签：按标题样式（字高）生成大纲。
     void createOutlineFromHeadingsDialog();
+    // 朗读：把当前页按视觉阅读顺序逐词读出来，并在页面上高亮正在读的那个词。
+    void speakCurrentPage();
+    void stopSpeaking();
+    // 批量替换：一张规则表，规则按顺序依次生效。
+    void batchReplaceDialog();
+    // 拼写检查：列出可疑的词并给出建议。
+    void spellCheckDialog();
+    // 密文四件套：标记 / 马赛克 / 擦除 / 应用密文。
+    void redactionModeDialog();
+    // 验签：签名列表 + 证书链面板。
+    void showSignatureListDialog();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();
     // 本地电子签章：选中的签章在下一次点击页面时落下；骑缝章会拆分到全部页面。
@@ -222,6 +238,11 @@ private:
     bool restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex);
     // 把 [start, end) 这一段页写成一个独立文件。三个拆分入口共用它。
     bool writePageRange(int start, int end, const QString& path, QString* error);
+    // 取当前页的整页文本，并建立「文本码元 → 阅读顺序下标」的映射。
+    // 朗读与拼写检查共用。
+    bool collectPageText(int pageIndex);
+    // 朗读真正开始：切词、送引擎、接逐词高亮。
+    void startSpeechOnPage(int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 
@@ -435,6 +456,20 @@ private:
     bool ownerPermissionsUnlocked_ = false;
     QByteArray pendingSignatureImage_;
     QString pendingSignatureName_;
+    // 朗读引擎：系统语音合成（Windows PowerShell + System.Speech）。
+    // 声明在 document_ 之后，析构时先于文档句柄释放。
+    std::unique_ptr<speech::SpeechEngine> speechEngine_;
+    // 正在朗读的页（-1 表示没在朗读）。
+    int speechPage_ = -1;
+    // 整页文本 + 每个 UTF-16 码元对应的阅读顺序下标。
+    // 词的偏移是文本下标，要换算成阅读顺序下标才能拿到高亮矩形。
+    // 朗读与拼写检查共用这一份。
+    QString pageText_;
+    QVector<int> pageOrderPerUnit_;
+    // 整页文本切出来的词（与引擎回报的下标一一对应）。
+    QVector<speech::SpeechWord> speechWords_;
+    // 排队等文本层的朗读请求：文本层是后台提取的，提取完再开读。
+    int pendingSpeechPage_ = -1;
     // 一次设定、长期显示的界面文案：切换语言时就地重译。
     i18n::TextBindings texts_;
 };
