@@ -139,6 +139,8 @@ public:
     bool redo();
     bool canUndo() const;
     bool canRedo() const;
+    int undoCount() const;
+    int redoCount() const;
     QString undoText() const;
     QString redoText() const;
 

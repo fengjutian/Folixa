@@ -7,7 +7,13 @@
 
 namespace aipdf::pdf {
 namespace {
-QFont fontFor(const TextStyle& style) { QFont f(style.family); f.setPointSizeF(style.fontSize); return f; }
+QFont fontFor(const TextStyle& style) {
+    QFont f(style.family);
+    f.setPointSizeF(style.fontSize);
+    f.setLetterSpacing(QFont::AbsoluteSpacing, style.characterSpacing);
+    f.setStretch(qRound(qBound(1.0, style.horizontalScale * 100.0, 4000.0)));
+    return f;
+}
 double alignedX(double width, double boxWidth, TextAlignment alignment) {
     if (alignment == TextAlignment::Center) return (boxWidth - width) * 0.5;
     if (alignment == TextAlignment::Right) return boxWidth - width;
@@ -41,6 +47,7 @@ QStringList graphemes(const QString& text) {
 }
 
 ReflowResult TextReflow::layoutLine(const QString& text, const QRectF& box, const TextStyle& style) {
+    if (style.vertical) return layoutParagraph(text, box, style);
     ReflowResult result;
     if (box.isEmpty() || style.fontSize <= 0.0) return result;
     const QFontMetricsF metrics(fontFor(style));
@@ -59,6 +66,25 @@ ReflowResult TextReflow::layoutParagraph(const QString& text, const QRectF& box,
     if (box.isEmpty() || style.fontSize <= 0.0) return result;
     const QFontMetricsF metrics(fontFor(style));
     const double step = qMax(metrics.height(), style.fontSize * style.lineHeight);
+    if (style.vertical) {
+        double x = box.right() - metrics.ascent();
+        double y = box.top() + metrics.ascent();
+        for (const QString& grapheme : graphemes(text)) {
+            if (grapheme.trimmed().isEmpty()) continue;
+            if (y + metrics.descent() > box.bottom()) {
+                y = box.top() + metrics.ascent();
+                x -= step;
+            }
+            if (x - metrics.descent() < box.left()) {
+                result.overflow = true;
+                break;
+            }
+            result.lines.append({grapheme, QPointF(x, y), metrics.horizontalAdvance(grapheme)});
+            y += step;
+        }
+        if (!result.lines.isEmpty()) result.bounds = box;
+        return result;
+    }
     QString current;
     auto flush = [&] {
         if (current.isEmpty()) return;

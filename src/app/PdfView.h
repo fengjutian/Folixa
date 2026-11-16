@@ -316,6 +316,11 @@ private:
     bool restoringHistory_ = false;
     QVector<ContentEditRecord> contentUndo_;
     QVector<ContentEditRecord> contentRedo_;
+    enum class EditHistoryKind { Content, Annotation };
+    QVector<EditHistoryKind> editUndoTimeline_;
+    QVector<EditHistoryKind> editRedoTimeline_;
+    bool replayingEditHistory_ = false;
+    int knownAnnotationUndoCount_ = 0;
     int selectedObjectPage_ = -1;
     QVector<int> selectedObjectIndexes_;
     int objectCyclePage_ = -1;

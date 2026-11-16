@@ -14,6 +14,11 @@ struct TextStyle {
     double fontSize = 12.0;
     QColor color = Qt::black;
     double lineHeight = 1.2;
+    double characterSpacing = 0.0;
+    double horizontalScale = 1.0;
+    double opacity = 1.0;
+    double baselineShift = 0.0;
+    bool vertical = false;
     TextAlignment alignment = TextAlignment::Left;
 };
 

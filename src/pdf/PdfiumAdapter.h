@@ -31,6 +31,8 @@ struct PageObjectInfo {
     QString fontFamily;
     QColor fillColor = Qt::black;
     QString text;
+    int groupId = -1;
+    bool locked = false;
 };
 
 // 单页句柄。页面生命周期依附于所属文档，文档关闭后页面自动失效。
@@ -91,8 +93,16 @@ public:
     bool rotateObjects(const QVector<int>& indexes, double degrees);
     bool removeObjects(const QVector<int>& indexes);
     bool setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
-                                 double fontSize, const QColor& color);
+                                 double fontSize, const QColor& color, double opacity = 1.0,
+                                 double horizontalScale = 1.0, double baselineShift = 0.0);
     bool setTextObjectText(int index, const QString& text);
+    bool replaceImageObject(int index, const QImage& image);
+    bool cropImageObject(int index, const QRectF& normalizedCrop);
+    bool setObjectOpacity(const QVector<int>& indexes, double opacity);
+    bool reorderObject(int index, int targetIndex);
+    bool setObjectsGroup(const QVector<int>& indexes, int groupId);
+    bool clearObjectsGroup(const QVector<int>& indexes);
+    bool setObjectsLocked(const QVector<int>& indexes, bool locked);
 
     // 安全遮盖：把当前页以指定分辨率渲染，在像素层烧入黑块，然后删除原内容对象和
     // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。
@@ -101,7 +111,8 @@ public:
 
     bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                       const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0,
-                      const QString& fontFamily = QStringLiteral("Helvetica"));
+                      const QString& fontFamily = QStringLiteral("Helvetica"),
+                      double horizontalScale = 1.0);
 
     // 提取本页文本层。页面没有文本层时返回空值。
     //
@@ -296,6 +307,7 @@ public:
     // 目的：isolatedCopy() 是从源字节重新解析的，内存里的改动它看不到。
     // 结构性改动之后调一次，渲染线程与后台线程开出来的副本才是最新的。
     void syncBytes(const QByteArray& bytes);
+    bool reloadFromBytes(const QByteArray& bytes, QString* error = nullptr);
 
 private:
     std::shared_ptr<detail::DocumentImpl> impl_;

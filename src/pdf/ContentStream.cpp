@@ -2,6 +2,13 @@
 
 #include <QStringList>
 
+#ifdef AIPDF_WITH_QPDF
+#include <qpdf/Buffer.hh>
+#include <qpdf/QPDF.hh>
+#include <qpdf/QPDFObjectHandle.hh>
+#include <qpdf/QPDFWriter.hh>
+#endif
+
 namespace aipdf::pdf {
 namespace {
 
@@ -170,6 +177,75 @@ QByteArray ContentStream::rewriteText(const QByteArray& bytes, const std::functi
     }
     if (!validate(parsed.tokens, error)) return bytes;
     return serialize(parsed.tokens);
+}
+
+QByteArray ContentStream::rewritePdfText(const QByteArray& pdfBytes,
+                                         const QVector<int>& pageIndexes,
+                                         const QString& query,
+                                         const QString& replacement,
+                                         Qt::CaseSensitivity sensitivity,
+                                         int* replacements,
+                                         QString* error) {
+    if (replacements) *replacements = 0;
+    if (error) error->clear();
+    if (pdfBytes.isEmpty() || query.isEmpty()) return {};
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        pdf.processMemoryFile("content-edit.pdf", pdfBytes.constData(),
+                              static_cast<size_t>(pdfBytes.size()));
+        std::vector<QPDFObjectHandle> pages = pdf.getAllPages();
+        int total = 0;
+        for (int pageIndex : pageIndexes) {
+            if (pageIndex < 0 || pageIndex >= static_cast<int>(pages.size())) continue;
+            QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
+            page.coalesceContentStreams();
+            for (QPDFObjectHandle stream : page.getPageContents()) {
+                if (!stream.isStream()) continue;
+                const std::shared_ptr<Buffer> data = stream.getStreamData(qpdf_dl_generalized);
+                if (!data) continue;
+                const QByteArray original(reinterpret_cast<const char*>(data->getBuffer()),
+                                          static_cast<qsizetype>(data->getSize()));
+                int streamCount = 0;
+                QString rewriteError;
+                const QByteArray rewritten = rewriteText(original, [&](const QString& input) {
+                    QString output = input;
+                    streamCount += output.count(query, sensitivity);
+                    output.replace(query, replacement, sensitivity);
+                    return output;
+                }, &rewriteError);
+                if (!rewriteError.isEmpty()) {
+                    if (error) *error = rewriteError;
+                    return {};
+                }
+                if (streamCount > 0 && rewritten != original) {
+                    stream.replaceStreamData(rewritten.toStdString(),
+                                             QPDFObjectHandle::newNull(),
+                                             QPDFObjectHandle::newNull());
+                    total += streamCount;
+                }
+            }
+        }
+        if (total <= 0) return {};
+        QPDFWriter writer(pdf);
+        writer.setOutputMemory();
+        writer.write();
+        std::unique_ptr<Buffer> output(writer.getBuffer());
+        if (!output || output->getSize() == 0) return {};
+        if (replacements) *replacements = total;
+        return QByteArray(reinterpret_cast<const char*>(output->getBuffer()),
+                          static_cast<qsizetype>(output->getSize()));
+    } catch (const std::exception& exception) {
+        if (error) *error = QString::fromUtf8(exception.what());
+        return {};
+    }
+#else
+    Q_UNUSED(pageIndexes)
+    Q_UNUSED(replacement)
+    Q_UNUSED(sensitivity)
+    if (error) *error = QStringLiteral("qpdf is unavailable");
+    return {};
+#endif
 }
 
 }  // namespace aipdf::pdf

@@ -1692,6 +1692,22 @@ QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
         }
         unsigned int r = 0, g = 0, b = 0, a = 255;
         if (FPDFPageObj_GetFillColor(object, &r, &g, &b, &a)) info.fillColor = QColor(r, g, b, a);
+        const int markCount = FPDFPageObj_CountMarks(object);
+        for (int markIndex = 0; markIndex < markCount; ++markIndex) {
+            FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex));
+            unsigned long bytes = 0;
+            if (!mark || !FPDFPageObjMark_GetName(mark, nullptr, 0, &bytes) || bytes < 2) continue;
+            QVector<FPDF_WCHAR> name(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+            if (!FPDFPageObjMark_GetName(mark, name.data(), bytes, &bytes)) continue;
+            const QString markName = QString::fromUtf16(
+                reinterpret_cast<const char16_t*>(name.constData())).remove(QChar::Null);
+            if (markName == QStringLiteral("FolixaGroup")) {
+                int value = -1;
+                if (FPDFPageObjMark_GetParamIntValue(mark, "id", &value)) info.groupId = value;
+            } else if (markName == QStringLiteral("FolixaLocked")) {
+                info.locked = true;
+            }
+        }
         result.append(info);
     }
     if (textPage) FPDFText_ClosePage(textPage);
@@ -1742,6 +1758,161 @@ bool PdfPage::setTextObjectText(int index, const QString& text) {
     }
     FPDFPageObj_Destroy(object);
     return FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::replaceImageObject(int index, const QImage& image) {
+    if (!impl_ || impl_->page == nullptr || image.isNull() || index < 0 ||
+        index >= FPDFPage_CountObjects(impl_->page)) return false;
+    const detail::PdfiumGuard guard;
+    FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+    if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_IMAGE) return false;
+    const QImage rgba = image.convertToFormat(QImage::Format_ARGB32);
+    FPDF_BITMAP bitmap = FPDFBitmap_Create(rgba.width(), rgba.height(), 1);
+    if (!bitmap) return false;
+    auto* buffer = static_cast<uchar*>(FPDFBitmap_GetBuffer(bitmap));
+    const int stride = FPDFBitmap_GetStride(bitmap);
+    for (int y = 0; y < rgba.height(); ++y)
+        std::memcpy(buffer + y * stride, rgba.constScanLine(y),
+                    static_cast<size_t>(rgba.width()) * 4);
+    const bool ok = FPDFImageObj_SetBitmap(&impl_->page, 1, object, bitmap) != 0;
+    FPDFBitmap_Destroy(bitmap);
+    return ok && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::cropImageObject(int index, const QRectF& normalizedCrop) {
+    if (!impl_ || impl_->page == nullptr || index < 0 ||
+        index >= FPDFPage_CountObjects(impl_->page)) return false;
+    const QRectF crop = normalizedCrop.normalized().intersected(QRectF(0, 0, 1, 1));
+    if (crop.isEmpty()) return false;
+    const detail::PdfiumGuard guard;
+    FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+    if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_IMAGE) return false;
+    FPDF_BITMAP bitmap = FPDFImageObj_GetBitmap(object);
+    if (!bitmap) return false;
+    const int width = FPDFBitmap_GetWidth(bitmap);
+    const int height = FPDFBitmap_GetHeight(bitmap);
+    const int stride = FPDFBitmap_GetStride(bitmap);
+    const auto* buffer = static_cast<const uchar*>(FPDFBitmap_GetBuffer(bitmap));
+    QImage source(width, height, QImage::Format_ARGB32);
+    for (int y = 0; y < height; ++y)
+        std::memcpy(source.scanLine(y), buffer + y * stride, static_cast<size_t>(width) * 4);
+    FPDFBitmap_Destroy(bitmap);
+    const QRect pixels(qFloor(crop.left() * width), qFloor(crop.top() * height),
+                       qMax(1, qCeil(crop.width() * width)),
+                       qMax(1, qCeil(crop.height() * height)));
+    return replaceImageObject(index, source.copy(pixels.intersected(source.rect())));
+}
+
+bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
+    if (!impl_ || !impl_->page || indexes.isEmpty() || opacity < 0.0 || opacity > 1.0) return false;
+    const detail::PdfiumGuard guard;
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (object && FPDFPageObj_GetType(object) == FPDF_PAGEOBJ_IMAGE) {
+            FPDF_BITMAP bitmap = FPDFImageObj_GetBitmap(object);
+            if (!bitmap) continue;
+            const int width = FPDFBitmap_GetWidth(bitmap);
+            const int height = FPDFBitmap_GetHeight(bitmap);
+            const int stride = FPDFBitmap_GetStride(bitmap);
+            const auto* buffer = static_cast<const uchar*>(FPDFBitmap_GetBuffer(bitmap));
+            QImage image(width, height, QImage::Format_ARGB32);
+            for (int y = 0; y < height; ++y)
+                std::memcpy(image.scanLine(y), buffer + y * stride, static_cast<size_t>(width) * 4);
+            FPDFBitmap_Destroy(bitmap);
+            for (int y = 0; y < image.height(); ++y) {
+                QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+                for (int x = 0; x < image.width(); ++x)
+                    line[x] = qRgba(qRed(line[x]), qGreen(line[x]), qBlue(line[x]),
+                                    qRound(qAlpha(line[x]) * opacity));
+            }
+            changed = replaceImageObject(index, image) || changed;
+            continue;
+        }
+        unsigned int r = 255, g = 255, b = 255, a = 255;
+        if (object && FPDFPageObj_GetFillColor(object, &r, &g, &b, &a) &&
+            FPDFPageObj_SetFillColor(object, r, g, b, qRound(opacity * 255.0))) changed = true;
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::reorderObject(int index, int targetIndex) {
+    if (!impl_ || !impl_->page) return false;
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    if (index < 0 || index >= count || targetIndex < 0 || targetIndex >= count || index == targetIndex)
+        return false;
+    FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+    if (!object || !FPDFPage_RemoveObject(impl_->page, object)) return false;
+    if (!FPDFPage_InsertObjectAtIndex(impl_->page, object, static_cast<size_t>(targetIndex))) {
+        FPDFPage_InsertObjectAtIndex(impl_->page, object, static_cast<size_t>(qMin(index, count - 1)));
+        return false;
+    }
+    return FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::setObjectsGroup(const QVector<int>& indexes, int groupId) {
+    if (!impl_ || !impl_->page || !impl_->document || groupId < 0) return false;
+    const detail::PdfiumGuard guard;
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (!object) continue;
+        FPDF_PAGEOBJECTMARK mark = FPDFPageObj_AddMark(object, "FolixaGroup");
+        if (mark && FPDFPageObjMark_SetIntParam(impl_->document->handle, object, mark, "id", groupId))
+            changed = true;
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::clearObjectsGroup(const QVector<int>& indexes) {
+    if (!impl_ || !impl_->page) return false;
+    const detail::PdfiumGuard guard;
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        for (int markIndex = FPDFPageObj_CountMarks(object) - 1; markIndex >= 0; --markIndex) {
+            FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex));
+            unsigned long bytes = 0;
+            if (!mark || !FPDFPageObjMark_GetName(mark, nullptr, 0, &bytes) || bytes < 2) continue;
+            QVector<FPDF_WCHAR> name(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+            if (FPDFPageObjMark_GetName(mark, name.data(), bytes, &bytes) &&
+                QString::fromUtf16(reinterpret_cast<const char16_t*>(name.constData()))
+                        .remove(QChar::Null) == QStringLiteral("FolixaGroup")) {
+                changed = FPDFPageObj_RemoveMark(object, mark) || changed;
+            }
+        }
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::setObjectsLocked(const QVector<int>& indexes, bool locked) {
+    if (!impl_ || !impl_->page) return false;
+    const detail::PdfiumGuard guard;
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (!object) continue;
+        if (locked) {
+            changed = FPDFPageObj_AddMark(object, "FolixaLocked") != nullptr || changed;
+        } else {
+            for (int markIndex = FPDFPageObj_CountMarks(object) - 1; markIndex >= 0; --markIndex) {
+                FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex));
+                unsigned long bytes = 0;
+                if (!mark || !FPDFPageObjMark_GetName(mark, nullptr, 0, &bytes) || bytes < 2) continue;
+                QVector<FPDF_WCHAR> name(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+                if (FPDFPageObjMark_GetName(mark, name.data(), bytes, &bytes) &&
+                    QString::fromUtf16(reinterpret_cast<const char16_t*>(name.constData()))
+                            .remove(QChar::Null) == QStringLiteral("FolixaLocked"))
+                    changed = FPDFPageObj_RemoveMark(object, mark) || changed;
+            }
+        }
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
 bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, double translateY,
@@ -1821,8 +1992,10 @@ bool PdfPage::removeObjects(const QVector<int>& indexes) {
 }
 
 bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
-                                      double fontSize, const QColor& color) {
-    if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || fontSize <= 0.0) return false;
+                                      double fontSize, const QColor& color, double opacity,
+                                      double horizontalScale, double baselineShift) {
+    if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || fontSize <= 0.0 ||
+        opacity < 0.0 || opacity > 1.0 || horizontalScale <= 0.0) return false;
     const detail::PdfiumGuard guard;
     const int count = FPDFPage_CountObjects(impl_->page);
     FPDF_TEXTPAGE textPage = FPDFText_LoadPage(impl_->page);
@@ -1848,7 +2021,12 @@ bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString
             FPDFPageObj_Destroy(replacement);
             continue;
         }
-        FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(), color.alpha());
+        matrix.a *= horizontalScale;
+        matrix.b *= horizontalScale;
+        matrix.f += baselineShift;
+        FPDFPageObj_SetMatrix(replacement, &matrix);
+        FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(),
+                                 qRound(255.0 * opacity));
         const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
         FPDFTextObj_SetTextRenderMode(replacement, mode);
         FPDFPage_RemoveObject(impl_->page, object);
@@ -1899,7 +2077,7 @@ bool PdfPage::redactByRasterizing(const QRectF& rectPoints, double scale) {
 
 bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                            const QColor& color, double rotationDegrees, double opacity,
-                           const QString& fontFamily) {
+                           const QString& fontFamily, double horizontalScale) {
     if (!impl_ || impl_->page == nullptr || text.isEmpty() || fontSize <= 0.0) {
         return false;
     }
@@ -1919,7 +2097,7 @@ bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, 
     FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(),
                              static_cast<unsigned int>(std::clamp(opacity, 0.0, 1.0) * 255.0));
     // 先平移到基线起点，再绕该点旋转。
-    FPDFPageObj_Transform(object, 1.0, 0.0, 0.0, 1.0, xPoints, yPoints);
+    FPDFPageObj_Transform(object, horizontalScale, 0.0, 0.0, 1.0, xPoints, yPoints);
     if (std::abs(rotationDegrees) > 0.001) {
         const double radians = rotationDegrees * M_PI / 180.0;
         const double c = std::cos(radians);
@@ -2165,6 +2343,39 @@ void PdfDocument::syncBytes(const QByteArray& bytes) {
     }
     impl_->fileData = bytes;
     impl_->access.m_FileLen = static_cast<unsigned long>(bytes.size());
+}
+
+bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
+    if (!impl_ || bytes.isEmpty()) return false;
+    initializePdfium();
+    const detail::PdfiumGuard guard;
+    auto replacement = std::make_shared<detail::DocumentImpl>();
+    replacement->fileData = bytes;
+    replacement->path = impl_->path;
+    replacement->password = impl_->password;
+    replacement->access.m_FileLen = static_cast<unsigned long>(replacement->fileData.size());
+    replacement->access.m_GetBlock = &detail::DocumentImpl::readBlock;
+    replacement->access.m_Param = replacement.get();
+    const QByteArray password = replacement->password.toUtf8();
+    replacement->handle = FPDF_LoadCustomDocument(
+        &replacement->access, password.isEmpty() ? nullptr : password.constData());
+    if (!replacement->handle) {
+        if (error) *error = describePdfiumError(FPDF_GetLastError());
+        return false;
+    }
+    // Preserve the shared implementation object so AnnotationController and PageOperations,
+    // which hold copies of PdfDocument, immediately see the reloaded handle as well.
+    std::swap(impl_->fileData, replacement->fileData);
+    std::swap(impl_->access, replacement->access);
+    std::swap(impl_->handle, replacement->handle);
+    std::swap(impl_->form, replacement->form);
+    std::swap(impl_->latinEditingFont, replacement->latinEditingFont);
+    std::swap(impl_->unicodeEditingFont, replacement->unicodeEditingFont);
+    std::swap(impl_->editingFonts, replacement->editingFonts);
+    impl_->access.m_Param = impl_.get();
+    replacement->access.m_Param = replacement.get();
+    if (error) error->clear();
+    return true;
 }
 
 PdfDocument PdfDocument::adoptHandle(void* handle, const QString& path) {

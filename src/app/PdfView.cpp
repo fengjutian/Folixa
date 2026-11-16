@@ -29,6 +29,7 @@
 #include "pdf/PageAnnotsInjector.h"
 #include "pdf/OutlineWriter.h"
 #include "pdf/TextReflow.h"
+#include "pdf/ContentStream.h"
 
 #include <QColorDialog>
 #include <QBuffer>
@@ -62,6 +63,8 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QTextBrowser>
+#include <QTextBoundaryFinder>
+#include <QFontMetricsF>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -815,6 +818,9 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     ownerPermissionsUnlocked_ = false;
     contentUndo_.clear();
     contentRedo_.clear();
+    editUndoTimeline_.clear();
+    editRedoTimeline_.clear();
+    knownAnnotationUndoCount_ = 0;
     selectedObjectPage_ = -1;
     selectedObjectIndexes_.clear();
     objectCyclePage_ = -1;
@@ -860,6 +866,13 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             });
     connect(annotationController_.get(), &AnnotationController::undoStateChanged, this,
             [this]() {
+                const int currentCount = annotationController_->undoCount();
+                if (!replayingEditHistory_ && currentCount > knownAnnotationUndoCount_) {
+                    for (int i = knownAnnotationUndoCount_; i < currentCount; ++i)
+                        editUndoTimeline_.append(EditHistoryKind::Annotation);
+                    editRedoTimeline_.clear();
+                }
+                knownAnnotationUndoCount_ = currentCount;
                 updateAnnotationToolBar();
                 // 有过编辑就记恢复日志：崩了还能把未保存的工作找回来。
                 setModified(true);
@@ -1292,6 +1305,9 @@ void PdfView::clear() {
     document_ = pdf::PdfDocument();
     contentUndo_.clear();
     contentRedo_.clear();
+    editUndoTimeline_.clear();
+    editRedoTimeline_.clear();
+    knownAnnotationUndoCount_ = 0;
     selectedObjectPage_ = -1;
     selectedObjectIndexes_.clear();
     canvas_->clearObjectSelection();
@@ -1900,6 +1916,7 @@ void PdfView::redactSelection() {
                              tr("为避免旋转坐标误判，请先把该页旋转回 0° 再执行遮盖。"));
         return;
     }
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
     if (QMessageBox::warning(
             this, tr("永久密文遮盖"),
             tr("遮盖会永久删除该页原始内容，并把整页转换为 144 DPI 位图。"
@@ -1918,6 +1935,7 @@ void PdfView::redactSelection() {
         return;
     }
     refreshAfterDecoration();
+    if (before.isValid()) recordContentEdit(pageIndex, before, tr("密文遮盖"));
     setModified(true);
     emit statusMessage(tr("密文遮盖已烧入第 %1 页；请保存文档").arg(pageIndex + 1));
     trace(QStringLiteral("redaction rasterized page=%1").arg(pageIndex + 1));
@@ -2742,6 +2760,7 @@ void PdfView::replaceSelectionTextDialog() {
     }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
+    const QString originalText = textController_->selectedText();
     if (pageIndex < 0 || displayRects.isEmpty()) {
         QMessageBox::information(this, tr("替换文字"), tr("先选中要替换的文字。"));
         return;
@@ -2757,18 +2776,49 @@ void PdfView::replaceSelectionTextDialog() {
     if (!page.has_value()) {
         return;
     }
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    const auto extracted = page->extractText();
+    if (before.isValid() && extracted && !originalText.isEmpty() &&
+        extracted->plainText().count(originalText, Qt::CaseSensitive) == 1) {
+        QString serializeError;
+        const QByteArray input = document_.serialize(&serializeError);
+        int count = 0;
+        QString rewriteError;
+        const QByteArray rewritten = pdf::ContentStream::rewritePdfText(
+            input, {pageIndex}, originalText, text, Qt::CaseSensitive, &count, &rewriteError);
+        QString reloadError;
+        if (count == 1 && !rewritten.isEmpty()) {
+            page.reset();
+        }
+        if (count == 1 && !rewritten.isEmpty() && document_.reloadFromBytes(rewritten, &reloadError)) {
+            refreshAfterDecoration();
+            recordContentEdit(pageIndex, before, tr("安全替换选中文字"));
+            setModified(true);
+            emit statusMessage(tr("已安全替换选中文字"));
+            return;
+        }
+        if (!page.has_value()) page = document_.page(pageIndex);
+    }
     QRectF userRect;
     for (const QRectF& rect : displayRects) {
         const QPointF a = displayToUser(pageIndex, rect.topLeft());
         const QPointF b = displayToUser(pageIndex, rect.bottomRight());
         userRect = userRect.united(QRectF(a, b).normalized());
     }
+    const auto textObjects = page->objectsInRect(userRect, 0.5);
+    QVector<int> textIndexes;
+    for (const auto& object : textObjects)
+        if (object.type == pdf::PageObjectType::Text) textIndexes.append(object.index);
     const double fontSize = std::max(8.0, userRect.height() * 0.8);
-    if (!page->replaceTextInRect(userRect, text, fontSize, QColor(20, 24, 32))) {
+    const bool replaced = textIndexes.size() == 1
+        ? page->setTextObjectText(textIndexes.constFirst(), text)
+        : page->replaceTextInRect(userRect, text, fontSize, QColor(20, 24, 32));
+    if (!replaced) {
         QMessageBox::warning(this, tr("替换文字"), tr("替换失败。"));
         return;
     }
     refreshAfterDecoration();
+    if (before.isValid()) recordContentEdit(pageIndex, before, tr("替换选中文字"));
     setModified(true);
     emit statusMessage(tr("已替换选中文字（行级）"));
 }
@@ -2820,13 +2870,30 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     selectedObjectPage_ = pageIndex;
     selectedObjectIndexes_ = indexes;
     canvas_->setObjectSelection(pageIndex, userRect);
-    const QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性"),
-                              tr("精确几何"), tr("旋转")};
+    QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性"),
+                        tr("精确几何"), tr("旋转"), tr("透明度")};
+    const int imageCount = std::count_if(objects.cbegin(), objects.cend(), [](const auto& object) {
+        return object.type == pdf::PageObjectType::Image;
+    });
+    if (imageCount == 1) actions.append({tr("替换图片对象"), tr("裁剪图片对象")});
+    if (objects.size() > 1) actions.append(tr("组合"));
+    if (std::any_of(objects.cbegin(), objects.cend(), [](const auto& object) { return object.groupId >= 0; }))
+        actions.append(tr("取消组合"));
+    actions.append(std::any_of(objects.cbegin(), objects.cend(), [](const auto& object) { return object.locked; })
+                       ? tr("解锁") : tr("锁定"));
+    if (objects.size() == 1) actions.append({tr("置于顶层"), tr("置于底层"),
+                                             tr("上移一层"), tr("下移一层")});
     bool accepted = false;
     const QString action = QInputDialog::getItem(this, tr("编辑对象"),
                                                   tr("已选择 %1 个对象：").arg(objects.size()),
                                                   actions, 0, false, &accepted);
     if (!accepted) return;
+    const bool hasLocked = std::any_of(objects.cbegin(), objects.cend(),
+                                       [](const auto& object) { return object.locked; });
+    if (hasLocked && action != tr("解锁")) {
+        QMessageBox::information(this, tr("编辑对象"), tr("选区包含锁定对象，请先解锁"));
+        return;
+    }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
     if (!before.isValid()) {
         QMessageBox::warning(this, tr("编辑对象"), tr("无法创建页面安全备份，文档没有修改。"));
@@ -2880,7 +2947,17 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
         if (!accepted) return;
         const QColor color = QColorDialog::getColor(initialColor, this, tr("文字颜色"));
         if (!color.isValid()) return;
-        changed = page->setTextObjectProperties(textIndexes, family, size, color);
+        const double opacity = QInputDialog::getDouble(this, tr("文字属性"), tr("透明度（%）:"),
+                                                        initialColor.alphaF() * 100.0, 0, 100, 1, &accepted);
+        if (!accepted) return;
+        const double horizontal = QInputDialog::getDouble(this, tr("文字属性"), tr("水平缩放（%）:"),
+                                                           100, 1, 1000, 1, &accepted);
+        if (!accepted) return;
+        const double baseline = QInputDialog::getDouble(this, tr("文字属性"), tr("基线偏移（点）:"),
+                                                         0, -1000, 1000, 1, &accepted);
+        if (!accepted) return;
+        changed = page->setTextObjectProperties(textIndexes, family, size, color,
+                                                opacity / 100.0, horizontal / 100.0, baseline);
     } else if (action == actions[4]) {
         const double x = QInputDialog::getDouble(this, tr("精确几何"), tr("X 坐标（点）:"),
                                                   userRect.left(), -100000, 100000, 2, &accepted);
@@ -2896,11 +2973,64 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
         if (!accepted) return;
         changed = page->transformObjects(indexes, x - userRect.left(), y - userRect.top(),
                                          width / userRect.width(), height / userRect.height());
-    } else {
+    } else if (action == actions[5]) {
         const double degrees = QInputDialog::getDouble(this, tr("旋转对象"), tr("旋转角度（度）:"),
                                                         0, -3600, 3600, 1, &accepted);
         if (!accepted) return;
         changed = page->rotateObjects(indexes, degrees);
+    } else if (action == tr("透明度")) {
+        const double opacity = QInputDialog::getDouble(this, tr("透明度"), tr("透明度（%）:"),
+                                                        100, 0, 100, 1, &accepted);
+        if (!accepted) return;
+        changed = page->setObjectOpacity(indexes, opacity / 100.0);
+    } else if (action == tr("替换图片对象")) {
+        const QString path = QFileDialog::getOpenFileName(
+            this, tr("选择替换图片"), QString(), tr("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp)"));
+        if (path.isEmpty()) return;
+        const QImage image(path);
+        if (image.isNull()) return;
+        const auto imageObject = std::find_if(objects.cbegin(), objects.cend(), [](const auto& object) {
+            return object.type == pdf::PageObjectType::Image;
+        });
+        changed = imageObject != objects.cend() && page->replaceImageObject(imageObject->index, image);
+    } else if (action == tr("裁剪图片对象")) {
+        const double left = QInputDialog::getDouble(this, tr("裁剪图片对象"), tr("左侧裁剪（%）:"),
+                                                     0, 0, 99, 1, &accepted);
+        if (!accepted) return;
+        const double top = QInputDialog::getDouble(this, tr("裁剪图片对象"), tr("顶部裁剪（%）:"),
+                                                    0, 0, 99, 1, &accepted);
+        if (!accepted) return;
+        const double right = QInputDialog::getDouble(this, tr("裁剪图片对象"), tr("右侧裁剪（%）:"),
+                                                      0, 0, 99, 1, &accepted);
+        if (!accepted) return;
+        const double bottom = QInputDialog::getDouble(this, tr("裁剪图片对象"), tr("底部裁剪（%）:"),
+                                                       0, 0, 99, 1, &accepted);
+        if (!accepted || left + right >= 100 || top + bottom >= 100) return;
+        const auto imageObject = std::find_if(objects.cbegin(), objects.cend(), [](const auto& object) {
+            return object.type == pdf::PageObjectType::Image;
+        });
+        changed = imageObject != objects.cend() && page->cropImageObject(
+            imageObject->index, QRectF(left / 100.0, top / 100.0,
+                                       1.0 - (left + right) / 100.0,
+                                       1.0 - (top + bottom) / 100.0));
+    } else if (action == tr("组合")) {
+        static int nextGroupId = 1;
+        changed = page->setObjectsGroup(indexes, nextGroupId++);
+    } else if (action == tr("取消组合")) {
+        changed = page->clearObjectsGroup(indexes);
+    } else if (action == tr("锁定")) {
+        changed = page->setObjectsLocked(indexes, true);
+    } else if (action == tr("解锁")) {
+        changed = page->setObjectsLocked(indexes, false);
+    } else {
+        const int index = indexes.constFirst();
+        const int count = page->objectsInRect(
+            QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0).size();
+        const int target = action == tr("置于顶层") ? count - 1
+            : action == tr("置于底层") ? 0
+            : action == tr("上移一层") ? qMin(count - 1, index + 1)
+                                        : qMax(0, index - 1);
+        changed = page->reorderObject(index, target);
     }
     if (!changed) {
         QMessageBox::warning(this, tr("编辑对象"), tr("页面对象没有修改。"));
@@ -2909,7 +3039,8 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     refreshAfterDecoration();
     setModified(true);
     recordContentEdit(pageIndex, before, action);
-    if (action == actions[2]) {
+    if (action == actions[2] || action == tr("置于顶层") || action == tr("置于底层") ||
+        action == tr("上移一层") || action == tr("下移一层")) {
         canvas_->clearObjectSelection();
         selectedObjectPage_ = -1;
         selectedObjectIndexes_.clear();
@@ -2945,12 +3076,21 @@ void PdfView::selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool 
     objectCyclePage_ = pageIndex;
     objectCyclePoint_ = userPoint;
     const pdf::PageObjectInfo& hit = hits.at(objectCyclePosition_);
+    const auto all = page->objectsInRect(
+        QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    QVector<int> hitIndexes{hit.index};
+    if (hit.groupId >= 0) {
+        hitIndexes.clear();
+        for (const auto& object : all)
+            if (object.groupId == hit.groupId) hitIndexes.append(object.index);
+    }
     if (!additive || selectedObjectPage_ != pageIndex) {
-        selectedObjectIndexes_ = {hit.index};
+        selectedObjectIndexes_ = hitIndexes;
     } else if (selectedObjectIndexes_.contains(hit.index)) {
-        selectedObjectIndexes_.removeAll(hit.index);
+        for (int index : hitIndexes) selectedObjectIndexes_.removeAll(index);
     } else {
-        selectedObjectIndexes_.append(hit.index);
+        for (int index : hitIndexes)
+            if (!selectedObjectIndexes_.contains(index)) selectedObjectIndexes_.append(index);
     }
     selectedObjectPage_ = selectedObjectIndexes_.isEmpty() ? -1 : pageIndex;
     if (selectedObjectIndexes_.isEmpty()) {
@@ -2958,8 +3098,6 @@ void PdfView::selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool 
         return;
     }
     QRectF bounds;
-    const auto all = page->objectsInRect(
-        QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
     for (const auto& object : all)
         if (selectedObjectIndexes_.contains(object.index)) bounds = bounds.united(object.bounds);
     canvas_->setObjectSelection(pageIndex, bounds);
@@ -2979,6 +3117,17 @@ void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
         return;
     }
     auto page = document_.page(pageIndex);
+    if (page) {
+        const auto objects = page->objectsInRect(
+            QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+        if (std::any_of(objects.cbegin(), objects.cend(), [this](const auto& object) {
+                return selectedObjectIndexes_.contains(object.index) && object.locked;
+            })) {
+            canvas_->setObjectSelection(pageIndex, oldRect);
+            emit statusMessage(tr("选区包含锁定对象，请先解锁"));
+            return;
+        }
+    }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
     if (!page || !before.isValid()) {
         canvas_->setObjectSelection(pageIndex, oldRect);
@@ -3001,6 +3150,16 @@ void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
 void PdfView::rotateSelectedObjects(int pageIndex, double degrees) {
     if (pageIndex != selectedObjectPage_ || selectedObjectIndexes_.isEmpty()) return;
     auto page = document_.page(pageIndex);
+    if (page) {
+        const auto objects = page->objectsInRect(
+            QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+        if (std::any_of(objects.cbegin(), objects.cend(), [this](const auto& object) {
+                return selectedObjectIndexes_.contains(object.index) && object.locked;
+            })) {
+            emit statusMessage(tr("选区包含锁定对象，请先解锁"));
+            return;
+        }
+    }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
     if (!page || !before.isValid() || !page->rotateObjects(selectedObjectIndexes_, -degrees)) {
         emit statusMessage(tr("页面对象没有修改。"));
@@ -3071,6 +3230,8 @@ void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,
     constexpr int kMaxContentHistory = 50;
     if (contentUndo_.size() > kMaxContentHistory) contentUndo_.removeFirst();
     contentRedo_.clear();
+    editUndoTimeline_.append(EditHistoryKind::Content);
+    editRedoTimeline_.clear();
     updateAnnotationToolBar();
 }
 
@@ -3093,9 +3254,35 @@ bool PdfView::restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageI
 void PdfView::reflowSelectionDialog(bool paragraph) {
     if (!document_.isValid() || textController_ == nullptr) return;
     if (!requirePermission(effectivePermissions().allowModifying, tr("流式编辑"))) return;
-    const int pageIndex = textController_->selectionPage();
-    const QVector<QRectF> displayRects = textController_->selectionRects();
-    const QString source = textController_->selectedText();
+    int pageIndex = textController_->selectionPage();
+    QVector<QRectF> displayRects = textController_->selectionRects();
+    QString source = textController_->selectedText();
+    if (selectedObjectPage_ >= 0 && selectedObjectIndexes_.size() > 1) {
+        auto selectedPage = document_.page(selectedObjectPage_);
+        PageTransform transform;
+        if (selectedPage && transformForIndexPage(selectedObjectPage_, &transform)) {
+            auto selected = selectedPage->objectsInRect(
+                QRectF(0, 0, selectedPage->widthPoints(), selectedPage->heightPoints()), 0.0);
+            selected.erase(std::remove_if(selected.begin(), selected.end(), [this](const auto& object) {
+                return object.type != pdf::PageObjectType::Text ||
+                       !selectedObjectIndexes_.contains(object.index);
+            }), selected.end());
+            std::sort(selected.begin(), selected.end(), [](const auto& a, const auto& b) {
+                return !qFuzzyCompare(a.bounds.top(), b.bounds.top())
+                    ? a.bounds.top() > b.bounds.top() : a.bounds.left() < b.bounds.left();
+            });
+            if (selected.size() > 1) {
+                pageIndex = selectedObjectPage_;
+                source.clear();
+                displayRects.clear();
+                for (const auto& object : selected) {
+                    if (!source.isEmpty()) source += QLatin1Char(' ');
+                    source += object.text;
+                    displayRects.append(transform.toDisplay(object.bounds));
+                }
+            }
+        }
+    }
     if (pageIndex < 0 || displayRects.isEmpty() || source.trimmed().isEmpty()) {
         QMessageBox::information(this, tr("流式编辑"), tr("先选中要重排的文字。"));
         return;
@@ -3112,6 +3299,28 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
     if (!accepted) return;
     pdf::TextStyle style;
     style.fontSize = fontSize;
+    style.lineHeight = QInputDialog::getDouble(this, tr("流式编辑"), tr("行距（倍）:"),
+                                                1.2, 0.5, 5.0, 2, &accepted);
+    if (!accepted) return;
+    style.characterSpacing = QInputDialog::getDouble(this, tr("流式编辑"), tr("字距（点）:"),
+                                                       0, -20, 100, 2, &accepted);
+    if (!accepted) return;
+    style.horizontalScale = QInputDialog::getDouble(this, tr("流式编辑"), tr("水平缩放（%）:"),
+                                                      100, 1, 1000, 1, &accepted) / 100.0;
+    if (!accepted) return;
+    style.baselineShift = QInputDialog::getDouble(this, tr("流式编辑"), tr("基线偏移（点）:"),
+                                                   0, -1000, 1000, 1, &accepted);
+    if (!accepted) return;
+    style.opacity = QInputDialog::getDouble(this, tr("流式编辑"), tr("透明度（%）:"),
+                                             100, 0, 100, 1, &accepted) / 100.0;
+    if (!accepted) return;
+    style.color = QColorDialog::getColor(Qt::black, this, tr("文字颜色"));
+    if (!style.color.isValid()) return;
+    const QStringList directions{tr("横排"), tr("竖排")};
+    const QString direction = QInputDialog::getItem(this, tr("流式编辑"), tr("书写方向:"),
+                                                     directions, 0, false, &accepted);
+    if (!accepted) return;
+    style.vertical = direction == directions[1];
     const QStringList alignments{tr("左对齐"), tr("居中"), tr("右对齐"), tr("两端对齐")};
     const QString alignment = QInputDialog::getItem(this, tr("流式编辑"), tr("对齐方式:"),
                                                      alignments, 0, false, &accepted);
@@ -3120,8 +3329,13 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
         : alignment == alignments[2] ? pdf::TextAlignment::Right
         : alignment == alignments[3] ? pdf::TextAlignment::Justify
                                      : pdf::TextAlignment::Left;
-    const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Times Roman"),
-                               QStringLiteral("Courier"), QStringLiteral("Microsoft YaHei"),
+    const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Helvetica Bold"),
+                               QStringLiteral("Helvetica Oblique"), QStringLiteral("Helvetica Bold Oblique"),
+                               QStringLiteral("Times Roman"), QStringLiteral("Times Bold"),
+                               QStringLiteral("Times Italic"), QStringLiteral("Times Bold Italic"),
+                               QStringLiteral("Courier"), QStringLiteral("Courier Bold"),
+                               QStringLiteral("Courier Oblique"), QStringLiteral("Courier Bold Oblique"),
+                               QStringLiteral("Microsoft YaHei"),
                                QStringLiteral("SimSun"), QStringLiteral("SimHei")};
     style.family = QInputDialog::getItem(this, tr("流式编辑"), tr("字体:"), families, 0,
                                          false, &accepted);
@@ -3181,8 +3395,28 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
         const double baselineY = linked ? pageHeight - line.baseline.y()
                                         : rect.bottom() - line.baseline.y();
         const double baselineX = linked ? line.baseline.x() : rect.left() + line.baseline.x();
-        ok = page->addTextLayer(line.text, baselineX, baselineY,
-                                fontSize, Qt::black, 0.0, 1.0, style.family) && ok;
+        if (qFuzzyIsNull(style.characterSpacing)) {
+            ok = page->addTextLayer(line.text, baselineX, baselineY + style.baselineShift,
+                                    fontSize, style.color, 0.0, style.opacity, style.family,
+                                    style.horizontalScale) && ok;
+        } else {
+            QFont metricsFont(style.family);
+            metricsFont.setPointSizeF(fontSize);
+            const QFontMetricsF metrics(metricsFont);
+            QTextBoundaryFinder finder(QTextBoundaryFinder::Grapheme, line.text);
+            finder.toStart();
+            qsizetype start = 0;
+            double x = baselineX;
+            for (qsizetype end = finder.toNextBoundary(); end >= 0;
+                 start = end, end = finder.toNextBoundary()) {
+                const QString grapheme = line.text.mid(start, end - start);
+                ok = page->addTextLayer(grapheme, x, baselineY + style.baselineShift,
+                                        fontSize, style.color, 0.0, style.opacity, style.family,
+                                        style.horizontalScale) && ok;
+                x += metrics.horizontalAdvance(grapheme) * style.horizontalScale +
+                     style.characterSpacing;
+            }
+        }
     }
     if (!ok) {
         rollback();
@@ -3193,7 +3427,9 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
     setModified(true);
     recordContentEdit(pageIndex, backup,
                       paragraph ? tr("段落重排") : tr("行内自动换行"));
-    emit statusMessage(paragraph ? tr("已完成段落重排") : tr("已完成行内自动换行"));
+    emit statusMessage(layout.overflow ? tr("文本框空间不足，仍有文字未排入")
+                                      : paragraph ? tr("已完成段落重排")
+                                                  : tr("已完成行内自动换行"));
 }
 
 void PdfView::searchReplaceDialog() {
@@ -3221,6 +3457,31 @@ void PdfView::searchReplaceDialog() {
     const int firstPage = scope == scopes.constFirst() ? currentPage() : 0;
     const int lastPage = scope == scopes.constFirst() ? currentPage() : document_.pageCount() - 1;
     int replacementCount = 0;
+    for (int pageIndex = firstPage; pageIndex <= lastPage; ++pageIndex) {
+        const pdf::PdfDocument before = document_.backupPage(pageIndex);
+        QString serializeError;
+        const QByteArray input = document_.serialize(&serializeError);
+        int safeCount = 0;
+        QString rewriteError;
+        const QByteArray rewritten = pdf::ContentStream::rewritePdfText(
+            input, {pageIndex}, query, replacement, Qt::CaseInsensitive, &safeCount, &rewriteError);
+        if (safeCount <= 0 || rewritten.isEmpty()) continue;
+        QString reloadError;
+        if (!before.isValid() || !document_.reloadFromBytes(rewritten, &reloadError)) {
+            QMessageBox::warning(this, tr("搜索替换"),
+                                 tr("安全内容流重写失败：%1").arg(
+                                     reloadError.isEmpty() ? rewriteError : reloadError));
+            return;
+        }
+        replacementCount += safeCount;
+        recordContentEdit(pageIndex, before, tr("安全搜索替换"));
+    }
+    if (replacementCount > 0) {
+        refreshAfterDecoration();
+        setModified(true);
+        emit statusMessage(tr("已安全替换 %1 处").arg(replacementCount));
+        return;
+    }
     for (int pageIndex = firstPage; pageIndex <= lastPage; ++pageIndex) {
         auto page = document_.page(pageIndex);
         if (!page.has_value()) {
@@ -3676,15 +3937,31 @@ void PdfView::applyMarkAnnotation(pdf::AnnotationType type) {
 }
 
 void PdfView::undoAnnotation() {
-    if (!contentUndo_.isEmpty()) {
+    if (!editUndoTimeline_.isEmpty()) {
+        const EditHistoryKind kind = editUndoTimeline_.takeLast();
+        if (kind == EditHistoryKind::Content && !contentUndo_.isEmpty()) {
         const ContentEditRecord record = contentUndo_.takeLast();
         if (restoreContentSnapshot(record.before, record.pageIndex)) {
             contentRedo_.append(record);
+            editRedoTimeline_.append(kind);
             updateAnnotationToolBar();
             emit statusMessage(tr("已撤销：%1").arg(record.name));
             return;
         }
         contentUndo_.append(record);
+        editUndoTimeline_.append(kind);
+        } else if (kind == EditHistoryKind::Annotation && annotationController_) {
+            replayingEditHistory_ = true;
+            const bool ok = annotationController_->undo();
+            replayingEditHistory_ = false;
+            knownAnnotationUndoCount_ = annotationController_->undoCount();
+            if (ok) {
+                editRedoTimeline_.append(kind);
+                updateAnnotationToolBar();
+                return;
+            }
+            editUndoTimeline_.append(kind);
+        }
     }
     if (!annotationController_) {
         return;
@@ -3695,15 +3972,31 @@ void PdfView::undoAnnotation() {
 }
 
 void PdfView::redoAnnotation() {
-    if (!contentRedo_.isEmpty()) {
+    if (!editRedoTimeline_.isEmpty()) {
+        const EditHistoryKind kind = editRedoTimeline_.takeLast();
+        if (kind == EditHistoryKind::Content && !contentRedo_.isEmpty()) {
         const ContentEditRecord record = contentRedo_.takeLast();
         if (restoreContentSnapshot(record.after, record.pageIndex)) {
             contentUndo_.append(record);
+            editUndoTimeline_.append(kind);
             updateAnnotationToolBar();
             emit statusMessage(tr("已重做：%1").arg(record.name));
             return;
         }
         contentRedo_.append(record);
+        editRedoTimeline_.append(kind);
+        } else if (kind == EditHistoryKind::Annotation && annotationController_) {
+            replayingEditHistory_ = true;
+            const bool ok = annotationController_->redo();
+            replayingEditHistory_ = false;
+            knownAnnotationUndoCount_ = annotationController_->undoCount();
+            if (ok) {
+                editUndoTimeline_.append(kind);
+                updateAnnotationToolBar();
+                return;
+            }
+            editRedoTimeline_.append(kind);
+        }
     }
     if (!annotationController_) {
         return;
@@ -3725,16 +4018,20 @@ void PdfView::updateAnnotationToolBar() {
     noteButton_->setEnabled(hasDocument);
     squareButton_->setEnabled(hasDocument);
     inkButton_->setEnabled(hasDocument);
-    const bool canUndoContent = !contentUndo_.isEmpty();
-    const bool canRedoContent = !contentRedo_.isEmpty();
-    undoButton_->setEnabled(canUndoContent || (hasDocument && annotationController_->canUndo()));
-    redoButton_->setEnabled(canRedoContent || (hasDocument && annotationController_->canRedo()));
-    undoButton_->setToolTip(canUndoContent
+    const bool canUndoUnified = !editUndoTimeline_.isEmpty();
+    const bool canRedoUnified = !editRedoTimeline_.isEmpty();
+    const bool undoIsContent = canUndoUnified && editUndoTimeline_.constLast() == EditHistoryKind::Content &&
+                               !contentUndo_.isEmpty();
+    const bool redoIsContent = canRedoUnified && editRedoTimeline_.constLast() == EditHistoryKind::Content &&
+                               !contentRedo_.isEmpty();
+    undoButton_->setEnabled(canUndoUnified || (hasDocument && annotationController_->canUndo()));
+    redoButton_->setEnabled(canRedoUnified || (hasDocument && annotationController_->canRedo()));
+    undoButton_->setToolTip(undoIsContent
                                 ? tr("撤销 %1 (Ctrl+Z)").arg(contentUndo_.constLast().name)
                             : hasDocument && annotationController_->canUndo()
                                 ? annotationController_->undoText()
                                 : tr("撤销上一步批注操作 (Ctrl+Z)"));
-    redoButton_->setToolTip(canRedoContent
+    redoButton_->setToolTip(redoIsContent
                                 ? tr("重做 %1 (Ctrl+Shift+Z)").arg(contentRedo_.constLast().name)
                             : hasDocument && annotationController_->canRedo()
                                 ? annotationController_->redoText()

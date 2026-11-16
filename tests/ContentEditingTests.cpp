@@ -17,6 +17,9 @@ private slots:
     void wrapsLinesAndReportsOverflow();
     void alignsReflowedText();
     void flowsAcrossLinkedFrames();
+#ifdef AIPDF_WITH_QPDF
+    void safelyRewritesRealPdfContent();
+#endif
 };
 
 void ContentEditingTests::tokenizesNestedStringsAndArrays() {
@@ -87,6 +90,28 @@ void ContentEditingTests::flowsAcrossLinkedFrames() {
         return line.baseline.x() >= 100;
     }));
 }
+
+#ifdef AIPDF_WITH_QPDF
+void ContentEditingTests::safelyRewritesRealPdfContent() {
+    QFile file(QStringLiteral(AIPDF_PDF_FIXTURES_DIR) + QStringLiteral("/text.pdf"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    int replacements = 0;
+    QString error;
+    const QByteArray rewritten = ContentStream::rewritePdfText(
+        file.readAll(), {0}, QStringLiteral("Folixa"), QStringLiteral("SAFE"),
+        Qt::CaseSensitive, &replacements, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(replacements > 0);
+    QVERIFY(!rewritten.isEmpty());
+    int secondCount = 0;
+    const QByteArray rewrittenAgain = ContentStream::rewritePdfText(
+        rewritten, {0}, QStringLiteral("SAFE"), QStringLiteral("DONE"),
+        Qt::CaseSensitive, &secondCount, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(secondCount > 0);
+    QVERIFY(!rewrittenAgain.isEmpty());
+}
+#endif
 
 QTEST_MAIN(ContentEditingTests)
 #include "ContentEditingTests.moc"

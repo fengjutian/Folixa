@@ -19,6 +19,16 @@ qt_add_executable(ContentEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
 )
 target_link_libraries(ContentEditingTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(ContentEditingTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(ContentEditingTests PRIVATE
+        AIPDF_WITH_QPDF=1
+        AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}")
+    add_custom_command(TARGET ContentEditingTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:ContentEditingTests>")
+    add_dependencies(ContentEditingTests pdf-fixtures)
+endif()
 target_include_directories(ContentEditingTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 set_target_properties(ContentEditingTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(ContentEditingTests)

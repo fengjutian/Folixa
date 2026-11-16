@@ -4297,5 +4297,39 @@ Starred: %7</translation></message>
         <message><source>旋转角度（度）:</source><translation>Rotation angle (degrees):</translation></message>
         <message><source>旋转页面对象</source><translation>Rotate page objects</translation></message>
         <message><source>精确几何</source><translation>Precise geometry</translation></message>
+        <message><source>上移一层</source><translation>Bring Forward</translation></message>
+        <message><source>下移一层</source><translation>Send Backward</translation></message>
+        <message><source>书写方向:</source><translation>Writing direction:</translation></message>
+        <message><source>双击位置没有可编辑文字</source><translation>There is no editable text at the double-clicked position</translation></message>
+        <message><source>取消组合</source><translation>Ungroup</translation></message>
+        <message><source>右侧裁剪（%）:</source><translation>Crop right (%):</translation></message>
+        <message><source>图片文件 (*.png *.jpg *.jpeg *.bmp *.webp)</source><translation>Image files (*.png *.jpg *.jpeg *.bmp *.webp)</translation></message>
+        <message><source>基线偏移（点）:</source><translation>Baseline shift (pt):</translation></message>
+        <message><source>字距（点）:</source><translation>Character spacing (pt):</translation></message>
+        <message><source>安全内容流重写失败：%1</source><translation>Safe content-stream rewrite failed: %1</translation></message>
+        <message><source>安全搜索替换</source><translation>safe search and replace</translation></message>
+        <message><source>就地编辑文字</source><translation>inline text editing</translation></message>
+        <message><source>左侧裁剪（%）:</source><translation>Crop left (%):</translation></message>
+        <message><source>已安全替换 %1 处</source><translation>Safely replaced %1 occurrence(s)</translation></message>
+        <message><source>底部裁剪（%）:</source><translation>Crop bottom (%):</translation></message>
+        <message><source>当前字体不包含输入字符，文字没有修改。</source><translation>The current font cannot represent the entered characters. The text was not changed.</translation></message>
+        <message><source>文字已更新</source><translation>Text updated</translation></message>
+        <message><source>文本框空间不足，仍有文字未排入</source><translation>The text frames are full; some text could not be placed</translation></message>
+        <message><source>替换图片对象</source><translation>Replace image object</translation></message>
+        <message><source>横排</source><translation>Horizontal</translation></message>
+        <message><source>组合</source><translation>Group</translation></message>
+        <message><source>解锁</source><translation>Unlock</translation></message>
+        <message><source>编辑文字</source><translation>Edit text</translation></message>
+        <message><source>置于底层</source><translation>Send to Back</translation></message>
+        <message><source>置于顶层</source><translation>Bring to Front</translation></message>
+        <message><source>行距（倍）:</source><translation>Line spacing (multiple):</translation></message>
+        <message><source>裁剪图片对象</source><translation>Crop image object</translation></message>
+        <message><source>竖排</source><translation>Vertical</translation></message>
+        <message><source>选区包含锁定对象，请先解锁</source><translation>The selection contains locked objects. Unlock them first.</translation></message>
+        <message><source>选择替换图片</source><translation>Select replacement image</translation></message>
+        <message><source>透明度</source><translation>Opacity</translation></message>
+        <message><source>透明度（%）:</source><translation>Opacity (%):</translation></message>
+        <message><source>锁定</source><translation>Lock</translation></message>
+        <message><source>顶部裁剪（%）:</source><translation>Crop top (%):</translation></message>
     </context>
 </TS>

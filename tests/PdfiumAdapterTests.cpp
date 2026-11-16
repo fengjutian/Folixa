@@ -119,11 +119,36 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     });
     QVERIFY(match != objects.end());
     QVERIFY(match->bounds.height() > scaled.height());
+    QVERIFY(page->setTextObjectText(index, QStringLiteral("EDITED")));
+    objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    match = std::find_if(objects.begin(), objects.end(), [index](const PageObjectInfo& info) {
+        return info.index == index && info.text.contains(QStringLiteral("EDITED"));
+    });
+    QVERIFY(match != objects.end());
     QVERIFY(page->setTextObjectProperties({index}, QStringLiteral("Courier"), 20, QColor(Qt::red)));
     objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
     match = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
         return info.type == PageObjectType::Text && info.fontFamily.contains(QStringLiteral("Courier")) &&
                info.fillColor.red() > 200 && info.fillColor.green() < 80;
+    });
+    QVERIFY(match != objects.end());
+    const int styledIndex = match->index;
+    QVERIFY(page->addTextLayer(QStringLiteral("GROUP"), 90, 90, 12, Qt::black));
+    objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    const auto groupedPeer = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.text.contains(QStringLiteral("GROUP"));
+    });
+    QVERIFY(groupedPeer != objects.end());
+    QVERIFY(page->setObjectsGroup({styledIndex, groupedPeer->index}, 42));
+    QVERIFY(page->setObjectsLocked({styledIndex, groupedPeer->index}, true));
+    objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    QCOMPARE(std::count_if(objects.cbegin(), objects.cend(), [](const PageObjectInfo& info) {
+        return info.groupId == 42 && info.locked;
+    }), 2);
+    QVERIFY(page->setObjectsLocked({styledIndex, groupedPeer->index}, false));
+    QVERIFY(page->clearObjectsGroup({styledIndex, groupedPeer->index}));
+    match = std::find_if(objects.begin(), objects.end(), [styledIndex](const PageObjectInfo& info) {
+        return info.index == styledIndex;
     });
     QVERIFY(match != objects.end());
     QVERIFY(page->removeObjects({match->index}));
@@ -549,6 +574,18 @@ void PdfiumAdapterTests::imageLayerCoversRect() {
     // 渲染倍率 1 时，矩形 (100,400) 对应图像里 y=400 的位置附近应是蓝色。
     const QColor sample = rendered.pixelColor(50, 160 - 70);
     QVERIFY2(sample.blue() > 150 && sample.red() < 80, "图片没有被画到页面上");
+
+    auto objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    auto imageObject = std::find_if(objects.begin(), objects.end(), [](const auto& object) {
+        return object.type == aipdf::pdf::PageObjectType::Image;
+    });
+    QVERIFY(imageObject != objects.end());
+    const int imageIndex = imageObject->index;
+    QImage replacement(30, 20, QImage::Format_ARGB32);
+    replacement.fill(QColor(255, 0, 0));
+    QVERIFY(page->replaceImageObject(imageIndex, replacement));
+    QVERIFY(page->cropImageObject(imageIndex, QRectF(0.1, 0.1, 0.8, 0.8)));
+    QVERIFY(page->setObjectOpacity({imageIndex}, 0.75));
 }
 
 void PdfiumAdapterTests::textReplacementSwapsContent() {

@@ -35,6 +35,10 @@ public:
         const QByteArray& bytes,
         const std::function<QString(const QString&)>& rewrite,
         QString* error = nullptr);
+    static QByteArray rewritePdfText(const QByteArray& pdfBytes, const QVector<int>& pageIndexes,
+                                     const QString& query, const QString& replacement,
+                                     Qt::CaseSensitivity sensitivity, int* replacements,
+                                     QString* error = nullptr);
 };
 
 }  // namespace aipdf::pdf
