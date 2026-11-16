@@ -5,6 +5,7 @@
 #include "app/TextController.h"
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
+#include "app/ShareUtils.h"
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
@@ -91,7 +92,6 @@
 #include <QTreeWidgetItem>
 #include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -2817,13 +2817,8 @@ void MainWindow::shareByEmail() {
 
     // mailto 没有跨邮件客户端通用的附件参数。把文件链接写入正文并同时复制到
     // 剪贴板，用户可以在系统默认邮件客户端中粘贴或拖入该文件。
-    const QUrl fileUrl = QUrl::fromLocalFile(file.absoluteFilePath());
-    QUrl mail(QStringLiteral("mailto:"));
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("subject"), tr("请审阅：%1").arg(file.fileName()));
-    query.addQueryItem(QStringLiteral("body"),
-                       tr("请审阅随邮件发送的 PDF：\n%1").arg(fileUrl.toString()));
-    mail.setQuery(query);
+    const QUrl mail = share::emailUrl(file.absoluteFilePath(), tr("请审阅："),
+                                      tr("请审阅随邮件发送的 PDF：\n"));
     QGuiApplication::clipboard()->setText(file.absoluteFilePath());
 
     if (!QDesktopServices::openUrl(mail)) {
@@ -2845,7 +2840,7 @@ void MainWindow::copyDocumentLink() {
         QMessageBox::warning(this, tr("共享协作"), tr("当前 PDF 尚未保存到磁盘。"));
         return;
     }
-    const QString link = QUrl::fromLocalFile(file.absoluteFilePath()).toString();
+    const QString link = share::fileLink(file.absoluteFilePath());
     QGuiApplication::clipboard()->setText(link);
     statusBar()->showMessage(tr("已复制当前 PDF 的文件链接。"), 3000);
     trace(QStringLiteral("share copy link path=%1").arg(file.absoluteFilePath()));

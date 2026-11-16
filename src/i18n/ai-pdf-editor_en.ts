@@ -892,9 +892,13 @@
         <message><source>请先打开并保存一份 PDF。</source><translation>Open and save a PDF first.</translation></message>
         <message><source>当前 PDF 尚未保存到磁盘。</source><translation>The current PDF has not been saved to disk.</translation></message>
         <message><source>请审阅：%1</source><translation>Please review: %1</translation></message>
+        <message><source>请审阅：</source><translation>Please review: </translation></message>
         <message><source>请审阅随邮件发送的 PDF：
 %1</source><translation>Please review the PDF sent with this email:
 %1</translation></message>
+        <message><source>请审阅随邮件发送的 PDF：
+</source><translation>Please review the PDF sent with this email:
+</translation></message>
         <message><source>无法打开系统默认邮件客户端。</source><translation>Could not open the default email client.</translation></message>
         <message><source>已打开邮件客户端；PDF 路径已复制，可粘贴为附件。</source><translation>The email client is open. The PDF path was copied so you can paste it as an attachment.</translation></message>
         <message><source>已复制当前 PDF 的文件链接。</source><translation>Copied the current PDF file link.</translation></message>
@@ -3795,6 +3799,11 @@
         <message><source>删除图片</source><translation>Delete image</translation></message>
         <message><source>第 %1 页</source><translation>Page %1</translation></message>
         <message><source>附件</source><translation>Attachments</translation></message>
+        <message><source>字段属性…</source><translation>Field properties…</translation></message>
+        <message><source>服务</source><translation>Services</translation></message>
+        <message><source>流程</source><translation>Workflow</translation></message>
+        <message><source>签章</source><translation>Seal</translation></message>
+        <message><source>签署</source><translation>Sign</translation></message>
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
@@ -3827,6 +3836,49 @@
         <message><source>字段名称已存在，请换一个名称。</source><translation>The field name already exists. Choose another name.</translation></message>
         <message><source>已在第 %1 页创建表单字段“%2”</source><translation>Created form field “%2” on page %1</translation></message>
         <message><source>无法序列化文档：%1</source><translation>Could not serialize the document: %1</translation></message>
+        <message><source>允许多行</source><translation>Allow multiple lines</translation></message>
+        <message><source>只读</source><translation>Read-only</translation></message>
+        <message><source>字段名称</source><translation>Field name</translation></message>
+        <message><source>字段名称不能为空。</source><translation>Field name cannot be empty.</translation></message>
+        <message><source>字段名称已存在。</source><translation>The field name already exists.</translation></message>
+        <message><source>字段属性</source><translation>Field properties</translation></message>
+        <message><source>字段重命名需要同步计算脚本引用，当前保持原名称。</source><translation>Renaming a field requires updating calculation script references; the original name has been kept.</translation></message>
+        <message><source>工具提示</source><translation>Tooltip</translation></message>
+        <message><source>必填</source><translation>Required</translation></message>
+        <message><source>每行一个选项</source><translation>One option per line</translation></message>
+        <message><source>电子签章</source><translation>Electronic signatures</translation></message>
+        <message><source>签章图片无效，无法放置。</source><translation>The seal image is invalid and cannot be placed.</translation></message>
+        <message><source>签章已放置；保存文档后写入 PDF。</source><translation>Seal placed; save the document to write it to the PDF.</translation></message>
+        <message><source>请在页面上单击签章位置；按其他工具可取消。</source><translation>Click the position for the seal on the page; choose another tool to cancel.</translation></message>
+        <message><source>请在页面上拖出表单字段的位置；按其他工具可取消。</source><translation>Drag the form field area on the page; choose another tool to cancel.</translation></message>
+        <message><source>选项</source><translation>Options</translation></message>
+        <message><source>骑缝章只写入了 %1/%2 页。</source><translation>The cross-page seal was written to only %1 of %2 pages.</translation></message>
+        <message><source>骑缝章已拆分到 %1 页；保存文档后写入 PDF。</source><translation>The cross-page seal was split across %1 pages; save the document to write it to the PDF.</translation></message>
+        <message><source>骑缝章：%1 (%2/%3)</source><translation>Cross-page seal: %1 (%2/%3)</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::SignatureDialog</name>
+        <message><source>使用此签章</source><translation>Use this seal</translation></message>
+        <message><source>删除签章</source><translation>Delete seal</translation></message>
+        <message><source>导入图片…</source><translation>Import image…</translation></message>
+        <message><source>导入签章</source><translation>Import seal</translation></message>
+        <message><source>导入签章图片</source><translation>Import seal image</translation></message>
+        <message><source>我的签名</source><translation>My signature</translation></message>
+        <message><source>手写签名</source><translation>Handwritten signature</translation></message>
+        <message><source>手写签名…</source><translation>Handwritten signature…</translation></message>
+        <message><source>按住鼠标或触控笔书写签名：</source><translation>Hold the mouse button or stylus down to write your signature:</translation></message>
+        <message><source>无法保存签名。</source><translation>Could not save the signature.</translation></message>
+        <message><source>无法保存签章图片。</source><translation>Could not save the seal image.</translation></message>
+        <message><source>无法识别这张图片。</source><translation>This image could not be recognized.</translation></message>
+        <message><source>清空</source><translation>Clear</translation></message>
+        <message><source>确定删除“%1”吗？</source><translation>Delete “%1”?</translation></message>
+        <message><source>签章仅保存在本机。可导入透明 PNG/JPEG，或直接手写创建。</source><translation>Seals are stored only on this device. Import a transparent PNG/JPEG or create a handwritten signature.</translation></message>
+        <message><source>签章名称</source><translation>Seal name</translation></message>
+        <message><source>管理签章</source><translation>Manage seals</translation></message>
+        <message><source>选择签章</source><translation>Select a seal</translation></message>
+        <message><source>删除</source><translation>Delete</translation></message>
+        <message><source>名称</source><translation>Name</translation></message>
+        <message><source>图片 (*.png *.jpg *.jpeg *.bmp)</source><translation>Images (*.png *.jpg *.jpeg *.bmp)</translation></message>
     </context>
     <context>
         <name>aipdf::app::SettingsDialog</name>

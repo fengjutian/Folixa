@@ -60,6 +60,8 @@
     app/NavigationHistory.h
     app/NavigationHistory.cpp
     app/SearchMatcher.cpp
+    app/ShareUtils.cpp
+    app/ShareUtils.h
     app/PresentationWindow.h
     app/PresentationWindow.cpp
     app/ViewFit.h

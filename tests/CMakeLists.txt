@@ -11,6 +11,17 @@ aipdf_deploy_qt_runtime(IpcProtocolTests)
 
 add_test(NAME IpcProtocolTests COMMAND IpcProtocolTests)
 
+qt_add_executable(ShareUtilsTests
+    ShareUtilsTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ShareUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ShareUtils.h
+)
+target_link_libraries(ShareUtilsTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(ShareUtilsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ShareUtilsTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ShareUtilsTests)
+add_test(NAME ShareUtilsTests COMMAND ShareUtilsTests)
+
 # ------------------------------------------------------------ 国际化底座 ----
 #
 # .ts 目录在主程序里是资源，测试要自己再打一份，才能验证「目录真的进包了」。
