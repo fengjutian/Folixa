@@ -6,6 +6,7 @@
 #include "app/PdfView.h"
 #include "app/SearchPanel.h"
 #include "app/ShareUtils.h"
+#include "app/BatchRename.h"
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
@@ -1538,7 +1539,9 @@ void MainWindow::buildUi() {
     addDocumentManagementCommand(invoiceGroup, "发票合并", "documentManagement.invoiceMerge");
 
     auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
-    addDocumentManagementCommand(documentBatchGroup, "批量重命名", "documentManagement.batchRename");
+    addRibbonCommand(documentBatchGroup, "批量重命名", "按统一前缀和序号重命名多个文件",
+                     ":/icons/edit.svg", [this] { batchRenameDocuments(); }, true,
+                     "documentManagement.batchRename");
     addDocumentManagementCommand(documentBatchGroup, "OFD 批量转换", "documentManagement.ofdConvert");
     addPlaceholderTab("录制", {
         {"录制", {"PDF 录制", "屏幕录制", "声音录制", "截图", "录制列表"}},
@@ -2931,6 +2934,26 @@ PdfView* MainWindow::shareDocument() {
         QMessageBox::information(this, tr("共享"), tr("请先打开一份 PDF。"));
     }
     return view;
+}
+
+void MainWindow::batchRenameDocuments() {
+    const QStringList files = QFileDialog::getOpenFileNames(
+        this, tr("选择要批量重命名的文件"), QString(),
+        tr("文档 (*.pdf *.ofd);;PDF 文件 (*.pdf);;所有文件 (*)"));
+    if (files.isEmpty()) return;
+
+    bool accepted = false;
+    const QString prefix = QInputDialog::getText(
+        this, tr("批量重命名"), tr("文件名前缀:"), QLineEdit::Normal,
+        tr("文档"), &accepted).trimmed();
+    if (!accepted || prefix.isEmpty()) return;
+
+    const BatchRenameResult result = batchRenameFiles(files, prefix);
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("批量重命名失败"), result.error);
+        return;
+    }
+    statusBar()->showMessage(tr("已重命名 %1 个文件").arg(result.renamedPaths.size()), 5000);
 }
 
 PdfView* MainWindow::savedShareDocument() {

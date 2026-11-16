@@ -62,6 +62,8 @@
     app/SearchMatcher.cpp
     app/ShareUtils.cpp
     app/ShareUtils.h
+    app/BatchRename.cpp
+    app/BatchRename.h
     app/PresentationWindow.h
     app/PresentationWindow.cpp
     app/ViewFit.h

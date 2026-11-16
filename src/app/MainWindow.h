@@ -121,6 +121,7 @@ private:
     void shareByEmail();
     void copyDocumentLink();
     void showReviewTracker();
+    void batchRenameDocuments();
     PdfView* shareDocument();
     PdfView* savedShareDocument();
     // 启动时看看有没有上次没保存完的工作。

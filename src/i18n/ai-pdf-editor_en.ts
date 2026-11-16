@@ -1823,6 +1823,14 @@
             <source>打开本地全文索引与检索</source>
             <translation>Open local full-text indexing and search</translation>
         </message>
+        <message><source>按统一前缀和序号重命名多个文件</source><translation>Rename multiple files using a common prefix and sequence number</translation></message>
+        <message><source>选择要批量重命名的文件</source><translation>Select files to batch rename</translation></message>
+        <message><source>文档 (*.pdf *.ofd);;PDF 文件 (*.pdf);;所有文件 (*)</source><translation>Documents (*.pdf *.ofd);;PDF files (*.pdf);;All files (*)</translation></message>
+        <message><source>批量重命名</source><translation>Batch Rename</translation></message>
+        <message><source>文件名前缀:</source><translation>File name prefix:</translation></message>
+        <message><source>文档</source><translation>Document</translation></message>
+        <message><source>批量重命名失败</source><translation>Batch Rename Failed</translation></message>
+        <message><source>已重命名 %1 个文件</source><translation>Renamed %1 files</translation></message>
         <message>
             <source>录制</source>
             <translation>Record</translation>
@@ -3902,6 +3910,47 @@
         <message><source>删除</source><translation>Delete</translation></message>
         <message><source>名称</source><translation>Name</translation></message>
         <message><source>图片 (*.png *.jpg *.jpeg *.bmp)</source><translation>Images (*.png *.jpg *.jpeg *.bmp)</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::AccessibilityAudit</name>
+        <message><source>%1 项警告</source><translation>%1 warnings</translation></message>
+        <message><source>Unicode 映射</source><translation>Unicode mapping</translation></message>
+        <message><source>未发现上述基础无障碍问题。</source><translation>No basic accessibility issues listed above were found.</translation></message>
+        <message><source>未命名</source><translation>Unnamed</translation></message>
+        <message><source>检查项</source><translation>Check</translation></message>
+        <message><source>第 %1 页存在未命名的表单域。</source><translation>Page %1 contains an unnamed form field.</translation></message>
+        <message><source>第 %1 页有字符缺少 Unicode 映射。</source><translation>Some characters on page %1 lack Unicode mappings.</translation></message>
+        <message><source>第 %1 页没有可提取文字，可能需要 OCR 或替代文本。</source><translation>Page %1 has no extractable text and may require OCR or alternative text.</translation></message>
+        <message><source>第 %1 页的表单域“%2”缺少说明。</source><translation>Form field “%2” on page %1 has no description.</translation></message>
+        <message><source>结果</source><translation>Result</translation></message>
+        <message><source>表单域名称</source><translation>Form field names</translation></message>
+        <message><source>表单域说明</source><translation>Form field descriptions</translation></message>
+        <message><source>详细信息</source><translation>Details</translation></message>
+        <message><source>说明：本检查不等同于 PDF/UA 合规认证，标签树、图片替代文本和语义结构仍需专业工具复核。</source><translation>Note: This check is not a PDF/UA compliance certification. Tag trees, image alternative text, and semantic structure still require review with specialist tools.</translation></message>
+        <message><source>辅助功能检查报告</source><translation>Accessibility check report</translation></message>
+        <message><source>通过</source><translation>Passed</translation></message>
+        <message><source>页面文本层</source><translation>Page text layers</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::MainWindow</name>
+        <message><source>标签</source><translation>Tags</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message><source>HTML 文件 (*.html)</source><translation>HTML files (*.html)</translation></message>
+        <message><source>以下内容按 PDF 文本层的逻辑顺序显示，可用于人工核对屏幕阅读器的阅读次序。</source><translation>The content below follows the logical order of the PDF text layer for manually checking screen-reader reading order.</translation></message>
+        <message><source>保存失败</source><translation>Save failed</translation></message>
+        <message><source>保存报告</source><translation>Save report</translation></message>
+        <message><source>保存辅助功能报告</source><translation>Save accessibility report</translation></message>
+        <message><source>完整检查</source><translation>Full check</translation></message>
+        <message><source>当前页阅读顺序</source><translation>Current page reading order</translation></message>
+        <message><source>本页没有可提取文字。</source><translation>This page has no extractable text.</translation></message>
+        <message><source>辅助功能报告</source><translation>Accessibility report</translation></message>
+        <message><source>辅助功能报告已保存</source><translation>Accessibility report saved</translation></message>
+        <message><source>辅助功能检查</source><translation>Accessibility check</translation></message>
+        <message><source>辅助功能检查结果</source><translation>Accessibility check results</translation></message>
+        <message><source>阅读顺序</source><translation>Reading order</translation></message>
+        <message><source>阅读顺序 - 第 %1 页</source><translation>Reading order — page %1</translation></message>
     </context>
     <context>
         <name>aipdf::app::SettingsDialog</name>
