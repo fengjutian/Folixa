@@ -1125,14 +1125,74 @@ void MainWindow::buildUi() {
         {"OCR", {"识别文本", "快速识别", "疑似错误"}},
         {"印前", {"印前检查", "PDF 转曲"}},
     });
-    addPlaceholderTab("编辑", {
-        {"内容", {"编辑文本", "编辑对象", "链接并合并文本", "流式编辑"}},
-        {"文本工具", {"拼写检查", "搜索替换", "批量替换"}},
-        {"插入", {"添加文本", "添加图像", "添加形状", "添加文章框"}},
-        {"链接", {"添加链接", "网络链接"}},
-        {"导航", {"书签", "自动创建书签", "交叉引用"}},
-        {"附件", {"文件附件", "图像标注", "音频和视频", "添加 3D"}},
-    });
+    const int contentEditTab = ribbonBar_->addTab(tr("编辑"));
+    auto addEditTool = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
+                                                 const char* tip, const QString& icon,
+                                                 const char* toolId,
+                                                 const char* objectName) {
+        addRibbonCommand(group, label, tip, icon, [this, toolId] {
+            if (auto* view = currentView()) {
+                view->activateAnnotationTool(QString::fromLatin1(toolId));
+            }
+        }, true, QString::fromLatin1(objectName));
+    };
+    auto addUnavailableEditCommand = [this, &addRibbonCommand, &placeholderIcon](
+                                          QHBoxLayout* group, const char* label) {
+        addRibbonCommand(group, label, "将在后续版本中提供", placeholderIcon(tr(label)),
+                         [] {}, false);
+    };
+
+    auto* contentEditGroup = ribbonBar_->addGroup(contentEditTab, tr("内容"));
+    addRibbonCommand(contentEditGroup, "编辑文本", "替换当前选中的文字", ":/icons/edit.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->replaceSelectionTextDialog(); }
+    }, true, "edit.replaceText");
+    addRibbonCommand(contentEditGroup, "编辑对象", "用图片替换当前选区", ":/icons/edit.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->replaceSelectionWithImageDialog(); }
+    }, true, "edit.replaceObject");
+    addUnavailableEditCommand(contentEditGroup, "链接并合并文本");
+    addUnavailableEditCommand(contentEditGroup, "流式编辑");
+
+    auto* textEditGroup = ribbonBar_->addGroup(contentEditTab, tr("文本工具"));
+    addUnavailableEditCommand(textEditGroup, "拼写检查");
+    addRibbonCommand(textEditGroup, "搜索替换", "打开全文搜索", ":/icons/search.svg",
+                     [this] {
+        navigationDock_->setVisible(true);
+        showNavigationPage(3);
+    }, true, "edit.search");
+    addUnavailableEditCommand(textEditGroup, "批量替换");
+
+    auto* insertEditGroup = ribbonBar_->addGroup(contentEditTab, tr("插入"));
+    addEditTool(insertEditGroup, "添加文本", "在页面上拖出文本框", ":/icons/edit.svg",
+                "freetext", "edit.addText");
+    addEditTool(insertEditGroup, "添加图像", "在页面上添加图片", ":/icons/annotation.svg",
+                "imagestamp", "edit.addImage");
+    addEditTool(insertEditGroup, "添加形状", "在页面上拖出矩形", ":/icons/square.svg",
+                "square", "edit.addShape");
+    addUnavailableEditCommand(insertEditGroup, "添加文章框");
+
+    auto* linkEditGroup = ribbonBar_->addGroup(contentEditTab, tr("链接"));
+    addUnavailableEditCommand(linkEditGroup, "添加链接");
+    addUnavailableEditCommand(linkEditGroup, "网络链接");
+
+    auto* navigationEditGroup = ribbonBar_->addGroup(contentEditTab, tr("导航"));
+    addRibbonCommand(navigationEditGroup, "书签", "打开书签面板", ":/icons/bookmark.svg",
+                     [this] {
+        navigationDock_->setVisible(true);
+        showNavigationPage(2);
+    }, true, "edit.bookmarks");
+    addUnavailableEditCommand(navigationEditGroup, "自动创建书签");
+    addUnavailableEditCommand(navigationEditGroup, "交叉引用");
+
+    auto* attachmentEditGroup = ribbonBar_->addGroup(contentEditTab, tr("附件"));
+    addEditTool(attachmentEditGroup, "文件附件", "在页面上添加文件附件",
+                ":/icons/annotation.svg", "attachment", "edit.attachment");
+    addEditTool(attachmentEditGroup, "图像标注", "在页面上添加图片标注",
+                ":/icons/annotation.svg", "imagestamp", "edit.imageAnnotation");
+    addEditTool(attachmentEditGroup, "音频和视频", "在页面上添加声音批注",
+                ":/icons/annotation.svg", "sound", "edit.sound");
+    addUnavailableEditCommand(attachmentEditGroup, "添加 3D");
     addPlaceholderTab("表单", {
         {"识别", {"表单自动识别", "设计助手", "工具提示"}},
         {"建域", {"文本域", "复选框", "单选按钮", "组合框", "列表框", "按钮", "条形码"}},
@@ -1662,13 +1722,13 @@ void MainWindow::buildUi() {
             view->setZoom(value / 100.0);
         }
     });
-    auto* settingsButton = new QToolButton(this);
-    settingsButton->setObjectName(QStringLiteral("statusSettingsButton"));
-    texts_.bind([this, settingsButton] {
-        settingsButton->setText(QStringLiteral("⚙"));
-        settingsButton->setToolTip(tr("设置主题、字体和 AI 服务"));
+    statusSettingsButton_ = new QToolButton(this);
+    statusSettingsButton_->setObjectName(QStringLiteral("statusSettingsButton"));
+    texts_.bind([this] {
+        statusSettingsButton_->setText(QStringLiteral("⚙"));
+        statusSettingsButton_->setToolTip(tr("设置主题、字体和 AI 服务"));
     });
-    connect(settingsButton, &QToolButton::clicked, this, [this] {
+    connect(statusSettingsButton_, &QToolButton::clicked, this, [this] {
         SettingsDialog dialog(this);
         connect(&dialog, &SettingsDialog::aiSettingsRequested, this, [this] {
             if (aiPanel_ != nullptr) {
@@ -1700,10 +1760,17 @@ void MainWindow::buildUi() {
     });
     // 不注册成 QStatusBar 的 normal widget：showMessage() 会隐藏所有 normal widget。
     // 直接作为子控件固定在左侧，任务提示和设置入口因此可以同时显示。
-    settingsButton->setParent(statusBar());
-    settingsButton->move(4, 5);
-    settingsButton->show();
-    settingsButton->raise();
+    statusSettingsButton_->setParent(statusBar());
+    statusSettingsButton_->show();
+    statusSettingsButton_->raise();
+    statusMessageLabel_ = new QLabel(statusBar());
+    statusMessageLabel_->setObjectName(QStringLiteral("statusMessageLabel"));
+    statusMessageLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    statusMessageLabel_->setTextFormat(Qt::PlainText);
+    connect(statusBar(), &QStatusBar::messageChanged, statusMessageLabel_, &QLabel::setText);
+    statusMessageLabel_->show();
+    statusMessageLabel_->raise();
+    positionStatusBarUi();
     statusBar()->clearMessage();
     // 性能指标放在状态栏的常驻区：放工具栏会因为文字宽度变化
     // 触发工具栏溢出，导致画布高度变化、滚动范围漂移。
@@ -1753,6 +1820,7 @@ void MainWindow::syncTabBar() {
     if (statusDocumentControls_ != nullptr) {
         statusDocumentControls_->setVisible(!onlyWelcome);
     }
+    QTimer::singleShot(0, this, [this] { positionStatusBarUi(); });
     // 设置入口位于状态栏，欢迎页也需要保持可见；没有文档时只隐藏页码与缩放。
     statusBar()->setVisible(true);
 
@@ -2812,7 +2880,25 @@ void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     // 这里布局还没重排完，tabs_->width() 还是旧值：直接摆会把浮层留在旧位置，
     // 窗口缩小时卡片就被挤到窗口外面。挪到下一轮事件循环再摆。
-    QTimer::singleShot(0, this, [this] { positionFloatingUi(); });
+    QTimer::singleShot(0, this, [this] {
+        positionFloatingUi();
+        positionStatusBarUi();
+    });
+}
+
+void MainWindow::positionStatusBarUi() {
+    if (statusSettingsButton_ == nullptr || statusMessageLabel_ == nullptr) {
+        return;
+    }
+    QStatusBar* bar = statusBar();
+    const int buttonSize = 26;
+    const int top = std::max(0, (bar->height() - buttonSize) / 2);
+    statusSettingsButton_->setGeometry(4, top, buttonSize, buttonSize);
+    int right = bar->width() - 8;
+    if (statusDocumentControls_ != nullptr && statusDocumentControls_->isVisible()) {
+        right = std::min(right, statusDocumentControls_->x() - 10);
+    }
+    statusMessageLabel_->setGeometry(38, 0, std::max(0, right - 38), bar->height());
 }
 
 void MainWindow::updateAiQuickActions() {

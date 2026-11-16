@@ -29,6 +29,7 @@ class QResizeEvent;
 namespace aipdf::app { class OcrController; }
 class QTreeWidget;
 class QTreeWidgetItem;
+class QToolButton;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -130,6 +131,7 @@ private:
     // 会让人以为功能坏了。
     void showNavigationPage(int index);
     void positionFloatingUi();
+    void positionStatusBarUi();
     // 展开/收起导航面板：除页面对应关系外，还要把 dock 的宽度一起管住。
     void setNavigationExpanded(bool expanded);
     // 按当前文档与选区状态刷新 AI 快捷卡的动作与说明。
@@ -158,6 +160,8 @@ private:
     QLabel* statusZoomLabel_ = nullptr;
     QSlider* statusZoomSlider_ = nullptr;
     QWidget* statusDocumentControls_ = nullptr;
+    QToolButton* statusSettingsButton_ = nullptr;
+    QLabel* statusMessageLabel_ = nullptr;
     bool updatingStatusZoom_ = false;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;

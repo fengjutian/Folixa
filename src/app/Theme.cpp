@@ -203,9 +203,11 @@ QListWidget#thumbnailList::item:selected { color: #3555B7; background: #EEF2FF; 
 QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
 QStatusBar {
     min-height: 36px; max-height: 36px; padding-left: 34px;
-    background: #FAFAFB; color: #52525B; border-top: 1px solid #E4E4E7;
+    background: #FAFAFB; color: transparent; border-top: 1px solid #E4E4E7;
 }
 QStatusBar::item { border: 0; }
+QStatusBar QLabel { color: #52525B; }
+QStatusBar QLabel#statusMessageLabel { color: #52525B; background: transparent; }
 QWidget#statusDocumentControls { background: transparent; }
 QWidget#statusDocumentControls QLineEdit {
     min-height: 26px; max-height: 26px; border-radius: 6px; padding: 0 6px;
