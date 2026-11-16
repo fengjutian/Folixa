@@ -162,6 +162,8 @@ qt_add_executable(PdfiumAdapterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
 )
 
 target_link_libraries(PdfiumAdapterTests PRIVATE

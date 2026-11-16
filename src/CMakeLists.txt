@@ -89,11 +89,13 @@
     pdf/SoundFormat.h
     pdf/PageDecorations.h
     pdf/FormData.h
+    pdf/FormFieldWriter.h
     pdf/PageAnnotsInjector.h
     pdf/PageAnnotsInjector.cpp
     pdf/OutlineWriter.h
     pdf/OutlineWriter.cpp
     pdf/FormData.cpp
+    pdf/FormFieldWriter.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp

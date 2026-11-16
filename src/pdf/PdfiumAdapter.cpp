@@ -61,6 +61,9 @@ struct DocumentImpl {
     QString password;
     FPDF_FILEACCESS access{};
     FPDF_DOCUMENT handle = nullptr;
+    // 编辑文字时复用已加载字体，避免每替换一行就在 PDF 中重复嵌入整套字体。
+    FPDF_FONT latinEditingFont = nullptr;
+    FPDF_FONT unicodeEditingFont = nullptr;
     // 表单填充环境：懒创建，关闭文档前必须先退出。
     FPDF_FORMHANDLE form = nullptr;
 
@@ -68,6 +71,8 @@ struct DocumentImpl {
         if (handle != nullptr) {
             // 关闭句柄也要上锁：PDFium 的全局状态是共享的。
             const detail::PdfiumGuard guard;
+            if (latinEditingFont != nullptr) FPDFFont_Close(latinEditingFont);
+            if (unicodeEditingFont != nullptr) FPDFFont_Close(unicodeEditingFont);
             // 不调用 FPDFDOC_ExitFormFillEnvironment：
             // 本仓库固定的 PDFium 构建在退出表单环境时会 0xC0000005 崩溃
             // （与我们的自定义 FPDF_FILEACCESS 文档组合复现）。泄漏只有
@@ -168,10 +173,15 @@ bool needsEmbeddedUnicodeFont(const QString& text) {
     return false;
 }
 
-FPDF_FONT loadEditingFont(FPDF_DOCUMENT document, const QString& text) {
+FPDF_FONT loadEditingFont(detail::DocumentImpl* impl, const QString& text) {
+    if (impl == nullptr || impl->handle == nullptr) return nullptr;
     if (!needsEmbeddedUnicodeFont(text)) {
-        return FPDFText_LoadStandardFont(document, "Helvetica");
+        if (impl->latinEditingFont == nullptr) {
+            impl->latinEditingFont = FPDFText_LoadStandardFont(impl->handle, "Helvetica");
+        }
+        return impl->latinEditingFont;
     }
+    if (impl->unicodeEditingFont != nullptr) return impl->unicodeEditingFont;
     QStringList candidates;
     const QString configured = qEnvironmentVariable("AIPDF_CJK_FONT");
     if (!configured.isEmpty()) candidates.append(configured);
@@ -185,11 +195,14 @@ FPDF_FONT loadEditingFont(FPDF_DOCUMENT document, const QString& text) {
         if (!file.open(QIODevice::ReadOnly)) continue;
         const QByteArray data = file.readAll();
         if (data.isEmpty() || data.size() > std::numeric_limits<uint32_t>::max()) continue;
-        FPDF_FONT font = FPDFText_LoadFont(document,
+        FPDF_FONT font = FPDFText_LoadFont(impl->handle,
                                            reinterpret_cast<const uint8_t*>(data.constData()),
                                            static_cast<uint32_t>(data.size()),
                                            FPDF_FONT_TRUETYPE, 1);
-        if (font != nullptr) return font;
+        if (font != nullptr) {
+            impl->unicodeEditingFont = font;
+            return font;
+        }
     }
     return nullptr;
 }
@@ -1467,7 +1480,7 @@ bool PdfPage::addImageLayer(const QRectF& rectPoints, const QImage& image) {
 
 bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText, double fontSize,
                                 const QColor& color) {
-    if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty() || newText.isEmpty()) {
+    if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty()) {
         return false;
     }
     const detail::PdfiumGuard guard;
@@ -1477,20 +1490,19 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
     }
 
     // 先完整创建替换对象。字体缺失或字符无法编码时，不得删除原文字。
-    FPDF_FONT font = loadEditingFont(document, newText);
-    if (font == nullptr) {
-        return false;
+    FPDF_PAGEOBJECT replacement = nullptr;
+    if (!newText.isEmpty()) {
+        FPDF_FONT font = loadEditingFont(impl_->document.get(), newText);
+        if (font == nullptr) return false;
+        replacement = createEditingTextObject(document, font, newText, fontSize);
+        if (replacement == nullptr) return false;
+        FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(), 255);
+        FPDFPageObj_Transform(replacement, 1.0, 0.0, 0.0, 1.0,
+                              rectPoints.left(), rectPoints.top() + fontSize * 0.2);
     }
-    FPDF_PAGEOBJECT replacement = createEditingTextObject(document, font, newText, fontSize);
-    if (replacement == nullptr) {
-        FPDFFont_Close(font);
-        return false;
-    }
-    FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(), 255);
-    FPDFPageObj_Transform(replacement, 1.0, 0.0, 0.0, 1.0,
-                          rectPoints.left(), rectPoints.top() + fontSize * 0.2);
 
-    // 1) 删掉与目标矩形重叠过半的文本对象。
+    // 1) 只删除几乎完全落在目标区域内的文本对象。较低阈值会把横跨多行的
+    // 共享文本对象整段删除；这类对象保留在底层，由白色遮盖块处理视觉替换。
     const int count = FPDFPage_CountObjects(impl_->page);
     QVector<FPDF_PAGEOBJECT> victims;
     for (int i = 0; i < count; ++i) {
@@ -1511,7 +1523,7 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
         if (objectArea <= 0.0) {
             continue;
         }
-        if (overlap.width() * overlap.height() >= objectArea * 0.5) {
+        if (overlap.width() * overlap.height() >= objectArea * 0.9) {
             victims.append(object);
         }
     }
@@ -1529,9 +1541,8 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
     }
 
     // 3) 最后插入新文字，保证位于白色遮盖块之上。
-    FPDFPage_InsertObject(impl_->page, replacement);
+    if (replacement != nullptr) FPDFPage_InsertObject(impl_->page, replacement);
     const bool ok = FPDFPage_GenerateContent(impl_->page) != 0;
-    FPDFFont_Close(font);
     return ok;
 }
 
@@ -1545,13 +1556,12 @@ bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, 
     if (document == nullptr) {
         return false;
     }
-    FPDF_FONT font = loadEditingFont(document, text);
+    FPDF_FONT font = loadEditingFont(impl_->document.get(), text);
     if (font == nullptr) {
         return false;
     }
     FPDF_PAGEOBJECT object = createEditingTextObject(document, font, text, fontSize);
     if (object == nullptr) {
-        FPDFFont_Close(font);
         return false;
     }
     FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(),
@@ -1566,7 +1576,6 @@ bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, 
     }
     FPDFPage_InsertObject(impl_->page, object);
     const bool ok = FPDFPage_GenerateContent(impl_->page) != 0;
-    FPDFFont_Close(font);
     return ok;
 }
 

@@ -1311,10 +1311,18 @@ void MainWindow::buildUi() {
                      ":/icons/form.svg", showFormsPanel, true, "form.tooltip");
 
     auto* formFieldGroup = ribbonBar_->addGroup(formTab, tr("建域"));
-    for (const char* command : {"文本域", "复选框", "单选按钮", "组合框", "列表框", "按钮", "条形码"}) {
-        addRibbonCommand(formFieldGroup, command, "表单域创建器正在开发",
-                         placeholderIcon(tr(command)), [] {}, false,
-                         QStringLiteral("form.create.") + QString::fromUtf8(command));
+    const struct { const char* label; const char* kind; } fieldCommands[] = {
+        {"文本域", "text"}, {"复选框", "checkbox"}, {"单选按钮", "radio"},
+        {"组合框", "combo"}, {"列表框", "list"}, {"按钮", "button"},
+        {"条形码", "barcode"},
+    };
+    for (const auto& command : fieldCommands) {
+        addRibbonCommand(formFieldGroup, command.label, "在当前页创建 AcroForm 字段",
+                         placeholderIcon(tr(command.label)), [this, kind = command.kind] {
+            if (auto* view = currentView()) {
+                view->createFormFieldDialog(QString::fromLatin1(kind));
+            }
+        }, true, QStringLiteral("form.create.") + QString::fromLatin1(command.kind));
     }
 
     auto* formTemplateGroup = ribbonBar_->addGroup(formTab, tr("模板"));

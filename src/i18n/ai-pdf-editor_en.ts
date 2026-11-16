@@ -3745,4 +3745,114 @@
             <translation>The two open passwords do not match.</translation>
         </message>
     </context>
+    <context>
+        <name>aipdf::app::AiSettingsDialog</name>
+        <message><source>自定义 OpenAI 兼容服务</source><translation>Custom OpenAI-compatible service</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::MainWindow</name>
+        <message><source>书签已重命名</source><translation>Bookmark renamed</translation></message>
+        <message><source>书签标题:</source><translation>Bookmark title:</translation></message>
+        <message><source>删除书签</source><translation>Delete bookmark</translation></message>
+        <message><source>删除选中书签</source><translation>Delete selected bookmark</translation></message>
+        <message><source>已删除书签</source><translation>Bookmark deleted</translation></message>
+        <message><source>已添加书签“%1”</source><translation>Added bookmark “%1”</translation></message>
+        <message><source>已重置 %1 个表单字段</source><translation>Reset %1 form fields</translation></message>
+        <message><source>建域</source><translation>Create fields</translation></message>
+        <message><source>打开书签面板</source><translation>Open bookmarks panel</translation></message>
+        <message><source>数据</source><translation>Data</translation></message>
+        <message><source>文本工具</source><translation>Text tools</translation></message>
+        <message><source>替换图片</source><translation>Replace image</translation></message>
+        <message><source>模板</source><translation>Templates</translation></message>
+        <message><source>添加书签</source><translation>Add bookmark</translation></message>
+        <message><source>添加当前页书签</source><translation>Bookmark current page</translation></message>
+        <message><source>网址链接</source><translation>Web link</translation></message>
+        <message><source>设置已保存</source><translation>Settings saved</translation></message>
+        <message><source>识别</source><translation>Recognition</translation></message>
+        <message><source>请先在书签面板中选择一个书签。</source><translation>Select a bookmark in the bookmarks panel first.</translation></message>
+        <message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
+        <message><source>重命名书签</source><translation>Rename bookmark</translation></message>
+        <message><source>重命名选中书签</source><translation>Rename selected bookmark</translation></message>
+        <message><source>链接</source><translation>Links</translation></message>
+        <message><source>页面链接</source><translation>Page link</translation></message>
+        <message><source>删除图片</source><translation>Delete image</translation></message>
+        <message><source>第 %1 页</source><translation>Page %1</translation></message>
+        <message><source>附件</source><translation>Attachments</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message><source>先选中要添加链接的文字或区域。</source><translation>Select the text or area for the link first.</translation></message>
+        <message><source>已创建 %1 个网络链接</source><translation>Created %1 web links</translation></message>
+        <message><source>已替换 %1 处</source><translation>Replaced %1 occurrences</translation></message>
+        <message><source>已添加跳转到第 %1 页的链接</source><translation>Added a link to page %1</translation></message>
+        <message><source>已添加链接</source><translation>Link added</translation></message>
+        <message><source>搜索替换</source><translation>Find and replace</translation></message>
+        <message><source>整个文档</source><translation>Entire document</translation></message>
+        <message><source>新文字:</source><translation>New text:</translation></message>
+        <message><source>替换为:</source><translation>Replace with:</translation></message>
+        <message><source>替换范围:</source><translation>Replace scope:</translation></message>
+        <message><source>查找内容:</source><translation>Find:</translation></message>
+        <message><source>没有发现需要添加的网址链接。</source><translation>No web addresses need links.</translation></message>
+        <message><source>没有打开的文档。</source><translation>No document is open.</translation></message>
+        <message><source>没有找到匹配内容。</source><translation>No matching text was found.</translation></message>
+        <message><source>添加链接</source><translation>Add link</translation></message>
+        <message><source>网址:</source><translation>Web address:</translation></message>
+        <message><source>网络链接</source><translation>Web links</translation></message>
+        <message><source>请输入有效的网址。</source><translation>Enter a valid web address.</translation></message>
+        <message><source>跳转到页码:</source><translation>Go to page:</translation></message>
+        <message><source>链接没有写入页面。</source><translation>The link could not be written to the page.</translation></message>
+        <message><source>页面链接</source><translation>Page link</translation></message>
+        <message><source>当前页</source><translation>Current page</translation></message>
+        <message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
+        <message><source>创建表单域</source><translation>Create form field</translation></message>
+        <message><source>字段写入后校验失败：%1</source><translation>Field validation failed after writing: %1</translation></message>
+        <message><source>字段名称:</source><translation>Field name:</translation></message>
+        <message><source>字段名称已存在，请换一个名称。</source><translation>The field name already exists. Choose another name.</translation></message>
+        <message><source>已在第 %1 页创建表单字段“%2”</source><translation>Created form field “%2” on page %1</translation></message>
+        <message><source>无法序列化文档：%1</source><translation>Could not serialize the document: %1</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::SettingsDialog</name>
+        <message><source> 磅</source><translation> pt</translation></message>
+        <message><source>AI 设置</source><translation>AI settings</translation></message>
+        <message><source>AI 配置目录：%1</source><translation>AI configuration directory: %1</translation></message>
+        <message><source>Folixa · AI PDF Editor</source><translation>Folixa · AI PDF Editor</translation></message>
+        <message><source>Folixa · 专注阅读，也为文档智能留出空间</source><translation>Folixa · Focused reading with room for document intelligence</translation></message>
+        <message><source>PDF 渲染、文本索引和搜索默认在本机完成。只有执行云端 AI 功能时，才会按所选数据模式发送内容。</source><translation>PDF rendering, text indexing, and search run locally by default. Content is sent only when using cloud AI features, according to the selected data mode.</translation></message>
+        <message><source>专注于 PDF 阅读、编辑、检索与受控 AI 协作。</source><translation>Focused on PDF reading, editing, retrieval, and controlled AI collaboration.</translation></message>
+        <message><source>了解文档内容如何在本地与 AI 服务之间流转。</source><translation>Learn how document content moves between your device and AI services.</translation></message>
+        <message><source>关于</source><translation>About</translation></message>
+        <message><source>启动时显示左侧导航栏</source><translation>Show the left navigation panel at startup</translation></message>
+        <message><source>外观</source><translation>Appearance</translation></message>
+        <message><source>字体</source><translation>Font</translation></message>
+        <message><source>字号</source><translation>Font size</translation></message>
+        <message><source>已安全保存</source><translation>Saved securely</translation></message>
+        <message><source>常规</source><translation>General</translation></message>
+        <message><source>打开文档后显示 AI 助手</source><translation>Show the AI assistant after opening a document</translation></message>
+        <message><source>未设置</source><translation>Not configured</translation></message>
+        <message><source>本地优先</source><translation>Local first</translation></message>
+        <message><source>查看当前 AI 服务状态并进入详细配置。</source><translation>View the current AI service status and open detailed settings.</translation></message>
+        <message><source>演示模式</source><translation>Presentation mode</translation></message>
+        <message><source>版本 %1</source><translation>Version %1</translation></message>
+        <message><source>界面语言</source><translation>Interface language</translation></message>
+        <message><source>管理界面语言和工作区的启动状态。</source><translation>Manage the interface language and workspace startup state.</translation></message>
+        <message><source>调整应用主题、界面字体和字号。</source><translation>Adjust the application theme, interface font, and font size.</translation></message>
+        <message><source>跟随系统</source><translation>Follow system</translation></message>
+        <message><source>配置 AI 服务…</source><translation>Configure AI service…</translation></message>
+        <message><source>隐私与数据</source><translation>Privacy and data</translation></message>
+        <message><source>预览</source><translation>Preview</translation></message>
+        <message><source>API 密钥</source><translation>API key</translation></message>
+        <message><source>主题</source><translation>Theme</translation></message>
+        <message><source>保存</source><translation>Save</translation></message>
+        <message><source>取消</source><translation>Cancel</translation></message>
+        <message><source>数据模式</source><translation>Data mode</translation></message>
+        <message><source>服务商</source><translation>Provider</translation></message>
+        <message><source>模型</source><translation>Model</translation></message>
+        <message><source>浅色</source><translation>Light</translation></message>
+        <message><source>设置</source><translation>Settings</translation></message>
+        <message><source>仅本地处理</source><translation>Local processing only</translation></message>
+        <message><source>仅发送检索片段</source><translation>Send retrieved excerpts only</translation></message>
+        <message><source>发送选定页面</source><translation>Send selected pages</translation></message>
+        <message><source>未知</source><translation>Unknown</translation></message>
+    </context>
 </TS>

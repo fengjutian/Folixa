@@ -7,6 +7,7 @@
 #include "app/Language.h"
 #include "pdf/AnnotationSummary.h"
 #include "pdf/FormData.h"
+#include "pdf/FormFieldWriter.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
@@ -1478,7 +1479,7 @@ void PdfView::applyWatermarkDialog() {
         QMessageBox::warning(this, tr("添加水印"), tr("水印没有写进去。"));
         return;
     }
-    modified_ = true;
+    setModified(true);
     refreshAfterDecoration();
     trace(QStringLiteral("decor watermark applied"));
     emit statusMessage(tr("已给每页添加水印"));
@@ -1513,7 +1514,7 @@ void PdfView::applyHeaderFooterDialog() {
         QMessageBox::warning(this, tr("页眉页脚"), tr("没有写入内容。"));
         return;
     }
-    modified_ = true;
+    setModified(true);
     refreshAfterDecoration();
     trace(QStringLiteral("decor header footer applied"));
     emit statusMessage(tr("已添加页眉页脚"));
@@ -1528,7 +1529,7 @@ void PdfView::applyPageNumbersDialog() {
         QMessageBox::warning(this, tr("页码"), tr("页码没有写进去。"));
         return;
     }
-    modified_ = true;
+    setModified(true);
     refreshAfterDecoration();
     trace(QStringLiteral("decor page numbers applied"));
     emit statusMessage(tr("已添加页码"));
@@ -1615,7 +1616,7 @@ void PdfView::cropCurrentPageDialog() {
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已裁剪第 %1 页").arg(pageIndex + 1));
 }
 
@@ -1647,7 +1648,7 @@ void PdfView::applyBatesNumberingDialog() {
         QMessageBox::warning(this, tr("贝茨编号"), tr("编号没有写进去。"));
         return;
     }
-    modified_ = true;
+    setModified(true);
     refreshAfterDecoration();
     emit statusMessage(tr("已添加贝茨编号"));
 }
@@ -1666,7 +1667,7 @@ void PdfView::duplicateCurrentPage() {
         return;
     }
     handlePageStructureChanged();
-    modified_ = true;
+    setModified(true);
     goToPage(index + 1);
     trace(QStringLiteral("page duplicate index=%1 pages=%2").arg(index).arg(pageCount()));
     emit statusMessage(tr("已复制第 %1 页").arg(index + 1));
@@ -1817,7 +1818,7 @@ void PdfView::resizeCurrentPageDialog() {
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已把第 %1 页调整为 %2 × %3 点")
                            .arg(pageIndex + 1)
                            .arg(qRound(width))
@@ -1847,7 +1848,7 @@ void PdfView::setPageBackgroundDialog() {
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已给第 %1 页加背景").arg(pageIndex + 1));
 }
 
@@ -2018,7 +2019,7 @@ void PdfView::insertPagesFromFileDialog() {
         }
     }
     handlePageStructureChanged();
-    modified_ = true;
+    setModified(true);
     goToPage(insertAt);
     emit statusMessage(tr("已插入 %1 页").arg(sourceCount));
 }
@@ -2063,7 +2064,7 @@ bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QStrin
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
-    modified_ = true;
+    setModified(true);
     emit formFieldsChanged();
     return true;
 }
@@ -2081,9 +2082,84 @@ bool PdfView::flattenFormsOnPage(int pageIndex) {
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
-    modified_ = true;
+    setModified(true);
     emit formFieldsChanged();
     return true;
+}
+
+void PdfView::createFormFieldDialog(const QString& kind) {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("创建表单域"), tr("请先打开一份 PDF。"));
+        return;
+    }
+    const int pageIndex = currentPage();
+    const auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    bool accepted = false;
+    const QString defaultName = QStringLiteral("%1_%2")
+                                    .arg(kind.isEmpty() ? QStringLiteral("field") : kind)
+                                    .arg(document_.formFields().size() + 1);
+    const QString name = QInputDialog::getText(this, tr("创建表单域"), tr("字段名称:"),
+                                                QLineEdit::Normal, defaultName, &accepted).trimmed();
+    if (!accepted || name.isEmpty()) {
+        return;
+    }
+    for (const pdf::FormField& existing : document_.formFields()) {
+        if (existing.name == name) {
+            QMessageBox::warning(this, tr("创建表单域"), tr("字段名称已存在，请换一个名称。"));
+            return;
+        }
+    }
+
+    pdf::FormFieldKind fieldKind = pdf::FormFieldKind::Text;
+    if (kind == QStringLiteral("checkbox")) fieldKind = pdf::FormFieldKind::CheckBox;
+    else if (kind == QStringLiteral("radio")) fieldKind = pdf::FormFieldKind::RadioButton;
+    else if (kind == QStringLiteral("combo")) fieldKind = pdf::FormFieldKind::ComboBox;
+    else if (kind == QStringLiteral("list")) fieldKind = pdf::FormFieldKind::ListBox;
+    else if (kind == QStringLiteral("button")) fieldKind = pdf::FormFieldKind::PushButton;
+    else if (kind == QStringLiteral("barcode")) fieldKind = pdf::FormFieldKind::Barcode;
+
+    const pdf::MediaBox box = page->contentBox();
+    const bool square = fieldKind == pdf::FormFieldKind::CheckBox ||
+                        fieldKind == pdf::FormFieldKind::RadioButton;
+    const double width = square ? 20.0 : 180.0;
+    const double height = square ? 20.0 :
+                          (fieldKind == pdf::FormFieldKind::ListBox ? 72.0 : 24.0);
+    const double x = box.left + 36.0;
+    const double y = std::max(box.bottom + 36.0, box.top - 72.0 - height);
+
+    QString serializeError;
+    const QByteArray source = document_.serialize(&serializeError);
+    if (source.isEmpty()) {
+        QMessageBox::warning(this, tr("创建表单域"),
+                             tr("无法序列化文档：%1").arg(serializeError));
+        return;
+    }
+    pdf::FormFieldInsert insert;
+    insert.pageIndex = pageIndex;
+    insert.name = name;
+    insert.toolTip = name;
+    insert.rect = QRectF(x, y, width, height);
+    insert.kind = fieldKind;
+    const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
+    if (!written.ok) {
+        QMessageBox::warning(this, tr("创建表单域"), written.error);
+        return;
+    }
+    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("创建表单域"),
+                             tr("字段写入后校验失败：%1").arg(reopened.errorMessage));
+        return;
+    }
+    document_ = std::move(reopened.document);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    modified_ = true;
+    emit formFieldsChanged();
+    emit statusMessage(tr("已在第 %1 页创建表单字段“%2”").arg(pageIndex + 1).arg(name));
 }
 
 void PdfView::mergeDocumentDialog() {
@@ -2107,7 +2183,7 @@ void PdfView::mergeDocumentDialog() {
     }
     refreshAfterDecoration();
     rebuildLayout();
-    modified_ = true;
+    setModified(true);
     trace(QStringLiteral("document merged pages=%1").arg(document_.pageCount()));
     emit statusMessage(tr("已合并 %1").arg(QFileInfo(path).fileName()));
 }
@@ -2176,7 +2252,7 @@ void PdfView::replaceSelectionWithImageDialog() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已用图片替换选区"));
 }
 
@@ -2205,7 +2281,7 @@ void PdfView::deleteSelectionImagesDialog() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已删除选区内的图片"));
 }
 
@@ -2223,7 +2299,7 @@ void PdfView::replaceSelectionTextDialog() {
     const QString text = QInputDialog::getText(this, tr("替换文字"),
                                                tr("新文字:"), QLineEdit::Normal,
                                                QString(), &accepted);
-    if (!accepted || text.isEmpty()) {
+    if (!accepted) {
         return;
     }
     auto page = document_.page(pageIndex);
@@ -2242,7 +2318,7 @@ void PdfView::replaceSelectionTextDialog() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已替换选中文字（行级）"));
 }
 
@@ -2259,7 +2335,7 @@ void PdfView::searchReplaceDialog() {
     const QString replacement = QInputDialog::getText(
         this, tr("搜索替换"), tr("替换为:"), QLineEdit::Normal,
         QString(), &accepted);
-    if (!accepted || replacement.isEmpty()) {
+    if (!accepted) {
         return;
     }
     const QStringList scopes{tr("当前页"), tr("整个文档")};
@@ -2337,7 +2413,7 @@ void PdfView::searchReplaceDialog() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已替换 %1 处").arg(replacementCount));
 }
 
@@ -2378,7 +2454,7 @@ void PdfView::addLinkToSelectionDialog() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已添加链接"));
 }
 
@@ -2440,7 +2516,7 @@ void PdfView::addInternalLinkToSelectionDialog() {
     setDocument(std::move(reopened.document), filePath_);
     goToPage(pageBefore);
     setZoom(zoomBefore);
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已添加跳转到第 %1 页的链接").arg(targetPage + 1));
 }
 
@@ -2460,7 +2536,7 @@ void PdfView::detectWebLinks() {
         return;
     }
     refreshAfterDecoration();
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已创建 %1 个网络链接").arg(added));
 }
 
@@ -2518,7 +2594,7 @@ void PdfView::importFormFdfDialog() {
         document_.syncBytes(bytes);
     }
     cache_.clear();
-    modified_ = true;
+    setModified(true);
     emit formFieldsChanged();
     emit statusMessage(tr("从 FDF 导入了 %1 个字段").arg(applied));
 }
@@ -2575,7 +2651,7 @@ void PdfView::recordSoundAnnotationDialog() {
         QMessageBox::warning(this, tr("录制声音批注"), tr("批注没有创建成功。"));
         return;
     }
-    modified_ = true;
+    setModified(true);
     emit statusMessage(tr("已插入录音批注"));
 }
 

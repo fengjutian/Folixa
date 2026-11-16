@@ -1,5 +1,7 @@
 ﻿#include "pdf/PdfiumAdapter.h"
 
+#include "pdf/FormFieldWriter.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
@@ -70,8 +72,10 @@ private slots:
     void imageCanBeRemovedAgain();
     void textReplacementSwapsContent();
     void textReplacementSupportsChinese();
+    void textReplacementAllowsEmptyText();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
+    void createdFormFieldsAreRealWidgets();
 
 private:
     bool hasEncryptedFixture_ = false;
@@ -79,6 +83,80 @@ private:
 
 void PdfiumAdapterTests::initTestCase() {
     hasEncryptedFixture_ = QFile::exists(fixturePath(QStringLiteral("encrypted.pdf")));
+}
+
+void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
+    using namespace aipdf::pdf;
+    auto opened = openDocument(fixturePath(QStringLiteral("empty.pdf")));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QString error;
+    QByteArray bytes = opened.document.serialize(&error);
+    QVERIFY2(!bytes.isEmpty(), qPrintable(error));
+
+    FormFieldInsert text;
+    text.pageIndex = 0;
+    text.name = QStringLiteral("customerName");
+    text.toolTip = QStringLiteral("Customer name");
+    text.rect = QRectF(10.0, 100.0, 90.0, 20.0);
+    text.kind = FormFieldKind::Text;
+    auto written = appendFormField(bytes, text);
+    QVERIFY2(written.ok, qPrintable(written.error));
+
+    FormFieldInsert check;
+    check.pageIndex = 0;
+    check.name = QStringLiteral("accepted");
+    check.rect = QRectF(10.0, 70.0, 20.0, 20.0);
+    check.kind = FormFieldKind::CheckBox;
+    written = appendFormField(written.bytes, check);
+    QVERIFY2(written.ok, qPrintable(written.error));
+
+    const struct {
+        const char* name;
+        FormFieldKind kind;
+        int expectedType;
+    } remaining[] = {
+        {"choice", FormFieldKind::RadioButton, 3},
+        {"country", FormFieldKind::ComboBox, 4},
+        {"items", FormFieldKind::ListBox, 5},
+        {"submit", FormFieldKind::PushButton, 1},
+        {"code", FormFieldKind::Barcode, 6},
+    };
+    double y = 45.0;
+    for (const auto& item : remaining) {
+        FormFieldInsert insert;
+        insert.pageIndex = 0;
+        insert.name = QString::fromLatin1(item.name);
+        insert.rect = QRectF(40.0, y, 70.0, 18.0);
+        insert.kind = item.kind;
+        written = appendFormField(written.bytes, insert);
+        QVERIFY2(written.ok, qPrintable(written.error));
+        y -= 5.0;
+    }
+
+    auto verified = openDocumentFromBytes(written.bytes);
+    QVERIFY2(verified.document.isValid(), qPrintable(verified.errorMessage));
+    const QVector<FormField> fields = verified.document.formFields();
+    QCOMPARE(fields.size(), 7);
+    QCOMPARE(fields.at(0).name, QStringLiteral("customerName"));
+    QCOMPARE(fields.at(0).type, 6);
+    QCOMPARE(fields.at(1).name, QStringLiteral("accepted"));
+    QCOMPARE(fields.at(1).type, 2);
+    for (int i = 0; i < std::size(remaining); ++i) {
+        QCOMPARE(fields.at(i + 2).name, QString::fromLatin1(remaining[i].name));
+        QCOMPARE(fields.at(i + 2).type, remaining[i].expectedType);
+    }
+    QVERIFY(verified.document.setFormFieldValue(0, QStringLiteral("customerName"),
+                                                 QStringLiteral("Alice")));
+    QVERIFY(verified.document.setFormFieldValue(0, QStringLiteral("accepted"),
+                                                 QStringLiteral("Yes")));
+    QString saveError;
+    const QByteArray saved = verified.document.serialize(&saveError);
+    QVERIFY2(!saved.isEmpty(), qPrintable(saveError));
+    auto savedAgain = openDocumentFromBytes(saved);
+    QVERIFY2(savedAgain.document.isValid(), qPrintable(savedAgain.errorMessage));
+    const QVector<FormField> savedFields = savedAgain.document.formFields();
+    QCOMPARE(savedFields.size(), 7);
+    QCOMPARE(savedFields.at(0).value, QStringLiteral("Alice"));
 }
 
 void PdfiumAdapterTests::normalDocumentHasExpectedGeometry() {
@@ -419,6 +497,17 @@ void PdfiumAdapterTests::textReplacementSupportsChinese() {
     const auto text = page->extractText();
     QVERIFY(text.has_value());
     QVERIFY2(text->plainText().contains(QStringLiteral("替换成功")), "中文字体未正确嵌入");
+}
+
+void PdfiumAdapterTests::textReplacementAllowsEmptyText() {
+    auto opened = openDocument(fixturePath(QStringLiteral("text.pdf")));
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    const double width = page->widthPoints();
+    const double height = page->heightPoints();
+    QVERIFY(page->replaceTextInRect(QRectF(0.0, height * 0.5, width, height * 0.5),
+                                    QString(), 14.0, QColor(0, 0, 0)));
+    QVERIFY(!page->render(1.0).isNull());
 }
 
 void PdfiumAdapterTests::formValuesSurviveSaveAndReopen() {

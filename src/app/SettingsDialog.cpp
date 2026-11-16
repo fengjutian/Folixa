@@ -50,11 +50,14 @@ QFrame* makeCard(QWidget* parent) {
 
 QString dataModeLabel(ai::DataMode mode) {
     switch (mode) {
-        case ai::DataMode::LocalOnly: return QObject::tr("仅本地处理");
-        case ai::DataMode::SelectedChunks: return QObject::tr("仅发送检索片段");
-        case ai::DataMode::SelectedPages: return QObject::tr("发送选定页面");
+        case ai::DataMode::LocalOnly:
+            return i18n::tr("aipdf::app::SettingsDialog", "仅本地处理");
+        case ai::DataMode::SelectedChunks:
+            return i18n::tr("aipdf::app::SettingsDialog", "仅发送检索片段");
+        case ai::DataMode::SelectedPages:
+            return i18n::tr("aipdf::app::SettingsDialog", "发送选定页面");
     }
-    return QObject::tr("未知");
+    return i18n::tr("aipdf::app::SettingsDialog", "未知");
 }
 }  // namespace
 

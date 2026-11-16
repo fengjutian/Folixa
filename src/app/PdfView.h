@@ -144,6 +144,8 @@ public slots:
     QVector<pdf::FormField> formFields() const;
     bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
     bool flattenFormsOnPage(int pageIndex);
+    // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
+    void createFormFieldDialog(const QString& kind);
 
     // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
     void mergeDocumentDialog();
