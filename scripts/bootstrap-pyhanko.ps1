@@ -32,9 +32,8 @@ Write-Host '==> 创建隔离构建环境' -ForegroundColor Cyan
 & $Python -m venv $venv
 if ($LASTEXITCODE -ne 0) { throw '无法创建 Python 虚拟环境' }
 $pythonExe = Join-Path $venv 'Scripts\python.exe'
-& $pythonExe -m pip install --disable-pip-version-check `
-    "pyHanko==$PyHankoVersion" "pyhanko-cli==$PyHankoCliVersion" `
-    "PyInstaller==$PyInstallerVersion"
+$requirements = Join-Path $PSScriptRoot 'pyhanko-requirements.txt'
+& $pythonExe -m pip install --disable-pip-version-check --requirement $requirements
 if ($LASTEXITCODE -ne 0) { throw '安装固定版本的 pyHanko 构建依赖失败' }
 
 Write-Host '==> 生成独立 pyhanko.exe' -ForegroundColor Cyan
@@ -56,12 +55,18 @@ $sitePackages = Join-Path $venv 'Lib\site-packages'
 Get-ChildItem -LiteralPath $sitePackages -Directory -Filter '*.dist-info' | ForEach-Object {
     $distribution = $_.BaseName -replace '\.dist-info$', ''
     $target = Join-Path (Join-Path $OutputDir 'licenses') $distribution
-    $licenseFiles = @(Get-ChildItem -LiteralPath $_.FullName -File | Where-Object {
+    $licenseFiles = @(Get-ChildItem -LiteralPath $_.FullName -Recurse -File | Where-Object {
         $_.Name -match '^(LICENSE|LICENCE|COPYING|NOTICE)'
     })
     if ($licenseFiles.Count -gt 0) {
         New-Item -ItemType Directory -Path $target -Force | Out-Null
-        $licenseFiles | Copy-Item -Destination $target
+        foreach ($licenseFile in $licenseFiles) {
+            $name = $licenseFile.Name
+            if (Test-Path -LiteralPath (Join-Path $target $name)) {
+                $name = "$($licenseFile.Directory.Name)-$name"
+            }
+            Copy-Item -LiteralPath $licenseFile.FullName -Destination (Join-Path $target $name)
+        }
     }
 }
 $pythonBase = & $pythonExe -c 'import sys; print(sys.base_prefix)'
