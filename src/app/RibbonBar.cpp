@@ -45,10 +45,10 @@ void styleCommand(QToolButton* button) {
                               : button->objectName());
     button->setProperty("ribbonCommand", true);
     button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    button->setIconSize(QSize(16, 16));
+    button->setIconSize(QSize(24, 24));
     button->setAutoRaise(true);
     button->setCursor(Qt::PointingHandCursor);
-    button->setMinimumWidth(58);
+    button->setMinimumWidth(62);
     button->setStyleSheet(QString());
 }
 

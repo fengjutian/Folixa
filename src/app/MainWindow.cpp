@@ -33,6 +33,7 @@
 #include <QDoubleSpinBox>
 #include <QSlider>
 #include <QHeaderView>
+#include <QLineEdit>
 #include <QTableWidget>
 #include <QShortcut>
 #include <QButtonGroup>
@@ -400,16 +401,17 @@ void MainWindow::buildUi() {
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
-    commandBar->setIconSize(QSize(20, 20));
+    commandBar->setIconSize(QSize(18, 18));
+    commandBar->setFixedHeight(52);
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
-    appMenuButton->setText(QStringLiteral("☰"));
+    appMenuButton->setText(QStringLiteral("▣  工作台"));
     texts_.bind([this, appMenuButton] { appMenuButton->setToolTip(tr("主菜单")); });
     // 必须走 setMenu：菜单里的「查找…」靠 QAction 快捷键（Ctrl+F）生效，
     // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
     // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
-    appMenuButton->setFixedSize(32, 32);
+    appMenuButton->setFixedSize(100, 34);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
@@ -598,13 +600,48 @@ void MainWindow::buildUi() {
     texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
-    // 品牌标记：图标 + 文字，让窗口第一眼有名字，而不是一个孤零零的色块。
-    auto* brandMark = new BrandMark(24, commandBar);
-    texts_.bind([this, brandMark] { brandMark->setToolTip(tr("Folixa 文档工作区")); });
-    commandBar->addWidget(brandMark);
-    auto* brandWordmark = new QLabel(QStringLiteral("Folixa"), commandBar);
-    brandWordmark->setObjectName(QStringLiteral("brandWordmark"));
-    commandBar->addWidget(brandWordmark);
+    // 福昕式快速访问区：常用文件动作留在紫色顶栏，不占 Ribbon 命令区。
+    auto addQuickButton = [commandBar](const QIcon& icon, const QString& tip,
+                                       const std::function<void()>& handler,
+                                       const QString& objectName) {
+        auto* button = new QToolButton(commandBar);
+        button->setObjectName(objectName);
+        button->setProperty("titleQuick", true);
+        button->setIcon(icon);
+        button->setToolTip(tip);
+        button->setAutoRaise(true);
+        QObject::connect(button, &QToolButton::clicked, commandBar, handler);
+        commandBar->addWidget(button);
+        return button;
+    };
+    addQuickButton(QIcon(QStringLiteral(":/icons/open.svg")), openAction->text(),
+                   [this] { openPdfDialog(); }, QStringLiteral("titleOpen"));
+    addQuickButton(QIcon(QStringLiteral(":/icons/save.svg")), saveAction->text(),
+                   [this] { saveDocument(); }, QStringLiteral("titleSave"));
+
+    auto* titleSpacerLeft = new QWidget(commandBar);
+    titleSpacerLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    commandBar->addWidget(titleSpacerLeft);
+    auto* globalSearch = new QLineEdit(commandBar);
+    globalSearch->setObjectName(QStringLiteral("globalSearch"));
+    globalSearch->setClearButtonEnabled(true);
+    globalSearch->setMaximumWidth(430);
+    globalSearch->setMinimumWidth(260);
+    texts_.bind([this, globalSearch] { globalSearch->setPlaceholderText(tr("搜索")); });
+    commandBar->addWidget(globalSearch);
+    auto* titleSpacerRight = new QWidget(commandBar);
+    titleSpacerRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    commandBar->addWidget(titleSpacerRight);
+    auto* notificationButton = addQuickButton(QIcon(QStringLiteral(":/icons/note.svg")),
+                                              QStringLiteral("通知"), [] {},
+                                              QStringLiteral("titleNotifications"));
+    notificationButton->setEnabled(false);
+    auto* accountButton = new QToolButton(commandBar);
+    accountButton->setObjectName(QStringLiteral("titleAccount"));
+    accountButton->setProperty("titleAccount", true);
+    accountButton->setText(QStringLiteral("F"));
+    accountButton->setToolTip(QStringLiteral("Folixa"));
+    commandBar->addWidget(accountButton);
     connect(findAction, &QAction::triggered, this, [this]() {
         trace(QStringLiteral("open search panel"));
         navigationDock_->setVisible(true);
@@ -618,6 +655,7 @@ void MainWindow::buildUi() {
             searchPanel_->focusSearch();
         }
     });
+    connect(globalSearch, &QLineEdit::returnPressed, findAction, &QAction::trigger);
     // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
     // 未交付的保持纯文字并用分隔线隔开，一眼能看出「这些还不能点」。
     commandBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
