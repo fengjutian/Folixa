@@ -808,6 +808,10 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>关闭</source>
+            <translation>Close</translation>
+        </message>
+        <message>
             <source>设置</source>
             <translation>Settings</translation>
         </message>

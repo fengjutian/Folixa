@@ -1699,6 +1699,11 @@ void MainWindow::buildUi() {
                      [this] {
                          QMessageBox manual(this);
                          manual.setWindowTitle(tr("Folixa 用户手册"));
+                         // 帮助窗口打开期间冻结整个应用。显式使用 ApplicationModal，
+                         // 避免自定义 Ribbon、浮动 Dock 或其它顶层窗口继续接收点击、
+                         // 滚轮和快捷键事件。
+                         manual.setWindowModality(Qt::ApplicationModal);
+                         manual.setModal(true);
                          manual.setIcon(QMessageBox::Information);
                          manual.setTextFormat(Qt::RichText);
                          manual.setText(tr(
@@ -1713,6 +1718,8 @@ void MainWindow::buildUi() {
                              "你主动操作时发送所选文档内容。</p>"
                              "<p><b>获取帮助</b>：遇到问题可打开“帮助中心”或“发表想法”。</p>"));
                          manual.setStandardButtons(QMessageBox::Close);
+                         if (auto* close = manual.button(QMessageBox::Close))
+                             close->setText(tr("关闭"));
                          manual.exec();
                      }, true, "help.userManual");
     addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/tools.svg",
