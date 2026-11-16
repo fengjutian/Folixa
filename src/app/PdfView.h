@@ -82,6 +82,10 @@ public:
     // 没有打开文档时返回 nullptr。
     DocumentQaController* qaController() const;
 
+    // 当前 PDF 大纲（书签）及整体替换入口。替换会重开内存文档并刷新控制器。
+    std::vector<pdf::OutlineItem> outline() const;
+    bool replaceOutline(const std::vector<pdf::OutlineItem>& outline, QString* error = nullptr);
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -147,7 +151,9 @@ public slots:
     void replaceSelectionWithImageDialog();
     void deleteSelectionImagesDialog();
     void replaceSelectionTextDialog();
+    void searchReplaceDialog();
     void addLinkToSelectionDialog();
+    void addInternalLinkToSelectionDialog();
     void detectWebLinks();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();

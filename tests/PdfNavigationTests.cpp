@@ -1,4 +1,5 @@
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/OutlineWriter.h"
 
 #include <QTest>
 #include <QVector>
@@ -54,6 +55,7 @@ private slots:
     void invalidDocumentHasNoLinks();
     void uriLinkCanBeCreatedAndSaved();
     void textUrlsCanBeDetectedWithoutDuplicates();
+    void outlineCanBeRewritten();
 };
 
 // ------------------------------------------------------------------ 大纲 ----
@@ -212,6 +214,37 @@ void PdfNavigationTests::textUrlsCanBeDetectedWithoutDuplicates() {
     const QVector<PageLink> links = page->links();
     QVERIFY(!links.isEmpty());
     QCOMPARE(links.constLast().uri, QStringLiteral("https://example.com/docs"));
+}
+
+void PdfNavigationTests::outlineCanBeRewritten() {
+    PdfDocument document = openFixture("normal.pdf");
+    QVERIFY(document.isValid());
+    std::vector<OutlineItem> outline;
+    OutlineItem parent;
+    parent.title = QStringLiteral("第一章");
+    parent.pageIndex = 0;
+    OutlineItem child;
+    child.title = QStringLiteral("Section 1.1");
+    child.pageIndex = 0;
+    parent.children.push_back(child);
+    outline.push_back(parent);
+
+    const auto written = aipdf::pdf::rewriteOutline(document.serialize(), outline);
+    QVERIFY2(written.ok, qPrintable(written.error));
+    const PdfOpenResult reopened = aipdf::pdf::openDocumentFromBytes(written.bytes);
+    QVERIFY(reopened.document.isValid());
+    const auto parsed = reopened.document.outline();
+    QCOMPARE(parsed.size(), size_t(1));
+    QCOMPARE(parsed[0].title, QStringLiteral("第一章"));
+    QCOMPARE(parsed[0].pageIndex, 0);
+    QCOMPARE(parsed[0].children.size(), size_t(1));
+    QCOMPARE(parsed[0].children[0].title, QStringLiteral("Section 1.1"));
+
+    const auto cleared = aipdf::pdf::rewriteOutline(written.bytes, {});
+    QVERIFY2(cleared.ok, qPrintable(cleared.error));
+    const PdfOpenResult withoutOutline = aipdf::pdf::openDocumentFromBytes(cleared.bytes);
+    QVERIFY(withoutOutline.document.isValid());
+    QVERIFY(withoutOutline.document.outline().empty());
 }
 
 QTEST_MAIN(PdfNavigationTests)

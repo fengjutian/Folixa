@@ -29,6 +29,7 @@ class PageAnnotsInjectorTests : public QObject {
 
 private slots:
     void injectsSoundAnnotationIntoPage();
+    void injectsInternalPageLink();
     void rejectsNonPdf();
 };
 
@@ -67,6 +68,34 @@ void PageAnnotsInjectorTests::injectsSoundAnnotationIntoPage() {
         }
     }
     QVERIFY2(foundSound, "注入的声音注释没有被识别成 /Sound");
+}
+
+void PageAnnotsInjectorTests::injectsInternalPageLink() {
+    auto opened = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(opened.document.isValid());
+    const QByteArray bytes = opened.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+
+    InlineAnnotationInsert insert;
+    insert.pageIndex = 0;
+    insert.targetPages.append(2);
+    insert.dictionary =
+        "<< /Type /Annot /Subtype /Link /Rect [20 20 120 40] "
+        "/Border [0 0 0] /Dest [@PAGE0 0 R /Fit] >>";
+    const auto result = injectInlineAnnotations(bytes, {insert});
+    QVERIFY2(result.ok, qPrintable(result.error));
+
+    const auto reopened = openDocumentFromBytes(result.bytes);
+    QVERIFY(reopened.document.isValid());
+    const auto page = reopened.document.page(0);
+    QVERIFY(page.has_value());
+    bool found = false;
+    for (const auto& link : page->links()) {
+        if (link.pageIndex == 2 && link.rect == QRectF(QPointF(20, 20), QPointF(120, 40))) {
+            found = true;
+        }
+    }
+    QVERIFY2(found, "注入的内部页面链接没有指向第 3 页");
 }
 
 void PageAnnotsInjectorTests::rejectsNonPdf() {

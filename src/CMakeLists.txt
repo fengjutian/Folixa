@@ -91,6 +91,8 @@
     pdf/FormData.h
     pdf/PageAnnotsInjector.h
     pdf/PageAnnotsInjector.cpp
+    pdf/OutlineWriter.h
+    pdf/OutlineWriter.cpp
     pdf/FormData.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp

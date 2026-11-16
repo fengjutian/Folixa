@@ -25,6 +25,8 @@
 #include "doc/RecoveryLog.h"
 #include "pdf/Annotation.h"
 #include "pdf/DocumentWriter.h"
+#include "pdf/PageAnnotsInjector.h"
+#include "pdf/OutlineWriter.h"
 
 #include <QColorDialog>
 #include <QClipboard>
@@ -875,6 +877,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     // 文档换新了：批注工具栏的可用状态要跟着重算（工具可用、标记类按钮要等选区）。
     updateAnnotationToolBar();
     requestVisiblePages();
+    emit controllersRefreshed();
 }
 
 // 文本控制器与导航控制器：各自持有一份独立句柄，在后台线程取数据。
@@ -1164,6 +1167,40 @@ IndexController* PdfView::indexController() const {
 
 DocumentQaController* PdfView::qaController() const {
     return qaController_.get();
+}
+
+std::vector<pdf::OutlineItem> PdfView::outline() const {
+    return document_.isValid() ? document_.outline() : std::vector<pdf::OutlineItem>{};
+}
+
+bool PdfView::replaceOutline(const std::vector<pdf::OutlineItem>& outline, QString* error) {
+    if (!document_.isValid()) {
+        if (error != nullptr) *error = tr("没有打开的文档。");
+        return false;
+    }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        if (error != nullptr) *error = serializeError;
+        return false;
+    }
+    const pdf::OutlineWriteResult written = pdf::rewriteOutline(bytes, outline);
+    if (!written.ok) {
+        if (error != nullptr) *error = written.error;
+        return false;
+    }
+    pdf::PdfOpenResult reopened = pdf::openDocumentFromBytes(written.bytes, filePath_);
+    if (!reopened.document.isValid()) {
+        if (error != nullptr) *error = reopened.errorMessage;
+        return false;
+    }
+    const int pageBefore = currentPage();
+    const double zoomBefore = zoom();
+    setDocument(std::move(reopened.document), filePath_);
+    goToPage(pageBefore);
+    setZoom(zoomBefore);
+    setModified(true);
+    return true;
 }
 
 void PdfView::setZoom(double factor) {
@@ -2202,6 +2239,108 @@ void PdfView::replaceSelectionTextDialog() {
     emit statusMessage(tr("已替换选中文字（行级）"));
 }
 
+void PdfView::searchReplaceDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const QString query = QInputDialog::getText(this, tr("搜索替换"), tr("查找内容:"),
+                                                 QLineEdit::Normal, QString(), &accepted);
+    if (!accepted || query.isEmpty()) {
+        return;
+    }
+    const QString replacement = QInputDialog::getText(
+        this, tr("搜索替换"), tr("替换为（目前仅支持西文）:"), QLineEdit::Normal,
+        QString(), &accepted);
+    if (!accepted || replacement.isEmpty()) {
+        return;
+    }
+    for (const QChar character : replacement) {
+        if (character.unicode() > 0x00ff) {
+            QMessageBox::warning(this, tr("搜索替换"),
+                                 tr("当前 PDF 写入字体只支持西文，不能写入这段替换文字。"));
+            return;
+        }
+    }
+    const QStringList scopes{tr("当前页"), tr("整个文档")};
+    const QString scope = QInputDialog::getItem(this, tr("搜索替换"), tr("替换范围:"),
+                                                 scopes, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int firstPage = scope == scopes.constFirst() ? currentPage() : 0;
+    const int lastPage = scope == scopes.constFirst() ? currentPage() : document_.pageCount() - 1;
+    int replacementCount = 0;
+    for (int pageIndex = firstPage; pageIndex <= lastPage; ++pageIndex) {
+        auto page = document_.page(pageIndex);
+        if (!page.has_value()) {
+            continue;
+        }
+        const std::optional<pdf::TextPage> textPage = page->extractText();
+        if (!textPage.has_value() || textPage->chars.isEmpty()) {
+            continue;
+        }
+
+        struct Line {
+            QVector<pdf::TextChar> chars;
+            QRectF rect;
+        };
+        QVector<Line> lines;
+        for (const pdf::TextChar& character : textPage->chars) {
+            if (character.text.trimmed().isEmpty() || character.box.isEmpty()) {
+                continue;
+            }
+            int bestLine = -1;
+            double bestOverlap = 0.0;
+            for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+                const QRectF overlap = lines.at(lineIndex).rect.intersected(character.box);
+                const double denominator = qMin(lines.at(lineIndex).rect.height(),
+                                                character.box.height());
+                const double ratio = denominator > 0.0 ? overlap.height() / denominator : 0.0;
+                if (ratio > bestOverlap) {
+                    bestOverlap = ratio;
+                    bestLine = lineIndex;
+                }
+            }
+            if (bestLine < 0 || bestOverlap < 0.45) {
+                Line line;
+                line.chars.append(character);
+                line.rect = character.box;
+                lines.append(line);
+            } else {
+                lines[bestLine].chars.append(character);
+                lines[bestLine].rect = lines.at(bestLine).rect.united(character.box);
+            }
+        }
+        for (Line& line : lines) {
+            std::sort(line.chars.begin(), line.chars.end(), [](const auto& a, const auto& b) {
+                return a.box.left() < b.box.left();
+            });
+            QString original;
+            for (const pdf::TextChar& character : std::as_const(line.chars)) {
+                original += character.text;
+            }
+            QString replaced = original;
+            const int count = replaced.count(query, Qt::CaseInsensitive);
+            if (count <= 0) {
+                continue;
+            }
+            replaced.replace(query, replacement, Qt::CaseInsensitive);
+            const double fontSize = std::max(8.0, line.rect.height() * 0.8);
+            if (page->replaceTextInRect(line.rect, replaced, fontSize, QColor(20, 24, 32))) {
+                replacementCount += count;
+            }
+        }
+    }
+    if (replacementCount <= 0) {
+        QMessageBox::information(this, tr("搜索替换"), tr("没有找到匹配内容。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已替换 %1 处").arg(replacementCount));
+}
+
 void PdfView::addLinkToSelectionDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
         return;
@@ -2241,6 +2380,68 @@ void PdfView::addLinkToSelectionDialog() {
     refreshAfterDecoration();
     modified_ = true;
     emit statusMessage(tr("已添加链接"));
+}
+
+void PdfView::addInternalLinkToSelectionDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int sourcePage = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (sourcePage < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("页面链接"), tr("先选中要添加链接的文字或区域。"));
+        return;
+    }
+    bool accepted = false;
+    const int targetPage = QInputDialog::getInt(
+        this, tr("页面链接"), tr("跳转到页码:"), currentPage() + 1,
+        1, document_.pageCount(), 1, &accepted) - 1;
+    if (!accepted) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(
+            QRectF(displayToUser(sourcePage, rect.topLeft()),
+                   displayToUser(sourcePage, rect.bottomRight())).normalized());
+    }
+    if (userRect.isEmpty()) {
+        return;
+    }
+
+    QString error;
+    const QByteArray serialized = document_.serialize(&error);
+    if (serialized.isEmpty()) {
+        QMessageBox::warning(this, tr("页面链接"), error);
+        return;
+    }
+    QByteArray dictionary = "<< /Type /Annot /Subtype /Link /Rect [";
+    dictionary += QByteArray::number(userRect.left(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.top(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.right(), 'f', 2) + ' ';
+    dictionary += QByteArray::number(userRect.bottom(), 'f', 2);
+    dictionary += "] /Border [0 0 0] /Dest [@PAGE0 0 R /Fit] >>";
+    pdf::InlineAnnotationInsert insert;
+    insert.pageIndex = sourcePage;
+    insert.dictionary = dictionary;
+    insert.targetPages.append(targetPage);
+    const pdf::InlineWriteResult written = pdf::injectInlineAnnotations(serialized, {insert});
+    if (!written.ok) {
+        QMessageBox::warning(this, tr("页面链接"), written.error);
+        return;
+    }
+    pdf::PdfOpenResult reopened = pdf::openDocumentFromBytes(written.bytes, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("页面链接"), reopened.errorMessage);
+        return;
+    }
+    const int pageBefore = currentPage();
+    const double zoomBefore = zoom();
+    setDocument(std::move(reopened.document), filePath_);
+    goToPage(pageBefore);
+    setZoom(zoomBefore);
+    modified_ = true;
+    emit statusMessage(tr("已添加跳转到第 %1 页的链接").arg(targetPage + 1));
 }
 
 void PdfView::detectWebLinks() {

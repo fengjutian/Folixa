@@ -317,6 +317,8 @@ qt_add_executable(PdfNavigationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
 )

@@ -128,9 +128,13 @@ qsizetype findDictClose(const QByteArray& pdf, qsizetype from, qsizetype to) {
     return -1;
 }
 
-QByteArray substitute(QByteArray body, const QVector<int>& numbers) {
+QByteArray substitute(QByteArray body, const QVector<int>& numbers,
+                      const QVector<int>& pageNumbers = {}) {
     for (int i = 0; i < numbers.size(); ++i) {
         body.replace("@EXTRA" + QByteArray::number(i), QByteArray::number(numbers.at(i)));
+    }
+    for (int i = 0; i < pageNumbers.size(); ++i) {
+        body.replace("@PAGE" + QByteArray::number(i), QByteArray::number(pageNumbers.at(i)));
     }
     return body;
 }
@@ -222,9 +226,19 @@ InlineWriteResult injectInlineAnnotations(const QByteArray& pdf,
         for (int k = 0; k < insert.extraObjects.size(); ++k) {
             numbers.append(nextObject++);
         }
-        byPage[insert.pageIndex].append(substitute(insert.dictionary, numbers));
+        QVector<int> pageNumbers;
+        for (const int pageIndex : insert.targetPages) {
+            ObjectSpan targetPage;
+            if (!findPageObject(pdf, objects, pageIndex, &targetPage)) {
+                result.error = QStringLiteral("找不到链接目标第 %1 页的对象").arg(pageIndex + 1);
+                return result;
+            }
+            pageNumbers.append(targetPage.number);
+        }
+        byPage[insert.pageIndex].append(substitute(insert.dictionary, numbers, pageNumbers));
         for (int k = 0; k < insert.extraObjects.size(); ++k) {
-            bodies.append({ numbers.at(k), substitute(insert.extraObjects.at(k), numbers) });
+            bodies.append({ numbers.at(k),
+                            substitute(insert.extraObjects.at(k), numbers, pageNumbers) });
         }
     }
     QByteArray tail;

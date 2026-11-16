@@ -150,6 +150,24 @@ void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem
     }
 }
 
+pdf::OutlineItem* outlineItemAt(std::vector<pdf::OutlineItem>* items, int target, int* cursor) {
+    if (items == nullptr || cursor == nullptr) return nullptr;
+    for (pdf::OutlineItem& item : *items) {
+        if ((*cursor)++ == target) return &item;
+        if (pdf::OutlineItem* found = outlineItemAt(&item.children, target, cursor)) return found;
+    }
+    return nullptr;
+}
+
+bool removeOutlineItemAt(std::vector<pdf::OutlineItem>* items, int target, int* cursor) {
+    if (items == nullptr || cursor == nullptr) return false;
+    for (auto it = items->begin(); it != items->end(); ++it) {
+        if ((*cursor)++ == target) { items->erase(it); return true; }
+        if (removeOutlineItemAt(&it->children, target, cursor)) return true;
+    }
+    return false;
+}
+
 // 欢迎页「最近文档」的上限：再多就把欢迎页撑成文件管理器的样子。
 constexpr int kMaxRecentFiles = 6;
 
@@ -1170,12 +1188,14 @@ void MainWindow::buildUi() {
 
     auto* textEditGroup = ribbonBar_->addGroup(contentEditTab, tr("文本工具"));
     addUnavailableEditCommand(textEditGroup, "拼写检查");
-    addRibbonCommand(textEditGroup, "搜索替换", "打开全文搜索", ":/icons/search.svg",
+    addRibbonCommand(textEditGroup, "搜索替换", "替换当前页或整个文档中的文字", ":/icons/search.svg",
                      [this] {
-        navigationDock_->setVisible(true);
-        showNavigationPage(3);
+        if (auto* view = currentView()) { view->searchReplaceDialog(); }
     }, true, "edit.search");
-    addUnavailableEditCommand(textEditGroup, "批量替换");
+    addRibbonCommand(textEditGroup, "批量替换", "在当前页或整个文档中批量替换",
+                     ":/icons/search.svg", [this] {
+        if (auto* view = currentView()) { view->searchReplaceDialog(); }
+    }, true, "edit.replaceAll");
 
     auto* insertEditGroup = ribbonBar_->addGroup(contentEditTab, tr("插入"));
     addEditTool(insertEditGroup, "添加文本", "在页面上拖出文本框", ":/icons/edit.svg",
@@ -1209,21 +1229,47 @@ void MainWindow::buildUi() {
     addUnavailableEditCommand(insertEditGroup, "添加文章框");
 
     auto* linkEditGroup = ribbonBar_->addGroup(contentEditTab, tr("链接"));
-    addRibbonCommand(linkEditGroup, "添加链接", "给当前选区添加网址链接",
-                     ":/icons/bookmark.svg", [this] {
+    QToolButton* addLinkButton = addRibbonCommand(
+        linkEditGroup, "添加链接", "给当前选区添加网址或页面链接",
+        ":/icons/bookmark.svg", [this] {
         if (auto* view = currentView()) { view->addLinkToSelectionDialog(); }
     }, true, "edit.addLink");
+    auto* addLinkMenu = new QMenu(addLinkButton);
+    QAction* webLinkAction = addLinkMenu->addAction(tr("网址链接"));
+    connect(webLinkAction, &QAction::triggered, this, [this] {
+        if (auto* view = currentView()) { view->addLinkToSelectionDialog(); }
+    });
+    QAction* pageLinkAction = addLinkMenu->addAction(tr("页面链接"));
+    connect(pageLinkAction, &QAction::triggered, this, [this] {
+        if (auto* view = currentView()) { view->addInternalLinkToSelectionDialog(); }
+    });
+    addLinkButton->setMenu(addLinkMenu);
+    addLinkButton->setPopupMode(QToolButton::MenuButtonPopup);
     addRibbonCommand(linkEditGroup, "网络链接", "识别全文网址并创建可点击链接",
                      ":/icons/search.svg", [this] {
         if (auto* view = currentView()) { view->detectWebLinks(); }
     }, true, "edit.detectWebLinks");
 
     auto* navigationEditGroup = ribbonBar_->addGroup(contentEditTab, tr("导航"));
-    addRibbonCommand(navigationEditGroup, "书签", "打开书签面板", ":/icons/bookmark.svg",
-                     [this] {
+    QToolButton* bookmarkButton = addRibbonCommand(
+        navigationEditGroup, "书签", "查看或编辑书签", ":/icons/bookmark.svg", [this] {
         navigationDock_->setVisible(true);
         showNavigationPage(2);
     }, true, "edit.bookmarks");
+    auto* bookmarkMenu = new QMenu(bookmarkButton);
+    QAction* showBookmarksAction = bookmarkMenu->addAction(tr("打开书签面板"));
+    connect(showBookmarksAction, &QAction::triggered, this, [this] {
+        navigationDock_->setVisible(true);
+        showNavigationPage(2);
+    });
+    QAction* addBookmarkAction = bookmarkMenu->addAction(tr("添加当前页书签"));
+    connect(addBookmarkAction, &QAction::triggered, this, &MainWindow::addCurrentPageBookmark);
+    QAction* renameBookmarkAction = bookmarkMenu->addAction(tr("重命名选中书签"));
+    connect(renameBookmarkAction, &QAction::triggered, this, &MainWindow::renameSelectedBookmark);
+    QAction* deleteBookmarkAction = bookmarkMenu->addAction(tr("删除选中书签"));
+    connect(deleteBookmarkAction, &QAction::triggered, this, &MainWindow::deleteSelectedBookmark);
+    bookmarkButton->setMenu(bookmarkMenu);
+    bookmarkButton->setPopupMode(QToolButton::MenuButtonPopup);
     addUnavailableEditCommand(navigationEditGroup, "自动创建书签");
     addUnavailableEditCommand(navigationEditGroup, "交叉引用");
 
@@ -2775,6 +2821,70 @@ void MainWindow::refreshOutline(PdfView* view) {
         }
     }
     trace(QStringLiteral("outline shown items=%1").arg(entries.size()));
+}
+
+void MainWindow::addCurrentPageBookmark() {
+    PdfView* view = currentView();
+    if (view == nullptr) return;
+    bool accepted = false;
+    const QString title = QInputDialog::getText(
+        this, tr("添加书签"), tr("书签标题:"), QLineEdit::Normal,
+        tr("第 %1 页").arg(view->currentPage() + 1), &accepted).trimmed();
+    if (!accepted || title.isEmpty()) return;
+    std::vector<pdf::OutlineItem> outline = view->outline();
+    pdf::OutlineItem item;
+    item.title = title;
+    item.pageIndex = view->currentPage();
+    outline.push_back(std::move(item));
+    QString error;
+    if (!view->replaceOutline(outline, &error)) {
+        QMessageBox::warning(this, tr("添加书签"), error);
+        return;
+    }
+    statusBar()->showMessage(tr("已添加书签“%1”").arg(title), 3000);
+}
+
+void MainWindow::renameSelectedBookmark() {
+    PdfView* view = currentView();
+    const int row = bookmarkList_ != nullptr ? bookmarkList_->currentRow() : -1;
+    if (view == nullptr || row < 0) {
+        QMessageBox::information(this, tr("重命名书签"), tr("请先在书签面板中选择一个书签。"));
+        return;
+    }
+    std::vector<pdf::OutlineItem> outline = view->outline();
+    int cursor = 0;
+    pdf::OutlineItem* item = outlineItemAt(&outline, row, &cursor);
+    if (item == nullptr) return;
+    bool accepted = false;
+    const QString title = QInputDialog::getText(this, tr("重命名书签"), tr("书签标题:"),
+                                                 QLineEdit::Normal, item->title,
+                                                 &accepted).trimmed();
+    if (!accepted || title.isEmpty() || title == item->title) return;
+    item->title = title;
+    QString error;
+    if (!view->replaceOutline(outline, &error)) {
+        QMessageBox::warning(this, tr("重命名书签"), error);
+        return;
+    }
+    statusBar()->showMessage(tr("书签已重命名"), 3000);
+}
+
+void MainWindow::deleteSelectedBookmark() {
+    PdfView* view = currentView();
+    const int row = bookmarkList_ != nullptr ? bookmarkList_->currentRow() : -1;
+    if (view == nullptr || row < 0) {
+        QMessageBox::information(this, tr("删除书签"), tr("请先在书签面板中选择一个书签。"));
+        return;
+    }
+    std::vector<pdf::OutlineItem> outline = view->outline();
+    int cursor = 0;
+    if (!removeOutlineItemAt(&outline, row, &cursor)) return;
+    QString error;
+    if (!view->replaceOutline(outline, &error)) {
+        QMessageBox::warning(this, tr("删除书签"), error);
+        return;
+    }
+    statusBar()->showMessage(tr("已删除书签"), 3000);
 }
 
 // 切到导航栏的某一页并把它显示出来。

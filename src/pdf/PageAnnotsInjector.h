@@ -17,6 +17,8 @@ struct InlineAnnotationInsert {
     QByteArray dictionary;
     // 需要新建的对象体（例如 /Sound 的音频流）。
     QVector<QByteArray> extraObjects;
+    // 字典里的 @PAGE0、@PAGE1… 会替换成对应页面对象号。
+    QVector<int> targetPages;
 };
 
 struct InlineWriteResult {
