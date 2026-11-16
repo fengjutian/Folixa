@@ -17,6 +17,7 @@
 #include <QPaintEvent>
 #include <QPolygonF>
 #include <QLineF>
+#include <QLineEdit>
 #include <QScrollBar>
 
 #include <algorithm>
@@ -252,6 +253,15 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
             const QPointF rotationHandle(selection.center().x(), selection.top() - 24.0);
             painter.drawLine(QPointF(selection.center().x(), selection.top()), rotationHandle);
             painter.drawEllipse(rotationHandle, 5.0, 5.0);
+            painter.setPen(QPen(QColor(QStringLiteral("#B44CFF")), 1.0, Qt::DashLine));
+            if (std::isfinite(objectGuideX_)) {
+                const double x = pageRect.left() + objectGuideX_ * layout_.zoom();
+                painter.drawLine(QPointF(x, pageRect.top()), QPointF(x, pageRect.bottom()));
+            }
+            if (std::isfinite(objectGuideY_)) {
+                const double y = pageRect.top() + objectGuideY_ * layout_.zoom();
+                painter.drawLine(QPointF(pageRect.left(), y), QPointF(pageRect.right(), y));
+            }
         }
         // 正在拖的批注工具的预览。
         if (index == drawPage_) {
@@ -604,12 +614,14 @@ void PageCanvas::resizeEvent(QResizeEvent* event) {
     QAbstractScrollArea::resizeEvent(event);
     updateScrollRange();
     requestVisiblePages();
+    repositionInlineEditor();
 }
 
 void PageCanvas::scrollContentsBy(int dx, int dy) {
     QAbstractScrollArea::scrollContentsBy(dx, dy);
     updateScrollRange();
     requestVisiblePages();
+    repositionInlineEditor();
 }
 
 void PageCanvas::updateScrollRange() {
@@ -933,6 +945,8 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
         if (!pagePointAt(event->pos(), &pageIndex, &point) || pageIndex != objectSelectionPage_) return;
         const QPointF delta = point - objectDragStart_;
         QRectF next = objectDragStartRect_;
+        objectGuideX_ = std::numeric_limits<double>::quiet_NaN();
+        objectGuideY_ = std::numeric_limits<double>::quiet_NaN();
         if (objectDragHandle_ == 8) {
             const QPointF offset = point - objectDragStartRect_.center();
             const double angle = qRadiansToDegrees(std::atan2(offset.y(), offset.x()));
@@ -966,6 +980,30 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
                         next.setRight(next.left() + targetWidth);
                 }
             }
+        }
+        if (!event->modifiers().testFlag(Qt::AltModifier)) {
+            const QRectF pageLayoutRect = layout_.pageRect(pageIndex);
+            const double pageWidth = pageLayoutRect.width() / qMax(0.01, layout_.zoom());
+            const double pageHeight = pageLayoutRect.height() / qMax(0.01, layout_.zoom());
+            const double tolerance = 6.0 / qMax(0.01, layout_.zoom());
+            const double targetsX[] = {0.0, pageWidth / 2.0, pageWidth};
+            const double targetsY[] = {0.0, pageHeight / 2.0, pageHeight};
+            const double pointsX[] = {next.left(), next.center().x(), next.right()};
+            const double pointsY[] = {next.top(), next.center().y(), next.bottom()};
+            double bestX = tolerance;
+            double bestDx = 0.0;
+            double bestY = tolerance;
+            double bestDy = 0.0;
+            for (double target : targetsX) for (double edge : pointsX) {
+                const double distance = qAbs(target - edge);
+                if (distance < bestX) { bestX = distance; bestDx = target - edge; objectGuideX_ = target; }
+            }
+            for (double target : targetsY) for (double edge : pointsY) {
+                const double distance = qAbs(target - edge);
+                if (distance < bestY) { bestY = distance; bestDy = target - edge; objectGuideY_ = target; }
+            }
+            if (std::isfinite(objectGuideX_)) next.translate(bestDx, 0.0);
+            if (std::isfinite(objectGuideY_)) next.translate(0.0, bestDy);
         }
         if (next.width() >= 2.0 && next.height() >= 2.0) objectSelectionRect_ = next.normalized();
         viewport()->update();
@@ -1056,6 +1094,8 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     }
     if (draggingObjectSelection_) {
         draggingObjectSelection_ = false;
+        objectGuideX_ = std::numeric_limits<double>::quiet_NaN();
+        objectGuideY_ = std::numeric_limits<double>::quiet_NaN();
         const int releasedHandle = objectDragHandle_;
         const QRectF before = objectDragStartRect_;
         const QRectF after = objectSelectionRect_;
@@ -1233,6 +1273,10 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
         return;
     }
+    if (objectEditMode_) {
+        emit objectDoubleClicked(pageIndex, toUserSpacePoint(pageIndex, displayPoint));
+        return;
+    }
     const int order = textController_->hitAt(pageIndex, displayPoint);
     if (order < 0) {
         return;
@@ -1248,6 +1292,52 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     }
     textController_->setSelection(pageIndex, start, end);
     viewport()->update();
+}
+
+void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRectF& displayRect,
+                                     const QString& text, double fontSize) {
+    if (inlineEditor_) {
+        inlineEditor_->deleteLater();
+        inlineEditor_ = nullptr;
+    }
+    inlineEditPage_ = pageIndex;
+    inlineEditObject_ = objectIndex;
+    inlineEditDisplayRect_ = displayRect;
+    inlineEditor_ = new QLineEdit(viewport());
+    inlineEditor_->setText(text);
+    QFont font = inlineEditor_->font();
+    font.setPointSizeF(qMax(6.0, fontSize * layout_.zoom()));
+    inlineEditor_->setFont(font);
+    inlineEditor_->setStyleSheet(QStringLiteral(
+        "QLineEdit { border: 2px solid #6D45E5; background: rgba(255,255,255,235); padding: 1px; }"));
+    repositionInlineEditor();
+    inlineEditor_->show();
+    inlineEditor_->setFocus();
+    inlineEditor_->setCursorPosition(inlineEditor_->text().size());
+    connect(inlineEditor_, &QLineEdit::editingFinished, this, [this]() {
+        if (!inlineEditor_) return;
+        const QString text = inlineEditor_->text();
+        const int page = inlineEditPage_;
+        const int object = inlineEditObject_;
+        inlineEditor_->deleteLater();
+        inlineEditor_ = nullptr;
+        inlineEditPage_ = -1;
+        inlineEditObject_ = -1;
+        emit inlineTextEditCommitted(page, object, text);
+    });
+}
+
+void PageCanvas::repositionInlineEditor() {
+    if (!inlineEditor_ || inlineEditPage_ < 0 || inlineEditPage_ >= layout_.pageCount()) return;
+    const double zoom = layout_.zoom();
+    const double scrollTop = verticalScrollBar()->value();
+    const QRectF pageRect(pageLeft(inlineEditPage_), layout_.pageTop(inlineEditPage_) - scrollTop,
+                          layout_.pageRect(inlineEditPage_).width(),
+                          layout_.pageRect(inlineEditPage_).height());
+    QRectF rect = toViewportRect(inlineEditDisplayRect_, pageRect, zoom).adjusted(-3, -3, 3, 3);
+    rect.setWidth(qMax(80.0, rect.width()));
+    rect.setHeight(qMax(28.0, rect.height()));
+    inlineEditor_->setGeometry(rect.toAlignedRect());
 }
 
 void PageCanvas::updateToolCursor() {

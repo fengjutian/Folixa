@@ -5,6 +5,7 @@
 #include <QRectF>
 #include <QString>
 #include <QVector>
+#include <limits>
 
 #include "app/PageLayout.h"
 #include "app/TileCache.h"
@@ -14,6 +15,7 @@
 
 class QMouseEvent;
 class QPainter;
+class QLineEdit;
 
 namespace aipdf::app {
 
@@ -71,6 +73,8 @@ public slots:
     void beginObjectSelection();
     void setObjectSelection(int pageIndex, const QRectF& userSpaceRect);
     void clearObjectSelection();
+    void beginInlineTextEdit(int pageIndex, int objectIndex, const QRectF& displayRect,
+                             const QString& text, double fontSize);
 
 signals:
     void currentPageChanged(int index);
@@ -107,6 +111,8 @@ signals:
     void objectSelectionTransformed(int pageIndex, const QRectF& oldUserSpaceRect,
                                     const QRectF& newUserSpaceRect);
     void objectSelectionRotated(int pageIndex, double degrees);
+    void objectDoubleClicked(int pageIndex, const QPointF& userSpacePoint);
+    void inlineTextEditCommitted(int pageIndex, int objectIndex, const QString& text);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -156,6 +162,12 @@ private:
     QRectF objectDragStartRect_;
     double objectRotationStartAngle_ = 0.0;
     double objectRotationDegrees_ = 0.0;
+    double objectGuideX_ = std::numeric_limits<double>::quiet_NaN();
+    double objectGuideY_ = std::numeric_limits<double>::quiet_NaN();
+    QLineEdit* inlineEditor_ = nullptr;
+    int inlineEditPage_ = -1;
+    int inlineEditObject_ = -1;
+    QRectF inlineEditDisplayRect_;
     QString formFieldKind_;
     bool drawingLine_ = false;
     pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;
@@ -198,6 +210,7 @@ private:
     QPointF toUserSpacePoint(int pageIndex, const QPointF& displayPoint) const;
     // 批注工具激活时把光标换成十字，退出时恢复。
     void updateToolCursor();
+    void repositionInlineEditor();
 
     // 没有打开文档时画在画布中央的占位提示。
     QString emptyText_;

@@ -189,6 +189,8 @@ private:
     void selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool additive);
     void transformSelectedObjects(int pageIndex, const QRectF& oldRect, const QRectF& newRect);
     void rotateSelectedObjects(int pageIndex, double degrees);
+    void beginInlineTextEdit(int pageIndex, const QPointF& userPoint);
+    void commitInlineTextEdit(int pageIndex, int objectIndex, const QString& text);
     void recordContentEdit(int pageIndex, const pdf::PdfDocument& before, const QString& name);
     bool restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。

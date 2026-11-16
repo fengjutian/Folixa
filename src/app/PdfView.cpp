@@ -447,6 +447,10 @@ void PdfView::buildUi() {
             this, &PdfView::transformSelectedObjects);
     connect(canvas_, &PageCanvas::objectSelectionRotated,
             this, &PdfView::rotateSelectedObjects);
+    connect(canvas_, &PageCanvas::objectDoubleClicked,
+            this, &PdfView::beginInlineTextEdit);
+    connect(canvas_, &PageCanvas::inlineTextEditCommitted,
+            this, &PdfView::commitInlineTextEdit);
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -2859,8 +2863,13 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
             QMessageBox::information(this, tr("文字属性"), tr("选区内没有文字对象。"));
             return;
         }
-        const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Times Roman"),
-                                   QStringLiteral("Courier"), QStringLiteral("Microsoft YaHei"),
+        const QStringList families{QStringLiteral("Helvetica"), QStringLiteral("Helvetica Bold"),
+                                   QStringLiteral("Helvetica Oblique"), QStringLiteral("Helvetica Bold Oblique"),
+                                   QStringLiteral("Times Roman"), QStringLiteral("Times Bold"),
+                                   QStringLiteral("Times Italic"), QStringLiteral("Times Bold Italic"),
+                                   QStringLiteral("Courier"), QStringLiteral("Courier Bold"),
+                                   QStringLiteral("Courier Oblique"), QStringLiteral("Courier Bold Oblique"),
+                                   QStringLiteral("Microsoft YaHei"),
                                    QStringLiteral("SimSun"), QStringLiteral("SimHei")};
         int familyIndex = families.indexOf(initialFamily);
         if (familyIndex < 0) familyIndex = 0;
@@ -3010,6 +3019,48 @@ void PdfView::rotateSelectedObjects(int pageIndex, double degrees) {
     if (!bounds.isEmpty()) canvas_->setObjectSelection(pageIndex, bounds);
     setModified(true);
     emit statusMessage(tr("已旋转 %1 个页面对象").arg(selectedObjectIndexes_.size()));
+}
+
+void PdfView::beginInlineTextEdit(int pageIndex, const QPointF& userPoint) {
+    auto page = document_.page(pageIndex);
+    if (!page) return;
+    const double radius = 4.0;
+    auto objects = page->objectsInRect(
+        QRectF(userPoint.x() - radius, userPoint.y() - radius, radius * 2, radius * 2), 0.0);
+    std::sort(objects.begin(), objects.end(), [](const auto& a, const auto& b) {
+        return a.index > b.index;
+    });
+    const auto found = std::find_if(objects.begin(), objects.end(), [userPoint](const auto& object) {
+        return object.type == pdf::PageObjectType::Text &&
+               object.bounds.adjusted(-2, -2, 2, 2).contains(userPoint);
+    });
+    if (found == objects.end()) {
+        emit statusMessage(tr("双击位置没有可编辑文字"));
+        return;
+    }
+    PageTransform transform;
+    if (!transformForIndexPage(pageIndex, &transform)) return;
+    selectedObjectPage_ = pageIndex;
+    selectedObjectIndexes_ = {found->index};
+    canvas_->setObjectSelection(pageIndex, found->bounds);
+    canvas_->beginInlineTextEdit(pageIndex, found->index,
+                                 transform.toDisplay(found->bounds), found->text,
+                                 found->fontSize);
+}
+
+void PdfView::commitInlineTextEdit(int pageIndex, int objectIndex, const QString& text) {
+    if (!requirePermission(effectivePermissions().allowModifying, tr("编辑文字"))) return;
+    auto page = document_.page(pageIndex);
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    if (!page || !before.isValid() || !page->setTextObjectText(objectIndex, text)) {
+        QMessageBox::warning(this, tr("编辑文字"),
+                             tr("当前字体不包含输入字符，文字没有修改。"));
+        return;
+    }
+    refreshAfterDecoration();
+    recordContentEdit(pageIndex, before, tr("就地编辑文字"));
+    setModified(true);
+    emit statusMessage(tr("文字已更新"));
 }
 
 void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,

@@ -30,6 +30,7 @@ struct PageObjectInfo {
     double fontSize = 0.0;
     QString fontFamily;
     QColor fillColor = Qt::black;
+    QString text;
 };
 
 // 单页句柄。页面生命周期依附于所属文档，文档关闭后页面自动失效。
@@ -91,6 +92,7 @@ public:
     bool removeObjects(const QVector<int>& indexes);
     bool setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
                                  double fontSize, const QColor& color);
+    bool setTextObjectText(int index, const QString& text);
 
     // 安全遮盖：把当前页以指定分辨率渲染，在像素层烧入黑块，然后删除原内容对象和
     // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。
