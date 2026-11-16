@@ -72,6 +72,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QLocale>
 #include <QMenuBar>
 #include <QMenu>
 #include <QMessageBox>
@@ -241,6 +242,14 @@ MainWindow::MainWindow(QWidget* parent)
     // 欢迎页写着「把 PDF 拖到窗口里」，那窗口就得真的收得下。
     setAcceptDrops(true);
     buildUi();
+
+    const QString autoImportDirectory =
+        QSettings().value(QStringLiteral("documentManagement/autoImportDirectory")).toString();
+    if (QFileInfo(autoImportDirectory).isDir()) {
+        autoImportWatcher_ = new QFileSystemWatcher({autoImportDirectory}, this);
+        connect(autoImportWatcher_, &QFileSystemWatcher::directoryChanged,
+                this, &MainWindow::importWatchedDirectory);
+    }
 
 
     QTimer::singleShot(0, this, [this] {
@@ -1558,11 +1567,11 @@ void MainWindow::buildUi() {
                      [this] { editDocumentCategory(); }, true, "documentManagement.categories");
     addRibbonCommand(documentOrganizeGroup, "星标", "添加或取消星标", ":/icons/bookmark.svg",
                      [this] { toggleDocumentStar(); }, true, "documentManagement.starred");
-    addRibbonCommand(documentOrganizeGroup, "文件柜", "打开当前文档所在文件夹", ":/icons/folder.svg",
+    addRibbonCommand(documentOrganizeGroup, "文件柜", "打开当前文档所在文件夹", ":/icons/outline.svg",
                      [this] { openDocumentCabinet(); }, true, "documentManagement.cabinet");
 
     auto* documentSearchGroup = ribbonBar_->addGroup(documentManagementTab, tr("检索"));
-    addRibbonCommand(documentSearchGroup, "自动导入", "监控目录并自动打开新增 PDF", ":/icons/open.svg",
+    addRibbonCommand(documentSearchGroup, "自动导入", "监控目录并自动打开新增 PDF", ":/icons/page-insert.svg",
                      [this] { configureAutoImport(); }, true, "documentManagement.autoImport");
     addRibbonCommand(documentSearchGroup, "全文检索", "打开本地全文索引与检索",
                      ":/icons/search.svg", [this] { showNavigationPage(6); }, true,
@@ -1571,15 +1580,15 @@ void MainWindow::buildUi() {
     auto* invoiceGroup = ribbonBar_->addGroup(documentManagementTab, tr("发票"));
     addRibbonCommand(invoiceGroup, "发票归档", "把当前 PDF 复制到本地发票库", ":/icons/save.svg",
                      [this] { archiveInvoice(); }, true, "documentManagement.invoiceArchive");
-    addRibbonCommand(invoiceGroup, "发票管理", "打开本地发票库", ":/icons/folder.svg",
+    addRibbonCommand(invoiceGroup, "发票管理", "打开本地发票库", ":/icons/outline.svg",
                      [this] { openInvoiceManager(); }, true, "documentManagement.invoiceManager");
     addRibbonCommand(invoiceGroup, "生成报销单", "为已归档发票生成 CSV 清单", ":/icons/form.svg",
                      [this] { createReimbursementList(); }, true, "documentManagement.reimbursement");
-    addRibbonCommand(invoiceGroup, "票据打印", "打印当前发票", ":/icons/print.svg",
+    addRibbonCommand(invoiceGroup, "票据打印", "打印当前发票", ":/icons/pages.svg",
                      [this] { if (auto* view = currentView()) view->printDocument(); }, true, "documentManagement.invoicePrint");
-    addRibbonCommand(invoiceGroup, "发票转图片", "把当前发票逐页导出为图片", ":/icons/image.svg",
+    addRibbonCommand(invoiceGroup, "发票转图片", "把当前发票逐页导出为图片", ":/icons/square.svg",
                      [this] { if (auto* view = currentView()) view->exportPageImages(); }, true, "documentManagement.invoiceToImage");
-    addRibbonCommand(invoiceGroup, "发票合并", "把另一份发票合并到当前文档", ":/icons/merge.svg",
+    addRibbonCommand(invoiceGroup, "发票合并", "把另一份发票合并到当前文档", ":/icons/page-insert.svg",
                      [this] { if (auto* view = currentView()) view->mergeDocumentDialog(); }, true, "documentManagement.invoiceMerge");
 
     auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
@@ -3294,7 +3303,7 @@ void MainWindow::showDocumentOverview() {
         this, tr("文档概述"),
         tr("文件：%1\n页数：%2\n大小：%3 KB\n修改时间：%4\n分类：%5\n标签：%6\n星标：%7")
             .arg(info.fileName()).arg(view->pageCount()).arg((info.size() + 1023) / 1024)
-            .arg(info.lastModified().toString(Qt::DefaultLocaleShortDate))
+            .arg(QLocale().toString(info.lastModified(), QLocale::ShortFormat))
             .arg(category.isEmpty() ? tr("未分类") : category)
             .arg(tags.isEmpty() ? tr("无") : tags)
             .arg(starred ? tr("是") : tr("否")));
