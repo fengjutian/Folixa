@@ -114,7 +114,10 @@ try {
     }
     Test-Check 'Worker 被主程序自动拉起' ($workers.Count -ge 1) "count=$($workers.Count)"
 
-    $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15
+    # Qt 窗口刚出现时可能还保留类名标题“AI PDF Editor”，版本化标题会在
+    # 主窗口初始化末尾设置；等待最终标题，避免把启动中间态当成失败。
+    $probe = Wait-AiPdfWindowProbe -Process $app -TimeoutSeconds 15 `
+        -TitlePattern ([regex]::Escape($Version))
     Test-Check '主窗口可被自动化接口访问' ($null -ne $probe)
     if ($probe) {
         Test-Check "窗口标题显示版本 $Version" ($probe.Title -match [regex]::Escape($Version)) $probe.Title

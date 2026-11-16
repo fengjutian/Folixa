@@ -222,6 +222,10 @@ function Open-AiPdfSearchPanel {
         [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
         [int]$Attempts = 5
     )
+    $existing = Get-AiPdfElementById -Process $Process -IdPattern '*searchQueryInput*'
+    if ($existing) {
+        return $existing
+    }
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Set-AiPdfForeground -Process $Process | Out-Null
         if (-not (Test-AiPdfForeground -Process $Process)) {
@@ -233,6 +237,30 @@ function Open-AiPdfSearchPanel {
         $input = Wait-AiPdfElementById -Process $Process -IdPattern '*searchQueryInput*' -TimeoutSeconds 5
         if ($input) {
             return $input
+        }
+        # SendKeys 仍可能被系统或其他窗口吞掉；导航 rail 是同一条产品路径，
+        # 用控件级 InvokePattern 兜底，不依赖全局键盘焦点。
+        $searchButton = Get-AiPdfElementById -Process $Process -IdPattern '*railButton.search*'
+        if ($searchButton) {
+            Invoke-AiPdfElement -Element $searchButton | Out-Null
+            $input = Wait-AiPdfElementById -Process $Process `
+                -IdPattern '*searchQueryInput*' -TimeoutSeconds 2
+            if (-not $input) {
+                try {
+                    $buttonRect = $searchButton.Current.BoundingRectangle
+                    Set-AiPdfForeground -Process $Process | Out-Null
+                    Invoke-AiPdfMouseClick `
+                        -X ([int]($buttonRect.Left + $buttonRect.Width / 2)) `
+                        -Y ([int]($buttonRect.Top + $buttonRect.Height / 2))
+                    $input = Wait-AiPdfElementById -Process $Process `
+                        -IdPattern '*searchQueryInput*' -TimeoutSeconds 3
+                } catch {
+                    $input = $null
+                }
+            }
+            if ($input) {
+                return $input
+            }
         }
         Write-Host "    第 $attempt 次：Ctrl+F 已发出，搜索面板还没出现，重试" -ForegroundColor DarkGray
         Start-Sleep -Milliseconds 500
@@ -253,8 +281,14 @@ try {
     Test-Check '文档已打开并显示总页数' `
         ($null -ne $probe -and $probe.Text -match '第\s*1\s*/\s*2\s*页') ''
 
+    # 页面图像先出现，文本层随后异步提取；文本层没就绪时同样的鼠标拖拽
+    # 只能移动光标，不会产生选区。等待生产代码明确写出排版完成轨迹。
+    $textReady = Wait-AiPdfTraceMatch -Path $tracePath `
+        -Pattern 'text page=0 chars=\d+ layout=1' -TimeoutSeconds 15
+    Test-Check '首页文本层与字符框已就绪' $textReady ''
+
     # --- 拖选 + 复制 ---
-    $viewport = Get-AiPdfElementById -Process $app -IdPattern 'pdfCanvas.viewport'
+    $viewport = Get-AiPdfElementById -Process $app -IdPattern '*pdfCanvas.viewport*'
     Test-Check '找到画布视口' ($null -ne $viewport) ''
     if ($viewport) {
         $scale = Set-AiPdfForeground -Process $app
@@ -264,7 +298,7 @@ try {
         # 弹到前台盖住我们的窗口（实测点击落到了隔壁程序上）。
         Set-AiPdfWindowTopmost -Process $app -Enable $true | Out-Null
         $scale = Set-AiPdfForeground -Process $app
-        $viewport = Get-AiPdfElementById -Process $app -IdPattern 'pdfCanvas.viewport'
+        $viewport = Get-AiPdfElementById -Process $app -IdPattern '*pdfCanvas.viewport*'
         $rect = $viewport.Current.BoundingRectangle
         $viewportWidth = $rect.Width / $scale
         # 页面在视口里水平居中（PageCanvas::pageLeft 的算法）：
@@ -283,30 +317,26 @@ try {
         $y1 = [int]($rect.Top + 68.0 * $scale)
         $x2 = [int]($rect.Left + ($pageLeft + 150.0) * $scale)
         $y2 = $y1
-        Write-Host "    拖选区间 ($x1,$y1) -> ($x2,$y2)"
-        Invoke-AiPdfMouseDrag -X1 $x1 -Y1 $y1 -X2 $x2 -Y2 $y2
-
-        Start-Sleep -Milliseconds 500
-
-        # 清空剪贴板：上一轮残留的 'Folixa' 会让断言在根本没复制时也显示通过。
-        try {
-            Set-Clipboard -Value ''
-        } catch {
-        }
-
-        # Ctrl+C 走 SendKeys，事件落在**前台窗口**上；机器上别的程序随时可能抢走前台，
-        # 按键就丢在别处了（实测偶发：剪贴板空、轨迹里也没有 copy）。
-        # 判定复制是否真的发生，看应用自己的轨迹而不是只看剪贴板：
-        # 轨迹有 copy 记录才算复制动作发生过，剪贴板只是复核内容。
-        # 丢一次就重发，重发三次都没有才算失败。
+        # 鼠标事件也可能在前台切换瞬间被系统吞掉。每轮都重新置顶、聚焦、
+        # 拖选并用应用轨迹确认选区；没有选区就不能只重发 Ctrl+C。
         $copied = $false
         for ($attempt = 1; $attempt -le 3 -and -not $copied; $attempt++) {
+            Write-Host "    第 $attempt 次拖选 ($x1,$y1) -> ($x2,$y2)"
             Set-AiPdfWindowTopmost -Process $app -Enable $true | Out-Null
             Set-AiPdfForeground -Process $app | Out-Null
+            Invoke-AiPdfMouseDrag -X1 $x1 -Y1 $y1 -X2 $x2 -Y2 $y2
+            $selected = Wait-AiPdfTraceMatch -Path $tracePath `
+                -Pattern 'selection page=0 chars=6 text=Folixa' -TimeoutSeconds 2
+            if (-not $selected) {
+                Write-Host "    第 $attempt 次拖选没有产生选区，重试"
+                continue
+            }
+            # 清空剪贴板：上一轮残留的 Folixa 不能作为本轮证据。
+            try { Set-Clipboard -Value '' } catch {}
             [System.Windows.Forms.SendKeys]::SendWait('^c')
             $copied = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'copy chars=6 text=Folixa' -TimeoutSeconds 3
             if (-not $copied) {
-                Write-Host "    第 $attempt 次 Ctrl+C 没有生效，重试"
+                Write-Host "    第 $attempt 次 Ctrl+C 没有生效，重新拖选"
             }
         }
 
@@ -354,10 +384,22 @@ try {
             Set-AiPdfWindowTopmost -Process $app -Enable $true | Out-Null
             Set-AiPdfForeground -Process $app | Out-Null
             $target = $results[1].Current.BoundingRectangle
-            Invoke-AiPdfMouseClick -X ([int]($target.Left + $target.Width / 2)) `
-                -Y ([int]($target.Top + $target.Height / 2))
-            Start-Sleep -Seconds 1
+            Invoke-AiPdfElement -Element $results[1] | Out-Null
+            Start-Sleep -Milliseconds 500
             $probe = Get-AiPdfWindowProbe -Process $app -TitlePattern 'AI PDF Editor'
+            if ($null -eq $probe -or $probe.Text -notmatch '第\s*2\s*/\s*2\s*页') {
+                # Qt 的列表项偶尔声称支持 InvokePattern、却没有发出 itemClicked；
+                # 检查实际页码后再走真实鼠标路径，不能只信 Invoke 的返回值。
+                Set-AiPdfForeground -Process $app | Out-Null
+                Invoke-AiPdfMouseClick -X ([int]($target.Left + $target.Width / 2)) `
+                    -Y ([int]($target.Top + $target.Height / 2))
+            }
+            $deadline = (Get-Date).AddSeconds(3)
+            do {
+                Start-Sleep -Milliseconds 200
+                $probe = Get-AiPdfWindowProbe -Process $app -TitlePattern 'AI PDF Editor'
+            } while ((Get-Date) -lt $deadline -and
+                     ($null -eq $probe -or $probe.Text -notmatch '第\s*2\s*/\s*2\s*页'))
             Test-Check '点击结果后跳到第 2 页' `
                 ($null -ne $probe -and $probe.Text -match '第\s*2\s*/\s*2\s*页') ''
 
