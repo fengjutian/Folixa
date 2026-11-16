@@ -8,6 +8,7 @@
 #include "pdf/Annotation.h"
 #include "pdf/Navigation.h"
 #include "pdf/TextPage.h"
+#include "pdf/TableStructure.h"
 
 #include <memory>
 #include <optional>
@@ -31,6 +32,14 @@ struct PageObjectInfo {
     QString fontFamily;
     QColor fillColor = Qt::black;
     QString text;
+    QVector<int> objectPath;
+    int nestingDepth = 0;
+    bool hasTransparency = false;
+    int clipPathCount = 0;
+    bool fontEmbedded = false;
+    int fontFlags = -1;
+    int fontWeight = -1;
+    int italicAngle = 0;
     int groupId = -1;
     bool locked = false;
 };
@@ -88,6 +97,15 @@ public:
 
     QVector<PageObjectInfo> objectsInRect(const QRectF& rectPoints,
                                           double minimumOverlap = 0.15) const;
+    // Recursive object tree. objectPath is stable within the current page
+    // revision: {topLevel, child, grandchild...}. Nested objects intentionally
+    // have index == -1 so callers cannot accidentally address them through a
+    // top-level-only editing API.
+    QVector<PageObjectInfo> objectsInRectDeep(const QRectF& rectPoints,
+                                              double minimumOverlap = 0.15) const;
+    TableStructure detectTableInRect(const QRectF& rectPoints) const;
+    bool setTableCellText(const TableStructure& table, int row, int column,
+                          const QString& text);
     bool transformObjects(const QVector<int>& indexes, double translateX, double translateY,
                           double scaleX = 1.0, double scaleY = 1.0);
     bool rotateObjects(const QVector<int>& indexes, double degrees);
@@ -96,6 +114,7 @@ public:
                                  double fontSize, const QColor& color, double opacity = 1.0,
                                  double horizontalScale = 1.0, double baselineShift = 0.0);
     bool setTextObjectText(int index, const QString& text);
+    bool setTextObjectText(const QVector<int>& objectPath, const QString& text);
     bool replaceImageObject(int index, const QImage& image);
     bool cropImageObject(int index, const QRectF& normalizedCrop);
     bool setObjectOpacity(const QVector<int>& indexes, double opacity);

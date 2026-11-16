@@ -17,6 +17,8 @@ qt_add_executable(ContentEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
     ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.h
 )
 target_link_libraries(ContentEditingTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 if (AIPDF_WITH_QPDF AND qpdf_FOUND)

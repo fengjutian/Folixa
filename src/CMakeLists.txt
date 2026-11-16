@@ -95,6 +95,9 @@
     pdf/ContentStream.h
     pdf/TextReflow.cpp
     pdf/TextReflow.h
+    pdf/TableStructure.cpp
+    pdf/TableStructure.h
+    pdf/TableIntegration.cpp
     pdf/Annotation.cpp
     pdf/Annotation.h
     pdf/AnnotationDictionary.h

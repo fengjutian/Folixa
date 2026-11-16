@@ -74,6 +74,7 @@ private slots:
     void textReplacementSupportsChinese();
     void textReplacementAllowsEmptyText();
     void pageObjectsCanBeSelectedTransformedStyledAndRemoved();
+    void inlineTextEditCreatesRealMultipleLines();
     void redactionRasterizesAndRemovesTextLayer();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
@@ -102,6 +103,9 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     });
     QVERIFY(match != objects.end());
     const int index = match->index;
+    QCOMPARE(match->objectPath, QVector<int>{index});
+    QCOMPARE(match->nestingDepth, 0);
+    QVERIFY(match->fontWeight >= -1);
     const QRectF before = match->bounds;
     QVERIFY(page->transformObjects({index}, 12, 8, 1.25, 1.25));
     objects = page->objectsInRect(before.adjusted(-5, -5, 80, 60), 0.01);
@@ -171,6 +175,39 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     QVERIFY2(opened.document.reloadFromBytes(bytes, &reloadError), qPrintable(reloadError));
     QVERIFY(sharedView.isValid());
     QVERIFY(sharedView.page(0).has_value());
+}
+
+void PdfiumAdapterTests::inlineTextEditCreatesRealMultipleLines() {
+    using namespace aipdf::pdf;
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY(page->addTextLayer(QStringLiteral("SINGLE"), 40, 140, 12, Qt::black));
+    auto objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    const auto source = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.type == PageObjectType::Text && info.text == QStringLiteral("SINGLE");
+    });
+    QVERIFY(source != objects.end());
+    QVERIFY(page->setTextObjectText(source->index, QStringLiteral("first line\nsecond line")));
+    objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    const auto first = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.text == QStringLiteral("first line");
+    });
+    const auto second = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.text == QStringLiteral("second line");
+    });
+    QVERIFY(first != objects.end());
+    QVERIFY(second != objects.end());
+    QVERIFY(second->bounds.top() < first->bounds.top());
+    const QByteArray bytes = opened.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+    auto reopened = openDocumentFromBytes(bytes);
+    QVERIFY(reopened.document.isValid());
+    const auto extracted = reopened.document.page(0)->extractText();
+    QVERIFY(extracted.has_value());
+    QVERIFY(extracted->plainText().contains(QStringLiteral("first line")));
+    QVERIFY(extracted->plainText().contains(QStringLiteral("second line")));
 }
 
 void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {

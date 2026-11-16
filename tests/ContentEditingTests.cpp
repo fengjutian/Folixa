@@ -1,5 +1,6 @@
 #include "pdf/ContentStream.h"
 #include "pdf/TextReflow.h"
+#include "pdf/TableStructure.h"
 
 #include <QtTest>
 
@@ -19,6 +20,7 @@ private slots:
     void flowsAcrossLinkedFrames();
     void preservesTextAcrossLinkedFrames();
     void shapesBidirectionalAndLigatureText();
+    void detectsTableRowsColumnsAndCells();
     void laysOutVerticalText();
 #ifdef AIPDF_WITH_QPDF
     void safelyRewritesRealPdfContent();
@@ -118,6 +120,25 @@ void ContentEditingTests::shapesBidirectionalAndLigatureText() {
     QCOMPARE(source.left(result.consumedLength) + result.remainingText, source);
     QCOMPARE(result.consumedLength, source.size());
     QVERIFY(!result.overflow);
+}
+
+void ContentEditingTests::detectsTableRowsColumnsAndCells() {
+    const QVector<TableTextObject> objects{
+        {1, QRectF(10, 80, 40, 12), QStringLiteral("Name")},
+        {2, QRectF(100, 80, 50, 12), QStringLiteral("Score")},
+        {3, QRectF(10, 50, 40, 12), QStringLiteral("Alice")},
+        {4, QRectF(100, 50, 50, 12), QStringLiteral("95")},
+        {5, QRectF(10, 20, 40, 12), QStringLiteral("Bob")},
+        {6, QRectF(100, 20, 50, 12), QStringLiteral("88")},
+    };
+    const TableStructure table = TableStructure::detect(objects);
+    QVERIFY(table.isValid());
+    QCOMPARE(table.rowCount, 3);
+    QCOMPARE(table.columnCount, 2);
+    QVERIFY(table.confidence >= 0.99);
+    QVERIFY(table.cell(1, 0));
+    QCOMPARE(table.cell(1, 0)->text, QStringLiteral("Alice"));
+    QCOMPARE(table.cell(2, 1)->objectIds, QVector<int>{6});
 }
 
 void ContentEditingTests::laysOutVerticalText() {
