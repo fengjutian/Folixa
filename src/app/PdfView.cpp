@@ -6,6 +6,7 @@
 #include "app/PdfPageOperations.h"
 #include "app/Language.h"
 #include "app/PageChunkBuilder.h"
+#include "app/PageTextLines.h"
 #include "doc/ChunkBuilder.h"
 #include "doc/DocumentStatistics.h"
 #include "pdf/AnnotationSummary.h"
@@ -19,6 +20,7 @@
 #include "pdf/Redaction.h"
 #include "pdf/SignatureInspector.h"
 #include "pdf/SpellChecker.h"
+#include "pdf/TagTreeWriter.h"
 #include "speech/SpeechEngine.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
@@ -71,6 +73,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QInputDialog>
+#include <QListWidget>
 #include <QLabel>
 #include <QLineEdit>
 #include <QShortcut>
@@ -267,10 +270,11 @@ void trace(const QString& message) {
         return;
     }
     QFile file(path);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
 }
+
 }  // namespace
 
 PdfView::PdfView(QWidget* parent) : QWidget(parent), cache_(kCacheBytes) {
@@ -6094,6 +6098,228 @@ void PdfView::showSignatureListDialog() {
     connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
 
     dialog.exec();
+}
+
+
+// -------------------------------------------------- 区域阅读顺序（标签树）----
+//
+// 写标签树要三样东西：每页的行（user space 矩形）、行的先后顺序、
+// 以及把顺序写进 /StructTreeRoot 的能力（pdf::TagTreeWriter）。
+//
+// 诚实性边界：写进去的是**页粒度以下**的行级顺序（每行一个 Span），
+// 不做完整的 PDF/A 标签合规（无 Alt、无 /Lang 全覆盖、无图件替代文本），
+// 所以读屏软件能按我们给的顺序念，但拿不到「这是一张什么图」这类补充信息。
+
+// 把整篇文档的行整理成「每页一个区域列表」。
+//
+// 当前页用用户排好的顺序，其余页用默认顺序（从上到下）。
+QVector<QVector<pdf::TaggedRegion>> PdfView::buildTaggedRegions(
+    int pageIndex, const QVector<int>& currentPageOrder) const {
+    QVector<QVector<pdf::TaggedRegion>> regions(document_.pageCount());
+    for (int index = 0; index < document_.pageCount(); ++index) {
+        auto page = document_.page(index);
+        if (!page.has_value()) {
+            continue;
+        }
+        const std::optional<pdf::TextPage> text = page->extractText();
+        if (!text.has_value() || text->chars.isEmpty()) {
+            continue;
+        }
+        const QVector<UserSpaceLine> lines = userSpaceTextLines(*text);
+        QVector<pdf::TaggedRegion> pageRegions;
+        for (int line = 0; line < lines.size(); ++line) {
+            int order = line;
+            if (index == pageIndex && line < currentPageOrder.size()) {
+                order = currentPageOrder.at(line);
+            }
+            pageRegions.append(pdf::TaggedRegion{lines.at(line).box, order});
+        }
+        regions[index] = pageRegions;
+    }
+    return regions;
+}
+
+// 把标签树写回文档。失败时给用户看原因，文档保持原样。
+bool PdfView::writeTaggedRegions(const QVector<QVector<pdf::TaggedRegion>>& regions, QString* error) {
+    QString serializeError;
+    const QByteArray input = document_.serialize(&serializeError);
+    if (input.isEmpty()) {
+        if (error) *error = serializeError;
+        return false;
+    }
+    QString writeError;
+    const QByteArray tagged = pdf::writeTaggedStructure(input, regions, &writeError);
+    if (tagged.isEmpty()) {
+        if (error) *error = writeError.isEmpty() ? tr("写入标签树失败，文档没有修改。") : writeError;
+        return false;
+    }
+    QString reloadError;
+    if (!document_.reloadFromBytes(tagged, &reloadError)) {
+        if (error) *error = tr("写入后的文档无法重新打开，文档没有修改：%1").arg(reloadError);
+        return false;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    return true;
+}
+
+// 看当前文档的标签树里已经写好的顺序。
+void PdfView::showRegionReadingOrderDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("区域阅读顺序"), serializeError);
+        return;
+    }
+    QString error;
+    const QVector<QVector<int>> order = pdf::readTaggedOrder(bytes, &error);
+    bool hasTree = false;
+    for (const QVector<int>& page : order) {
+        if (!page.isEmpty()) {
+            hasTree = true;
+            break;
+        }
+    }
+    if (!hasTree) {
+        QMessageBox::information(
+            this, tr("区域阅读顺序"),
+            error.isEmpty()
+                ? tr("这份文档里还没有标签树。用「更改区域顺序」或「应用区域顺序」写一份。")
+                : error);
+        return;
+    }
+    QStringList lines;
+    for (int page = 0; page < order.size(); ++page) {
+        if (order.at(page).isEmpty()) {
+            continue;
+        }
+        lines.append(tr("第 %1 页：%2 个区域，顺序 %3")
+                         .arg(page + 1)
+                         .arg(order.at(page).size())
+                         .arg(order.at(page).size() > 1
+                                  ? QString::number(order.at(page).first() + 1) + QStringLiteral(" 起")
+                                  : QStringLiteral("1")));
+    }
+    QMessageBox::information(this, tr("区域阅读顺序"),
+                             lines.join('\n') + tr("\n\n（只到行粒度：没有替代文本与语言标记，"
+                                                  "读屏软件能按顺序念，但不知道图是什么。）"));
+}
+
+// 调整当前页各行的先后顺序，然后写进标签树。
+void PdfView::changeRegionReadingOrderDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    const std::optional<pdf::TextPage> text = page->extractText();
+    if (!text.has_value() || text->chars.isEmpty()) {
+        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有可标记的文字。"));
+        return;
+    }
+    const QVector<UserSpaceLine> lines = userSpaceTextLines(*text);
+    if (lines.isEmpty()) {
+        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有可标记的文字。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("更改区域顺序"));
+    dialog.resize(640, 460);
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(
+        tr("下面是当前页按视觉顺序排出的行。调整先后后写进 PDF 的标签树，"
+           "读屏软件会按这个顺序念。"),
+        &dialog));
+
+    auto* list = new QListWidget(&dialog);
+    list->setObjectName(QStringLiteral("regionOrder.lines"));
+    for (const UserSpaceLine& line : lines) {
+        list->addItem(line.text.trimmed());
+    }
+    layout->addWidget(list);
+
+    auto* moveUp = new QPushButton(tr("上移"), &dialog);
+    auto* moveDown = new QPushButton(tr("下移"), &dialog);
+    auto* buttons = new QHBoxLayout;
+    buttons->addWidget(moveUp);
+    buttons->addWidget(moveDown);
+    buttons->addStretch(1);
+    layout->addLayout(buttons);
+
+    connect(moveUp, &QPushButton::clicked, &dialog, [list, moveUp] {
+        const int row = list->currentRow();
+        if (row <= 0) {
+            return;
+        }
+        QListWidgetItem* item = list->takeItem(row);
+        list->insertItem(row - 1, item);
+        list->setCurrentRow(row - 1);
+        moveUp->setEnabled(row > 0);
+    });
+    connect(moveDown, &QPushButton::clicked, &dialog, [list, moveDown] {
+        const int row = list->currentRow();
+        if (row < 0 || row >= list->count() - 1) {
+            return;
+        }
+        QListWidgetItem* item = list->takeItem(row);
+        list->insertItem(row + 1, item);
+        list->setCurrentRow(row + 1);
+        moveDown->setEnabled(row < list->count() - 1);
+    });
+
+    auto* dialogButtons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    dialogButtons->button(QDialogButtonBox::Ok)->setText(tr("写入"));
+    layout->addWidget(dialogButtons);
+    connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    // 列表里的次序就是新的阅读顺序。
+    QVector<int> order;
+    for (int row = 0; row < list->count(); ++row) {
+        order.append(row);
+    }
+    QString error;
+    if (!writeTaggedRegions(buildTaggedRegions(pageIndex, order), &error)) {
+        QMessageBox::warning(this, tr("更改区域顺序"),
+                             error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+        return;
+    }
+    emit statusMessage(tr("已把第 %1 页的阅读顺序写进标签树").arg(pageIndex + 1));
+}
+
+// 整篇按「从上到下」的默认顺序写标签树，不做交互。
+void PdfView::applyRegionReadingOrder() {
+    if (!document_.isValid()) {
+        return;
+    }
+    if (QMessageBox::question(
+            this, tr("应用区域顺序"),
+            tr("会按「从上到下、从左到右」的顺序给整篇文档写一份标签树。"
+               "页面外观不变，但读屏软件会按这个顺序念。继续吗？"),
+            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
+        return;
+    }
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const QVector<QVector<pdf::TaggedRegion>> regions = buildTaggedRegions(currentPage(), {});
+    QApplication::restoreOverrideCursor();
+    QString error;
+    if (!writeTaggedRegions(regions, &error)) {
+        QMessageBox::warning(this, tr("应用区域顺序"),
+                             error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+        return;
+    }
+    emit statusMessage(tr("已按默认顺序写好标签树"));
 }
 
 }  // namespace aipdf::app

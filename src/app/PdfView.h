@@ -10,6 +10,7 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/PdfSecurity.h"
 #include "pdf/FormFieldWriter.h"
+#include "pdf/TagTreeWriter.h"
 #include "pdf/FormScriptStore.h"
 #include "i18n/Translate.h"
 #include "speech/SpeechText.h"
@@ -207,6 +208,10 @@ public slots:
     void redactionModeDialog();
     // 验签：签名列表 + 证书链面板。
     void showSignatureListDialog();
+    // 区域阅读顺序：看已写入的顺序 / 调整当前页顺序 / 整篇按默认顺序写入。
+    void showRegionReadingOrderDialog();
+    void changeRegionReadingOrderDialog();
+    void applyRegionReadingOrder();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();
     // 本地电子签章：选中的签章在下一次点击页面时落下；骑缝章会拆分到全部页面。
@@ -241,6 +246,10 @@ private:
     // 取当前页的整页文本，并建立「文本码元 → 阅读顺序下标」的映射。
     // 朗读与拼写检查共用。
     bool collectPageText(int pageIndex);
+    // 区域阅读顺序：整理整篇的行与顺序，写回标签树。
+    QVector<QVector<pdf::TaggedRegion>> buildTaggedRegions(int pageIndex,
+                                                            const QVector<int>& currentPageOrder) const;
+    bool writeTaggedRegions(const QVector<QVector<pdf::TaggedRegion>>& regions, QString* error);
     // 朗读真正开始：切词、送引擎、接逐词高亮。
     void startSpeechOnPage(int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。

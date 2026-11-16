@@ -37,6 +37,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/PageChunkBuilder.h
     app/PdfPageOperations.cpp
     app/PageChunkBuilder.cpp
+    app/PageTextLines.h
+    app/PageTextLines.cpp
     app/LinkHitTest.h
     app/LinkHitTest.cpp
     app/SearchPanel.h
@@ -149,6 +151,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/SpellChecker.h
     pdf/SignatureInspector.cpp
     pdf/SignatureInspector.h
+    pdf/TagTreeWriter.cpp
+    pdf/TagTreeWriter.h
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp

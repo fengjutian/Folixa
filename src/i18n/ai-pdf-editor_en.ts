@@ -3826,6 +3826,78 @@ Write them into the document?</translation>
             <source>（没有读到覆盖区间）</source>
             <translation>(no covered range was read)</translation>
         </message>
+        <message>
+            <source>区域阅读顺序</source>
+            <translation>Region reading order</translation>
+        </message>
+        <message>
+            <source>更改区域顺序</source>
+            <translation>Change region order</translation>
+        </message>
+        <message>
+            <source>应用区域顺序</source>
+            <translation>Apply region order</translation>
+        </message>
+        <message>
+            <source>写入</source>
+            <translation>Write</translation>
+        </message>
+        <message>
+            <source>上移</source>
+            <translation>Move up</translation>
+        </message>
+        <message>
+            <source>下移</source>
+            <translation>Move down</translation>
+        </message>
+        <message>
+            <source>这一页没有可标记的文字。</source>
+            <translation>There is no markable text on this page.</translation>
+        </message>
+        <message>
+            <source>写入失败，文档没有修改。</source>
+            <translation>Writing failed; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>写入标签树失败，文档没有修改。</source>
+            <translation>Writing the tag tree failed; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>写入后的文档无法重新打开，文档没有修改：%1</source>
+            <translation>The document cannot be reopened after writing; the document was not modified: %1</translation>
+        </message>
+        <message>
+            <source>这份文档里还没有标签树。用「更改区域顺序」或「应用区域顺序」写一份。</source>
+            <translation>This document has no tag tree yet. Use "Change region order" or "Apply region order" to write one.</translation>
+        </message>
+        <message>
+            <source>第 %1 页：%2 个区域，顺序 %3</source>
+            <translation>Page %1: %2 regions, order %3</translation>
+        </message>
+        <message>
+            <source>
+
+（只到行粒度：没有替代文本与语言标记，读屏软件能按顺序念，但不知道图是什么。）</source>
+            <translation>
+
+(Only down to line granularity: there is no alternative text or language tag, so a screen reader can read in this order but does not know what the pictures are.)</translation>
+        </message>
+        <message>
+            <source>下面是当前页按视觉顺序排出的行。调整先后后写进 PDF 的标签树，读屏软件会按这个顺序念。</source>
+            <translation>Below are the lines of the current page in visual order. Adjusting the order writes them into the PDF tag tree, and a screen reader will read them in that order.</translation>
+        </message>
+        <message>
+            <source>已把第 %1 页的阅读顺序写进标签树</source>
+            <translation>Wrote the reading order of page %1 into the tag tree</translation>
+        </message>
+        <message>
+            <source>已按默认顺序写好标签树</source>
+            <translation>Wrote the tag tree in the default order</translation>
+        </message>
+        <message>
+            <source>会按「从上到下、从左到右」的顺序给整篇文档写一份标签树。页面外观不变，但读屏软件会按这个顺序念。继续吗？</source>
+            <translation>A tag tree will be written for the whole document in "top to bottom, left to right" order. The pages look the same, but a screen reader will read them in that order. Continue?</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -5364,4 +5436,51 @@ AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
             <translation>Choose text color</translation>
         </message>
     </context>
+<context>
+    <name>aipdf::pdf::TagTreeWriter</name>
+        <message>
+            <source>PDF 的根对象不是字典</source>
+            <translation>The PDF root object is not a dictionary</translation>
+        </message>
+        <message>
+            <source>PDF 里没有页面</source>
+            <translation>The PDF has no pages</translation>
+        </message>
+        <message>
+            <source>qpdf 写出的 PDF 为空</source>
+            <translation>The PDF written by qpdf is empty</translation>
+        </message>
+        <message>
+            <source>qpdf 没有给出细节</source>
+            <translation>qpdf gave no details</translation>
+        </message>
+        <message>
+            <source>写出的 PDF 无法重新打开：%1</source>
+            <translation>The written PDF cannot be reopened: %1</translation>
+        </message>
+        <message>
+            <source>写出的 PDF 结构有问题：%1</source>
+            <translation>The written PDF has structural problems: %1</translation>
+        </message>
+        <message>
+            <source>当前构建没有启用 qpdf，无法写入标签树</source>
+            <translation>This build does not have qpdf enabled, so the tag tree cannot be written</translation>
+        </message>
+        <message>
+            <source>当前构建没有启用 qpdf，无法读取标签树</source>
+            <translation>This build does not have qpdf enabled, so the tag tree cannot be read</translation>
+        </message>
+        <message>
+            <source>第 %1 页的内容流无法解析：%2</source>
+            <translation>The content stream of page %1 cannot be parsed: %2</translation>
+        </message>
+        <message>
+            <source>解析 PDF 失败：%1</source>
+            <translation>Parsing the PDF failed: %1</translation>
+        </message>
+        <message>
+            <source>输入的 PDF 内容为空</source>
+            <translation>The input PDF is empty</translation>
+        </message>
+</context>
 </TS>

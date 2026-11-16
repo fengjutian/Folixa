@@ -1628,14 +1628,24 @@ void MainWindow::buildUi() {
                      "给选中的批注写一句给读屏软件念的说明", ":/icons/edit.svg",
                      [this] { setSelectedAnnotationAltText(); }, true, "accessibility.alternativeText");
     addRibbonCommand(accessibilityReadingGroup, "区域阅读顺序",
-                     "需要 PDF 标签树写入支持", ":/icons/pages.svg",
-                     [] {}, false, "accessibility.regionReadingOrder");
+                     "查看文档标签树里已经写好的阅读顺序", ":/icons/pages.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->showRegionReadingOrderDialog(); }
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "accessibility.regionReadingOrder");
     addRibbonCommand(accessibilityReadingGroup, "更改区域顺序",
-                     "需要 PDF 标签树写入支持", ":/icons/move-down.svg",
-                     [] {}, false, "accessibility.changeRegionOrder");
+                     "调整当前页各行的先后顺序并写进标签树", ":/icons/move-down.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->changeRegionReadingOrderDialog(); }
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "accessibility.changeRegionOrder");
     addRibbonCommand(accessibilityReadingGroup, "应用区域顺序",
-                     "需要 PDF 标签树写入支持", ":/icons/save.svg",
-                     [] {}, false, "accessibility.applyRegionOrder");
+                     "按从上到下的默认顺序给整篇文档写标签树", ":/icons/save.svg",
+                     [this] {
+        if (auto* view = currentView()) { view->applyRegionReadingOrder(); }
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "accessibility.applyRegionOrder");
+
     const int thesisTab = ribbonBar_->addTab(tr("论文工具"));
     auto* thesisCheckGroup = ribbonBar_->addGroup(thesisTab, tr("查重"));
     addRibbonCommand(thesisCheckGroup, "论文查重",
