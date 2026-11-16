@@ -2102,6 +2102,8 @@ void PdfView::createFormFieldDialog(const QString& kind) {
         return;
     }
     if (canvas_ == nullptr) return;
+    if (annotationController_ != nullptr)
+        annotationController_->setTool(AnnotationController::Tool::None);
     canvas_->setFormFieldPlacementKind(kind);
     emit statusMessage(tr("请在页面上拖出表单字段的位置；按其他工具可取消。"));
 }
@@ -2761,6 +2763,7 @@ void PdfView::setToolBarsVisible(bool visible) {
 }
 
 void PdfView::activateAnnotationTool(const QString& id) {
+    if (canvas_ != nullptr) canvas_->setFormFieldPlacementKind(QString());
     if (id == QStringLiteral("undo")) {
         undoAnnotation();
         return;
