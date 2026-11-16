@@ -76,27 +76,29 @@ QTabBar#ribbonTabs { background: transparent; qproperty-drawBase: 0; }
 /* 必须显式清掉全局 QTabBar::tab 的 min-height/margin：
    它们叠加后标签高 54px，而标签条只有 34px，选中指示条和下半截文字会被裁掉。 */
 QTabBar#ribbonTabs::tab {
-    background: transparent; color: #30394A; padding: 0 15px; margin: 0;
-    min-height: 34px; border: 0; border-bottom: 2px solid transparent; font-weight: 600;
+    background: transparent; color: #596579; padding: 0 14px; margin: 0;
+    min-height: 34px; border: 0; border-bottom: 2px solid transparent;
+    font-size: 13px; font-weight: 500;
 }
-QTabBar#ribbonTabs::tab:hover:!selected { color: #365AA8; background: #F5F8FC; }
+QTabBar#ribbonTabs::tab:hover:!selected { color: #3159B8; background: #F7F9FC; }
 /* 底部蓝条由 RibbonTabBar 自绘：QSS 的 border-bottom 会被 QTabBar 裁掉。 */
-QTabBar#ribbonTabs::tab:selected { color: #202A3A; }
+QTabBar#ribbonTabs::tab:selected { color: #24499D; font-weight: 600; }
 QStackedWidget#ribbonPages { background: #FFFFFF; }
 /* 滚动区的 viewport 会按窗口底色自绘，必须一起点成白色，否则 Ribbon 下半截发灰。 */
 QScrollArea#ribbonPageScroll,
 QScrollArea#ribbonPageScroll > QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
 QScrollArea#ribbonPageScroll QScrollBar:horizontal { height: 6px; margin: 0; background: #F5F7FA; }
 QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal { background: #D5DCE8; border-radius: 3px; min-width: 40px; }
-QFrame#ribbonGroup { border: 0; border-right: 1px solid #E1E5EC; background: transparent; }
-QLabel#ribbonGroupTitle { color: #8A92A0; font-size: 10px; padding-top: 1px; }
+QFrame#ribbonGroup { border: 0; border-right: 1px solid #E8EBF0; background: transparent; }
+QLabel#ribbonGroupTitle { color: #98A2B3; font-size: 10px; font-weight: 400; padding-top: 2px; }
 QToolButton[ribbonCommand="true"] {
-    min-height: 62px; padding: 3px 7px 2px 7px; border: 1px solid transparent;
-    border-radius: 3px; background: transparent; color: #30394A; font-weight: 400;
+    min-height: 60px; padding: 3px 5px 2px 5px; border: 1px solid transparent;
+    border-radius: 6px; background: transparent; color: #465267;
+    font-size: 12px; font-weight: 400;
 }
-QToolButton[ribbonCommand="true"]:hover { background: #F3F6FA; border-color: #DDE3EC; color: #365AA8; }
-QToolButton[ribbonCommand="true"]:pressed { background: #E9EBF0; }
-QToolButton[ribbonCommand="true"]:disabled { color: #AEB4BF; background: transparent; }
+QToolButton[ribbonCommand="true"]:hover { background: #F2F6FC; border-color: #DCE5F2; color: #3159B8; }
+QToolButton[ribbonCommand="true"]:pressed { background: #E7EEF9; border-color: #CBD8EA; }
+QToolButton[ribbonCommand="true"]:disabled { color: #B8C0CC; background: transparent; }
 
 /* -------------------------------------------------------------- 按钮 -- */
 /* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
@@ -284,7 +286,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 void apply(QApplication& application) {
     QSettings settings;
     const QString family = settings.value(QStringLiteral("appearance/fontFamily"),
-                                          QStringLiteral("Segoe UI Variable")).toString();
+                                          QStringLiteral("Microsoft YaHei UI")).toString();
     const int pointSize = settings.value(QStringLiteral("appearance/fontPointSize"), 10).toInt();
     QFont font(family);
     font.setPointSize(std::clamp(pointSize, 8, 24));

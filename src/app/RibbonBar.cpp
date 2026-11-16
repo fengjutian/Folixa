@@ -45,10 +45,12 @@ void styleCommand(QToolButton* button) {
                               : button->objectName());
     button->setProperty("ribbonCommand", true);
     button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    button->setIconSize(QSize(28, 28));
+    // Ribbon 里的图标数量很多，28px 会形成一整面视觉重量相同的“图标墙”。
+    // 24px 仍然易于辨认，同时给文字和分组留出呼吸空间。
+    button->setIconSize(QSize(24, 24));
     button->setAutoRaise(true);
     button->setCursor(Qt::PointingHandCursor);
-    button->setMinimumWidth(58);
+    button->setMinimumWidth(52);
     button->setStyleSheet(QString());
 }
 
@@ -89,7 +91,7 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 int RibbonBar::appendPage() {
     auto* page = new QWidget;
     auto* pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(8, 2, 8, 2);
+    pageLayout->setContentsMargins(10, 3, 10, 3);
     pageLayout->setSpacing(0);
     // 末尾的弹簧吸收多余宽度，命令组保持自然宽度。
     pageLayout->addStretch(1);
@@ -136,13 +138,13 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     frame->setProperty("ribbonGroup", true);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
-    groupLayout->setContentsMargins(7, 1, 7, 0);
+    groupLayout->setContentsMargins(8, 1, 8, 1);
     groupLayout->setSpacing(0);
 
     auto* content = new QWidget(frame);
     auto* contentLayout = new QHBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(2);
+    contentLayout->setSpacing(4);
     groupLayout->addWidget(content, 1);
 
     auto* label = new QLabel(title, frame);
