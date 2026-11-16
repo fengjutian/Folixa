@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QRectF>
 #include <QString>
+#include <QStringList>
 
 namespace aipdf::pdf {
 
@@ -20,8 +21,12 @@ struct FormFieldInsert {
     int pageIndex = 0;
     QString name;
     QString toolTip;
+    QStringList options;
     QRectF rect;
     FormFieldKind kind = FormFieldKind::Text;
+    bool readOnly = false;
+    bool required = false;
+    bool multiline = false;
 };
 
 struct FormFieldWriteResult {

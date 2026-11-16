@@ -2292,6 +2292,8 @@ QWidget* MainWindow::createFormTab() {
     formApplyButton_->setObjectName(QStringLiteral("formApply"));
     formFlattenButton_ = new QPushButton(tr("扁平化本页"), editor);
     formFlattenButton_->setObjectName(QStringLiteral("formFlatten"));
+    formPropertiesButton_ = new QPushButton(tr("字段属性…"), editor);
+    formPropertiesButton_->setObjectName(QStringLiteral("formProperties"));
     formExportCsvButton_ = new QPushButton(tr("导出 CSV…"), editor);
     formExportCsvButton_->setObjectName(QStringLiteral("formExportCsv"));
     formImportCsvButton_ = new QPushButton(tr("导入 CSV…"), editor);
@@ -2302,15 +2304,29 @@ QWidget* MainWindow::createFormTab() {
     formImportFdfButton_->setObjectName(QStringLiteral("formImportFdf"));
     buttons->addWidget(formApplyButton_, 0, 0);
     buttons->addWidget(formFlattenButton_, 0, 1);
-    buttons->addWidget(formExportCsvButton_, 1, 0);
-    buttons->addWidget(formImportCsvButton_, 1, 1);
-    buttons->addWidget(formExportFdfButton_, 2, 0);
-    buttons->addWidget(formImportFdfButton_, 2, 1);
+    buttons->addWidget(formPropertiesButton_, 1, 0, 1, 2);
+    buttons->addWidget(formExportCsvButton_, 2, 0);
+    buttons->addWidget(formImportCsvButton_, 2, 1);
+    buttons->addWidget(formExportFdfButton_, 3, 0);
+    buttons->addWidget(formImportFdfButton_, 3, 1);
     editorLayout->addLayout(buttons);
     layout->addWidget(editor);
 
     connect(formApplyButton_, &QPushButton::clicked, this, &MainWindow::applyFormValue);
     connect(formFlattenButton_, &QPushButton::clicked, this, &MainWindow::flattenCurrentPageForms);
+    const auto editSelectedFormProperties = [this] {
+        PdfView* view = currentView();
+        if (view == nullptr || formTable_ == nullptr) return;
+        const int row = formTable_->currentRow();
+        if (row < 0 || formTable_->item(row, 0) == nullptr || formTable_->item(row, 1) == nullptr)
+            return;
+        const int pageIndex = formTable_->item(row, 0)->text().toInt() - 1;
+        const QString name = formTable_->item(row, 1)->text();
+        if (view->editFormFieldProperties(pageIndex, name)) refreshForms(view);
+    };
+    connect(formPropertiesButton_, &QPushButton::clicked, this, editSelectedFormProperties);
+    connect(formTable_, &QTableWidget::cellDoubleClicked, this,
+            [editSelectedFormProperties](int, int) { editSelectedFormProperties(); });
     connect(formExportCsvButton_, &QPushButton::clicked, this, &MainWindow::exportFormCsv);
     connect(formImportCsvButton_, &QPushButton::clicked, this, &MainWindow::importFormCsv);
     connect(formExportFdfButton_, &QPushButton::clicked, this, [this]() {

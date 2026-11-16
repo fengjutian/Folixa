@@ -2,6 +2,7 @@
 
 #include "ai/ProviderConfig.h"
 #include "app/Language.h"
+#include "i18n/Translate.h"
 
 #include <QApplication>
 #include <QCheckBox>

@@ -155,6 +155,9 @@ struct FormField {
     QRectF rect;
     // FPDF_FORMFLAG_READONLY（1 << 0）。
     bool readOnly = false;
+    bool required = false;
+    bool multiline = false;
+    QString toolTip;
     QVector<QString> options;
 };
 
@@ -184,6 +187,9 @@ public:
     QVector<FormField> formFields() const;
     // 填写：文本/下拉写 /V，勾选与单选写 /AS（取选项的导出值）。
     bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
+    bool setFormFieldProperties(int pageIndex, const QString& oldName,
+                                const QString& newName, const QString& toolTip,
+                                bool readOnly, bool required, bool multiline);
     // 扁平化：把字段外观烧进页面内容，之后就是普通图形，不能再编辑。
     bool flattenPage(int pageIndex);
 

@@ -128,6 +128,8 @@ void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
         insert.name = QString::fromLatin1(item.name);
         insert.rect = QRectF(40.0, y, 70.0, 18.0);
         insert.kind = item.kind;
+        if (item.kind == FormFieldKind::ComboBox || item.kind == FormFieldKind::ListBox)
+            insert.options = {QStringLiteral("Alpha"), QStringLiteral("Beta")};
         written = appendFormField(written.bytes, insert);
         QVERIFY2(written.ok, qPrintable(written.error));
         y -= 5.0;
@@ -145,6 +147,14 @@ void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
         QCOMPARE(fields.at(i + 2).name, QString::fromLatin1(remaining[i].name));
         QCOMPARE(fields.at(i + 2).type, remaining[i].expectedType);
     }
+    QCOMPARE(fields.at(3).options, QVector<QString>({QStringLiteral("Alpha"),
+                                                     QStringLiteral("Beta")}));
+    QCOMPARE(fields.at(4).options, QVector<QString>({QStringLiteral("Alpha"),
+                                                     QStringLiteral("Beta")}));
+    QVERIFY(verified.document.setFormFieldProperties(0, QStringLiteral("customerName"),
+                                                     QStringLiteral("customerName"),
+                                                     QStringLiteral("Your full name"),
+                                                     false, true, true));
     QVERIFY(verified.document.setFormFieldValue(0, QStringLiteral("customerName"),
                                                  QStringLiteral("Alice")));
     QVERIFY(verified.document.setFormFieldValue(0, QStringLiteral("accepted"),
@@ -156,7 +166,11 @@ void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
     QVERIFY2(savedAgain.document.isValid(), qPrintable(savedAgain.errorMessage));
     const QVector<FormField> savedFields = savedAgain.document.formFields();
     QCOMPARE(savedFields.size(), 7);
+    QCOMPARE(savedFields.at(0).name, QStringLiteral("customerName"));
     QCOMPARE(savedFields.at(0).value, QStringLiteral("Alice"));
+    QCOMPARE(savedFields.at(0).toolTip, QStringLiteral("Your full name"));
+    QVERIFY(savedFields.at(0).required);
+    QVERIFY(savedFields.at(0).multiline);
 }
 
 void PdfiumAdapterTests::normalDocumentHasExpectedGeometry() {

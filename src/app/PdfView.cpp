@@ -30,9 +30,12 @@
 #include "pdf/OutlineWriter.h"
 
 #include <QColorDialog>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
@@ -40,6 +43,7 @@
 #include <QPrintDialog>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QFormLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -51,6 +55,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTextEdit>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -267,6 +272,10 @@ void PdfView::buildUi() {
     connect(canvas_, &PageCanvas::currentPageChanged, this, [this](int index) {
         updatePageInfo();
         emit currentPageChanged(index);
+    });
+    connect(canvas_, &PageCanvas::formFieldRectRequested, this,
+            [this](const QString& kind, int pageIndex, const QRectF& rect) {
+        createFormFieldAt(kind, pageIndex, rect);
     });
     layout->addWidget(canvas_, 1);
 
@@ -2092,18 +2101,46 @@ void PdfView::createFormFieldDialog(const QString& kind) {
         QMessageBox::information(this, tr("创建表单域"), tr("请先打开一份 PDF。"));
         return;
     }
-    const int pageIndex = currentPage();
-    const auto page = document_.page(pageIndex);
-    if (!page.has_value()) {
-        return;
-    }
-    bool accepted = false;
+    if (canvas_ == nullptr) return;
+    canvas_->setFormFieldPlacementKind(kind);
+    emit statusMessage(tr("请在页面上拖出表单字段的位置；按其他工具可取消。"));
+}
+
+void PdfView::createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect) {
+    if (!document_.isValid() || rect.width() < 2.0 || rect.height() < 2.0) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("字段属性"));
+    auto* form = new QFormLayout(&dialog);
+    auto* nameEdit = new QLineEdit(&dialog);
     const QString defaultName = QStringLiteral("%1_%2")
                                     .arg(kind.isEmpty() ? QStringLiteral("field") : kind)
                                     .arg(document_.formFields().size() + 1);
-    const QString name = QInputDialog::getText(this, tr("创建表单域"), tr("字段名称:"),
-                                                QLineEdit::Normal, defaultName, &accepted).trimmed();
-    if (!accepted || name.isEmpty()) {
+    nameEdit->setText(defaultName);
+    auto* tooltipEdit = new QLineEdit(&dialog);
+    auto* readOnly = new QCheckBox(tr("只读"), &dialog);
+    auto* required = new QCheckBox(tr("必填"), &dialog);
+    auto* multiline = new QCheckBox(tr("允许多行"), &dialog);
+    auto* optionsEdit = new QTextEdit(&dialog);
+    optionsEdit->setPlaceholderText(tr("每行一个选项"));
+    optionsEdit->setFixedHeight(90);
+    form->addRow(tr("字段名称"), nameEdit);
+    form->addRow(tr("工具提示"), tooltipEdit);
+    form->addRow(QString(), readOnly);
+    form->addRow(QString(), required);
+    if (kind == QStringLiteral("text")) form->addRow(QString(), multiline);
+    const bool hasOptions = kind == QStringLiteral("combo") || kind == QStringLiteral("list");
+    if (hasOptions) form->addRow(tr("选项"), optionsEdit);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    form->addRow(buttons);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    const QString name = nameEdit->text().trimmed();
+    if (name.isEmpty()) {
+        QMessageBox::warning(this, tr("创建表单域"), tr("字段名称不能为空。"));
         return;
     }
     for (const pdf::FormField& existing : document_.formFields()) {
@@ -2121,15 +2158,6 @@ void PdfView::createFormFieldDialog(const QString& kind) {
     else if (kind == QStringLiteral("button")) fieldKind = pdf::FormFieldKind::PushButton;
     else if (kind == QStringLiteral("barcode")) fieldKind = pdf::FormFieldKind::Barcode;
 
-    const pdf::MediaBox box = page->contentBox();
-    const bool square = fieldKind == pdf::FormFieldKind::CheckBox ||
-                        fieldKind == pdf::FormFieldKind::RadioButton;
-    const double width = square ? 20.0 : 180.0;
-    const double height = square ? 20.0 :
-                          (fieldKind == pdf::FormFieldKind::ListBox ? 72.0 : 24.0);
-    const double x = box.left + 36.0;
-    const double y = std::max(box.bottom + 36.0, box.top - 72.0 - height);
-
     QString serializeError;
     const QByteArray source = document_.serialize(&serializeError);
     if (source.isEmpty()) {
@@ -2140,9 +2168,14 @@ void PdfView::createFormFieldDialog(const QString& kind) {
     pdf::FormFieldInsert insert;
     insert.pageIndex = pageIndex;
     insert.name = name;
-    insert.toolTip = name;
-    insert.rect = QRectF(x, y, width, height);
+    insert.toolTip = tooltipEdit->text().trimmed();
+    insert.rect = rect.normalized();
     insert.kind = fieldKind;
+    insert.readOnly = readOnly->isChecked();
+    insert.required = required->isChecked();
+    insert.multiline = multiline->isChecked();
+    if (hasOptions)
+        insert.options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
     const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
     if (!written.ok) {
         QMessageBox::warning(this, tr("创建表单域"), written.error);
@@ -2160,6 +2193,69 @@ void PdfView::createFormFieldDialog(const QString& kind) {
     modified_ = true;
     emit formFieldsChanged();
     emit statusMessage(tr("已在第 %1 页创建表单字段“%2”").arg(pageIndex + 1).arg(name));
+}
+
+bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
+    const QVector<pdf::FormField> fields = document_.formFields();
+    auto found = std::find_if(fields.cbegin(), fields.cend(), [&](const pdf::FormField& field) {
+        return field.pageIndex == pageIndex && field.name == name;
+    });
+    if (found == fields.cend()) return false;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("字段属性"));
+    auto* form = new QFormLayout(&dialog);
+    auto* nameEdit = new QLineEdit(found->name, &dialog);
+    nameEdit->setReadOnly(true);
+    nameEdit->setToolTip(tr("字段重命名需要同步计算脚本引用，当前保持原名称。"));
+    auto* tooltipEdit = new QLineEdit(found->toolTip, &dialog);
+    auto* readOnly = new QCheckBox(tr("只读"), &dialog);
+    readOnly->setChecked(found->readOnly);
+    auto* required = new QCheckBox(tr("必填"), &dialog);
+    required->setChecked(found->required);
+    auto* multiline = new QCheckBox(tr("允许多行"), &dialog);
+    multiline->setChecked(found->multiline);
+    form->addRow(tr("字段名称"), nameEdit);
+    form->addRow(tr("工具提示"), tooltipEdit);
+    form->addRow(QString(), readOnly);
+    form->addRow(QString(), required);
+    if (found->type == 6) form->addRow(QString(), multiline);
+    if (!found->options.isEmpty()) {
+        auto* options = new QTextEdit(&dialog);
+        QStringList optionLines;
+        for (const QString& option : found->options) optionLines.append(option);
+        options->setPlainText(optionLines.join('\n'));
+        options->setReadOnly(true);
+        options->setToolTip(tr("现有字段的选项结构将在后续对象级编辑器中开放修改。"));
+        form->addRow(tr("选项"), options);
+    }
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    form->addRow(buttons);
+    if (dialog.exec() != QDialog::Accepted) return false;
+    const QString newName = nameEdit->text().trimmed();
+    if (newName.isEmpty()) return false;
+    for (const pdf::FormField& field : fields) {
+        if ((field.pageIndex != pageIndex || field.name != name) && field.name == newName) {
+            QMessageBox::warning(this, tr("字段属性"), tr("字段名称已存在。"));
+            return false;
+        }
+    }
+    if (!document_.setFormFieldProperties(pageIndex, name, newName,
+                                           tooltipEdit->text().trimmed(),
+                                           readOnly->isChecked(), required->isChecked(),
+                                           multiline->isChecked())) return false;
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (bytes.isEmpty()) return false;
+    document_.syncBytes(bytes);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    modified_ = true;
+    emit formFieldsChanged();
+    return true;
 }
 
 void PdfView::mergeDocumentDialog() {

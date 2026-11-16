@@ -189,7 +189,7 @@ QByteArray number(double value) {
 QByteArray fieldDictionary(const FormFieldInsert& field, int pageObject,
                            int normalAppearance, int onAppearance = 0) {
     QByteArray ft = "/Tx";
-    int flags = 0;
+    int flags = (field.readOnly ? 1 : 0) | (field.required ? (1 << 1) : 0);
     QByteArray value = "()";
     QByteArray extra;
     switch (field.kind) {
@@ -204,15 +204,26 @@ QByteArray fieldDictionary(const FormFieldInsert& field, int pageObject,
                     " 0 R /Yes " + QByteArray::number(onAppearance) + " 0 R >> >> ";
             break;
         case FormFieldKind::ComboBox:
-            ft = "/Ch"; flags = 1 << 17; extra = "/Opt [(选项 1) (选项 2)] "; break;
+            ft = "/Ch"; flags |= 1 << 17; break;
         case FormFieldKind::ListBox:
-            ft = "/Ch"; extra = "/Opt [(选项 1) (选项 2)] "; break;
+            ft = "/Ch"; break;
         case FormFieldKind::PushButton:
             ft = "/Btn"; flags = 1 << 16; extra = "/MK << /CA (按钮) >> "; break;
         case FormFieldKind::Barcode:
             ft = "/Tx"; extra = "/TU (Barcode value) /MaxLen 128 "; break;
         case FormFieldKind::Text:
             break;
+    }
+    if ((field.kind == FormFieldKind::Text || field.kind == FormFieldKind::Barcode) &&
+        field.multiline) flags |= 1 << 12;
+    if (field.kind == FormFieldKind::ComboBox || field.kind == FormFieldKind::ListBox) {
+        const QStringList options = field.options.isEmpty()
+                                        ? QStringList{QStringLiteral("选项 1"), QStringLiteral("选项 2")}
+                                        : field.options;
+        extra += "/Opt [";
+        for (const QString& option : options)
+            extra += "(" + escapedPdfString(option) + ") ";
+        extra += "] ";
     }
     if (field.kind != FormFieldKind::CheckBox && field.kind != FormFieldKind::RadioButton)
         extra += "/AP << /N " + QByteArray::number(normalAppearance) + " 0 R >> ";

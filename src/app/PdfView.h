@@ -146,6 +146,7 @@ public slots:
     bool flattenFormsOnPage(int pageIndex);
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);
+    bool editFormFieldProperties(int pageIndex, const QString& name);
 
     // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
     void mergeDocumentDialog();
@@ -166,6 +167,7 @@ public slots:
 private:
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
+    void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 

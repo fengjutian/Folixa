@@ -1289,6 +1289,18 @@ QVector<FormField> PdfDocument::formFields() const {
             }
             const int flags = FPDFAnnot_GetFormFieldFlags(form, annot);
             field.readOnly = (flags & FPDF_FORMFLAG_READONLY) != 0;
+            field.required = (flags & FPDF_FORMFLAG_REQUIRED) != 0;
+            field.multiline = (flags & FPDF_FORMFLAG_TEXT_MULTILINE) != 0;
+            field.toolTip = readWideString([&](void* buffer, unsigned long size) {
+                return FPDFAnnot_GetStringValue(annot, "TU", static_cast<FPDF_WCHAR*>(buffer), size);
+            });
+            const int optionCount = FPDFAnnot_GetOptionCount(form, annot);
+            for (int option = 0; option < optionCount; ++option) {
+                field.options.append(readWideString([&](void* buffer, unsigned long size) {
+                    return FPDFAnnot_GetOptionLabel(form, annot, option,
+                                                    static_cast<FPDF_WCHAR*>(buffer), size);
+                }));
+            }
 
             fields.append(field);
             FPDFPage_CloseAnnot(annot);
@@ -1334,6 +1346,44 @@ bool PdfDocument::setFormFieldValue(int pageIndex, const QString& name, const QS
         changed = FPDFAnnot_SetStringValue(
                       annot, key,
                       reinterpret_cast<FPDF_WIDESTRING>(wide.c_str())) != 0;
+        FPDFPage_CloseAnnot(annot);
+    }
+    FPDF_ClosePage(page);
+    return changed;
+}
+
+bool PdfDocument::setFormFieldProperties(int pageIndex, const QString& oldName,
+                                         const QString& newName, const QString& toolTip,
+                                         bool readOnly, bool required, bool multiline) {
+    if (!impl_ || impl_->handle == nullptr || newName != oldName) return false;
+    const detail::PdfiumGuard guard;
+    FPDF_FORMHANDLE form = impl_->ensureForm();
+    if (form == nullptr) return false;
+    FPDF_PAGE page = FPDF_LoadPage(impl_->handle, pageIndex);
+    if (page == nullptr) return false;
+    bool changed = false;
+    const int annots = FPDFPage_GetAnnotCount(page);
+    for (int i = 0; i < annots && !changed; ++i) {
+        FPDF_ANNOTATION annot = FPDFPage_GetAnnot(page, i);
+        if (annot == nullptr) continue;
+        const QString fieldName = readWideString([&](void* buffer, unsigned long size) {
+            return FPDFAnnot_GetFormFieldName(form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
+        });
+        if (fieldName != oldName) {
+            FPDFPage_CloseAnnot(annot);
+            continue;
+        }
+        int flags = FPDFAnnot_GetFormFieldFlags(form, annot);
+        flags = readOnly ? (flags | FPDF_FORMFLAG_READONLY) : (flags & ~FPDF_FORMFLAG_READONLY);
+        flags = required ? (flags | FPDF_FORMFLAG_REQUIRED) : (flags & ~FPDF_FORMFLAG_REQUIRED);
+        flags = multiline ? (flags | FPDF_FORMFLAG_TEXT_MULTILINE)
+                          : (flags & ~FPDF_FORMFLAG_TEXT_MULTILINE);
+        const std::u16string tipWide = toolTip.toStdU16String();
+        const bool tipSet = FPDFAnnot_SetStringValue(
+                                annot, "TU",
+                                reinterpret_cast<FPDF_WIDESTRING>(tipWide.c_str())) != 0;
+        const bool flagsSet = FPDFAnnot_SetFormFieldFlags(form, annot, flags) != 0;
+        changed = tipSet && flagsSet;
         FPDFPage_CloseAnnot(annot);
     }
     FPDF_ClosePage(page);

@@ -66,6 +66,8 @@ public:
 public slots:
     // 滚到指定页（从 0 开始）。
     void goToPage(int index);
+    // 下一次在页面上拖出的矩形用于创建表单字段；空字符串取消。
+    void setFormFieldPlacementKind(const QString& kind);
 
 signals:
     void currentPageChanged(int index);
@@ -95,6 +97,8 @@ signals:
     void measureShapeRequested(int pageIndex, int mode, const QVector<QPointF>& vertices);
     // 墨迹工具：拖出一笔（坐标是 PDF user space）。
     void inkAnnotationRequested(int pageIndex, const QVector<QPointF>& userSpaceStroke);
+    void formFieldRectRequested(const QString& kind, int pageIndex,
+                                const QRectF& userSpaceRect);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -132,6 +136,8 @@ private:
     bool drawingSquare_ = false;
     bool drawingEllipse_ = false;
     bool drawingFreeText_ = false;
+    bool drawingFormField_ = false;
+    QString formFieldKind_;
     bool drawingLine_ = false;
     pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;
     // 多边形/云线的逐点输入：第一次点击记页号，双击结束。

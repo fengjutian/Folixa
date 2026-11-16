@@ -196,6 +196,7 @@ private:
     QLineEdit* formValueEdit_ = nullptr;
     QPushButton* formApplyButton_ = nullptr;
     QPushButton* formFlattenButton_ = nullptr;
+    QPushButton* formPropertiesButton_ = nullptr;
     QPushButton* formExportCsvButton_ = nullptr;
     QPushButton* formImportCsvButton_ = nullptr;
     QPushButton* formExportFdfButton_ = nullptr;
