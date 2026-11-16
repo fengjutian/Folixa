@@ -1888,6 +1888,63 @@ Folixa requires no purchase or activation and offers no paid subscription.</tran
         <message><source>截图无法写入所选位置。</source><translation>The screenshot could not be written to the selected location.</translation></message>
         <message><source>截图已保存到 %1</source><translation>Screenshot saved to %1</translation></message>
         <message><source>声音录制保存在声音批注中。</source><translation>Audio recordings are stored as sound annotations.</translation></message>
+        <message><source>转为 PDF</source><translation>Convert to PDF</translation></message>
+        <message><source>归档与优化</source><translation>Archive and optimize</translation></message>
+        <message><source>更多转换</source><translation>More conversions</translation></message>
+        <message><source>Office 文档 (*.doc *.docx *.xls *.xlsx *.ppt *.pptx *.odt *.ods *.odp)</source><translation>Office documents (*.doc *.docx *.xls *.xlsx *.ppt *.pptx *.odt *.ods *.odp)</translation></message>
+        <message><source>HTML 文档 (*.html *.htm)</source><translation>HTML documents (*.html *.htm)</translation></message>
+        <message><source>选择要转换的文件</source><translation>Select a file to convert</translation></message>
+        <message><source>保存转换结果</source><translation>Save conversion result</translation></message>
+        <message><source>输出文件不能覆盖输入文件，请选择其他名称。</source><translation>The output cannot overwrite the input file. Choose another name.</translation></message>
+        <message><source>无法创建安全的临时目录。</source><translation>Could not create a secure temporary directory.</translation></message>
+        <message><source>缺少转换引擎</source><translation>Conversion engine missing</translation></message>
+        <message><source>%1
+
+Office/HTML 转换需要 LibreOffice；PDF/A 和优化压缩需要 Ghostscript。安装后重新执行即可，Folixa 不会上传文档。</source><translation>%1
+
+Office/HTML conversion requires LibreOffice; PDF/A and optimization require Ghostscript. Install the required engine and try again. Folixa does not upload the document.</translation></message>
+        <message><source>文档转换</source><translation>Document conversion</translation></message>
+        <message><source>正在使用 %1 转换…</source><translation>Converting with %1…</translation></message>
+        <message><source>转换失败</source><translation>Conversion failed</translation></message>
+        <message><source>无法启动 %1：%2</source><translation>Could not start %1: %2</translation></message>
+        <message><source>转换已取消。</source><translation>Conversion canceled.</translation></message>
+        <message><source>%1 返回了错误。
+%2</source><translation>%1 returned an error.
+%2</translation></message>
+        <message><source>无法写入输出文件。</source><translation>Could not write the output file.</translation></message>
+        <message><source>保存转换结果失败，原文件没有改动。</source><translation>Could not save the converted result. The original file was not changed.</translation></message>
+        <message><source>转换完成：%1</source><translation>Conversion complete: %1</translation></message>
+        <message><source>数字证书</source><translation>Digital certificate</translation></message>
+        <message><source>缺少数字签名引擎</source><translation>Digital signature engine missing</translation></message>
+        <message><source>数字签名需要 pyHanko CLI。请安装 pyhanko-cli，并确保 pyhanko 位于 PATH 中。</source><translation>Digital signatures require the pyHanko CLI. Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
+        <message><source>数字证书签名</source><translation>Digital certificate signature</translation></message>
+        <message><source>选择…</source><translation>Choose…</translation></message>
+        <message><source>可选，例如 https://tsa.example.com</source><translation>Optional, for example https://tsa.example.com</translation></message>
+        <message><source>嵌入证书链与吊销信息（PAdES-LT）</source><translation>Embed certificate chain and revocation data (PAdES-LT)</translation></message>
+        <message><source>PKCS#12 证书</source><translation>PKCS#12 certificate</translation></message>
+        <message><source>证书密码</source><translation>Certificate password</translation></message>
+        <message><source>RFC 3161 时间戳</source><translation>RFC 3161 timestamp</translation></message>
+        <message><source>选择数字证书</source><translation>Select digital certificate</translation></message>
+        <message><source>PKCS#12 证书 (*.p12 *.pfx)</source><translation>PKCS#12 certificate (*.p12 *.pfx)</translation></message>
+        <message><source>保存已签名文档</source><translation>Save signed document</translation></message>
+        <message><source>数字签名</source><translation>Digital signature</translation></message>
+        <message><source>无法创建临时密码文件。</source><translation>Could not create a temporary password file.</translation></message>
+        <message><source>正在创建数字签名…</source><translation>Creating digital signature…</translation></message>
+        <message><source>无法启动 pyHanko。</source><translation>Could not start pyHanko.</translation></message>
+        <message><source>数字签名已取消。</source><translation>Digital signature canceled.</translation></message>
+        <message><source>数字签名失败</source><translation>Digital signature failed</translation></message>
+        <message><source>pyHanko 未生成签名文件。</source><translation>pyHanko did not generate a signed file.</translation></message>
+        <message><source>数字签名完成：%1</source><translation>Digital signature complete: %1</translation></message>
+        <message><source>选择待验证 PDF</source><translation>Select PDF to verify</translation></message>
+        <message><source>无法验证签名</source><translation>Cannot verify signature</translation></message>
+        <message><source>
+请安装 pyhanko-cli，并确保 pyhanko 位于 PATH 中。</source><translation>
+Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
+        <message><source>验证签名</source><translation>Verify signature</translation></message>
+        <message><source>签名验证进程启动失败或超时。</source><translation>The signature verification process failed to start or timed out.</translation></message>
+        <message><source>签名验证通过</source><translation>Signature verification passed</translation></message>
+        <message><source>签名验证未通过</source><translation>Signature verification failed</translation></message>
+        <message><source>没有发现有效数字签名。</source><translation>No valid digital signature was found.</translation></message>
     </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -2872,6 +2929,18 @@ Folixa requires no purchase or activation and offers no paid subscription.</tran
             <source>高亮</source>
             <translation>Highlight</translation>
         </message>
+        <message><source>清理隐藏信息</source><translation>Sanitize hidden data</translation></message>
+        <message><source>本次构建没有启用 qpdf，无法可靠清理隐藏信息。</source><translation>This build does not include qpdf, so hidden data cannot be sanitized reliably.</translation></message>
+        <message><source>将删除文档属性、XMP、文档脚本、自动动作和嵌入文件索引。页面正文、可见批注和表单值会保留。继续吗？</source><translation>This removes document properties, XMP, document scripts, automatic actions, and embedded-file indexes. Page content, visible annotations, and form values are preserved. Continue?</translation></message>
+        <message><source>清理结果校验失败：%1</source><translation>Sanitized result validation failed: %1</translation></message>
+        <message><source>隐藏信息已清理；请保存文档以写入磁盘</source><translation>Hidden data was sanitized. Save the document to write the changes to disk.</translation></message>
+        <message><source>密文遮盖</source><translation>Redaction</translation></message>
+        <message><source>请先选中要永久遮盖的文字区域。</source><translation>Select the text area to redact permanently first.</translation></message>
+        <message><source>为避免旋转坐标误判，请先把该页旋转回 0° 再执行遮盖。</source><translation>To avoid incorrect rotated coordinates, rotate the page back to 0° before redacting.</translation></message>
+        <message><source>永久密文遮盖</source><translation>Permanent redaction</translation></message>
+        <message><source>遮盖会永久删除该页原始内容，并把整页转换为 144 DPI 位图。该页将失去文本搜索和内容编辑能力，操作不可在保存后恢复。继续吗？</source><translation>Redaction permanently removes the original page content and converts the whole page to a 144 DPI bitmap. Text search and content editing will no longer work on this page, and the operation cannot be recovered after saving. Continue?</translation></message>
+        <message><source>无法安全地应用遮盖，文档没有修改。</source><translation>The redaction could not be applied safely. The document was not modified.</translation></message>
+        <message><source>密文遮盖已烧入第 %1 页；请保存文档</source><translation>Redaction was burned into page %1. Save the document.</translation></message>
     </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>

@@ -94,7 +94,7 @@ void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {
     QVERIFY(page.has_value());
     const auto before = page->extractText();
     QVERIFY(before.has_value());
-    QVERIFY(!before->plainText.trimmed().isEmpty());
+    QVERIFY(!before->plainText().trimmed().isEmpty());
 
     const MediaBox box = page->contentBox();
     const QRectF redaction(box.left + 10.0, box.bottom + 10.0, 80.0, 30.0);
@@ -107,7 +107,7 @@ void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {
     auto redactedPage = reopened.document.page(0);
     QVERIFY(redactedPage.has_value());
     const auto after = redactedPage->extractText();
-    QVERIFY(!after.has_value() || after->plainText.trimmed().isEmpty());
+    QVERIFY(!after.has_value() || after->plainText().trimmed().isEmpty());
 }
 
 void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {

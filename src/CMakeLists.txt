@@ -58,6 +58,8 @@
     app/DocumentOutput.h
     app/DocumentConverter.cpp
     app/DocumentConverter.h
+    app/DigitalSignatureBackend.cpp
+    app/DigitalSignatureBackend.h
     app/SearchMatcher.h
     app/NavigationHistory.h
     app/NavigationHistory.cpp

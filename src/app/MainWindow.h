@@ -126,6 +126,8 @@ private:
     void showReviewTracker();
     void batchRenameDocuments();
     void convertDocument(ConversionKind kind);
+    void digitallySignDocument();
+    void verifyDigitalSignatures();
     void showDocumentOverview();
     void editDocumentTags();
     void editDocumentCategory();

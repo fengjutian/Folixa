@@ -9,6 +9,7 @@
 #include "app/BatchRename.h"
 #include "app/DocumentOutput.h"
 #include "app/DocumentConverter.h"
+#include "app/DigitalSignatureBackend.h"
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
@@ -56,8 +57,10 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QCheckBox>
 #include <QElapsedTimer>
 #include <QFrame>
+#include <QFormLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
 #include <QIcon>
@@ -98,6 +101,7 @@
 #include <QTextBrowser>
 #include <QTime>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTimer>
 #include <QTextDocument>
 #include <QToolBar>
@@ -1453,6 +1457,13 @@ void MainWindow::buildUi() {
                      [] {}, false, "signature.invite");
     addRibbonCommand(signingGroup, "完成签署", "保存当前已放置的签章", ":/icons/save.svg",
                      [this] { saveDocument(); }, true, "signature.finish");
+    auto* certificateGroup = ribbonBar_->addGroup(signatureTab, tr("数字证书"));
+    addRibbonCommand(certificateGroup, "数字签名", "使用 PKCS#12 证书创建 PAdES/CMS 数字签名",
+                     ":/icons/protect.svg", [this] { digitallySignDocument(); }, true,
+                     "signature.digitalSign");
+    addRibbonCommand(certificateGroup, "验证签名", "验证签名完整性、证书链、时间戳和文档改动",
+                     ":/icons/search.svg", [this] { verifyDigitalSignatures(); }, true,
+                     "signature.verify");
     auto* sealGroup = ribbonBar_->addGroup(signatureTab, tr("签章"));
     addRibbonCommand(sealGroup, "管理签章", "导入、手写或删除本地签章", ":/icons/annotation.svg",
                      [this] { SignatureDialog(false, this).exec(); }, true, "signature.manage");
@@ -3491,6 +3502,131 @@ void MainWindow::createReimbursementList() {
         return;
     }
     statusBar()->showMessage(tr("已生成包含 %1 张发票的报销单。 ").arg(invoices.size()), 5000);
+}
+
+void MainWindow::digitallySignDocument() {
+    PdfView* view = savedShareDocument();
+    if (view == nullptr) return;
+    if (DigitalSignatureBackend::findPyHanko().isEmpty()) {
+        QMessageBox::information(
+            this, tr("缺少数字签名引擎"),
+            tr("数字签名需要 pyHanko CLI。请安装 pyhanko-cli，并确保 pyhanko 位于 PATH 中。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("数字证书签名"));
+    auto* form = new QFormLayout(&dialog);
+    auto* certificate = new QLineEdit(&dialog);
+    auto* chooseCertificate = new QPushButton(tr("选择…"), &dialog);
+    auto* certificateRow = new QWidget(&dialog);
+    auto* certificateLayout = new QHBoxLayout(certificateRow);
+    certificateLayout->setContentsMargins(0, 0, 0, 0);
+    certificateLayout->addWidget(certificate, 1);
+    certificateLayout->addWidget(chooseCertificate);
+    auto* password = new QLineEdit(&dialog);
+    password->setEchoMode(QLineEdit::Password);
+    auto* timestamp = new QLineEdit(&dialog);
+    timestamp->setPlaceholderText(tr("可选，例如 https://tsa.example.com"));
+    auto* validation = new QCheckBox(tr("嵌入证书链与吊销信息（PAdES-LT）"), &dialog);
+    form->addRow(tr("PKCS#12 证书"), certificateRow);
+    form->addRow(tr("证书密码"), password);
+    form->addRow(tr("RFC 3161 时间戳"), timestamp);
+    form->addRow(QString(), validation);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    form->addRow(buttons);
+    connect(chooseCertificate, &QPushButton::clicked, &dialog, [this, certificate] {
+        const QString path = QFileDialog::getOpenFileName(
+            this, tr("选择数字证书"), QString(), tr("PKCS#12 证书 (*.p12 *.pfx)"));
+        if (!path.isEmpty()) certificate->setText(path);
+    });
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted || certificate->text().trimmed().isEmpty()) return;
+
+    const QFileInfo input(view->filePath());
+    const QString suggested = input.dir().filePath(input.completeBaseName() + QStringLiteral("-signed.pdf"));
+    const QString output = QFileDialog::getSaveFileName(this, tr("保存已签名文档"), suggested,
+                                                        tr("PDF 文件 (*.pdf)"));
+    if (output.isEmpty()) return;
+    QTemporaryFile passFile(QDir::temp().filePath(QStringLiteral("folixa-sign-pass-XXXXXX")));
+    passFile.setAutoRemove(true);
+    if (!passFile.open()) {
+        QMessageBox::warning(this, tr("数字签名"), tr("无法创建临时密码文件。"));
+        return;
+    }
+    passFile.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    passFile.write(password->text().toUtf8());
+    passFile.write("\n");
+    passFile.flush();
+
+    const SignatureCommand command = DigitalSignatureBackend::signPkcs12(
+        view->filePath(), output, certificate->text().trimmed(), passFile.fileName(),
+        timestamp->text().trimmed(), validation->isChecked());
+    if (!command.isValid()) {
+        QMessageBox::warning(this, tr("数字签名"), command.error);
+        return;
+    }
+    QProgressDialog progress(tr("正在创建数字签名…"), tr("取消"), 0, 0, this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.start(command.program, command.arguments);
+    if (!process.waitForStarted(5000)) {
+        QMessageBox::warning(this, tr("数字签名"), tr("无法启动 pyHanko。"));
+        return;
+    }
+    while (process.state() != QProcess::NotRunning && !progress.wasCanceled()) {
+        process.waitForFinished(100);
+        QApplication::processEvents();
+    }
+    if (process.state() != QProcess::NotRunning) {
+        process.kill();
+        process.waitForFinished(3000);
+    }
+    QString report = QString::fromUtf8(process.readAll()).trimmed();
+    if (progress.wasCanceled()) {
+        QFile::remove(output);
+        statusBar()->showMessage(tr("数字签名已取消。"), 4000);
+        return;
+    }
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
+        !QFileInfo(output).isFile() || QFileInfo(output).size() == 0) {
+        QFile::remove(output);
+        QMessageBox::warning(this, tr("数字签名失败"), report.isEmpty() ? tr("pyHanko 未生成签名文件。") : report);
+        return;
+    }
+    statusBar()->showMessage(tr("数字签名完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
+}
+
+void MainWindow::verifyDigitalSignatures() {
+    QString input;
+    if (PdfView* view = currentView()) input = view->filePath();
+    if (input.isEmpty())
+        input = QFileDialog::getOpenFileName(this, tr("选择待验证 PDF"), QString(), tr("PDF 文件 (*.pdf)"));
+    if (input.isEmpty()) return;
+    const SignatureCommand command = DigitalSignatureBackend::verify(input);
+    if (!command.isValid()) {
+        QMessageBox::information(this, tr("无法验证签名"),
+                                 command.error + tr("\n请安装 pyhanko-cli，并确保 pyhanko 位于 PATH 中。"));
+        return;
+    }
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.start(command.program, command.arguments);
+    if (!process.waitForStarted(5000) || !process.waitForFinished(120000)) {
+        process.kill();
+        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程启动失败或超时。"));
+        return;
+    }
+    const QString report = QString::fromUtf8(process.readAll()).trimmed();
+    if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+        QMessageBox::information(this, tr("签名验证通过"), report);
+    } else {
+        QMessageBox::warning(this, tr("签名验证未通过"), report.isEmpty() ? tr("没有发现有效数字签名。") : report);
+    }
 }
 
 void MainWindow::convertDocument(ConversionKind kind) {

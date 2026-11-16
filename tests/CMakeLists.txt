@@ -44,6 +44,17 @@ set_target_properties(DocumentConverterTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(DocumentConverterTests)
 add_test(NAME DocumentConverterTests COMMAND DocumentConverterTests)
 
+qt_add_executable(DigitalSignatureBackendTests
+    DigitalSignatureBackendTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DigitalSignatureBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DigitalSignatureBackend.h
+)
+target_link_libraries(DigitalSignatureBackendTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(DigitalSignatureBackendTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(DigitalSignatureBackendTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(DigitalSignatureBackendTests)
+add_test(NAME DigitalSignatureBackendTests COMMAND DigitalSignatureBackendTests)
+
 # ------------------------------------------------------------ 国际化底座 ----
 #
 # .ts 目录在主程序里是资源，测试要自己再打一份，才能验证「目录真的进包了」。
