@@ -24,5 +24,8 @@ function Get-AiPdfLicense {
     if ($lower -match '^qpdf\d*\.dll$') {
         return @{ id = 'Apache-2.0'; name = 'Apache License 2.0 (qpdf)' }
     }
+    if ($lower -eq 'pyhanko.exe') {
+        return @{ id = 'LicenseRef-PyHanko-Bundle'; name = 'pyHanko standalone bundle; component licenses included' }
+    }
     return @{ id = 'LicenseRef-Project-Proprietary'; name = 'AI PDF Editor build output, all rights reserved' }
 }

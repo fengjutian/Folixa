@@ -1,6 +1,8 @@
 #include "app/DigitalSignatureBackend.h"
 
 #include <QFile>
+#include <QCoreApplication>
+#include <QDir>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -9,10 +11,23 @@ using namespace aipdf::app;
 class DigitalSignatureBackendTests final : public QObject {
     Q_OBJECT
 private slots:
+    void prefersBundledExecutable();
     void buildsPkcs12TimestampPlan();
     void rejectsInvalidTimestampUrl();
     void buildsVerificationPlan();
 };
+
+void DigitalSignatureBackendTests::prefersBundledExecutable() {
+    const QString directory = QCoreApplication::applicationDirPath() + QStringLiteral("/pyhanko");
+    QDir().mkpath(directory);
+    const QString executable = directory + QStringLiteral("/pyhanko.exe");
+    QFile file(executable);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.close();
+    QCOMPARE(QDir::fromNativeSeparators(DigitalSignatureBackend::findPyHanko()), executable);
+    QVERIFY(QFile::remove(executable));
+    QVERIFY(QDir().rmdir(directory));
+}
 
 QString createFile(QTemporaryDir& directory, const QString& name) {
     const QString path = directory.filePath(name);

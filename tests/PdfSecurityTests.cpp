@@ -11,6 +11,7 @@ using aipdf::pdf::encryptPdf;
 using aipdf::pdf::inspectEncryption;
 using aipdf::pdf::sanitizeHiddenData;
 using aipdf::pdf::openDocumentFromBytes;
+using aipdf::pdf::verifyOwnerPassword;
 
 namespace {
 
@@ -47,6 +48,7 @@ private slots:
     void encryptsAndWritesR6Dictionary();
     void wrongPasswordIsRejected();
     void ownerPasswordAlsoOpens();
+    void verifiesOwnerPasswordForPermissionUnlock();
     void pdfiumOpensEncryptedDocument();
     void emptyUserPasswordStillEncrypts();
     void permissionFlagsFollowOptions();
@@ -110,6 +112,21 @@ void PdfSecurityTests::ownerPasswordAlsoOpens() {
     int revision = 0;
     QVERIFY(inspectEncryption(encrypted, QStringLiteral("owner-pass"), &revision, nullptr));
     QCOMPARE(revision, 6);
+}
+
+void PdfSecurityTests::verifiesOwnerPasswordForPermissionUnlock() {
+    PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("reader-pass");
+    options.ownerPassword = QStringLiteral("owner-pass");
+    const QByteArray encrypted = encryptPdf(readFixture(QStringLiteral("normal.pdf")), options);
+    QVERIFY(!encrypted.isEmpty());
+
+    QString error;
+    QVERIFY2(verifyOwnerPassword(encrypted, QStringLiteral("owner-pass"), &error),
+             qPrintable(error));
+    QVERIFY(!verifyOwnerPassword(encrypted, QStringLiteral("reader-pass"), &error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!verifyOwnerPassword(encrypted, QStringLiteral("wrong"), &error));
 }
 
 void PdfSecurityTests::pdfiumOpensEncryptedDocument() {

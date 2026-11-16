@@ -1021,7 +1021,7 @@ void MainWindow::buildUi() {
     }, true, "ribbonExtractRange");
     addRibbonCommand(assemblyGroup, "提取", "提取当前页为新文档", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->extractCurrentPageDialog(); }
-    });
+    }, true, "ribbonExtractCurrent");
     addRibbonCommand(assemblyGroup, "替换", "用另一份 PDF 的页面替换当前页", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->replaceCurrentPageDialog(); }
     }, true, "ribbonReplace");
@@ -1034,7 +1034,7 @@ void MainWindow::buildUi() {
     }, true, "ribbonSplit");
     addRibbonCommand(assemblyGroup, "合并", "合并另一份 PDF", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->mergeDocumentDialog(); }
-    });
+    }, true, "ribbonMerge");
     auto* decorationGroup = ribbonBar_->addGroup(pageTab, tr("装饰"));
     addRibbonCommand(decorationGroup, "水印", "添加水印", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->applyWatermarkDialog(); }
@@ -2177,6 +2177,7 @@ void MainWindow::buildUi() {
 
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
+        updatePermissionActionState();
         refreshThumbnails(view);
         // 目录与书签跟着当前文档走。
         bindNavigation(view);
@@ -3091,13 +3092,61 @@ void MainWindow::updatePageActionState() {
     const bool hasDocument = view != nullptr && view->pageCount() > 0;
     const int current = view != nullptr ? view->currentPage() : -1;
     const int count = view != nullptr ? view->pageCount() : 0;
+    const bool assemblyAllowed = view == nullptr || view->effectivePermissions().allowAssembly;
 
-    pageInsertButton_->setEnabled(hasDocument);
-    pageDeleteButton_->setEnabled(hasDocument && count > 1);
-    pageRotateRightButton_->setEnabled(hasDocument);
-    pageRotateLeftButton_->setEnabled(hasDocument);
-    pageMoveUpButton_->setEnabled(hasDocument && current > 0);
-    pageMoveDownButton_->setEnabled(hasDocument && current >= 0 && current < count - 1);
+    pageInsertButton_->setEnabled(hasDocument && assemblyAllowed);
+    pageDeleteButton_->setEnabled(hasDocument && count > 1 && assemblyAllowed);
+    pageRotateRightButton_->setEnabled(hasDocument && assemblyAllowed);
+    pageRotateLeftButton_->setEnabled(hasDocument && assemblyAllowed);
+    pageMoveUpButton_->setEnabled(hasDocument && current > 0 && assemblyAllowed);
+    pageMoveDownButton_->setEnabled(hasDocument && current >= 0 && current < count - 1 && assemblyAllowed);
+}
+
+void MainWindow::updatePermissionActionState() {
+    PdfView* view = currentView();
+    const pdf::DocumentPermissions permissions = view != nullptr
+        ? view->effectivePermissions() : pdf::DocumentPermissions{};
+    for (QToolButton* button : ribbonBar_->findChildren<QToolButton*>()) {
+        const QString name = button->objectName();
+        if (name.startsWith(QStringLiteral("annotation."))) {
+            button->setEnabled(view != nullptr && permissions.allowAnnotations);
+        } else if (name.startsWith(QStringLiteral("form.create."))) {
+            button->setEnabled(view != nullptr && permissions.allowModifying);
+        } else if (name.startsWith(QStringLiteral("form."))) {
+            button->setEnabled(view != nullptr && permissions.allowFormFilling);
+        } else if (name.startsWith(QStringLiteral("permission.page")) ||
+                   name == QStringLiteral("ribbonDuplicate") ||
+                   name == QStringLiteral("ribbonSwap") ||
+                   name == QStringLiteral("ribbonReverse") ||
+                   name == QStringLiteral("ribbonExtractRange") ||
+                   name == QStringLiteral("ribbonExtractCurrent") ||
+                   name == QStringLiteral("ribbonMerge") ||
+                   name == QStringLiteral("ribbonReplace") ||
+                   name == QStringLiteral("ribbonCrossMerge") ||
+                   name == QStringLiteral("ribbonResize") ||
+                   name == QStringLiteral("ribbonSplit")) {
+            button->setEnabled(view != nullptr && permissions.allowAssembly);
+        } else if (name == QStringLiteral("permission.print")) {
+            button->setEnabled(view != nullptr && permissions.allowPrinting);
+        } else if (name == QStringLiteral("permission.exportImages") ||
+                   name == QStringLiteral("permission.exportText")) {
+            button->setEnabled(view != nullptr && permissions.allowCopying);
+        } else if (name.startsWith(QStringLiteral("edit.")) ||
+                   name == QStringLiteral("ribbonRedaction") ||
+                   name == QStringLiteral("ribbonSanitize")) {
+            button->setEnabled(view != nullptr && permissions.allowModifying);
+        }
+    }
+    const bool canAnnotate = view != nullptr && permissions.allowAnnotations;
+    if (annotationRemoveButton_ != nullptr) annotationRemoveButton_->setEnabled(canAnnotate);
+    if (annotationReplyButton_ != nullptr) annotationReplyButton_->setEnabled(canAnnotate);
+    if (annotationApplyAppearanceButton_ != nullptr)
+        annotationApplyAppearanceButton_->setEnabled(canAnnotate);
+    const bool canFill = view != nullptr && permissions.allowFormFilling;
+    if (formApplyButton_ != nullptr) formApplyButton_->setEnabled(canFill);
+    if (formFlattenButton_ != nullptr)
+        formFlattenButton_->setEnabled(view != nullptr && permissions.allowModifying);
+    updatePageActionState();
 }
 
 // --------------------------------------------------------------- 共享 ----
@@ -4392,6 +4441,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     connect(view, &PdfView::metricsChanged, metricsLabel_, &QLabel::setText);
     connect(view, &PdfView::currentPageChanged, this, &MainWindow::updateStatusPage);
     connect(view, &PdfView::zoomChanged, this, &MainWindow::updateStatusZoom);
+    connect(view, &PdfView::permissionsChanged, this, &MainWindow::updatePermissionActionState);
     connect(view, &PdfView::pageStructureChanged, this, [this] {
         if (auto* current = currentView()) {
             updateStatusPage(current->currentPage());
@@ -4399,6 +4449,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     });
     updateStatusPage(view->currentPage());
     updateStatusZoom(view->zoom());
+    updatePermissionActionState();
     connect(view, &PdfView::saveRequested, this, &MainWindow::saveDocument);
     connect(view, &PdfView::statusMessage, this, [this](const QString& text) {
         statusBar()->showMessage(text, 3000);

@@ -19,6 +19,7 @@ param(
     [string]$QtRoot = '',
     [string]$MinGWRoot = '',
     [string]$PdfiumRoot = '',
+    [string]$PyHankoRoot = '',
     [switch]$KeepStaging
 )
 
@@ -47,6 +48,13 @@ if (-not $PdfiumRoot) {
         $env:AIPDF_PDFIUM_ROOT
     } else {
         Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\pdfium'
+    }
+}
+if (-not $PyHankoRoot) {
+    $PyHankoRoot = if ($env:AIPDF_PYHANKO_ROOT) {
+        $env:AIPDF_PYHANKO_ROOT
+    } else {
+        Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\pyhanko'
     }
 }
 
@@ -84,6 +92,13 @@ if (-not (Test-Path -LiteralPath $pdfiumDll)) {
     throw "找不到 PDFium 运行库 $pdfiumDll（请运行 scripts\bootstrap-pdfium.ps1）"
 }
 Copy-Item -LiteralPath $pdfiumDll -Destination $stage
+
+Write-Host '==> 复制 pyHanko 数字签名运行时' -ForegroundColor Cyan
+$pyHankoExe = Join-Path $PyHankoRoot 'pyhanko.exe'
+if (-not (Test-Path -LiteralPath $pyHankoExe)) {
+    throw "找不到 pyHanko 独立运行时 $pyHankoExe（请运行 scripts\bootstrap-pyhanko.ps1）"
+}
+Copy-Item -LiteralPath $PyHankoRoot -Destination (Join-Path $stage 'pyhanko') -Recurse
 
 # 可选：qpdf（-DAIPDF_WITH_QPDF=ON 的构建才会在 bin 里留 qpdf30.dll）。
 # 没有就跳过——发布包默认仍是"无 qpdf"构建，行为与之前一致。

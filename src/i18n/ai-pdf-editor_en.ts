@@ -2942,6 +2942,14 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>无法安全地应用遮盖，文档没有修改。</source><translation>The redaction could not be applied safely. The document was not modified.</translation></message>
         <message><source>密文遮盖已烧入第 %1 页；请保存文档</source><translation>Redaction was burned into page %1. Save the document.</translation></message>
         <message><source>文档权限限制</source><translation>Document permission restriction</translation></message>
+        <message><source>文档所有者已禁止“%1”。是否输入所有者密码，为本次会话解除限制？</source><translation>The document owner has prohibited “%1”. Enter the owner password to unlock it for this session?</translation></message>
+        <message><source>解除权限限制</source><translation>Unlock permissions</translation></message>
+        <message><source>请先保存当前修改，再输入所有者密码解除权限限制。</source><translation>Save the current changes before entering the owner password to unlock permissions.</translation></message>
+        <message><source>所有者密码</source><translation>Owner password</translation></message>
+        <message><source>输入 PDF 所有者密码：</source><translation>Enter the PDF owner password:</translation></message>
+        <message><source>无法读取原始 PDF。</source><translation>Could not read the original PDF.</translation></message>
+        <message><source>所有者密码无效</source><translation>Invalid owner password</translation></message>
+        <message><source>已使用所有者密码解除本次会话的权限限制</source><translation>Permissions unlocked for this session with the owner password</translation></message>
         <message><source>文档所有者已禁止“%1”。请输入所有者密码解除限制，或联系文档所有者。</source><translation>The document owner has prohibited “%1”. Enter the owner password to remove the restriction, or contact the document owner.</translation></message>
         <message><source>操作被文档权限阻止：%1</source><translation>Operation blocked by document permissions: %1</translation></message>
         <message><source>复制内容</source><translation>Copy content</translation></message>

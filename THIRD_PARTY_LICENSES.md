@@ -20,6 +20,7 @@ update path, or when a package ships a binary that is not registered here.
 | PDFium's bundled third parties | Fixed by `chromium/8152` (freetype, harfbuzz, ICU, libjpeg-turbo, libpng, zlib, lcms, abseil, agg23, fast_float, highway, libopenjpeg, simdutf, dragonbox, llvm-libc) | Transitive, inside `pdfium.dll` | Text shaping, fonts, images, compression | License texts shipped under `licenses/pdfium/` and verified against `licenses/pdfium-CHECKSUMS.txt` | Move only by upgrading PDFium; the checksum manifest must be regenerated in the same commit |
 | Tesseract | Optional, discovered at runtime; not bundled | Optional external runtime dependency | OCR engine preferred when installed locally | Apache-2.0; not redistributed, so no license text is shipped | User-managed install (`AIPDF_TESSERACT_PATH` or `tools/tess/`); the app must keep working when it is absent |
 | qpdf | 12.4.2 official `mingw64` release, pinned by `scripts/bootstrap-qpdf.ps1`; 可选，仅 `AIPDF_WITH_QPDF=ON` 时随包分发 `qpdf30.dll` | Optional build flag; bundled only when enabled | PDF object layer: pre-save structural validation today, object-level writes later | Apache-2.0; `licenses/Apache-2.0.txt` is always shipped, `qpdf30.dll` only in qpdf-enabled packages | Bump `Version`, `Asset` and `Sha256` in `scripts/bootstrap-qpdf.ps1`, rerun `scripts/verify-qpdf.ps1` and the full test suite |
+| pyHanko / pyhanko-cli | pyHanko 0.38.0, pyhanko-cli 0.6.0, PyInstaller 6.16.0; pinned by `scripts/bootstrap-pyhanko.ps1` | Direct, bundled standalone executable | PKCS#12 signing, PAdES validation information, RFC 3161 timestamps and signature validation | pyHanko is MIT; Python and all bundled dependency license texts are shipped under `pyhanko/licenses/` | Update all three pins in `scripts/bootstrap-pyhanko.ps1`, rebuild the standalone runtime and rerun signature plus package gates |
 
 Components that are **not** dependencies and therefore are not listed as pins:
 SQLite and OpenSSL are not linked by this project (the local index is a plain
@@ -31,6 +32,9 @@ qt=6.8.3
 mingw=13.1.0
 pdfium=chromium/8152
 pdfium-api=159
+pyhanko=0.38.0
+pyhanko-cli=0.6.0
+pyinstaller=6.16.0
 -->
 
 ## Distribution strategy

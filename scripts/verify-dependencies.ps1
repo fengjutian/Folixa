@@ -218,6 +218,7 @@ if ($packageEntries.Count -gt 0) {
         # qpdf 是可选依赖：只有 -DAIPDF_WITH_QPDF=ON 的包才会带它。
         # 带上就必须能归到 qpdf（登记表里有对应行与许可证）。
         '^qpdf[0-9]*\.dll$'                                                             = 'qpdf'
+        '^pyhanko/pyhanko\.exe$'                                                       = 'pyHanko'
         '^Qt6[A-Za-z0-9_]+\.dll$'                                                       = 'Qt'
         '^(generic|iconengines|imageformats|networkinformation|platforms|styles|tls)/[A-Za-z0-9_]+\.dll$' = 'Qt'
         '^libgcc_s_seh-1\.dll$'                                                         = 'MinGW-w64'
@@ -247,6 +248,8 @@ if ($packageEntries.Count -gt 0) {
         $count = if ($ownerCounts.ContainsKey($owner)) { $ownerCounts[$owner] } else { 0 }
         Test-Check "包内包含 $owner 的二进制" ($count -gt 0) "count=$count"
     }
+    $pyHankoCount = if ($ownerCounts.ContainsKey('pyHanko')) { $ownerCounts['pyHanko'] } else { 0 }
+    Test-Check '包内包含 pyHanko 独立签名运行时' ($pyHankoCount -eq 1) "count=$pyHankoCount"
     Test-Check '包内没有第三方商业应用产物' (@($binaryEntries | Where-Object { $_ -match '(?i)foxit' }).Count -eq 0)
 }
 

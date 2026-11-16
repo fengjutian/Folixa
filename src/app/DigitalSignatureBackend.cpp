@@ -1,5 +1,7 @@
 #include "app/DigitalSignatureBackend.h"
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QUrl>
@@ -7,6 +9,9 @@
 namespace aipdf::app {
 
 QString DigitalSignatureBackend::findPyHanko() {
+    const QString bundled = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("pyhanko/pyhanko.exe"));
+    if (QFileInfo::exists(bundled)) return QDir::toNativeSeparators(bundled);
     QString executable = QStandardPaths::findExecutable(QStringLiteral("pyhanko"));
     if (executable.isEmpty())
         executable = QStandardPaths::findExecutable(QStringLiteral("pyhanko.exe"));
