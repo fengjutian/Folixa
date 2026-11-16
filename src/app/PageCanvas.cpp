@@ -987,8 +987,12 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
             const double pageWidth = pageLayoutRect.width() / qMax(0.01, layout_.zoom());
             const double pageHeight = pageLayoutRect.height() / qMax(0.01, layout_.zoom());
             const double tolerance = 6.0 / qMax(0.01, layout_.zoom());
-            const double targetsX[] = {0.0, pageWidth / 2.0, pageWidth};
-            const double targetsY[] = {0.0, pageHeight / 2.0, pageHeight};
+            QVector<double> targetsX{0.0, pageWidth / 2.0, pageWidth};
+            QVector<double> targetsY{0.0, pageHeight / 2.0, pageHeight};
+            for (const QRectF& rect : objectSnapRects_) {
+                targetsX.append({rect.left(), rect.center().x(), rect.right()});
+                targetsY.append({rect.top(), rect.center().y(), rect.bottom()});
+            }
             const double pointsX[] = {next.left(), next.center().x(), next.right()};
             const double pointsY[] = {next.top(), next.center().y(), next.bottom()};
             double bestX = tolerance;
@@ -1231,9 +1235,14 @@ void PageCanvas::setObjectSelection(int pageIndex, const QRectF& userSpaceRect) 
     viewport()->update();
 }
 
+void PageCanvas::setObjectSnapGuides(const QVector<QRectF>& displayRects) {
+    objectSnapRects_ = displayRects;
+}
+
 void PageCanvas::clearObjectSelection() {
     objectSelectionPage_ = -1;
     objectSelectionRect_ = {};
+    objectSnapRects_.clear();
     draggingObjectSelection_ = false;
     if (inlineEditor_) {
         inlineEditor_->blockSignals(true);

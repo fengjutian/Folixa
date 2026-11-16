@@ -73,6 +73,7 @@ public slots:
     void setFormFieldPlacementKind(const QString& kind);
     void beginObjectSelection();
     void setObjectSelection(int pageIndex, const QRectF& userSpaceRect);
+    void setObjectSnapGuides(const QVector<QRectF>& displayRects);
     void clearObjectSelection();
     void beginInlineTextEdit(int pageIndex, int objectIndex, const QRectF& displayRect,
                              const QString& text, double fontSize);
@@ -170,6 +171,7 @@ private:
     int inlineEditPage_ = -1;
     int inlineEditObject_ = -1;
     QRectF inlineEditDisplayRect_;
+    QVector<QRectF> objectSnapRects_;
     QString formFieldKind_;
     bool drawingLine_ = false;
     pdf::AnnotationType lineType_ = pdf::AnnotationType::Line;

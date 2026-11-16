@@ -2886,6 +2886,15 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useC
     selectedObjectPage_ = pageIndex;
     selectedObjectIndexes_ = indexes;
     canvas_->setObjectSelection(pageIndex, userRect);
+    PageTransform selectionTransform;
+    if (transformForIndexPage(pageIndex, &selectionTransform)) {
+        QVector<QRectF> guides;
+        const auto allObjects = page->objectsInRect(
+            QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+        for (const auto& object : allObjects)
+            if (!indexes.contains(object.index)) guides.append(selectionTransform.toDisplay(object.bounds));
+        canvas_->setObjectSnapGuides(guides);
+    }
     QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性"),
                         tr("精确几何"), tr("旋转"), tr("透明度")};
     const int imageCount = std::count_if(objects.cbegin(), objects.cend(), [](const auto& object) {
@@ -3114,8 +3123,13 @@ void PdfView::selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool 
         return;
     }
     QRectF bounds;
+    QVector<QRectF> snapRects;
+    PageTransform transform;
+    transformForIndexPage(pageIndex, &transform);
     for (const auto& object : all)
         if (selectedObjectIndexes_.contains(object.index)) bounds = bounds.united(object.bounds);
+        else snapRects.append(transform.toDisplay(object.bounds));
+    canvas_->setObjectSnapGuides(snapRects);
     canvas_->setObjectSelection(pageIndex, bounds);
     emit statusMessage(hits.size() > 1
         ? tr("已选择 %1 个对象；再次单击可切换下层对象").arg(selectedObjectIndexes_.size())

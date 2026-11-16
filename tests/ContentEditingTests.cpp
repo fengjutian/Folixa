@@ -17,6 +17,7 @@ private slots:
     void wrapsLinesAndReportsOverflow();
     void alignsReflowedText();
     void flowsAcrossLinkedFrames();
+    void laysOutVerticalText();
 #ifdef AIPDF_WITH_QPDF
     void safelyRewritesRealPdfContent();
 #endif
@@ -89,6 +90,19 @@ void ContentEditingTests::flowsAcrossLinkedFrames() {
     QVERIFY(std::any_of(result.lines.begin(), result.lines.end(), [](const ReflowLine& line) {
         return line.baseline.x() >= 100;
     }));
+}
+
+void ContentEditingTests::laysOutVerticalText() {
+    TextStyle style;
+    style.fontSize = 12;
+    style.vertical = true;
+    const auto result = TextReflow::layoutParagraph(
+        QStringLiteral("纵向文字布局测试"), QRectF(0, 0, 50, 55), style);
+    QVERIFY(result.lines.size() >= 4);
+    QVERIFY(std::any_of(result.lines.cbegin(), result.lines.cend(),
+                        [firstX = result.lines.constFirst().baseline.x()](const ReflowLine& line) {
+                            return line.baseline.x() < firstX;
+                        }));
 }
 
 #ifdef AIPDF_WITH_QPDF

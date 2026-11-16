@@ -145,6 +145,17 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     QCOMPARE(std::count_if(objects.cbegin(), objects.cend(), [](const PageObjectInfo& info) {
         return info.groupId == 42 && info.locked;
     }), 2);
+    const QByteArray markedBytes = opened.document.serialize();
+    auto markedDocument = openDocumentFromBytes(markedBytes);
+    QVERIFY(markedDocument.document.isValid());
+    auto markedPage = markedDocument.document.page(0);
+    QVERIFY(markedPage.has_value());
+    const auto persistedObjects = markedPage->objectsInRect(
+        QRectF(0, 0, markedPage->widthPoints(), markedPage->heightPoints()), 0.0);
+    QCOMPARE(std::count_if(persistedObjects.cbegin(), persistedObjects.cend(),
+                           [](const PageObjectInfo& info) {
+                               return info.groupId == 42 && info.locked;
+                           }), 2);
     QVERIFY(page->setObjectsLocked({styledIndex, groupedPeer->index}, false));
     QVERIFY(page->clearObjectsGroup({styledIndex, groupedPeer->index}));
     match = std::find_if(objects.begin(), objects.end(), [styledIndex](const PageObjectInfo& info) {
@@ -155,6 +166,11 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     const QByteArray bytes = opened.document.serialize();
     QVERIFY(!bytes.isEmpty());
     QVERIFY(openDocumentFromBytes(bytes).document.isValid());
+    PdfDocument sharedView = opened.document;
+    QString reloadError;
+    QVERIFY2(opened.document.reloadFromBytes(bytes, &reloadError), qPrintable(reloadError));
+    QVERIFY(sharedView.isValid());
+    QVERIFY(sharedView.page(0).has_value());
 }
 
 void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {
