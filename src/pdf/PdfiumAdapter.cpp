@@ -1200,6 +1200,25 @@ QString PdfDocument::filePath() const {
     return impl_ ? impl_->path : QString();
 }
 
+DocumentPermissions PdfDocument::permissions() const {
+    DocumentPermissions result;
+    if (!impl_ || impl_->handle == nullptr) return result;
+    const detail::PdfiumGuard guard;
+    result.securityRevision = FPDF_GetSecurityHandlerRevision(impl_->handle);
+    result.encrypted = result.securityRevision >= 0;
+    if (!result.encrypted) return result;
+    const unsigned long bits = FPDF_GetDocPermissions(impl_->handle);
+    result.allowPrinting = (bits & (1UL << 2)) != 0;
+    result.allowModifying = (bits & (1UL << 3)) != 0;
+    result.allowCopying = (bits & (1UL << 4)) != 0;
+    result.allowAnnotations = (bits & (1UL << 5)) != 0;
+    result.allowFormFilling = (bits & (1UL << 8)) != 0;
+    result.allowAccessibility = (bits & (1UL << 9)) != 0;
+    result.allowAssembly = (bits & (1UL << 10)) != 0;
+    result.allowHighQualityPrinting = (bits & (1UL << 11)) != 0;
+    return result;
+}
+
 std::optional<PdfPage> PdfDocument::page(int index) const {
     if (!isValid() || index < 0 || index >= pageCount()) {
         return std::nullopt;

@@ -166,6 +166,19 @@ struct FormField {
     QVector<QString> options;
 };
 
+struct DocumentPermissions {
+    bool encrypted = false;
+    int securityRevision = -1;
+    bool allowPrinting = true;
+    bool allowHighQualityPrinting = true;
+    bool allowCopying = true;
+    bool allowAccessibility = true;
+    bool allowAnnotations = true;
+    bool allowFormFilling = true;
+    bool allowAssembly = true;
+    bool allowModifying = true;
+};
+
 class PdfDocument {
 public:
     PdfDocument() = default;
@@ -178,6 +191,8 @@ public:
     bool isValid() const;
     int pageCount() const;
     QString filePath() const;
+    // 读取 PDF 标准安全处理器权限位；未加密文档全部允许。
+    DocumentPermissions permissions() const;
 
     std::optional<PdfPage> page(int index) const;
 

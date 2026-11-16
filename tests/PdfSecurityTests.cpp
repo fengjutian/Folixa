@@ -52,6 +52,7 @@ private slots:
     void permissionFlagsFollowOptions();
     void emptyInputIsRejected();
     void sanitizesAndKeepsDocumentReadable();
+    void pdfiumReportsRestrictedPermissions();
 
 private:
     bool hasFixture_ = false;
@@ -196,6 +197,31 @@ void PdfSecurityTests::sanitizesAndKeepsDocumentReadable() {
     const auto opened = openDocumentFromBytes(sanitized, QStringLiteral("sanitized.pdf"));
     QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
     QCOMPARE(opened.document.pageCount(), 1);
+}
+
+void PdfSecurityTests::pdfiumReportsRestrictedPermissions() {
+    PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("reader");
+    options.ownerPassword = QStringLiteral("owner");
+    options.permissions.allowPrinting = false;
+    options.permissions.allowCopying = false;
+    options.permissions.allowAnnotations = false;
+    options.permissions.allowFormFilling = false;
+    options.permissions.allowAssembly = false;
+    options.permissions.allowModifying = false;
+    const QByteArray encrypted = encryptPdf(readFixture(QStringLiteral("normal.pdf")), options);
+    QVERIFY(!encrypted.isEmpty());
+    const auto opened = openDocumentFromBytes(encrypted, QStringLiteral("restricted.pdf"),
+                                              QStringLiteral("reader"));
+    QVERIFY(opened.document.isValid());
+    const auto permissions = opened.document.permissions();
+    QVERIFY(permissions.encrypted);
+    QVERIFY(!permissions.allowPrinting);
+    QVERIFY(!permissions.allowCopying);
+    QVERIFY(!permissions.allowAnnotations);
+    QVERIFY(!permissions.allowFormFilling);
+    QVERIFY(!permissions.allowAssembly);
+    QVERIFY(!permissions.allowModifying);
 }
 
 QTEST_GUILESS_MAIN(PdfSecurityTests)

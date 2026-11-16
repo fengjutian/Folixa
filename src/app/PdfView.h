@@ -170,6 +170,7 @@ public slots:
     void exportFormFdfDialog();
 
 private:
+    bool requirePermission(bool allowed, const QString& action);
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
     void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);

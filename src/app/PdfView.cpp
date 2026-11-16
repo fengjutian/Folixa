@@ -1470,7 +1470,18 @@ void PdfView::rotateLeft() {
     requestVisiblePages();
 }
 
+bool PdfView::requirePermission(bool allowed, const QString& action) {
+    if (allowed) return true;
+    QMessageBox::warning(this, tr("文档权限限制"),
+                         tr("文档所有者已禁止“%1”。请输入所有者密码解除限制，或联系文档所有者。")
+                             .arg(action));
+    emit statusMessage(tr("操作被文档权限阻止：%1").arg(action));
+    trace(QStringLiteral("permission denied action=%1").arg(action));
+    return false;
+}
+
 void PdfView::copySelection() {
+    if (!requirePermission(document_.permissions().allowCopying, tr("复制内容"))) return;
     if (!textController_) {
         return;
     }
@@ -2305,6 +2316,7 @@ QVector<pdf::FormField> PdfView::formFields() const {
 }
 
 bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QString& value) {
+    if (!requirePermission(document_.permissions().allowFormFilling, tr("填写表单"))) return false;
     if (!document_.setFormFieldValue(pageIndex, name, value)) {
         return false;
     }
@@ -2324,6 +2336,7 @@ bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QStrin
 }
 
 bool PdfView::flattenFormsOnPage(int pageIndex) {
+    if (!requirePermission(document_.permissions().allowModifying, tr("扁平化表单"))) return false;
     if (!document_.flattenPage(pageIndex)) {
         return false;
     }
@@ -2342,6 +2355,7 @@ bool PdfView::flattenFormsOnPage(int pageIndex) {
 }
 
 void PdfView::createFormFieldDialog(const QString& kind) {
+    if (!requirePermission(document_.permissions().allowModifying, tr("创建表单域"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("创建表单域"), tr("请先打开一份 PDF。"));
         return;
@@ -2517,6 +2531,7 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
 }
 
 void PdfView::mergeDocumentDialog() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("合并页面"))) return;
     trace(QStringLiteral("document merge dialog"));
     if (!document_.isValid()) {
         return;
@@ -2543,6 +2558,7 @@ void PdfView::mergeDocumentDialog() {
 }
 
 void PdfView::extractCurrentPageDialog() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("抽取页面"))) return;
     trace(QStringLiteral("page extract dialog"));
     if (!document_.isValid()) {
         return;
@@ -3067,6 +3083,7 @@ void PdfView::setToolBarsVisible(bool visible) {
 }
 
 void PdfView::activateAnnotationTool(const QString& id) {
+    if (!requirePermission(document_.permissions().allowAnnotations, tr("添加批注"))) return;
     if (canvas_ != nullptr) canvas_->setFormFieldPlacementKind(QString());
     if (id != QStringLiteral("imagestamp")) {
         pendingSignatureImage_.clear();
@@ -3325,6 +3342,7 @@ double PdfView::fitZoomForPage() const {
 // --------------------------------------------------- 页面管理（v0.8.0）----
 
 void PdfView::insertBlankPageAfterCurrent() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("插入页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3347,6 +3365,7 @@ void PdfView::insertBlankPageAfterCurrent() {
 }
 
 void PdfView::deleteCurrentPage() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("删除页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3367,6 +3386,7 @@ void PdfView::deleteCurrentPage() {
 }
 
 void PdfView::rotateCurrentPageRight() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("旋转页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3383,6 +3403,7 @@ void PdfView::rotateCurrentPageRight() {
 }
 
 void PdfView::rotateCurrentPageLeft() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("旋转页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3399,6 +3420,7 @@ void PdfView::rotateCurrentPageLeft() {
 }
 
 void PdfView::moveCurrentPageUp() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("移动页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3415,6 +3437,7 @@ void PdfView::moveCurrentPageUp() {
 }
 
 void PdfView::moveCurrentPageDown() {
+    if (!requirePermission(document_.permissions().allowAssembly, tr("移动页面"))) return;
     if (!annotationController_) {
         return;
     }
@@ -3504,6 +3527,7 @@ bool PdfView::isModified() const {
 // ------------------------------------------------------------ 打印与导出 ----
 
 void PdfView::printDocument() {
+    if (!requirePermission(document_.permissions().allowPrinting, tr("打印"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("打印"), tr("先打开一份 PDF。"));
         return;
@@ -3539,6 +3563,7 @@ void PdfView::printDocument() {
 }
 
 void PdfView::exportPageImages() {
+    if (!requirePermission(document_.permissions().allowCopying, tr("导出页面图片"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("导出图片"), tr("先打开一份 PDF。"));
         return;
@@ -3563,6 +3588,7 @@ void PdfView::exportPageImages() {
 }
 
 void PdfView::exportPlainText() {
+    if (!requirePermission(document_.permissions().allowCopying, tr("导出文本"))) return;
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("导出文本"), tr("先打开一份 PDF。"));
         return;
