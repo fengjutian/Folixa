@@ -52,6 +52,7 @@ private slots:
     void overlappingLinksFollowZOrder();
     void documentWithoutOutlineIsEmpty();
     void invalidDocumentHasNoLinks();
+    void uriLinkCanBeCreatedAndSaved();
 };
 
 // ------------------------------------------------------------------ 大纲 ----
@@ -173,6 +174,28 @@ void PdfNavigationTests::invalidDocumentHasNoLinks() {
     QVERIFY(!result.document.isValid());
     QVERIFY(result.document.outline().empty());
     QVERIFY(!result.document.page(0).has_value());
+}
+
+void PdfNavigationTests::uriLinkCanBeCreatedAndSaved() {
+    PdfDocument document = openFixture("normal.pdf");
+    QVERIFY(document.isValid());
+    auto page = document.page(0);
+    QVERIFY(page.has_value());
+    const QRectF rect(QPointF(40.0, 50.0), QPointF(180.0, 75.0));
+    QVERIFY(page->addUriLink(rect, QByteArrayLiteral("https://example.com/new-link")));
+
+    const QVector<PageLink> links = page->links();
+    QVERIFY(!links.isEmpty());
+    QCOMPARE(links.constLast().uri, QStringLiteral("https://example.com/new-link"));
+    QCOMPARE(links.constLast().rect, rect.normalized());
+
+    const PdfOpenResult reopened = aipdf::pdf::openDocumentFromBytes(document.serialize());
+    QVERIFY(reopened.document.isValid());
+    const auto reopenedPage = reopened.document.page(0);
+    QVERIFY(reopenedPage.has_value());
+    QVERIFY(!reopenedPage->links().isEmpty());
+    QCOMPARE(reopenedPage->links().constLast().uri,
+             QStringLiteral("https://example.com/new-link"));
 }
 
 QTEST_MAIN(PdfNavigationTests)

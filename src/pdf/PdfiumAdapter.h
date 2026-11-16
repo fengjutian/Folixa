@@ -108,6 +108,10 @@ public:
     // 页面没有链接时返回空列表。
     QVector<PageLink> links() const;
 
+    // 在指定区域创建一个外部 URI 链接注释。URI 会以 PDFium 要求的
+    // 7-bit ASCII 形式写入（调用方应传入 QUrl::toEncoded() 的结果）。
+    bool addUriLink(const QRectF& rectPoints, const QByteArray& encodedUri);
+
     // 本页的批注（不含链接注释）。
     //
     // 矩形是 **PDF user space**（左下原点），与字符框同一坐标系。

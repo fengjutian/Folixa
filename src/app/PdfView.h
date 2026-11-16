@@ -147,6 +147,7 @@ public slots:
     void replaceSelectionWithImageDialog();
     void deleteSelectionImagesDialog();
     void replaceSelectionTextDialog();
+    void addLinkToSelectionDialog();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();
     // 表单数据：FDF 导入导出（CSV 在面板里）。

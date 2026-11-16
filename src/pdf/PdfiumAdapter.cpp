@@ -695,6 +695,36 @@ QVector<PageLink> PdfPage::links() const {
     return result;
 }
 
+bool PdfPage::addUriLink(const QRectF& rectPoints, const QByteArray& encodedUri) {
+    if (!isValid() || rectPoints.isEmpty() || encodedUri.isEmpty()) {
+        return false;
+    }
+    for (const char value : encodedUri) {
+        if (static_cast<unsigned char>(value) > 0x7f) {
+            return false;
+        }
+    }
+
+    const detail::PdfiumGuard guard;
+    const int annotationIndex = FPDFPage_GetAnnotCount(impl_->page);
+    FPDF_ANNOTATION annotation = FPDFPage_CreateAnnot(impl_->page, FPDF_ANNOT_LINK);
+    if (annotation == nullptr) {
+        return false;
+    }
+    const QRectF normalized = rectPoints.normalized();
+    const FS_RECTF rect{static_cast<float>(normalized.left()),
+                        static_cast<float>(normalized.top()),
+                        static_cast<float>(normalized.right()),
+                        static_cast<float>(normalized.bottom())};
+    const bool success = FPDFAnnot_SetRect(annotation, &rect) &&
+                         FPDFAnnot_SetURI(annotation, encodedUri.constData());
+    FPDFPage_CloseAnnot(annotation);
+    if (!success && annotationIndex >= 0) {
+        FPDFPage_RemoveAnnot(impl_->page, annotationIndex);
+    }
+    return success;
+}
+
 QVector<Annotation> PdfPage::annotations() const {
     if (!isValid()) {
         return {};

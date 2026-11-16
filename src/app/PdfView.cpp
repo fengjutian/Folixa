@@ -2202,6 +2202,47 @@ void PdfView::replaceSelectionTextDialog() {
     emit statusMessage(tr("已替换选中文字（行级）"));
 }
 
+void PdfView::addLinkToSelectionDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("添加链接"), tr("先选中要添加链接的文字或区域。"));
+        return;
+    }
+    bool accepted = false;
+    const QString input = QInputDialog::getText(
+        this, tr("添加链接"), tr("网址:"), QLineEdit::Normal, QStringLiteral("https://"),
+        &accepted).trimmed();
+    if (!accepted || input.isEmpty()) {
+        return;
+    }
+    QUrl url = QUrl::fromUserInput(input);
+    if (!url.isValid() || url.scheme().isEmpty()) {
+        QMessageBox::warning(this, tr("添加链接"), tr("请输入有效的网址。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(
+            QRectF(displayToUser(pageIndex, rect.topLeft()),
+                   displayToUser(pageIndex, rect.bottomRight())).normalized());
+    }
+    if (!page->addUriLink(userRect, url.toEncoded())) {
+        QMessageBox::warning(this, tr("添加链接"), tr("链接没有写入页面。"));
+        return;
+    }
+    refreshAfterDecoration();
+    modified_ = true;
+    emit statusMessage(tr("已添加链接"));
+}
+
 // 显示空间（页面左上原点、y 向下）→ PDF 用户空间（左下原点、y 向上）。
 QPointF PdfView::displayToUser(int pageIndex, const QPointF& displayPoint) const {
     auto page = document_.page(pageIndex);

@@ -1147,10 +1147,24 @@ void MainWindow::buildUi() {
                      [this] {
         if (auto* view = currentView()) { view->replaceSelectionTextDialog(); }
     }, true, "edit.replaceText");
-    addRibbonCommand(contentEditGroup, "编辑对象", "用图片替换当前选区", ":/icons/edit.svg",
-                     [this] {
+    QToolButton* editObjectButton = addRibbonCommand(
+        contentEditGroup, "编辑对象", "替换或删除当前选区内的图片", ":/icons/edit.svg",
+        [this] {
+            if (auto* view = currentView()) { view->replaceSelectionWithImageDialog(); }
+        }, true, "edit.replaceObject");
+    auto* editObjectMenu = new QMenu(editObjectButton);
+    QAction* replaceImageAction = editObjectMenu->addAction(tr("替换图片"));
+    replaceImageAction->setObjectName(QStringLiteral("edit.replaceImage"));
+    connect(replaceImageAction, &QAction::triggered, this, [this] {
         if (auto* view = currentView()) { view->replaceSelectionWithImageDialog(); }
-    }, true, "edit.replaceObject");
+    });
+    QAction* deleteImageAction = editObjectMenu->addAction(tr("删除图片"));
+    deleteImageAction->setObjectName(QStringLiteral("edit.deleteImage"));
+    connect(deleteImageAction, &QAction::triggered, this, [this] {
+        if (auto* view = currentView()) { view->deleteSelectionImagesDialog(); }
+    });
+    editObjectButton->setMenu(editObjectMenu);
+    editObjectButton->setPopupMode(QToolButton::MenuButtonPopup);
     addUnavailableEditCommand(contentEditGroup, "链接并合并文本");
     addUnavailableEditCommand(contentEditGroup, "流式编辑");
 
@@ -1168,12 +1182,37 @@ void MainWindow::buildUi() {
                 "freetext", "edit.addText");
     addEditTool(insertEditGroup, "添加图像", "在页面上添加图片", ":/icons/annotation.svg",
                 "imagestamp", "edit.addImage");
-    addEditTool(insertEditGroup, "添加形状", "在页面上拖出矩形", ":/icons/square.svg",
-                "square", "edit.addShape");
+    QToolButton* addShapeButton = addRibbonCommand(
+        insertEditGroup, "添加形状", "选择形状后在页面上绘制", ":/icons/square.svg",
+        [this] {
+            if (auto* view = currentView()) { view->activateAnnotationTool(QStringLiteral("square")); }
+        }, true, "edit.addShape");
+    auto* shapeMenu = new QMenu(addShapeButton);
+    const struct {
+        const char* label;
+        const char* id;
+    } shapeCommands[] = {
+        {"矩形", "square"}, {"椭圆", "ellipse"}, {"直线", "line"},
+        {"箭头", "arrow"}, {"多边形", "polygon"}, {"云线", "cloud"},
+    };
+    for (const auto& shape : shapeCommands) {
+        QAction* action = shapeMenu->addAction(tr(shape.label));
+        action->setObjectName(QStringLiteral("edit.shape.") + QString::fromLatin1(shape.id));
+        connect(action, &QAction::triggered, this, [this, id = shape.id] {
+            if (auto* view = currentView()) {
+                view->activateAnnotationTool(QString::fromLatin1(id));
+            }
+        });
+    }
+    addShapeButton->setMenu(shapeMenu);
+    addShapeButton->setPopupMode(QToolButton::MenuButtonPopup);
     addUnavailableEditCommand(insertEditGroup, "添加文章框");
 
     auto* linkEditGroup = ribbonBar_->addGroup(contentEditTab, tr("链接"));
-    addUnavailableEditCommand(linkEditGroup, "添加链接");
+    addRibbonCommand(linkEditGroup, "添加链接", "给当前选区添加网址链接",
+                     ":/icons/bookmark.svg", [this] {
+        if (auto* view = currentView()) { view->addLinkToSelectionDialog(); }
+    }, true, "edit.addLink");
     addUnavailableEditCommand(linkEditGroup, "网络链接");
 
     auto* navigationEditGroup = ribbonBar_->addGroup(contentEditTab, tr("导航"));
