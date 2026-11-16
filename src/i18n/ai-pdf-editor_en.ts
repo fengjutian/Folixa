@@ -1804,6 +1804,26 @@
             <translation>Document Management</translation>
         </message>
         <message>
+            <source>组织</source>
+            <translation>Organize</translation>
+        </message>
+        <message>
+            <source>检索</source>
+            <translation>Search</translation>
+        </message>
+        <message>
+            <source>发票</source>
+            <translation>Invoices</translation>
+        </message>
+        <message>
+            <source>批量</source>
+            <translation>Batch</translation>
+        </message>
+        <message>
+            <source>打开本地全文索引与检索</source>
+            <translation>Open local full-text indexing and search</translation>
+        </message>
+        <message>
             <source>录制</source>
             <translation>Record</translation>
         </message>

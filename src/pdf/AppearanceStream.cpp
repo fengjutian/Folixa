@@ -3,10 +3,35 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace aipdf::pdf {
 
 namespace {
+
+QByteArray tightlyPackedPixels(const QImage& image, int bytesPerPixel) {
+    const qsizetype rowBytes = static_cast<qsizetype>(image.width()) * bytesPerPixel;
+    QByteArray packed;
+    packed.resize(rowBytes * image.height());
+    for (int y = 0; y < image.height(); ++y) {
+        std::memcpy(packed.data() + y * rowBytes, image.constScanLine(y), rowBytes);
+    }
+    return packed;
+}
+
+// qCompress 的结果是「4 字节未压缩长度 + zlib 数据」，而 PDF /FlateDecode
+// 只接受后半段的 zlib 数据。把 Qt 私有长度头带进 PDF 会让严格阅读器拒绝图章。
+QByteArray pdfFlate(const QByteArray& raw) {
+    QByteArray compressed = qCompress(raw, 6);
+    if (compressed.size() >= 4) compressed.remove(0, 4);
+    return compressed;
+}
+
+void appendResource(QByteArray& resources, const QByteArray& resource) {
+    if (resource.isEmpty()) return;
+    if (!resources.isEmpty()) resources += ' ';
+    resources += resource;
+}
 
 QByteArray num(double value) {
     if (std::abs(value) < 0.0005) {
@@ -165,14 +190,14 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
 
     appearance.bbox = bounds;
     if (annotation.type == AnnotationType::Stamp) {
-        appearance.resources =
+        appendResource(appearance.resources,
             "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold "
-            "/Encoding /WinAnsiEncoding >> >>";
+            "/Encoding /WinAnsiEncoding >> >>");
     }
     if (annotation.type == AnnotationType::FreeText) {
-        appearance.resources =
+        appendResource(appearance.resources,
             "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
-            "/Encoding /WinAnsiEncoding >> >>";
+            "/Encoding /WinAnsiEncoding >> >>");
     }
     const Local local{ bounds.width(), bounds.height(), bounds };
 
@@ -190,9 +215,9 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
 
     appearance.usesTransparency = opacity < 1.0;
     if (appearance.usesTransparency) {
-        appearance.resources = "/ExtGState << /GS0 << /Type /ExtGState /ca ";
-        appearance.resources += num(opacity);
-        appearance.resources += " >> >>";
+        appendResource(appearance.resources,
+                       "/ExtGState << /GS0 << /Type /ExtGState /ca " + num(opacity) +
+                           " >> >>");
     }
 
     // 线宽同样以批注自带值为准（0 表示用类型默认）。
@@ -336,19 +361,16 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
                 if (image.loadFromData(annotation.imageData)) {
                     const QImage rgb = image.convertToFormat(QImage::Format_RGB888);
                     const QRectF mapped = local.map(bounds);
-                    const QByteArray raw(reinterpret_cast<const char*>(rgb.constBits()),
-                                         static_cast<qsizetype>(rgb.sizeInBytes()));
-                    const QByteArray compressed = qCompress(raw, 6);
+                    const QByteArray raw = tightlyPackedPixels(rgb, 3);
+                    const QByteArray compressed = pdfFlate(raw);
 
                     // 有透明像素就再写一张灰度蒙版（/SMask），否则透明区域会渲染成黑色。
                     QByteArray mask;
                     const bool hasAlpha = image.hasAlphaChannel();
                     if (hasAlpha) {
                         const QImage alpha = image.convertToFormat(QImage::Format_Alpha8);
-                        const QByteArray maskRaw(
-                            reinterpret_cast<const char*>(alpha.constBits()),
-                            static_cast<qsizetype>(alpha.sizeInBytes()));
-                        mask = qCompress(maskRaw, 6);
+                        const QByteArray maskRaw = tightlyPackedPixels(alpha, 1);
+                        mask = pdfFlate(maskRaw);
                     }
 
                     QByteArray body = "<< /Type /XObject /Subtype /Image /Width ";
@@ -381,7 +403,7 @@ Appearance buildAnnotationAppearance(const Annotation& annotation) {
                     out += "q\n";
                     out += num(mapped.width()) + " 0 0 " + num(mapped.height()) + ' ' +
                            num(mapped.left()) + ' ' + num(mapped.bottom()) + " cm\n/Im0 Do\nQ\n";
-                    appearance.resources = "/XObject << /Im0 @EXTRA0 0 R >>";
+                    appendResource(appearance.resources, "/XObject << /Im0 @EXTRA0 0 R >>");
                     break;
                 }
                 // 图片解不开就退回文字图章，不要让用户看到一个空白框。

@@ -209,6 +209,12 @@ public:
     void exportPageImages();
     void exportPlainText();
 
+    // 无障碍工具：检查文本层、Unicode 映射和表单说明，并生成可保存的报告。
+    void showAccessibilityCheck();
+    void exportAccessibilityReport();
+    // 显示 PDF 当前可提取的逻辑文字顺序，便于人工核对阅读顺序。
+    void showReadingOrder();
+
     // -------------------------------------------------------- 索引定位 ----
     //
     // 跳到某页的某个块，并把那块在页面上高亮出来。

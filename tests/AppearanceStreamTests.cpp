@@ -54,6 +54,19 @@ bool insideBbox(const QRectF& rect, const QRectF& bbox, double tolerance = 0.01)
            rect.right() <= bbox.right() + tolerance && rect.bottom() <= bbox.bottom() + tolerance;
 }
 
+QByteArray inflatePdfImage(const QByteArray& objectBody, quint32 expectedSize) {
+    const qsizetype start = objectBody.indexOf("stream\n");
+    const qsizetype end = objectBody.lastIndexOf("\nendstream");
+    if (start < 0 || end <= start) return {};
+    QByteArray qtPayload(4, '\0');
+    qtPayload[0] = static_cast<char>((expectedSize >> 24) & 0xff);
+    qtPayload[1] = static_cast<char>((expectedSize >> 16) & 0xff);
+    qtPayload[2] = static_cast<char>((expectedSize >> 8) & 0xff);
+    qtPayload[3] = static_cast<char>(expectedSize & 0xff);
+    qtPayload += objectBody.mid(start + 7, end - start - 7);
+    return qUncompress(qtPayload);
+}
+
 }  // namespace
 
 class AppearanceStreamTests : public QObject {
@@ -74,6 +87,7 @@ private slots:
     void customLineWidthAndOpacityWin();
     void imageStampProducesImageObject();
     void transparentImageGetsSoftMask();
+    void transparentImageKeepsBothResources();
     void stampDrawsBorderAndLabel();
     void freeTextDrawsLatinText();
     void freeTextSkipsUnencodableScript();
@@ -363,7 +377,8 @@ void AppearanceStreamTests::customLineWidthAndOpacityWin() {
 }
 
 void AppearanceStreamTests::imageStampProducesImageObject() {
-    QImage image(8, 8, QImage::Format_RGB888);
+    // 7 像素宽会触发 QImage 的 scanline padding；PDF 图像数据不能带 padding。
+    QImage image(7, 3, QImage::Format_RGB888);
     image.fill(QColor(10, 200, 30));
     QByteArray png;
     {
@@ -385,10 +400,17 @@ void AppearanceStreamTests::imageStampProducesImageObject() {
     QVERIFY(appearance.resources.contains("@EXTRA0"));
     // 这张图是不透明的 RGB：不该生成蒙版对象。
     QCOMPARE(appearance.extraObjectBodies.size(), 1);
+    const QByteArray pixels = inflatePdfImage(appearance.extraObjectBodies.first(), 7 * 3 * 3);
+    QCOMPARE(pixels.size(), 7 * 3 * 3);
+    for (qsizetype i = 0; i < pixels.size(); i += 3) {
+        QCOMPARE(static_cast<uchar>(pixels.at(i)), static_cast<uchar>(10));
+        QCOMPARE(static_cast<uchar>(pixels.at(i + 1)), static_cast<uchar>(200));
+        QCOMPARE(static_cast<uchar>(pixels.at(i + 2)), static_cast<uchar>(30));
+    }
 }
 
 void AppearanceStreamTests::transparentImageGetsSoftMask() {
-    QImage image(8, 8, QImage::Format_ARGB32);
+    QImage image(7, 3, QImage::Format_ARGB32);
     image.fill(QColor(0, 0, 0, 0));  // 全透明
     QByteArray png;
     {
@@ -408,6 +430,35 @@ void AppearanceStreamTests::transparentImageGetsSoftMask() {
     QCOMPARE(appearance.extraObjectBodies.size(), 2);
     QVERIFY(appearance.extraObjectBodies.at(0).contains("/SMask @EXTRA1 0 R"));
     QVERIFY(appearance.extraObjectBodies.at(1).contains("/ColorSpace /DeviceGray"));
+    const QByteArray alpha = inflatePdfImage(appearance.extraObjectBodies.at(1), 7 * 3);
+    QCOMPARE(alpha, QByteArray(7 * 3, '\0'));
+}
+
+void AppearanceStreamTests::transparentImageKeepsBothResources() {
+    QImage image(2, 2, QImage::Format_RGB888);
+    image.fill(Qt::red);
+    QByteArray png;
+    {
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        QVERIFY(image.save(&buffer, "PNG"));
+    }
+
+    Annotation annotation = makeHighlight();
+    annotation.type = AnnotationType::Stamp;
+    annotation.quads.clear();
+    annotation.rect = QRectF(100.0, 100.0, 80.0, 80.0);
+    annotation.imageData = png;
+    annotation.opacity = 0.5;
+
+    const Appearance appearance = buildAnnotationAppearance(annotation);
+    QVERIFY(appearance.usesTransparency);
+    QVERIFY2(appearance.resources.contains("/ExtGState"),
+             "图片资源覆盖了透明度资源");
+    QVERIFY2(appearance.resources.contains("/XObject"),
+             "透明度资源覆盖了图片资源");
+    QVERIFY(appearance.content.contains("/GS0 gs"));
+    QVERIFY(appearance.content.contains("/Im0 Do"));
 }
 
 QTEST_MAIN(AppearanceStreamTests)

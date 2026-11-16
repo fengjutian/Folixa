@@ -1456,18 +1456,90 @@ void MainWindow::buildUi() {
                          QStringLiteral("share.enterprise.") +
                              QString::fromLatin1(connector).replace(' ', '_'));
     }
-    addPlaceholderTab("辅助工具", {
-        {"标签", {"自动添加文档标签", "自动添加表单域标签"}},
-        {"检查", {"完整检查", "辅助功能报告", "设置助手"}},
-        {"阅读", {"阅读选项", "阅读顺序", "替代文本", "区域阅读顺序", "更改区域顺序"}},
-    });
+    const int accessibilityTab = ribbonBar_->addTab(tr("辅助工具"));
+    auto* accessibilityTagGroup = ribbonBar_->addGroup(accessibilityTab, tr("标签"));
+    addRibbonCommand(accessibilityTagGroup, "自动添加文档标签",
+                     "需要完整的 PDF 标签树写入支持", ":/icons/protect.svg",
+                     [] {}, false, "accessibility.autoTagDocument");
+    addRibbonCommand(accessibilityTagGroup, "自动添加表单域标签",
+                     "需要完整的 PDF 标签树写入支持", ":/icons/form.svg",
+                     [] {}, false, "accessibility.autoTagForms");
+
+    auto* accessibilityCheckGroup = ribbonBar_->addGroup(accessibilityTab, tr("检查"));
+    addRibbonCommand(accessibilityCheckGroup, "完整检查",
+                     "检查文本层、Unicode 映射和表单说明", ":/icons/search.svg", [this] {
+        if (auto* view = currentView()) view->showAccessibilityCheck();
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "accessibility.fullCheck");
+    addRibbonCommand(accessibilityCheckGroup, "辅助功能报告",
+                     "把辅助功能检查结果保存为 HTML", ":/icons/annotation.svg", [this] {
+        if (auto* view = currentView()) view->exportAccessibilityReport();
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    }, true, "accessibility.report");
+    addRibbonCommand(accessibilityCheckGroup, "设置助手",
+                     "打开显示、字体和语言设置", ":/icons/tools.svg", [this] {
+        if (statusSettingsButton_ != nullptr) statusSettingsButton_->click();
+    }, true, "accessibility.settingsAssistant");
+
+    auto* accessibilityReadingGroup = ribbonBar_->addGroup(accessibilityTab, tr("阅读"));
+    auto showReadingOrder = [this] {
+        if (auto* view = currentView()) view->showReadingOrder();
+        else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+    };
+    addRibbonCommand(accessibilityReadingGroup, "阅读选项",
+                     "预览当前页的逻辑阅读顺序", ":/icons/book.svg",
+                     showReadingOrder, true, "accessibility.readingOptions");
+    addRibbonCommand(accessibilityReadingGroup, "阅读顺序",
+                     "核对当前页文字的逻辑顺序", ":/icons/pages.svg",
+                     showReadingOrder, true, "accessibility.readingOrder");
+    addRibbonCommand(accessibilityReadingGroup, "替代文本",
+                     "需要 PDF 标签树写入支持", ":/icons/edit.svg",
+                     [] {}, false, "accessibility.alternativeText");
+    addRibbonCommand(accessibilityReadingGroup, "区域阅读顺序",
+                     "需要 PDF 标签树写入支持", ":/icons/pages.svg",
+                     [] {}, false, "accessibility.regionReadingOrder");
+    addRibbonCommand(accessibilityReadingGroup, "更改区域顺序",
+                     "需要 PDF 标签树写入支持", ":/icons/move-down.svg",
+                     [] {}, false, "accessibility.changeRegionOrder");
+    addRibbonCommand(accessibilityReadingGroup, "应用区域顺序",
+                     "需要 PDF 标签树写入支持", ":/icons/save.svg",
+                     [] {}, false, "accessibility.applyRegionOrder");
     addPlaceholderTab("论文工具", {{"查重", {"论文查重", "查重历史"}}});
-    addPlaceholderTab("文档管理", {
-        {"组织", {"文档雷达", "标签", "分类", "星标", "文件柜"}},
-        {"检索", {"自动导入", "全文检索"}},
-        {"发票", {"发票归档", "发票管理", "生成报销单", "票据打印", "发票转图片", "发票合并"}},
-        {"批量", {"批量重命名", "OFD 批量转换"}},
-    });
+    // 文档管理页不能走通用占位页：全文检索已经由本地索引实现，应当提供真实入口。
+    // 其余入口仍明确禁用，既完整呈现对标界面，也不把尚未实现的流程伪装成可用功能。
+    const int documentManagementTab = ribbonBar_->addTab(tr("文档管理"));
+    auto addDocumentManagementCommand =
+        [this, &addRibbonCommand, &placeholderIcon](QHBoxLayout* group, const char* label,
+                                                    const char* objectName) {
+            addRibbonCommand(group, label, "将在后续版本中提供", placeholderIcon(tr(label)),
+                             [] {}, false, QString::fromLatin1(objectName));
+        };
+
+    auto* documentOrganizeGroup =
+        ribbonBar_->addGroup(documentManagementTab, tr("组织"));
+    addDocumentManagementCommand(documentOrganizeGroup, "文档雷达", "documentManagement.radar");
+    addDocumentManagementCommand(documentOrganizeGroup, "标签", "documentManagement.tags");
+    addDocumentManagementCommand(documentOrganizeGroup, "分类", "documentManagement.categories");
+    addDocumentManagementCommand(documentOrganizeGroup, "星标", "documentManagement.starred");
+    addDocumentManagementCommand(documentOrganizeGroup, "文件柜", "documentManagement.cabinet");
+
+    auto* documentSearchGroup = ribbonBar_->addGroup(documentManagementTab, tr("检索"));
+    addDocumentManagementCommand(documentSearchGroup, "自动导入", "documentManagement.autoImport");
+    addRibbonCommand(documentSearchGroup, "全文检索", "打开本地全文索引与检索",
+                     ":/icons/search.svg", [this] { showNavigationPage(6); }, true,
+                     "documentManagement.fullTextSearch");
+
+    auto* invoiceGroup = ribbonBar_->addGroup(documentManagementTab, tr("发票"));
+    addDocumentManagementCommand(invoiceGroup, "发票归档", "documentManagement.invoiceArchive");
+    addDocumentManagementCommand(invoiceGroup, "发票管理", "documentManagement.invoiceManager");
+    addDocumentManagementCommand(invoiceGroup, "生成报销单", "documentManagement.reimbursement");
+    addDocumentManagementCommand(invoiceGroup, "票据打印", "documentManagement.invoicePrint");
+    addDocumentManagementCommand(invoiceGroup, "发票转图片", "documentManagement.invoiceToImage");
+    addDocumentManagementCommand(invoiceGroup, "发票合并", "documentManagement.invoiceMerge");
+
+    auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
+    addDocumentManagementCommand(documentBatchGroup, "批量重命名", "documentManagement.batchRename");
+    addDocumentManagementCommand(documentBatchGroup, "OFD 批量转换", "documentManagement.ofdConvert");
     addPlaceholderTab("录制", {
         {"录制", {"PDF 录制", "屏幕录制", "声音录制", "截图", "录制列表"}},
     });

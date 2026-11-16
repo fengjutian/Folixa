@@ -358,20 +358,6 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         }
         // 便签这类没有图形外观的批注也要写（/IRT、/T、/State 都在 extraEntries 里），
         // 只是不写 /AP——写一个空 XObject 反而会让阅读器画出一块空白。
-        // 外观流里也可能引用新对象（图片图章的 /Im0）：先替换占位符再写。
-        if (!item.appearance.extraObjectBodies.isEmpty()) {
-            // 外观流里也可能引用新对象（图片图章的 /Im0、/SMask）：先替换占位符再写。
-            Appearance styled = item.appearance;
-            styled.content = substitute(styled.content);
-            styled.resources = substitute(styled.resources);
-            for (int i = 0; i < item.appearance.extraObjectBodies.size(); ++i) {
-                appearanceBodies.append(
-                    { extraNumbers.value(i, appearanceObject),
-                      substitute(item.appearance.extraObjectBodies.at(i)) });
-            }
-            appearanceBodies.append({ appearanceObject, buildAppearanceBody(styled) });
-            continue;
-        }
         QByteArray inserted;
         if (!item.appearance.isEmpty()) {
             inserted = "/AP << /N " + QByteArray::number(appearanceObject) + " 0 R >> ";
@@ -393,7 +379,12 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
         }
         it->second.inserts.append({ target.insertAt, inserted });
         if (!item.appearance.isEmpty()) {
-            appearanceBodies.append({ appearanceObject, buildAppearanceBody(item.appearance) });
+            // 图片图章的 /Im0、/SMask 会引用上面已经分配并写入的额外对象；
+            // 这里只替换外观流中的占位符，不能再次追加同一批对象。
+            Appearance styled = item.appearance;
+            styled.content = substitute(styled.content);
+            styled.resources = substitute(styled.resources);
+            appearanceBodies.append({ appearanceObject, buildAppearanceBody(styled) });
         }
     }
 

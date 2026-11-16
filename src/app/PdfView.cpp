@@ -42,6 +42,7 @@
 #include <QFile>
 #include <QPrinter>
 #include <QPrintDialog>
+#include <QPushButton>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -57,6 +58,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTextEdit>
+#include <QTextBrowser>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -68,6 +70,86 @@ namespace {
 constexpr double kMinZoom = 0.1;
 constexpr double kMaxZoom = 8.0;
 constexpr double kZoomStep = 1.25;
+
+struct AccessibilityAudit {
+    int pages = 0;
+    int emptyTextPages = 0;
+    int unicodeErrorPages = 0;
+    int unnamedFields = 0;
+    int fieldsWithoutDescription = 0;
+    QStringList details;
+
+    int warningCount() const {
+        return emptyTextPages + unicodeErrorPages + unnamedFields + fieldsWithoutDescription;
+    }
+};
+
+AccessibilityAudit auditDocument(const pdf::PdfDocument& document) {
+    AccessibilityAudit audit;
+    audit.pages = document.pageCount();
+    for (int index = 0; index < document.pageCount(); ++index) {
+        const std::optional<pdf::PdfPage> page = document.page(index);
+        const std::optional<pdf::TextPage> text = page ? page->extractText() : std::nullopt;
+        if (!text || text->isEmpty()) {
+            ++audit.emptyTextPages;
+            audit.details.append(QObject::tr("第 %1 页没有可提取文字，可能需要 OCR 或替代文本。")
+                                     .arg(index + 1));
+        } else if (text->unicodeMapError) {
+            ++audit.unicodeErrorPages;
+            audit.details.append(QObject::tr("第 %1 页有字符缺少 Unicode 映射。")
+                                     .arg(index + 1));
+        }
+    }
+    const QVector<pdf::FormField> fields = document.formFields();
+    for (const pdf::FormField& field : fields) {
+        if (field.name.trimmed().isEmpty()) {
+            ++audit.unnamedFields;
+            audit.details.append(QObject::tr("第 %1 页存在未命名的表单域。")
+                                     .arg(field.pageIndex + 1));
+        }
+        if (field.toolTip.trimmed().isEmpty()) {
+            ++audit.fieldsWithoutDescription;
+            audit.details.append(QObject::tr("第 %1 页的表单域“%2”缺少说明。")
+                                     .arg(field.pageIndex + 1)
+                                     .arg(field.name.isEmpty() ? QObject::tr("未命名") : field.name));
+        }
+    }
+    return audit;
+}
+
+QString accessibilityReportHtml(const pdf::PdfDocument& document, const QString& filePath) {
+    const AccessibilityAudit audit = auditDocument(document);
+    QString html = QStringLiteral("<!doctype html><html><head><meta charset=\"utf-8\"><style>"
+                                  "body{font-family:sans-serif;margin:28px;color:#202a3a}"
+                                  "h1{font-size:22px}table{border-collapse:collapse}"
+                                  "td,th{border:1px solid #d9dee7;padding:7px 12px;text-align:left}"
+                                  ".ok{color:#18794e}.warn{color:#a15c00}</style></head><body>");
+    html += QStringLiteral("<h1>%1</h1><p>%2</p>")
+                .arg(QObject::tr("辅助功能检查报告").toHtmlEscaped(),
+                     QFileInfo(filePath).fileName().toHtmlEscaped());
+    html += QStringLiteral("<table><tr><th>%1</th><th>%2</th></tr>")
+                .arg(QObject::tr("检查项").toHtmlEscaped(), QObject::tr("结果").toHtmlEscaped());
+    const auto row = [&html](const QString& label, int count) {
+        html += QStringLiteral("<tr><td>%1</td><td class=\"%2\">%3</td></tr>")
+                    .arg(label.toHtmlEscaped(), count == 0 ? QStringLiteral("ok") : QStringLiteral("warn"),
+                         count == 0 ? QObject::tr("通过") : QObject::tr("%1 项警告").arg(count));
+    };
+    row(QObject::tr("页面文本层"), audit.emptyTextPages);
+    row(QObject::tr("Unicode 映射"), audit.unicodeErrorPages);
+    row(QObject::tr("表单域名称"), audit.unnamedFields);
+    row(QObject::tr("表单域说明"), audit.fieldsWithoutDescription);
+    html += QStringLiteral("</table><h2>%1</h2>").arg(QObject::tr("详细信息").toHtmlEscaped());
+    if (audit.details.isEmpty()) {
+        html += QStringLiteral("<p class=\"ok\">%1</p>").arg(QObject::tr("未发现上述基础无障碍问题。").toHtmlEscaped());
+    } else {
+        html += QStringLiteral("<ul>");
+        for (const QString& detail : audit.details) html += QStringLiteral("<li>%1</li>").arg(detail.toHtmlEscaped());
+        html += QStringLiteral("</ul>");
+    }
+    html += QStringLiteral("<p><small>%1</small></p></body></html>")
+                .arg(QObject::tr("说明：本检查不等同于 PDF/UA 合规认证，标签树、图片替代文本和语义结构仍需专业工具复核。").toHtmlEscaped());
+    return html;
+}
 // 缓存上限 128 MiB，按像素字节计。
 constexpr qint64 kCacheBytes = 128LL * 1024 * 1024;
 // 工具栏图标的绘制尺寸：设计规范是 20px 画布，按钮上按 18px 排。
@@ -3345,6 +3427,76 @@ void PdfView::exportPlainText() {
         return;
     }
     trace(QStringLiteral("exported text path=%1").arg(path));
+}
+
+void PdfView::showAccessibilityCheck() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("完整检查"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("辅助功能检查"));
+    dialog.resize(680, 520);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* report = new QTextBrowser(&dialog);
+    report->setHtml(accessibilityReportHtml(document_, filePath_));
+    report->setAccessibleName(tr("辅助功能检查结果"));
+    layout->addWidget(report);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close,
+                                         &dialog);
+    buttons->button(QDialogButtonBox::Save)->setText(tr("保存报告"));
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons->button(QDialogButtonBox::Save), &QPushButton::clicked,
+            this, &PdfView::exportAccessibilityReport);
+    layout->addWidget(buttons);
+    dialog.exec();
+}
+
+void PdfView::exportAccessibilityReport() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("辅助功能报告"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const QString base = filePath_.isEmpty() ? QStringLiteral("document")
+                                              : QFileInfo(filePath_).completeBaseName();
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("保存辅助功能报告"), base + QStringLiteral("-accessibility.html"),
+        tr("HTML 文件 (*.html)"));
+    if (path.isEmpty()) return;
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("保存失败"), file.errorString());
+        return;
+    }
+    file.write(accessibilityReportHtml(document_, filePath_).toUtf8());
+    file.close();
+    emit statusMessage(tr("辅助功能报告已保存"));
+}
+
+void PdfView::showReadingOrder() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("阅读顺序"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("阅读顺序 - 第 %1 页").arg(currentPage() + 1));
+    dialog.resize(620, 500);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* hint = new QLabel(tr("以下内容按 PDF 文本层的逻辑顺序显示，可用于人工核对屏幕阅读器的阅读次序。"),
+                            &dialog);
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto* text = new QTextEdit(&dialog);
+    text->setReadOnly(true);
+    const std::optional<pdf::PdfPage> page = document_.page(currentPage());
+    const std::optional<pdf::TextPage> extracted = page ? page->extractText() : std::nullopt;
+    text->setPlainText(extracted ? extracted->plainText() : tr("本页没有可提取文字。"));
+    text->setAccessibleName(tr("当前页阅读顺序"));
+    layout->addWidget(text);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
 }
 
 // 记一次恢复日志：改过就要能恢复。
