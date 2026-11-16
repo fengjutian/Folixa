@@ -107,12 +107,16 @@
     pdf/PageDecorations.h
     pdf/FormData.h
     pdf/FormFieldWriter.h
+    pdf/FormJsEvaluator.h
+    pdf/FormTemplateStore.h
     pdf/PageAnnotsInjector.h
     pdf/PageAnnotsInjector.cpp
     pdf/OutlineWriter.h
     pdf/OutlineWriter.cpp
     pdf/FormData.cpp
     pdf/FormFieldWriter.cpp
+    pdf/FormJsEvaluator.cpp
+    pdf/FormTemplateStore.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp

@@ -64,6 +64,7 @@
 #include <QTextEdit>
 #include <QTextBrowser>
 #include <QTextBoundaryFinder>
+#include <QTableWidget>
 #include <QFontMetricsF>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -1758,6 +1759,15 @@ void PdfView::applyPageNumbersDialog() {
         return;
     }
     pdf::PageNumberOptions options;
+    // 页码格式此前是写死的 "%1 / %2"，用户要"第 3 页 / 共 12 页"就改不了。
+    // 这里给一个输入框：%1 是当前页码，%2 是总页数。
+    bool accepted = false;
+    options.format = QInputDialog::getText(
+        this, tr("页码"), tr("页码格式（%1 是当前页，%2 是总页数）:"),
+        QLineEdit::Normal, options.format, &accepted);
+    if (!accepted) {
+        return;
+    }
     if (!pdf::applyPageNumbers(document_, options)) {
         QMessageBox::warning(this, tr("页码"), tr("页码没有写进去。"));
         return;
@@ -2084,6 +2094,48 @@ void PdfView::reversePages() {
     emit statusMessage(tr("已把 %1 页逆序").arg(count));
 }
 
+// 把 [start, end) 这一段页写成一个独立文件。
+//
+// 为什么抽出来：按页数拆、按书签拆、按体积拆是同一件事的三个入口，
+// 差别只在"从哪里断"。共用这一段写出逻辑，才不会三处各写一遍、各错一遍。
+bool PdfView::writePageRange(int start, int end, const QString& path, QString* error) {
+    if (end <= start) {
+        if (error != nullptr) {
+            *error = tr("这一段没有页。");
+        }
+        return false;
+    }
+    pdf::PdfDocument part = document_.backupPage(start);
+    if (!part.isValid()) {
+        if (error != nullptr) {
+            *error = tr("第 %1 页备份失败。").arg(start + 1);
+        }
+        return false;
+    }
+    for (int page = start + 1; page < end; ++page) {
+        if (!part.restorePageFrom(document_.backupPage(page), part.pageCount())) {
+            if (error != nullptr) {
+                *error = tr("第 %1 页写入失败。").arg(page + 1);
+            }
+            return false;
+        }
+    }
+    const QByteArray bytes = part.serialize(error);
+    if (bytes.isEmpty()) {
+        return false;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (error != nullptr) {
+            *error = tr("写入 %1 失败。").arg(path);
+        }
+        return false;
+    }
+    file.write(bytes);
+    file.close();
+    return true;
+}
+
 void PdfView::splitDocumentDialog() {
     if (!document_.isValid()) {
         return;
@@ -2102,39 +2154,178 @@ void PdfView::splitDocumentDialog() {
     int written = 0;
     for (int start = 0; start < count; start += perFile) {
         const int end = std::min(count, start + perFile);
-        pdf::PdfDocument part = document_.backupPage(start);
-        if (!part.isValid()) {
-            continue;
-        }
-        for (int page = start + 1; page < end; ++page) {
-            if (!part.restorePageFrom(document_.backupPage(page), part.pageCount())) {
-                part = pdf::PdfDocument();
-                break;
-            }
-        }
-        if (!part.isValid()) {
-            continue;
-        }
-        QString error;
-        const QByteArray bytes = part.serialize(&error);
-        if (bytes.isEmpty()) {
-            continue;
-        }
         const QString base = QFileInfo(filePath_).completeBaseName();
         const QString name = QStringLiteral("%1_%2-%3.pdf")
                                  .arg(base.isEmpty() ? QStringLiteral("part") : base)
                                  .arg(start + 1)
                                  .arg(end);
-        QFile file(QDir(directory).filePath(name));
-        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            file.write(bytes);
-            file.close();
+        QString error;
+        if (writePageRange(start, end, QDir(directory).filePath(name), &error)) {
             ++written;
+        } else {
+            trace(QStringLiteral("split part failed range=%1-%2 error=%3")
+                      .arg(start + 1).arg(end).arg(error));
         }
     }
     trace(QStringLiteral("split pages=%1 perFile=%2 written=%3")
               .arg(count).arg(perFile).arg(written));
     emit statusMessage(tr("已拆分出 %1 个文件").arg(written));
+}
+
+// 按书签拆分：每个顶层书签起一份文件。
+//
+// 为什么按顶层书签而不是所有书签：子书签通常只是章节里的小节，
+// 按它拆会切出一堆碎片。顶层书签才是"章"的粒度。
+void PdfView::splitDocumentByOutlineDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const auto outlineTree = outline();
+    QVector<int> starts;
+    for (const pdf::OutlineItem& item : outlineTree) {
+        if (item.pageIndex >= 0 && item.pageIndex < document_.pageCount()) {
+            starts.append(item.pageIndex);
+        }
+    }
+    // 去重并升序：多个书签可能指向同一页，那一页只能归到第一段里。
+    std::sort(starts.begin(), starts.end());
+    starts.erase(std::unique(starts.begin(), starts.end()), starts.end());
+    if (starts.size() < 2) {
+        QMessageBox::information(this, tr("按书签拆分"),
+                                 tr("书签少于两个（或者都指向同一页），没法按书签拆。"));
+        return;
+    }
+    const QString directory = QFileDialog::getExistingDirectory(this, tr("选择输出目录"));
+    if (directory.isEmpty()) {
+        return;
+    }
+    const int count = document_.pageCount();
+    const QString base = QFileInfo(filePath_).completeBaseName();
+    int written = 0;
+    for (int i = 0; i < starts.size(); ++i) {
+        const int start = starts.at(i);
+        // 最后一段一直到最后；中间段到下一个书签之前。
+        const int end = (i + 1 < starts.size()) ? starts.at(i + 1) : count;
+        if (end <= start) {
+            continue;
+        }
+        const QString name = QStringLiteral("%1_%2-%3.pdf")
+                                 .arg(base.isEmpty() ? QStringLiteral("part") : base)
+                                 .arg(start + 1)
+                                 .arg(end);
+        QString error;
+        if (writePageRange(start, end, QDir(directory).filePath(name), &error)) {
+            ++written;
+        } else {
+            trace(QStringLiteral("split by outline failed range=%1-%2 error=%3")
+                      .arg(start + 1).arg(end).arg(error));
+        }
+    }
+    trace(QStringLiteral("split by outline parts=%1 written=%2").arg(starts.size()).arg(written));
+    emit statusMessage(tr("已按书签拆分出 %1 个文件").arg(written));
+}
+
+// 按体积拆分：每份文件不超过用户给的兆数上限。
+//
+// 体积是按每页序列化后的字节数累加估出来的，不是精确值——
+// 合并成一个文件时还要加交叉引用表和文档目录，实际会略大于累加值。
+// 这个偏差不影响使用：切出来的文件会比上限略大一点，但不会差出数量级。
+void PdfView::splitDocumentBySizeDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    bool accepted = false;
+    const double limitMb = QInputDialog::getDouble(
+        this, tr("按体积拆分"), tr("每个文件最多多少兆:"), 10.0, 0.1, 2048.0, 1, &accepted);
+    if (!accepted || limitMb <= 0.0) {
+        return;
+    }
+    const QString directory = QFileDialog::getExistingDirectory(this, tr("选择输出目录"));
+    if (directory.isEmpty()) {
+        return;
+    }
+    const qint64 limit = static_cast<qint64>(limitMb * 1024 * 1024);
+    const int count = document_.pageCount();
+    const QString base = QFileInfo(filePath_).completeBaseName();
+    int start = 0;
+    qint64 accumulated = 0;
+    int written = 0;
+    for (int page = 0; page < count; ++page) {
+        const pdf::PdfDocument single = document_.backupPage(page);
+        qint64 pageSize = 0;
+        if (single.isValid()) {
+            QString sizeError;
+            const QByteArray bytes = single.serialize(&sizeError);
+            pageSize = bytes.isEmpty() ? 0 : bytes.size();
+        }
+        // 已经在当前段里，且再加一页就超限 → 先把当前段落盘，再开新段。
+        if (page > start && accumulated + pageSize > limit) {
+            const QString name = QStringLiteral("%1_%2-%3.pdf")
+                                     .arg(base.isEmpty() ? QStringLiteral("part") : base)
+                                     .arg(start + 1)
+                                     .arg(page);
+            QString error;
+            if (writePageRange(start, page, QDir(directory).filePath(name), &error)) {
+                ++written;
+            } else {
+                trace(QStringLiteral("split by size failed range=%1-%2 error=%3")
+                          .arg(start + 1).arg(page).arg(error));
+            }
+            start = page;
+            accumulated = 0;
+        }
+        accumulated += pageSize;
+    }
+    if (start < count) {
+        const QString name = QStringLiteral("%1_%2-%3.pdf")
+                                 .arg(base.isEmpty() ? QStringLiteral("part") : base)
+                                 .arg(start + 1)
+                                 .arg(count);
+        QString error;
+        if (writePageRange(start, count, QDir(directory).filePath(name), &error)) {
+            ++written;
+        } else {
+            trace(QStringLiteral("split by size failed range=%1-%2 error=%3")
+                      .arg(start + 1).arg(count).arg(error));
+        }
+    }
+    trace(QStringLiteral("split by size parts=%1 written=%2").arg(written).arg(written));
+    emit statusMessage(tr("已按体积拆分出 %1 个文件").arg(written));
+}
+
+// 把当前页移到指定位置。
+//
+// 引擎的 movePage 早就支持任意位置，界面只给了上移/下移两个按钮，
+// 于是"把第 30 页挪到第 2 页"这种最常见的整理动作做不了。
+//
+// 走 AnnotationController 而不是直接动 document_：控制器持有真正的文档，
+// 并且知道批注属于哪一页；绕开它移动，批注就会留在原来的页码上。
+void PdfView::moveCurrentPageToDialog() {
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("移动页面"))) {
+        return;
+    }
+    if (!annotationController_) {
+        return;
+    }
+    const int current = currentPage();
+    const int count = annotationController_->pageCount();
+    bool accepted = false;
+    const int target = QInputDialog::getInt(
+        this, tr("移动页面"), tr("把当前页移到第几页:"), current + 1, 1, count, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int to = target - 1;
+    if (to == current) {
+        return;
+    }
+    if (!annotationController_->movePage(current, to)) {
+        emit statusMessage(tr("移动页面失败"));
+        return;
+    }
+    goToPage(to);
+    trace(QStringLiteral("move page to position from=%1 to=%2").arg(current + 1).arg(to + 1));
+    emit statusMessage(tr("第 %1 页已移到第 %2 位").arg(current + 1).arg(to + 1));
 }
 
 
@@ -3254,6 +3445,120 @@ void PdfView::commitInlineTextEdit(int pageIndex, int objectIndex, const QString
     recordContentEdit(pageIndex, before, tr("就地编辑文字"));
     setModified(true);
     emit statusMessage(tr("文字已更新"));
+}
+
+// 表格检测与单元格改写。
+//
+// 为什么不是直接列对象：页面上一堆散落的文本对象对用户没有意义，
+// "这是不是一张表、哪一格写了什么"才是一条能走完的任务。
+// 先把选区里的文本对象检测成行列网格，再按格改写，底层已有
+// detectTableInRect / setTableCellText，这里只补"人能操作"的那一层。
+void PdfView::detectTableDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page) {
+        return;
+    }
+
+    // 有选区就用选区，否则用整页——用户框出来的范围是最准的信号。
+    QRectF detectRect(0, 0, page->widthPoints(), page->heightPoints());
+    if (selectedObjectPage_ == pageIndex && !selectedObjectIndexes_.isEmpty()) {
+        const auto objects = page->objectsInRect(detectRect, 0.0);
+        QRectF unionRect;
+        for (const auto& object : objects) {
+            if (!selectedObjectIndexes_.contains(object.index)) {
+                continue;
+            }
+            unionRect = unionRect.isNull() ? object.bounds : unionRect.united(object.bounds);
+        }
+        if (!unionRect.isNull()) {
+            detectRect = unionRect;
+        }
+    }
+
+    auto table = page->detectTableInRect(detectRect);
+    if (!table.isValid()) {
+        QMessageBox::information(this, tr("表格检测"),
+                                 tr("这里没有检测到表格结构（至少要两行两列）。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("表格检测"));
+    dialog.resize(680, 440);
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(tr("检测到 %1 行 × %2 列。选中一格后可以改写它的文字。")
+                                     .arg(table.rowCount)
+                                     .arg(table.columnCount),
+                                 &dialog));
+
+    auto* grid = new QTableWidget(table.rowCount, table.columnCount, &dialog);
+    grid->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    grid->setSelectionBehavior(QAbstractItemView::SelectItems);
+    grid->setSelectionMode(QAbstractItemView::SingleSelection);
+    layout->addWidget(grid);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto* editButton = buttons->addButton(tr("修改选中格"), QDialogButtonBox::ActionRole);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    // 每次改完都要重新检测：对象改写后旧的 objectId 索引可能已经失效，
+    // 拿旧结构继续写会写到错的格子上。
+    const auto fillGrid = [&grid](const pdf::TableStructure& current) {
+        grid->clear();
+        grid->setRowCount(current.rowCount);
+        grid->setColumnCount(current.columnCount);
+        for (int row = 0; row < current.rowCount; ++row) {
+            for (int column = 0; column < current.columnCount; ++column) {
+                const pdf::TableCell* cell = current.cell(row, column);
+                grid->setItem(row, column, new QTableWidgetItem(cell ? cell->text : QString()));
+            }
+        }
+    };
+    fillGrid(table);
+
+    connect(editButton, &QPushButton::clicked, &dialog, [this, &dialog, grid, fillGrid,
+                                                         detectRect, pageIndex]() {
+        const auto selected = grid->selectedItems();
+        if (selected.isEmpty()) {
+            QMessageBox::information(&dialog, tr("表格检测"), tr("先选中一个单元格。"));
+            return;
+        }
+        const int row = selected.first()->row();
+        const int column = selected.first()->column();
+        bool accepted = false;
+        const QString text = QInputDialog::getText(
+            &dialog, tr("修改单元格"), tr("第 %1 行第 %2 列的新文字:").arg(row + 1).arg(column + 1),
+            QLineEdit::Normal, selected.first()->text(), &accepted);
+        if (!accepted) {
+            return;
+        }
+        auto current = document_.page(pageIndex);
+        if (!current) {
+            return;
+        }
+        const pdf::PdfDocument before = document_.backupPage(pageIndex);
+        auto refreshed = current->detectTableInRect(detectRect);
+        if (!refreshed.isValid() || !current->setTableCellText(refreshed, row, column, text)) {
+            QMessageBox::warning(&dialog, tr("表格检测"),
+                                 tr("这一格改不了（可能不是单个文本对象，或者已经变了）。"));
+            return;
+        }
+        recordContentEdit(pageIndex, before, tr("修改表格单元格"));
+        setModified(true);
+        refreshAfterDecoration();
+        auto after = document_.page(pageIndex);
+        if (after) {
+            fillGrid(after->detectTableInRect(detectRect));
+        }
+        emit statusMessage(tr("已修改表格第 %1 行第 %2 列").arg(row + 1).arg(column + 1));
+    });
+
+    dialog.exec();
 }
 
 void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,

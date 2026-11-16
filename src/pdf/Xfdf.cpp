@@ -243,4 +243,74 @@ QVector<Annotation> annotationsFromXfdf(const QString& xml, int pageCount) {
     return result;
 }
 
+QString formFieldsToXfdf(const QVector<FormFieldData>& fields) {
+    QString xml;
+    QXmlStreamWriter writer(&xml);
+    writer.setAutoFormatting(true);
+    writer.writeStartDocument();
+    writer.writeStartElement(QStringLiteral("xfdf"));
+    writer.writeAttribute(QStringLiteral("xmlns"),
+                          QStringLiteral("http://ns.adobe.com/xfdf/"));
+    writer.writeStartElement(QStringLiteral("fields"));
+    for (const FormFieldData& field : fields) {
+        if (field.name.isEmpty()) {
+            continue;
+        }
+        writer.writeStartElement(QStringLiteral("field"));
+        writer.writeAttribute(QStringLiteral("name"), field.name);
+        writer.writeTextElement(QStringLiteral("value"), field.value);
+        writer.writeEndElement();
+    }
+    writer.writeEndElement();  // fields
+    writer.writeEndElement();  // xfdf
+    writer.writeEndDocument();
+    return xml;
+}
+
+QVector<FormFieldData> formFieldsFromXfdf(const QString& xml) {
+    QVector<FormFieldData> result;
+    QXmlStreamReader reader(xml);
+
+    bool inField = false;
+    QString currentName;
+    QString currentValue;
+    bool hasValue = false;
+
+    while (!reader.atEnd()) {
+        reader.readNext();
+        if (reader.isStartElement()) {
+            const QString name = reader.name().toString();
+            if (name == QLatin1String("field")) {
+                inField = true;
+                currentName = reader.attributes().value(QStringLiteral("name")).toString();
+                currentValue.clear();
+                hasValue = false;
+            } else if (inField && name == QLatin1String("value")) {
+                currentValue = reader.readElementText();
+                hasValue = true;
+            }
+            continue;
+        }
+        if (!reader.isEndElement()) {
+            continue;
+        }
+        const QString closing = reader.name().toString();
+        if (inField && closing == QLatin1String("field")) {
+            // 名字或值缺一不可：缺了就跳过，不猜它是什么。
+            if (!currentName.isEmpty() && hasValue) {
+                result.append(FormFieldData{currentName, currentValue});
+            }
+            inField = false;
+            currentName.clear();
+            currentValue.clear();
+            hasValue = false;
+        }
+    }
+
+    if (reader.hasError()) {
+        return {};
+    }
+    return result;
+}
+
 }  // namespace aipdf::pdf

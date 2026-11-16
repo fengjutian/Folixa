@@ -42,6 +42,7 @@
     <file>icons/convert.svg</file>
     <file>icons/protect.svg</file>
     <file>icons/form.svg</file>
+    <file>icons/grid.svg</file>
     <file>icons/tools.svg</file>
   </qresource>
 </RCC>

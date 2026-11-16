@@ -20,4 +20,22 @@ QString annotationsToXfdf(const QVector<Annotation>& annotations, int pageCount)
 // 导入：返回解析出的批注。页号越界的条目不收（宁可少，不要错位）。
 QVector<Annotation> annotationsFromXfdf(const QString& xml, int pageCount);
 
+// 表单域的一个字段值。
+struct FormFieldData {
+    QString name;
+    QString value;
+};
+
+// 表单数据的 XFDF 往返。
+//
+// 为什么单独一套而不是塞进批注的 XFDF：批注交换和表单数据交换是两种场景——
+// 前者给审阅的人，后者给填表的人。混在一个文件里，对方软件会多出一堆
+// 它不认识的字段值，反而不敢导入。
+//
+// 用的是 Adobe 的写法：<fields> 里每个 <field name="…"> 带一个 <value>。
+QString formFieldsToXfdf(const QVector<FormFieldData>& fields);
+
+// 解析表单数据。缺名字或缺值的条目直接跳过，不猜。
+QVector<FormFieldData> formFieldsFromXfdf(const QString& xml);
+
 }  // namespace aipdf::pdf

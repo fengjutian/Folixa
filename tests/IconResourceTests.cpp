@@ -59,6 +59,8 @@ void IconResourceTests::iconHasInk_data() {
                             QStringLiteral("edit"),        QStringLiteral("convert"),
                             QStringLiteral("protect"),     QStringLiteral("form"),
                             QStringLiteral("tools"),
+                            // 表格检测（v1.11.0）。
+                            QStringLiteral("grid"),
                             // 应用图标（窗口 / 任务栏）：与 exe 里嵌的 app.ico 同源。
                             QStringLiteral("app")};
     for (const QString& name : names) {

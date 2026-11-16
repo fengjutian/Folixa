@@ -131,6 +131,8 @@ public slots:
     void insertPagesFromFileDialog();
     void resizeCurrentPageDialog();
     void setPageBackgroundDialog();
+    // 表格检测与单元格改写：先检测成网格，再按格改写文字。
+    void detectTableDialog();
 
     // 安全（v1.6.0）：保存时做 AES-256 加密并写权限位。
     bool encryptionEnabled() const;
@@ -193,6 +195,8 @@ private:
     void commitInlineTextEdit(int pageIndex, int objectIndex, const QString& text);
     void recordContentEdit(int pageIndex, const pdf::PdfDocument& before, const QString& name);
     bool restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex);
+    // 把 [start, end) 这一段页写成一个独立文件。三个拆分入口共用它。
+    bool writePageRange(int start, int end, const QString& path, QString* error);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 
@@ -214,6 +218,11 @@ public:
     void rotateCurrentPageLeft();
     void moveCurrentPageUp();
     void moveCurrentPageDown();
+    // 把当前页移动到指定位置（引擎早就支持任意位置，只是界面只给了上移/下移）。
+    void moveCurrentPageToDialog();
+    // 拆分的三个入口：按页数、按书签、按体积。差别只在"从哪里断"。
+    void splitDocumentByOutlineDialog();
+    void splitDocumentBySizeDialog();
 
     // ---------------------------------------------------------- 安全保存 ----
     //

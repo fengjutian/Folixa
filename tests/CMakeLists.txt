@@ -932,6 +932,88 @@ add_test(NAME DocumentOutputTests COMMAND DocumentOutputTests)
 
 # ---------------------------------------------------- 页面管理与安全保存 ----
 
+qt_add_executable(PageEditingTests
+    PageEditingTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TableIntegration.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+)
+
+target_link_libraries(PageEditingTests PRIVATE
+    Qt6::Gui
+    Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+target_include_directories(PageEditingTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tools/pdfium/include
+)
+target_compile_definitions(PageEditingTests PRIVATE
+    AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
+)
+set_target_properties(PageEditingTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(PageEditingTests)
+aipdf_deploy_pdfium(PageEditingTests)
+add_dependencies(PageEditingTests pdf-fixtures)
+
+add_test(NAME PageEditingTests COMMAND PageEditingTests)
+
+# ---------------------------------------------- 表单域 JS 子集求值器 ----
+
+qt_add_executable(FormJsEvaluatorTests
+    FormJsEvaluatorTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormJsEvaluator.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormJsEvaluator.h
+)
+
+target_link_libraries(FormJsEvaluatorTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(FormJsEvaluatorTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(FormJsEvaluatorTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FormJsEvaluatorTests)
+
+add_test(NAME FormJsEvaluatorTests COMMAND FormJsEvaluatorTests)
+
+# ------------------------------------------------------ 表单模板仓库 ----
+
+qt_add_executable(FormTemplateStoreTests
+    FormTemplateStoreTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormTemplateStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormTemplateStore.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
+)
+
+target_link_libraries(FormTemplateStoreTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(FormTemplateStoreTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(FormTemplateStoreTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FormTemplateStoreTests)
+
+add_test(NAME FormTemplateStoreTests COMMAND FormTemplateStoreTests)
+
 qt_add_executable(PageOperationTests
     PageOperationTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
