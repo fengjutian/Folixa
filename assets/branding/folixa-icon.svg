@@ -2,9 +2,9 @@
   <title>Folixa — Prism Fold</title>
   <defs>
     <linearGradient id="tile" x1="120" y1="40" x2="900" y2="980" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C13CC7"/>
-      <stop offset="0.52" stop-color="#8C35BB"/>
-      <stop offset="1" stop-color="#4D46C7"/>
+      <stop offset="0" stop-color="#5A7FCE"/>
+      <stop offset="0.52" stop-color="#4169C1"/>
+      <stop offset="1" stop-color="#2E4E93"/>
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="560" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
@@ -15,11 +15,11 @@
       <stop offset="1" stop-color="#E7EDFA"/>
     </linearGradient>
     <linearGradient id="fold" x1="595" y1="142" x2="760" y2="307" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C9B7FB"/>
-      <stop offset="1" stop-color="#7B5CE0"/>
+      <stop offset="0" stop-color="#C9D7EA"/>
+      <stop offset="1" stop-color="#5A7FCE"/>
     </linearGradient>
     <filter id="pageShadow" x="150" y="80" width="740" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#28133D" flood-opacity="0.24"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#1E315A" flood-opacity="0.24"/>
     </filter>
     <clipPath id="tileClip"><rect width="1024" height="1024" rx="196"/></clipPath>
   </defs>
@@ -43,12 +43,12 @@
 
   <defs>
     <linearGradient id="badge" x1="112" y1="278" x2="484" y2="748" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#72258F"/>
-      <stop offset="0.55" stop-color="#642584"/>
-      <stop offset="1" stop-color="#4D287A"/>
+      <stop offset="0" stop-color="#365AA8"/>
+      <stop offset="0.55" stop-color="#2E4E93"/>
+      <stop offset="1" stop-color="#233D78"/>
     </linearGradient>
     <filter id="badgeShadow" x="58" y="208" width="520" height="650" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#24102F" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#17294F" flood-opacity="0.28"/>
     </filter>
   </defs>
   <rect x="112" y="278" width="372" height="470" rx="48" fill="url(#badge)" filter="url(#badgeShadow)"/>
