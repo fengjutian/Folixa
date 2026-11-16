@@ -402,7 +402,7 @@ void MainWindow::buildUi() {
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
     commandBar->setIconSize(QSize(18, 18));
-    commandBar->setFixedHeight(52);
+    commandBar->setFixedHeight(42);
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setText(QStringLiteral("▣  工作台"));
@@ -625,8 +625,8 @@ void MainWindow::buildUi() {
     auto* globalSearch = new QLineEdit(commandBar);
     globalSearch->setObjectName(QStringLiteral("globalSearch"));
     globalSearch->setClearButtonEnabled(true);
-    globalSearch->setMaximumWidth(430);
-    globalSearch->setMinimumWidth(260);
+    globalSearch->setMaximumWidth(420);
+    globalSearch->setMinimumWidth(300);
     texts_.bind([this, globalSearch] { globalSearch->setPlaceholderText(tr("搜索")); });
     commandBar->addWidget(globalSearch);
     auto* titleSpacerRight = new QWidget(commandBar);
@@ -792,7 +792,7 @@ void MainWindow::buildUi() {
     ribbonBar_ = new RibbonBar(this);
     // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
     // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
-    ribbonBar_->setFixedHeight(124);
+    ribbonBar_->setFixedHeight(112);
     auto* ribbonDock = new QDockWidget(QString(), this);
     ribbonDock->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -1042,26 +1042,85 @@ void MainWindow::buildUi() {
     auto* aiOpsGroup = ribbonBar_->addGroup(aiTab, tr("文档操作"));
     addRibbonCommand(aiOpsGroup, "找空白页", "找出空白页并提议删除", ":/icons/annotation.svg",
                      [blankAction] { blankAction->trigger(); });
-    // 未实现的标签页：按钮全部禁用并写明原因，不伪装为可用。
-    struct PlaceholderTab {
+    // 尚未实现的能力先按福昕截图补齐信息架构。按钮保持禁用并明确提示，
+    // 只对齐页面，不把视觉存在伪装成功能可用。
+    struct PlaceholderGroup {
         const char* title;
-        const char* group;
-        const char* commands[3];
+        std::initializer_list<const char*> commands;
     };
-    const PlaceholderTab placeholders[] = {
-        {"转换", "输出", {"到 Word", "到 Excel", "到 HTML"}},
-        {"编辑", "内容", {"编辑文本", "编辑对象", "查找替换"}},
-        {"表单", "表单", {"填写表单", "表单数据", "表单模板"}},
-        {"共享", "协作", {"邮件发送", "共享审阅", "追踪器"}},
-    };
-    for (const PlaceholderTab& spec : placeholders) {
-        const int tab = ribbonBar_->addTab(tr(spec.title));
-        QHBoxLayout* group = ribbonBar_->addGroup(tab, tr(spec.group));
-        for (const char* command : spec.commands) {
-            addRibbonCommand(group, command, "将在后续版本中提供", ":/icons/convert.svg",
-                             [] {}, false);
+    auto addPlaceholderTab = [this, &addRibbonCommand](
+                                 const char* title,
+                                 std::initializer_list<PlaceholderGroup> groups) {
+        const int tab = ribbonBar_->addTab(tr(title));
+        for (const PlaceholderGroup& spec : groups) {
+            QHBoxLayout* group = ribbonBar_->addGroup(tab, tr(spec.title));
+            for (const char* command : spec.commands) {
+                addRibbonCommand(group, command, "将在后续版本中提供",
+                                 ":/icons/convert.svg", [] {}, false);
+            }
         }
-    }
+    };
+    addPlaceholderTab("转换", {
+        {"输入", {"文件转换", "从扫描仪", "从剪贴板", "从网页", "从 CAJ", "表单"}},
+        {"打包", {"PDF 文件包", "制作活页夹"}},
+        {"组装", {"合并文件", "空白页"}},
+        {"输出", {"导出全部图像", "到 MS Office", "到图片", "到 HTML", "图像 PDF",
+                  "到 CAD", "其它格式", "到 PDF", "到 OFD"}},
+        {"OCR", {"识别文本", "快速识别", "疑似错误"}},
+        {"印前", {"印前检查", "PDF 转曲"}},
+    });
+    addPlaceholderTab("编辑", {
+        {"内容", {"编辑文本", "编辑对象", "链接并合并文本", "流式编辑"}},
+        {"文本工具", {"拼写检查", "搜索替换", "批量替换"}},
+        {"插入", {"添加文本", "添加图像", "添加形状", "添加文章框"}},
+        {"链接", {"添加链接", "网络链接"}},
+        {"导航", {"书签", "自动创建书签", "交叉引用"}},
+        {"附件", {"文件附件", "图像标注", "音频和视频", "添加 3D"}},
+    });
+    addPlaceholderTab("表单", {
+        {"识别", {"表单自动识别", "设计助手", "工具提示"}},
+        {"建域", {"文本域", "复选框", "单选按钮", "组合框", "列表框", "按钮", "条形码"}},
+        {"模板", {"页面模板", "编辑静态 XFA", "计算次序"}},
+        {"数据", {"重置表单", "表单到工作表", "导入", "导出", "JavaScript"}},
+    });
+    addPlaceholderTab("电子签章", {
+        {"签署", {"对外签署", "对内签署", "邀请他人签署", "完成签署"}},
+        {"签章", {"管理签章", "骑缝章", "签章"}},
+        {"流程", {"签署流程", "签署报告", "签署记录"}},
+        {"服务", {"分享反馈", "了解更多", "我的额度", "签署设置"}},
+    });
+    addPlaceholderTab("共享", {
+        {"发送", {"邮件", "OneNote"}},
+        {"协作", {"共享协作", "PDF 协作"}},
+        {"审阅", {"共享审阅", "管理共享审阅", "文件审阅", "邮件审阅", "追踪器"}},
+        {"企业", {"SharePoint", "iManage 9", "iManage 10", "eDOCS DM"}},
+    });
+    addPlaceholderTab("辅助工具", {
+        {"标签", {"自动添加文档标签", "自动添加表单域标签"}},
+        {"检查", {"完整检查", "辅助功能报告", "设置助手"}},
+        {"阅读", {"阅读选项", "阅读顺序", "替代文本", "区域阅读顺序", "更改区域顺序"}},
+    });
+    addPlaceholderTab("论文工具", {{"查重", {"论文查重", "查重历史"}}});
+    addPlaceholderTab("文档管理", {
+        {"组织", {"文档雷达", "标签", "分类", "星标", "文件柜"}},
+        {"检索", {"自动导入", "全文检索"}},
+        {"发票", {"发票归档", "发票管理", "生成报销单", "票据打印", "发票转图片", "发票合并"}},
+        {"批量", {"批量重命名", "OFD 批量转换"}},
+    });
+    addPlaceholderTab("录制", {
+        {"录制", {"PDF 录制", "屏幕录制", "声音录制", "截图", "录制列表"}},
+    });
+    addPlaceholderTab("帮助", {
+        {"帮助", {"用户手册", "帮助中心", "命令行帮助", "发表想法", "在线教程", "插件管理"}},
+        {"关于", {"默认 PDF 阅读器", "插件商店", "关于"}},
+        {"商业", {"立即购买", "激活", "产品信息", "订阅"}},
+    });
+
+    ribbonBar_->setTabOrder({tr("文件"), tr("主页"), tr("转换"), tr("编辑"),
+                             tr("页面管理"), tr("注释"), tr("视图"), tr("表单"),
+                             tr("保护"), tr("电子签章"), tr("共享"), tr("辅助工具"),
+                             tr("论文工具"), tr("文档管理"), tr("录制"), tr("帮助"),
+                             tr("AI 助手")});
 
 
     navigationDock_ = new QDockWidget(QString(), this);

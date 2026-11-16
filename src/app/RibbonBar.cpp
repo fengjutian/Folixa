@@ -45,10 +45,10 @@ void styleCommand(QToolButton* button) {
                               : button->objectName());
     button->setProperty("ribbonCommand", true);
     button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    button->setIconSize(QSize(24, 24));
+    button->setIconSize(QSize(28, 28));
     button->setAutoRaise(true);
     button->setCursor(Qt::PointingHandCursor);
-    button->setMinimumWidth(62);
+    button->setMinimumWidth(58);
     button->setStyleSheet(QString());
 }
 
@@ -68,7 +68,7 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
     tabs_->setDrawBase(false);
     tabs_->setMovable(false);
     // 固定标签条高度：否则 QVBoxLayout 会把多余高度分给它，命令区被压成一条缝。
-    tabs_->setFixedHeight(34);
+    tabs_->setFixedHeight(36);
     layout->addWidget(tabs_);
 
     pages_ = new QStackedWidget(this);
@@ -89,7 +89,7 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 int RibbonBar::appendPage() {
     auto* page = new QWidget;
     auto* pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(10, 4, 10, 4);
+    pageLayout->setContentsMargins(8, 2, 8, 2);
     pageLayout->setSpacing(0);
     // 末尾的弹簧吸收多余宽度，命令组保持自然宽度。
     pageLayout->addStretch(1);
@@ -135,13 +135,13 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     frame->setProperty("ribbonGroup", true);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
-    groupLayout->setContentsMargins(8, 2, 8, 0);
+    groupLayout->setContentsMargins(7, 1, 7, 0);
     groupLayout->setSpacing(0);
 
     auto* content = new QWidget(frame);
     auto* contentLayout = new QHBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(4);
+    contentLayout->setSpacing(2);
     groupLayout->addWidget(content, 1);
 
     auto* label = new QLabel(title, frame);
@@ -211,6 +211,29 @@ int RibbonBar::currentTab() const {
 
 int RibbonBar::tabCount() const {
     return tabs_->count();
+}
+
+void RibbonBar::setTabOrder(const QStringList& titles) {
+    for (int target = 0; target < titles.size() && target < tabs_->count(); ++target) {
+        int source = -1;
+        for (int index = target; index < tabs_->count(); ++index) {
+            if (tabs_->tabText(index) == titles.at(target)) {
+                source = index;
+                break;
+            }
+        }
+        if (source < 0 || source == target) {
+            continue;
+        }
+        tabs_->moveTab(source, target);
+        QWidget* page = pageWidgets_.takeAt(source);
+        QHBoxLayout* pageLayout = pageLayouts_.takeAt(source);
+        pageWidgets_.insert(target, page);
+        pageLayouts_.insert(target, pageLayout);
+        pages_->removeWidget(page);
+        pages_->insertWidget(target, page);
+    }
+    pages_->setCurrentIndex(tabs_->currentIndex());
 }
 
 }  // namespace aipdf::app

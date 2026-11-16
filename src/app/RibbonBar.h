@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <QIcon>
+#include <QStringList>
 #include <QVector>
 #include <QWidget>
 
@@ -49,6 +50,8 @@ public:
     void setCurrentTab(int index);
     int currentTab() const;
     int tabCount() const;
+    // 按标题重排标签与对应内容页；未列出的标签保持在末尾。
+    void setTabOrder(const QStringList& titles);
 
     // Ribbon 的内容宽度由所有标签页里最宽的一页决定；如果直接把它当最小宽度，
     // 主窗口会被撑得比屏幕还宽，PDF 画布也跟着被挤到屏幕外。

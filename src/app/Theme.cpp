@@ -21,8 +21,8 @@ QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
 
 /* ---------------------------------------------------------- 顶部命令栏 -- */
 QToolBar#commandBar {
-    min-height: 52px; max-height: 52px; padding: 0 10px; spacing: 4px;
-    background: #A92DB8; border: 0; border-bottom: 1px solid #8D239C;
+    min-height: 42px; max-height: 42px; padding: 0 8px; spacing: 2px;
+    background: #A72AB5; border: 0; border-bottom: 1px solid #92239F;
 }
 QToolBar::separator { background: #E8ECF3; width: 1px; margin: 11px 9px; }
 QToolBar#commandBar QToolButton {
@@ -36,27 +36,27 @@ QToolBar#commandBar QToolButton:checked {
 }
 QToolBar#commandBar QToolButton:disabled { color: #B4BDCB; background: transparent; }
 QToolBar#commandBar QToolButton#appMenuButton {
-    min-width: 100px; max-width: 100px; min-height: 34px; max-height: 34px;
-    padding: 0 10px; border: 1px solid rgba(255,255,255,0.58); border-radius: 6px;
-    background: #FFFFFF; color: #7F218F; font-size: 14px; font-weight: 700;
+    min-width: 112px; max-width: 112px; min-height: 30px; max-height: 30px;
+    padding: 0 12px; border: 1px solid rgba(255,255,255,0.72); border-radius: 5px;
+    background: #FFFFFF; color: #7C208C; font-size: 14px; font-weight: 700;
 }
 QToolBar#commandBar QToolButton#appMenuButton:hover { background: #FDF5FF; color: #671574; }
 QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #F3E3F7; }
 QToolBar#commandBar QToolButton[titleQuick="true"] {
-    min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+    min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px;
     padding: 0; border: 0; border-radius: 5px; color: #FFFFFF; background: transparent;
 }
 QToolBar#commandBar QToolButton[titleQuick="true"]:hover { background: rgba(255,255,255,0.17); }
 QToolBar#commandBar QToolButton[titleQuick="true"]:disabled { background: transparent; color: rgba(255,255,255,0.42); }
 QLineEdit#globalSearch {
-    min-height: 34px; max-height: 34px; padding: 0 14px;
-    border: 1px solid rgba(255,255,255,0.12); border-radius: 7px;
-    background: rgba(255,255,255,0.16); color: #FFFFFF; selection-background-color: #D783E0;
+    min-height: 30px; max-height: 30px; padding: 0 14px;
+    border: 1px solid rgba(255,255,255,0.13); border-radius: 6px;
+    background: rgba(255,255,255,0.15); color: #FFFFFF; selection-background-color: #D783E0;
 }
 QLineEdit#globalSearch:hover, QLineEdit#globalSearch:focus { background: rgba(255,255,255,0.23); border-color: rgba(255,255,255,0.30); }
 QToolBar#commandBar QToolButton[titleAccount="true"] {
-    min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; padding: 0;
-    border: 2px solid rgba(255,255,255,0.72); border-radius: 15px;
+    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px; padding: 0;
+    border: 2px solid rgba(255,255,255,0.78); border-radius: 14px;
     background: #F3C64E; color: #5A2D08; font-weight: 800;
 }
 QToolBar#commandBar QToolButton#aiCommandButton {
@@ -66,13 +66,13 @@ QToolBar#commandBar QToolButton#aiCommandButton:hover { background: #EFE8FF; bor
 QLabel#brandWordmark { font-size: 13px; font-weight: 700; color: #1B2432; padding: 0 4px 0 9px; }
 
 /* -------------------------------------------------------------- Ribbon -- */
-QWidget#ribbonBar { background: #FFFFFF; border: 0; border-bottom: 1px solid #E3E7EE; }
+QWidget#ribbonBar { background: #FFFFFF; border: 0; border-bottom: 1px solid #D9DEE7; }
 QTabBar#ribbonTabs { background: transparent; qproperty-drawBase: 0; }
 /* 必须显式清掉全局 QTabBar::tab 的 min-height/margin：
    它们叠加后标签高 54px，而标签条只有 34px，选中指示条和下半截文字会被裁掉。 */
 QTabBar#ribbonTabs::tab {
-    background: transparent; color: #4A576E; padding: 0 14px; margin: 0;
-    min-height: 32px; border: 0; border-bottom: 2px solid transparent; font-weight: 600;
+    background: transparent; color: #30394A; padding: 0 15px; margin: 0;
+    min-height: 34px; border: 0; border-bottom: 2px solid transparent; font-weight: 600;
 }
 QTabBar#ribbonTabs::tab:hover:!selected { color: #3555B7; background: #F5F8FD; }
 /* 底部蓝条由 RibbonTabBar 自绘：QSS 的 border-bottom 会被 QTabBar 裁掉。 */
@@ -83,15 +83,15 @@ QScrollArea#ribbonPageScroll,
 QScrollArea#ribbonPageScroll > QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
 QScrollArea#ribbonPageScroll QScrollBar:horizontal { height: 6px; margin: 0; background: #F5F7FA; }
 QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal { background: #D5DCE8; border-radius: 3px; min-width: 40px; }
-QFrame#ribbonGroup { border: 0; border-right: 1px solid #EDF0F5; background: transparent; }
-QLabel#ribbonGroupTitle { color: #8792A3; font-size: 10px; padding-top: 0; }
+QFrame#ribbonGroup { border: 0; border-right: 1px solid #E1E5EC; background: transparent; }
+QLabel#ribbonGroupTitle { color: #8A92A0; font-size: 10px; padding-top: 1px; }
 QToolButton[ribbonCommand="true"] {
-    min-height: 54px; padding: 4px 8px; border: 1px solid transparent;
-    border-radius: 8px; background: transparent; color: #3C485C; font-weight: 500;
+    min-height: 62px; padding: 3px 7px 2px 7px; border: 1px solid transparent;
+    border-radius: 3px; background: transparent; color: #30394A; font-weight: 400;
 }
-QToolButton[ribbonCommand="true"]:hover { background: #F2F6FD; border-color: #E1E8F8; color: #2F4FA8; }
-QToolButton[ribbonCommand="true"]:pressed { background: #E8EFFB; }
-QToolButton[ribbonCommand="true"]:disabled { color: #B4BDCB; background: transparent; }
+QToolButton[ribbonCommand="true"]:hover { background: #F2F3F7; border-color: #E1E4EA; color: #752082; }
+QToolButton[ribbonCommand="true"]:pressed { background: #E9EBF0; }
+QToolButton[ribbonCommand="true"]:disabled { color: #AEB4BF; background: transparent; }
 
 /* -------------------------------------------------------------- 按钮 -- */
 /* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
@@ -144,9 +144,9 @@ QToolBar#documentToolBar QToolButton:disabled, QToolBar#annotationToolBar QToolB
 QTabWidget::pane { border: 0; background: #F5F7FA; }
 QTabBar { background: #FFFFFF; }
 QTabBar::tab {
-    min-height: 32px; margin: 6px 3px 0 3px; padding: 0 16px;
+    min-height: 30px; margin: 5px 2px 0 2px; padding: 0 16px;
     color: #5A6779; background: transparent;
-    border: 1px solid transparent; border-radius: 9px;
+    border: 1px solid transparent; border-radius: 6px 6px 0 0;
 }
 QTabBar::tab:selected {
     color: #202A3A; background: #F3F6FD; border-color: #E4EAF5; font-weight: 600;
@@ -163,7 +163,7 @@ QLabel#navigationHeader {
     color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #EDF0F5;
 }
 QFrame#navigationRail { background: #F7F8FB; border-right: 1px solid #E3E7EE; }
-QToolButton[railButton="true"] { min-width: 38px; max-width: 38px; min-height: 38px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 19px; }
+QToolButton[railButton="true"] { min-width: 36px; max-width: 36px; min-height: 36px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 18px; }
 QToolButton[railButton="true"]:hover { background: #EAF0FF; color: #3555B7; }
 QToolButton[railButton="true"]:checked { background: #E4EAFF; color: #3555B7; border-left: 3px solid #5277E8; }
 
@@ -196,7 +196,7 @@ QListWidget#thumbnailList::item { color: #465267; background: transparent; borde
 QListWidget#thumbnailList::item:hover { background: #F1F4FF; }
 QListWidget#thumbnailList::item:selected { color: #3555B7; background: #EEF2FF; border-color: #5277E8; }
 QListWidget, QTextBrowser { background: #FFFFFF; border: 0; }
-QStatusBar { background: #FFFFFF; color: #465267; border-top: 1px solid #E3E7EE; }
+QStatusBar { min-height: 28px; max-height: 28px; background: #FFFFFF; color: #465267; border-top: 1px solid #DDE2EA; }
 QStatusBar::item { border: 0; }
 
 /* ------------------------------------------------------------ 欢迎页 -- */

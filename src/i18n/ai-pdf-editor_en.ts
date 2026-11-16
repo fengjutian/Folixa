@@ -1731,6 +1731,30 @@
             <source>默认</source>
             <translation>Default</translation>
         </message>
+        <message>
+            <source>电子签章</source>
+            <translation>E-Sign</translation>
+        </message>
+        <message>
+            <source>辅助工具</source>
+            <translation>Accessibility</translation>
+        </message>
+        <message>
+            <source>论文工具</source>
+            <translation>Thesis Tools</translation>
+        </message>
+        <message>
+            <source>文档管理</source>
+            <translation>Document Management</translation>
+        </message>
+        <message>
+            <source>录制</source>
+            <translation>Record</translation>
+        </message>
+        <message>
+            <source>帮助</source>
+            <translation>Help</translation>
+        </message>
     </context>
     <context>
         <name>aipdf::app::OcrController</name>
