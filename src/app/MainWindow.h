@@ -4,6 +4,7 @@
 #include <QHash>
 
 #include "i18n/Translate.h"
+#include "app/DocumentConverter.h"
 
 class QAction;
 class QActionGroup;
@@ -124,6 +125,7 @@ private:
     void copyDocumentLink();
     void showReviewTracker();
     void batchRenameDocuments();
+    void convertDocument(ConversionKind kind);
     void showDocumentOverview();
     void editDocumentTags();
     void editDocumentCategory();

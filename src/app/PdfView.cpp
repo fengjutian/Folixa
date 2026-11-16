@@ -1753,6 +1753,84 @@ void PdfView::configureEncryptionDialog() {
               .arg(encryptionOptions_.userPassword.isEmpty() ? 0 : 1));
 }
 
+void PdfView::sanitizeHiddenData() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("清理隐藏信息"), tr("先打开一份 PDF。"));
+        return;
+    }
+    if (!pdf::encryptionAvailable()) {
+        QMessageBox::warning(this, tr("清理隐藏信息"),
+                             tr("本次构建没有启用 qpdf，无法可靠清理隐藏信息。"));
+        return;
+    }
+    if (QMessageBox::question(
+            this, tr("清理隐藏信息"),
+            tr("将删除文档属性、XMP、文档脚本、自动动作和嵌入文件索引。"
+               "页面正文、可见批注和表单值会保留。继续吗？"),
+            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
+        return;
+    }
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        QMessageBox::warning(this, tr("清理隐藏信息"), error);
+        return;
+    }
+    const QByteArray sanitized = pdf::sanitizeHiddenData(source, &error);
+    if (sanitized.isEmpty()) {
+        QMessageBox::warning(this, tr("清理隐藏信息"), error);
+        return;
+    }
+    auto reopened = pdf::openDocumentFromBytes(sanitized, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("清理隐藏信息"),
+                             tr("清理结果校验失败：%1").arg(reopened.errorMessage));
+        return;
+    }
+    setDocument(std::move(reopened.document), filePath_);
+    setModified(true);
+    emit statusMessage(tr("隐藏信息已清理；请保存文档以写入磁盘"));
+    trace(QStringLiteral("hidden data sanitized"));
+}
+
+void PdfView::redactSelection() {
+    if (!document_.isValid() || textController_ == nullptr) return;
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("密文遮盖"), tr("请先选中要永久遮盖的文字区域。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) return;
+    if (page->rotationDegrees() != 0) {
+        QMessageBox::warning(this, tr("密文遮盖"),
+                             tr("为避免旋转坐标误判，请先把该页旋转回 0° 再执行遮盖。"));
+        return;
+    }
+    if (QMessageBox::warning(
+            this, tr("永久密文遮盖"),
+            tr("遮盖会永久删除该页原始内容，并把整页转换为 144 DPI 位图。"
+               "该页将失去文本搜索和内容编辑能力，操作不可在保存后恢复。继续吗？"),
+            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(
+            QRectF(displayToUser(pageIndex, rect.topLeft()),
+                   displayToUser(pageIndex, rect.bottomRight())).normalized());
+    }
+    if (userRect.isEmpty() || !page->redactByRasterizing(userRect, 2.0)) {
+        QMessageBox::warning(this, tr("密文遮盖"), tr("无法安全地应用遮盖，文档没有修改。"));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("密文遮盖已烧入第 %1 页；请保存文档").arg(pageIndex + 1));
+    trace(QStringLiteral("redaction rasterized page=%1").arg(pageIndex + 1));
+}
+
 // 装饰写进页面内容后，渲染线程手里的文档副本已经过期，必须换一份。
 
 void PdfView::cropCurrentPageDialog() {

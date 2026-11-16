@@ -73,6 +73,7 @@ private slots:
     void textReplacementSwapsContent();
     void textReplacementSupportsChinese();
     void textReplacementAllowsEmptyText();
+    void redactionRasterizesAndRemovesTextLayer();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
     void createdFormFieldsAreRealWidgets();
@@ -83,6 +84,30 @@ private:
 
 void PdfiumAdapterTests::initTestCase() {
     hasEncryptedFixture_ = QFile::exists(fixturePath(QStringLiteral("encrypted.pdf")));
+}
+
+void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {
+    using namespace aipdf::pdf;
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    const auto before = page->extractText();
+    QVERIFY(before.has_value());
+    QVERIFY(!before->plainText.trimmed().isEmpty());
+
+    const MediaBox box = page->contentBox();
+    const QRectF redaction(box.left + 10.0, box.bottom + 10.0, 80.0, 30.0);
+    QVERIFY(page->redactByRasterizing(redaction, 2.0));
+    QString error;
+    const QByteArray bytes = opened.document.serialize(&error);
+    QVERIFY2(!bytes.isEmpty(), qPrintable(error));
+    auto reopened = openDocumentFromBytes(bytes, QStringLiteral("redacted.pdf"));
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    auto redactedPage = reopened.document.page(0);
+    QVERIFY(redactedPage.has_value());
+    const auto after = redactedPage->extractText();
+    QVERIFY(!after.has_value() || after->plainText.trimmed().isEmpty());
 }
 
 void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {

@@ -33,6 +33,17 @@ set_target_properties(BatchRenameTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(BatchRenameTests)
 add_test(NAME BatchRenameTests COMMAND BatchRenameTests)
 
+qt_add_executable(DocumentConverterTests
+    DocumentConverterTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentConverter.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/DocumentConverter.h
+)
+target_link_libraries(DocumentConverterTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(DocumentConverterTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(DocumentConverterTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(DocumentConverterTests)
+add_test(NAME DocumentConverterTests COMMAND DocumentConverterTests)
+
 # ------------------------------------------------------------ 国际化底座 ----
 #
 # .ts 目录在主程序里是资源，测试要自己再打一份，才能验证「目录真的进包了」。

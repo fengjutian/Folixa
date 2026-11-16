@@ -9,6 +9,7 @@ using aipdf::pdf::PdfEncryptionOptions;
 using aipdf::pdf::PdfPermissions;
 using aipdf::pdf::encryptPdf;
 using aipdf::pdf::inspectEncryption;
+using aipdf::pdf::sanitizeHiddenData;
 using aipdf::pdf::openDocumentFromBytes;
 
 namespace {
@@ -50,6 +51,7 @@ private slots:
     void emptyUserPasswordStillEncrypts();
     void permissionFlagsFollowOptions();
     void emptyInputIsRejected();
+    void sanitizesAndKeepsDocumentReadable();
 
 private:
     bool hasFixture_ = false;
@@ -185,6 +187,15 @@ void PdfSecurityTests::emptyInputIsRejected() {
     QString error;
     QVERIFY(encryptPdf(QByteArray(), PdfEncryptionOptions(), &error).isEmpty());
     QVERIFY(!error.isEmpty());
+}
+
+void PdfSecurityTests::sanitizesAndKeepsDocumentReadable() {
+    QString error;
+    const QByteArray sanitized = sanitizeHiddenData(readFixture(QStringLiteral("normal.pdf")), &error);
+    QVERIFY2(!sanitized.isEmpty(), qPrintable(error));
+    const auto opened = openDocumentFromBytes(sanitized, QStringLiteral("sanitized.pdf"));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QCOMPARE(opened.document.pageCount(), 1);
 }
 
 QTEST_GUILESS_MAIN(PdfSecurityTests)

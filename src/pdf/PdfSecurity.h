@@ -54,4 +54,9 @@ bool inspectEncryption(const QByteArray& input,
                        int* permissionBits,
                        QString* error = nullptr);
 
+// 删除常见的隐藏信息载体：文档信息字典、XMP、文档级 JavaScript、自动打开动作、
+// 附加动作、嵌入文件名称树和页面级附加动作。页面正文、可见批注和表单值不受影响。
+// 结果由 qpdf 完整重写，失败时返回空数组，绝不回退成“原样保存却声称已清理”。
+QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr);
+
 }  // namespace aipdf::pdf

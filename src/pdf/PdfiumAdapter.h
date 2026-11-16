@@ -72,6 +72,11 @@ public:
     bool replaceTextInRect(const QRectF& rectPoints, const QString& newText, double fontSize,
                            const QColor& color);
 
+    // 安全遮盖：把当前页以指定分辨率渲染，在像素层烧入黑块，然后删除原内容对象和
+    // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。
+    // 为避免坐标误判，目前只接受未旋转页面。
+    bool redactByRasterizing(const QRectF& rectPoints, double scale = 2.0);
+
     bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                       const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0);
 

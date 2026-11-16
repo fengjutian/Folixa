@@ -8,6 +8,7 @@
 #include <qpdf/Buffer.hh>
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFExc.hh>
+#include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFWriter.hh>
 #endif
 
@@ -135,6 +136,61 @@ QByteArray encryptPdf(const QByteArray& input,
     if (error != nullptr) {
         *error = missingQpdfError();
     }
+    return {};
+#endif
+}
+
+QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
+    if (input.isEmpty()) {
+        if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
+        return {};
+    }
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        pdf.processMemoryFile("sanitize.pdf", input.constData(),
+                              static_cast<size_t>(input.size()));
+
+        QPDFObjectHandle trailer = pdf.getTrailer();
+        trailer.removeKey("/Info");
+
+        QPDFObjectHandle root = pdf.getRoot();
+        for (const char* key : {"/Metadata", "/PieceInfo", "/OpenAction", "/AA"}) {
+            root.removeKey(key);
+        }
+        if (root.hasKey("/Names")) {
+            QPDFObjectHandle names = root.getKey("/Names");
+            if (names.isDictionary()) {
+                names.removeKey("/JavaScript");
+                names.removeKey("/EmbeddedFiles");
+            }
+        }
+        for (QPDFObjectHandle page : pdf.getAllPages()) {
+            page.removeKey("/AA");
+            page.removeKey("/PieceInfo");
+            page.removeKey("/Metadata");
+        }
+
+        QPDFWriter writer(pdf);
+        writer.setOutputMemory();
+        writer.setObjectStreamMode(qpdf_o_generate);
+        writer.write();
+        std::unique_ptr<Buffer> buffer(writer.getBuffer());
+        if (!buffer || buffer->getSize() == 0) {
+            if (error != nullptr) *error = toLocal(QStringLiteral("qpdf 没有写出清理结果"));
+            return {};
+        }
+        return QByteArray(reinterpret_cast<const char*>(buffer->getBuffer()),
+                          static_cast<int>(buffer->getSize()));
+    } catch (const std::exception& exception) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("隐藏信息清理失败：%1")
+                                 .arg(QString::fromUtf8(exception.what())));
+        }
+        return {};
+    }
+#else
+    if (error != nullptr) *error = missingQpdfError();
     return {};
 #endif
 }

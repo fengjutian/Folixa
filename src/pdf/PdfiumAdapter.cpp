@@ -1,6 +1,8 @@
 ﻿#include "pdf/PdfiumAdapter.h"
 #include <QImage>
+#include <QPainter>
 #include <QRegularExpression>
+#include <QtMath>
 #include <QUrl>
 #include <functional>
 
@@ -1594,6 +1596,43 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
     if (replacement != nullptr) FPDFPage_InsertObject(impl_->page, replacement);
     const bool ok = FPDFPage_GenerateContent(impl_->page) != 0;
     return ok;
+}
+
+bool PdfPage::redactByRasterizing(const QRectF& rectPoints, double scale) {
+    if (!isValid() || rectPoints.isEmpty() || scale <= 0.0 || rotationDegrees() != 0) {
+        return false;
+    }
+    const MediaBox box = contentBox();
+    const QRectF pageRect(QPointF(box.left, box.bottom), QPointF(box.right, box.top));
+    const QRectF clipped = rectPoints.normalized().intersected(pageRect.normalized());
+    if (clipped.isEmpty()) return false;
+
+    QImage image = render(scale);
+    if (image.isNull()) return false;
+    const QRect pixelRect(
+        qFloor((clipped.left() - box.left) * scale),
+        qFloor((box.top - clipped.bottom()) * scale),
+        qCeil(clipped.width() * scale), qCeil(clipped.height() * scale));
+    QPainter painter(&image);
+    painter.fillRect(pixelRect.adjusted(-2, -2, 2, 2), Qt::black);
+    painter.end();
+
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    QVector<FPDF_PAGEOBJECT> objects;
+    objects.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        if (FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, i)) objects.append(object);
+    }
+    for (FPDF_PAGEOBJECT object : objects) FPDFPage_RemoveObject(impl_->page, object);
+    for (int index = FPDFPage_GetAnnotCount(impl_->page) - 1; index >= 0; --index) {
+        FPDFPage_RemoveAnnot(impl_->page, index);
+    }
+    if (!FPDFPage_GenerateContent(impl_->page)) return false;
+
+    // addImageLayer 自己会拿 PDFium 锁；先退出当前临界区需要显式分段。
+    // PdfiumGuard 是递归锁，直接调用也是安全的。
+    return addImageLayer(pageRect.normalized(), image);
 }
 
 bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,

@@ -8,6 +8,7 @@
 #include "app/ShareUtils.h"
 #include "app/BatchRename.h"
 #include "app/DocumentOutput.h"
+#include "app/DocumentConverter.h"
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
@@ -96,6 +97,7 @@
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QTime>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QTextDocument>
 #include <QToolBar>
@@ -1094,8 +1096,14 @@ void MainWindow::buildUi() {
     addRibbonCommand(securityGroup, "加密与权限", "设置打开密码与权限位",
                      ":/icons/protect.svg", [encryptionAction] { encryptionAction->trigger(); },
                      true, "ribbonSecurity");
-    addRibbonCommand(securityGroup, "密文遮盖", "后续版本提供", ":/icons/protect.svg",
-                     [] {}, false, "ribbonRedaction");
+    addRibbonCommand(securityGroup, "清理隐藏信息", "删除元数据、脚本、自动动作和嵌入文件索引",
+                     ":/icons/protect.svg", [this] {
+        if (auto* view = currentView()) view->sanitizeHiddenData();
+    }, true, "ribbonSanitize");
+    addRibbonCommand(securityGroup, "密文遮盖", "永久删除选区底层内容并烧入遮盖",
+                     ":/icons/protect.svg", [this] {
+        if (auto* view = currentView()) view->redactSelection();
+    }, true, "ribbonRedaction");
 
     const int aiTab = ribbonBar_->addTab(tr("AI 助手"));
     auto* aiGroup = ribbonBar_->addGroup(aiTab, tr("对话"));
@@ -1182,15 +1190,33 @@ void MainWindow::buildUi() {
             }
         }
     };
-    addPlaceholderTab("转换", {
-        {"输入", {"文件转换", "从扫描仪", "从剪贴板", "从网页", "从 CAJ", "表单"}},
-        {"打包", {"PDF 文件包", "制作活页夹"}},
-        {"组装", {"合并文件", "空白页"}},
-        {"输出", {"导出全部图像", "到 MS Office", "到图片", "到 HTML", "图像 PDF",
-                  "到 CAD", "其它格式", "到 PDF", "到 OFD"}},
-        {"OCR", {"识别文本", "快速识别", "疑似错误"}},
-        {"印前", {"印前检查", "PDF 转曲"}},
-    });
+    const int convertTab = ribbonBar_->addTab(tr("转换"));
+    auto* convertInputGroup = ribbonBar_->addGroup(convertTab, tr("转为 PDF"));
+    addRibbonCommand(convertInputGroup, "Office 转 PDF",
+                     "使用 LibreOffice 把 Word、Excel 或 PowerPoint 转为 PDF",
+                     ":/icons/convert.svg", [this] {
+        convertDocument(ConversionKind::OfficeToPdf);
+    }, true, "convert.officeToPdf");
+    addRibbonCommand(convertInputGroup, "HTML 转 PDF",
+                     "使用 LibreOffice 把本地 HTML 文档转为 PDF",
+                     ":/icons/convert.svg", [this] {
+        convertDocument(ConversionKind::HtmlToPdf);
+    }, true, "convert.htmlToPdf");
+    auto* convertOutputGroup = ribbonBar_->addGroup(convertTab, tr("归档与优化"));
+    addRibbonCommand(convertOutputGroup, "PDF/A-2b", "使用 Ghostscript 生成 PDF/A-2b 归档副本",
+                     ":/icons/protect.svg", [this] {
+        convertDocument(ConversionKind::PdfA2b);
+    }, true, "convert.pdfa");
+    addRibbonCommand(convertOutputGroup, "优化压缩", "使用 Ghostscript 优化并压缩当前 PDF",
+                     ":/icons/convert.svg", [this] {
+        convertDocument(ConversionKind::OptimizePdf);
+    }, true, "convert.optimize");
+    auto* convertUnavailableGroup = ribbonBar_->addGroup(convertTab, tr("更多转换"));
+    for (const char* command : {"从扫描仪", "从网页", "到 MS Office", "到 CAD",
+                                "PDF 文件包", "印前检查", "PDF 转曲"}) {
+        addRibbonCommand(convertUnavailableGroup, command, "将在后续版本中提供",
+                         placeholderIcon(tr(command)), [] {}, false);
+    }
     const int contentEditTab = ribbonBar_->addTab(tr("编辑"));
     auto addEditTool = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
                                                  const char* tip, const QString& icon,
@@ -3465,6 +3491,108 @@ void MainWindow::createReimbursementList() {
         return;
     }
     statusBar()->showMessage(tr("已生成包含 %1 张发票的报销单。 ").arg(invoices.size()), 5000);
+}
+
+void MainWindow::convertDocument(ConversionKind kind) {
+    QString input;
+    QString filter;
+    QString suffix;
+    if (kind == ConversionKind::OfficeToPdf) {
+        filter = tr("Office 文档 (*.doc *.docx *.xls *.xlsx *.ppt *.pptx *.odt *.ods *.odp)");
+    } else if (kind == ConversionKind::HtmlToPdf) {
+        filter = tr("HTML 文档 (*.html *.htm)");
+    } else {
+        PdfView* view = savedShareDocument();
+        if (view == nullptr) return;
+        input = view->filePath();
+        suffix = kind == ConversionKind::PdfA2b ? QStringLiteral("-pdfa.pdf")
+                                                : QStringLiteral("-optimized.pdf");
+    }
+    if (input.isEmpty()) {
+        input = QFileDialog::getOpenFileName(this, tr("选择要转换的文件"), QString(), filter);
+        if (input.isEmpty()) return;
+        suffix = QStringLiteral(".pdf");
+    }
+
+    const QFileInfo inputInfo(input);
+    const QString suggested = inputInfo.dir().filePath(inputInfo.completeBaseName() + suffix);
+    const QString output = QFileDialog::getSaveFileName(this, tr("保存转换结果"), suggested,
+                                                        tr("PDF 文件 (*.pdf)"));
+    if (output.isEmpty()) return;
+    if (QFileInfo(input).absoluteFilePath().compare(QFileInfo(output).absoluteFilePath(),
+                                                    Qt::CaseInsensitive) == 0) {
+        QMessageBox::warning(this, tr("转换"), tr("输出文件不能覆盖输入文件，请选择其他名称。"));
+        return;
+    }
+
+    QTemporaryDir temporary;
+    if (!temporary.isValid()) {
+        QMessageBox::warning(this, tr("转换"), tr("无法创建安全的临时目录。"));
+        return;
+    }
+    const QString temporaryOutput = QDir(temporary.path()).filePath(QStringLiteral("converted.pdf"));
+    ConversionPlan plan = DocumentConverter::plan(kind, input, temporaryOutput);
+    if (!plan.isValid()) {
+        QMessageBox::information(
+            this, tr("缺少转换引擎"),
+            tr("%1\n\nOffice/HTML 转换需要 LibreOffice；PDF/A 和优化压缩需要 Ghostscript。"
+               "安装后重新执行即可，Folixa 不会上传文档。").arg(plan.error));
+        return;
+    }
+
+    QProgressDialog progress(tr("正在使用 %1 转换…").arg(plan.engineName), tr("取消"), 0, 0, this);
+    progress.setWindowTitle(tr("文档转换"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.start(plan.program, plan.arguments);
+    if (!process.waitForStarted(5000)) {
+        QMessageBox::warning(this, tr("转换失败"),
+                             tr("无法启动 %1：%2").arg(plan.engineName, process.errorString()));
+        return;
+    }
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 10 * 60 * 1000 &&
+           !progress.wasCanceled()) {
+        process.waitForFinished(100);
+        QApplication::processEvents();
+    }
+    if (process.state() != QProcess::NotRunning) {
+        process.kill();
+        process.waitForFinished(3000);
+    }
+    if (progress.wasCanceled()) {
+        statusBar()->showMessage(tr("转换已取消。"), 4000);
+        return;
+    }
+    const QByteArray diagnostics = process.readAll();
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
+        !QFileInfo(plan.expectedOutput).isFile() || QFileInfo(plan.expectedOutput).size() == 0) {
+        QString detail = QString::fromLocal8Bit(diagnostics).trimmed();
+        if (detail.size() > 1200) detail = detail.right(1200);
+        QMessageBox::warning(this, tr("转换失败"),
+                             tr("%1 返回了错误。\n%2").arg(plan.engineName, detail));
+        return;
+    }
+
+    QFile source(plan.expectedOutput);
+    QSaveFile destination(output);
+    if (!source.open(QIODevice::ReadOnly) || !destination.open(QIODevice::WriteOnly)) {
+        QMessageBox::warning(this, tr("转换失败"), tr("无法写入输出文件。"));
+        return;
+    }
+    while (!source.atEnd()) {
+        const QByteArray block = source.read(1024 * 1024);
+        if (block.isEmpty() && source.error() != QFileDevice::NoError) break;
+        if (destination.write(block) != block.size()) break;
+    }
+    if (source.error() != QFileDevice::NoError || !destination.commit()) {
+        QMessageBox::warning(this, tr("转换失败"), tr("保存转换结果失败，原文件没有改动。"));
+        return;
+    }
+    statusBar()->showMessage(tr("转换完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
 }
 
 void MainWindow::batchConvertOfd() {
