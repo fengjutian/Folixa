@@ -75,6 +75,7 @@ private slots:
     void textReplacementAllowsEmptyText();
     void pageObjectsCanBeSelectedTransformedStyledAndRemoved();
     void inlineTextEditCreatesRealMultipleLines();
+    void nestedFormObjectsHaveStablePathsAndCanEditText();
     void redactionRasterizesAndRemovesTextLayer();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
@@ -208,6 +209,33 @@ void PdfiumAdapterTests::inlineTextEditCreatesRealMultipleLines() {
     QVERIFY(extracted.has_value());
     QVERIFY(extracted->plainText().contains(QStringLiteral("first line")));
     QVERIFY(extracted->plainText().contains(QStringLiteral("second line")));
+}
+
+void PdfiumAdapterTests::nestedFormObjectsHaveStablePathsAndCanEditText() {
+    using namespace aipdf::pdf;
+    auto opened = openDocument(fixturePath(QStringLiteral("nested-form.pdf")));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    auto objects = page->objectsInRectDeep(QRectF(0, 0, 240, 160), 0.0);
+    const auto nested = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {
+        return info.type == PageObjectType::Text && info.text.contains(QStringLiteral("Nested text"));
+    });
+    QVERIFY(nested != objects.end());
+    QCOMPARE(nested->objectPath.size(), 3);
+    QCOMPARE(nested->nestingDepth, 2);
+    QCOMPARE(nested->index, -1);
+    QVERIFY(nested->bounds.left() >= 65.0);
+    const QVector<int> path = nested->objectPath;
+    QVERIFY(!page->setTextObjectText(path, QStringLiteral("Deep edit")));
+    const QByteArray bytes = opened.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+    auto reopened = openDocumentFromBytes(bytes);
+    QVERIFY(reopened.document.isValid());
+    const auto deep = reopened.document.page(0)->objectsInRectDeep(QRectF(0, 0, 240, 160), 0.0);
+    QVERIFY(std::any_of(deep.begin(), deep.end(), [](const PageObjectInfo& info) {
+        return info.text.contains(QStringLiteral("Nested text"));
+    }));
 }
 
 void PdfiumAdapterTests::redactionRasterizesAndRemovesTextLayer() {

@@ -109,6 +109,28 @@ def normal_pdf():
     return _build_pdf(objects, 1)
 
 
+def nested_form_pdf():
+    """Two nested Form XObjects containing an editable text object."""
+    page_stream = b"q 1 0 0 1 40 30 cm /Outer Do Q"
+    outer_stream = b"q 1 0 0 1 30 20 cm /Inner Do Q"
+    inner_stream = b"BT /F1 14 Tf 0 0 Td (Nested text) Tj ET"
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        (3, b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 240 160] "
+            b"/Resources << /XObject << /Outer 6 0 R >> >> /Contents 5 0 R >>"),
+        (4, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        (5, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(page_stream), page_stream)),
+        (6, b"<< /Type /XObject /Subtype /Form /BBox [0 0 160 90] "
+            b"/Resources << /XObject << /Inner 7 0 R >> >> /Length %d >>\nstream\n%s\nendstream"
+            % (len(outer_stream), outer_stream)),
+        (7, b"<< /Type /XObject /Subtype /Form /BBox [0 0 100 30] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Length %d >>\nstream\n%s\nendstream"
+            % (len(inner_stream), inner_stream)),
+    ]
+    return _build_pdf(objects, 1)
+
+
 def empty_pdf():
     objects = [
         (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
@@ -724,6 +746,7 @@ def form_pdf():
 
 FIXTURES = {
     "normal.pdf": normal_pdf,
+    "nested-form.pdf": nested_form_pdf,
     "empty.pdf": empty_pdf,
     "rotated.pdf": rotated_pdf,
     "corrupt.pdf": corrupt_pdf,

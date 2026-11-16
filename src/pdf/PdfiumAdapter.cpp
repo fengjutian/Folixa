@@ -1848,26 +1848,12 @@ QVector<PageObjectInfo> PdfPage::objectsInRectDeep(const QRectF& rectPoints,
 bool PdfPage::setTextObjectText(const QVector<int>& objectPath, const QString& text) {
     if (objectPath.isEmpty()) return false;
     if (objectPath.size() == 1) return setTextObjectText(objectPath.constFirst(), text);
-    if (!impl_ || !impl_->page) return false;
-    const detail::PdfiumGuard guard;
-    FPDF_PAGEOBJECT object = nullptr;
-    for (int depth = 0; depth < objectPath.size(); ++depth) {
-        const int index = objectPath.at(depth);
-        if (index < 0) return false;
-        if (depth == 0) {
-            if (index >= FPDFPage_CountObjects(impl_->page)) return false;
-            object = FPDFPage_GetObject(impl_->page, index);
-        } else {
-            if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_FORM ||
-                index >= FPDFFormObj_CountObjects(object)) return false;
-            object = FPDFFormObj_GetObject(object, static_cast<unsigned long>(index));
-        }
-    }
-    if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT || text.contains(QLatin1Char('\n')))
-        return false;
-    const std::u16string wide = text.toStdU16String();
-    return FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str())) &&
-           FPDFPage_GenerateContent(impl_->page);
+    Q_UNUSED(text);
+    // PDFium exposes mutable child handles, but FPDFPage_GenerateContent()
+    // serializes only the page stream, not a nested Form XObject stream.  A
+    // mutation would therefore disappear after save/reopen.  Reject it until
+    // the qpdf resource-tree writer is used for this path.
+    return false;
 }
 
 bool PdfPage::setTextObjectText(int index, const QString& text) {
