@@ -3312,7 +3312,7 @@ void MainWindow::showRecordingCenter() {
         button->setStyleSheet(QStringLiteral(
             "QPushButton{text-align:left;padding:14px 16px;border:1px solid #d8deea;"
             "border-radius:10px;background:white;color:#182033;font-weight:600;}"
-            "QPushButton:hover{border-color:#7657e8;background:#f7f5ff;}"));
+            "QPushButton:hover{border-color:#4169C1;background:#EEF3FC;}"));
         actions->addWidget(button, i / 2, i % 2);
         if (i == 0) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
             dialog.accept(); startScreenRecording(true);
