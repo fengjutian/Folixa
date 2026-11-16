@@ -484,7 +484,59 @@
             <source>；有标记指向无效引用</source>
             <translation>; some markers point to invalid citations</translation>
         </message>
-    </context>
+            <message>
+            <source>&lt;p class='muted'&gt;文档内容只会按照上方显示的范围使用。&lt;/p&gt;</source>
+            <translation>&lt;p class='muted'&gt;Document content is used only within the range shown above.&lt;/p&gt;</translation>
+        </message>
+        <message>
+            <source>&lt;p&gt;切换到“整篇文档”后，我会检索相关内容并附上可核对的引用。&lt;/p&gt;</source>
+            <translation>&lt;p&gt;After switching to "Entire document", I will retrieve the relevant content and attach citations you can check.&lt;/p&gt;</translation>
+        </message>
+        <message>
+            <source>&lt;p&gt;可以总结页面、解释或翻译选区，也可以直接询问文档内容。&lt;/p&gt;</source>
+            <translation>&lt;p&gt;You can summarize pages, explain or translate a selection, or ask about the document content directly.&lt;/p&gt;</translation>
+        </message>
+        <message>
+            <source>回答范围</source>
+            <translation>Response scope</translation>
+        </message>
+        <message>
+            <source>总结要点</source>
+            <translation>Summary key points</translation>
+        </message>
+        <message>
+            <source>新对话</source>
+            <translation>New conversation</translation>
+        </message>
+        <message>
+            <source>清空当前对话历史</source>
+            <translation>Clear the current conversation history</translation>
+        </message>
+        <message>
+            <source>翻译选区</source>
+            <translation>Translate selection</translation>
+        </message>
+        <message>
+            <source>解释选区</source>
+            <translation>Explain selection</translation>
+        </message>
+        <message>
+            <source>询问当前文档…</source>
+            <translation>Ask about this document…</translation>
+        </message>
+        <message>
+            <source>请总结第 %1 页的要点</source>
+            <translation>Please summarize the key points on page %1</translation>
+        </message>
+        <message>
+            <source>请翻译我选中的内容</source>
+            <translation>Please translate the selected text</translation>
+        </message>
+        <message>
+            <source>请解释我选中的内容</source>
+            <translation>Please explain the selected text</translation>
+        </message>
+</context>
     <context>
         <name>aipdf::app::AiSettingsDialog</name>
         <message>
@@ -1949,7 +2001,167 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>签名验证通过</source><translation>Signature verification passed</translation></message>
         <message><source>签名验证未通过</source><translation>Signature verification failed</translation></message>
         <message><source>没有发现有效数字签名。</source><translation>No valid digital signature was found.</translation></message>
-    </context>
+            <message>
+            <source>CSV</source>
+            <translation>CSV</translation>
+        </message>
+        <message>
+            <source>FDF</source>
+            <translation>FDF</translation>
+        </message>
+        <message>
+            <source>XFDF</source>
+            <translation>XFDF</translation>
+        </message>
+        <message>
+            <source>XFDF (*.xfdf)</source>
+            <translation>XFDF (*.xfdf)</translation>
+        </message>
+        <message>
+            <source>导入 XFDF…</source>
+            <translation>Import XFDF…</translation>
+        </message>
+        <message>
+            <source>导出 XFDF…</source>
+            <translation>Export XFDF…</translation>
+        </message>
+        <message>
+            <source>文件格式</source>
+            <translation>File format</translation>
+        </message>
+        <message>
+            <source>提示</source>
+            <translation>Tooltip</translation>
+        </message>
+        <message>
+            <source>保存表单模板</source>
+            <translation>Save form template</translation>
+        </message>
+        <message>
+            <source>套用表单模板</source>
+            <translation>Apply form template</translation>
+        </message>
+        <message>
+            <source>模板名称</source>
+            <translation>Template name</translation>
+        </message>
+        <message>
+            <source>保存模板失败：%1</source>
+            <translation>Failed to save the template: %1</translation>
+        </message>
+        <message>
+            <source>读取模板失败：%1</source>
+            <translation>Failed to read the template: %1</translation>
+        </message>
+        <message>
+            <source>还没有保存过表单模板。</source>
+            <translation>No form template has been saved yet.</translation>
+        </message>
+        <message>
+            <source>已保存模板“%1”（%2 个字段）</source>
+            <translation>Template "%1" saved (%2 fields)</translation>
+        </message>
+        <message>
+            <source>已按模板创建 %1 个字段</source>
+            <translation>Created %1 fields from the template</translation>
+        </message>
+        <message>
+            <source>已按模板创建 %1 个字段（%2 个失败：%3）</source>
+            <translation>Created %1 fields from the template (%2 failed: %3)</translation>
+        </message>
+        <message>
+            <source>当前页没有表单字段。</source>
+            <translation>There are no form fields on the current page.</translation>
+        </message>
+        <message>
+            <source>拿不到当前页的尺寸。</source>
+            <translation>Cannot read the size of the current page.</translation>
+        </message>
+        <message>
+            <source>脚本已运行，结果没有写回字段。</source>
+            <translation>The script ran; the result was not written back to any field.</translation>
+        </message>
+        <message>
+            <source>已把脚本结果写入 %1</source>
+            <translation>Script result written to %1</translation>
+        </message>
+        <message>
+            <source>已按次序计算 %1 个字段，次序已保存</source>
+            <translation>Calculated %1 fields in order; the order was saved</translation>
+        </message>
+        <message>
+            <source>已按次序计算 %1 个字段；次序未能保存：%2</source>
+            <translation>Calculated %1 fields in order; the order could not be saved: %2</translation>
+        </message>
+        <message>
+            <source>这份文档没有表单字段。</source>
+            <translation>This document has no form fields.</translation>
+        </message>
+        <message>
+            <source>书签上移</source>
+            <translation>Move bookmark up</translation>
+        </message>
+        <message>
+            <source>书签下移</source>
+            <translation>Move bookmark down</translation>
+        </message>
+        <message>
+            <source>书签升级（变成同级）</source>
+            <translation>Promote bookmark (make it a sibling)</translation>
+        </message>
+        <message>
+            <source>书签降级（变成子节点）</source>
+            <translation>Demote bookmark (make it a child)</translation>
+        </message>
+        <message>
+            <source>书签已上移</source>
+            <translation>Bookmark moved up</translation>
+        </message>
+        <message>
+            <source>书签已下移</source>
+            <translation>Bookmark moved down</translation>
+        </message>
+        <message>
+            <source>书签已升级</source>
+            <translation>Bookmark promoted</translation>
+        </message>
+        <message>
+            <source>书签已降级</source>
+            <translation>Bookmark demoted</translation>
+        </message>
+        <message>
+            <source>已经是最后一个了</source>
+            <translation>Already the last one</translation>
+        </message>
+        <message>
+            <source>已经是第一个了</source>
+            <translation>Already the first one</translation>
+        </message>
+        <message>
+            <source>这个书签已经是顶层了</source>
+            <translation>This bookmark is already at the top level</translation>
+        </message>
+        <message>
+            <source>前面没有可以当父级的书签</source>
+            <translation>There is no bookmark above to act as the parent</translation>
+        </message>
+        <message>
+            <source>选中的书签已经不在文档里了。</source>
+            <translation>The selected bookmark is no longer in the document.</translation>
+        </message>
+        <message>
+            <source>已按设计创建 %1 个字段</source>
+            <translation>Created %1 fields from the design</translation>
+        </message>
+        <message>
+            <source>已按设计创建 %1 个字段（%2 个失败：%3）</source>
+            <translation>Created %1 fields from the design (%2 failed: %3)</translation>
+        </message>
+        <message>
+            <source>表单工具设置已保存，新建字段将使用这套外观。</source>
+            <translation>Form tool settings saved; new fields will use this appearance.</translation>
+        </message>
+</context>
     <context>
         <name>aipdf::app::OcrController</name>
         <message>
@@ -3006,7 +3218,135 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>旋转页面</source><translation>Rotate page</translation></message>
         <message><source>移动页面</source><translation>Move page</translation></message>
         <message><source>导出页面图片</source><translation>Export page images</translation></message>
-    </context>
+            <message>
+            <source>表格检测</source>
+            <translation>Table detection</translation>
+        </message>
+        <message>
+            <source>按书签拆分</source>
+            <translation>Split by bookmarks</translation>
+        </message>
+        <message>
+            <source>按体积拆分</source>
+            <translation>Split by size</translation>
+        </message>
+        <message>
+            <source>书签少于两个（或者都指向同一页），没法按书签拆。</source>
+            <translation>Fewer than two bookmarks (or they all point to the same page), so it cannot be split by bookmark.</translation>
+        </message>
+        <message>
+            <source>已按书签拆分出 %1 个文件</source>
+            <translation>Split into %1 files by bookmark</translation>
+        </message>
+        <message>
+            <source>已按体积拆分出 %1 个文件</source>
+            <translation>Split into %1 files by size</translation>
+        </message>
+        <message>
+            <source>每个文件最多多少兆:</source>
+            <translation>Maximum size per file (MB):</translation>
+        </message>
+        <message>
+            <source>把当前页移到第几页:</source>
+            <translation>Move the current page to position:</translation>
+        </message>
+        <message>
+            <source>第 %1 页已移到第 %2 位</source>
+            <translation>Page %1 moved to position %2</translation>
+        </message>
+        <message>
+            <source>这一段没有页。</source>
+            <translation>This range contains no pages.</translation>
+        </message>
+        <message>
+            <source>页码格式（%1 是当前页，%2 是总页数）:</source>
+            <translation>Page number format (%1 is the current page, %2 is the total):</translation>
+        </message>
+        <message>
+            <source>修改表格单元格</source>
+            <translation>Edit table cell</translation>
+        </message>
+        <message>
+            <source>修改单元格</source>
+            <translation>Edit cell</translation>
+        </message>
+        <message>
+            <source>修改选中格</source>
+            <translation>Edit selected cell</translation>
+        </message>
+        <message>
+            <source>先选中一个单元格。</source>
+            <translation>Select a cell first.</translation>
+        </message>
+        <message>
+            <source>第 %1 行第 %2 列的新文字:</source>
+            <translation>New text for row %1, column %2:</translation>
+        </message>
+        <message>
+            <source>已修改表格第 %1 行第 %2 列</source>
+            <translation>Updated row %1, column %2 of the table</translation>
+        </message>
+        <message>
+            <source>这一格改不了（可能不是单个文本对象，或者已经变了）。</source>
+            <translation>This cell cannot be edited (it may not be a single text object, or it has changed).</translation>
+        </message>
+        <message>
+            <source>检测到 %1 行 × %2 列。选中一格后可以改写它的文字。</source>
+            <translation>Detected %1 rows × %2 columns. Select a cell to rewrite its text.</translation>
+        </message>
+        <message>
+            <source>这里没有检测到表格结构（至少要两行两列）。</source>
+            <translation>No table structure was detected here (at least two rows and two columns are required).</translation>
+        </message>
+        <message>
+            <source>写入 %1 失败。</source>
+            <translation>Failed to write %1.</translation>
+        </message>
+        <message>
+            <source>第 %1 页写入失败。</source>
+            <translation>Failed to write page %1.</translation>
+        </message>
+        <message>
+            <source>第 %1 页备份失败。</source>
+            <translation>Failed to back up page %1.</translation>
+        </message>
+        <message>
+            <source>写入后校验失败：%1</source>
+            <translation>Verification failed after writing: %1</translation>
+        </message>
+        <message>
+            <source>写入表单脚本</source>
+            <translation>Write form scripts</translation>
+        </message>
+        <message>
+            <source>这份文档不允许修改。</source>
+            <translation>This document does not allow modifications.</translation>
+        </message>
+        <message>
+            <source>单选分组</source>
+            <translation>Radio group</translation>
+        </message>
+        <message>
+            <source>同名的单选按钮归为一组</source>
+            <translation>Radio buttons with the same group name form one group</translation>
+        </message>
+        <message>
+            <source>条码内容</source>
+            <translation>Barcode content</translation>
+        </message>
+        <message>
+            <source>条码内容（只能是 ASCII）</source>
+            <translation>Barcode content (ASCII only)</translation>
+        </message>
+        <message>
+            <source>条码说明</source>
+            <translation>Barcode caption</translation>
+        </message>
+        <message>
+            <source>条码下方的说明文字</source>
+            <translation>Caption printed below the barcode</translation>
+        </message>
+</context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
         <message>
@@ -4341,5 +4681,207 @@ Starred: %7</translation></message>
         <message><source>已安全替换选中文字</source><translation>Selected text was safely replaced</translation></message>
         <message><source>替换选中文字</source><translation>replace selected text</translation></message>
         <message><source>文字对象已锁定，请先解锁</source><translation>The text object is locked. Unlock it first.</translation></message>
+    </context>
+    <context>
+        <name>aipdf::app::FormCalculationDialog</name>
+        <message>
+            <source>计算次序</source>
+            <translation>Calculation order</translation>
+        </message>
+        <message>
+            <source>顺序</source>
+            <translation>Order</translation>
+        </message>
+        <message>
+            <source>字段</source>
+            <translation>Field</translation>
+        </message>
+        <message>
+            <source>计算脚本</source>
+            <translation>Calculation script</translation>
+        </message>
+        <message>
+            <source>执行结果</source>
+            <translation>Result</translation>
+        </message>
+        <message>
+            <source>执行全部</source>
+            <translation>Run all</translation>
+        </message>
+        <message>
+            <source>上移</source>
+            <translation>Move up</translation>
+        </message>
+        <message>
+            <source>下移</source>
+            <translation>Move down</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::FormScriptDialog</name>
+        <message>
+            <source>运行表单脚本</source>
+            <translation>Run form script</translation>
+        </message>
+        <message>
+            <source>结果写入字段</source>
+            <translation>Write the result into field</translation>
+        </message>
+        <message>
+            <source>（只算不写回）</source>
+            <translation>(Calculate only, do not write back)</translation>
+        </message>
+        <message>
+            <source>脚本</source>
+            <translation>Script</translation>
+        </message>
+        <message>
+            <source>运行</source>
+            <translation>Run</translation>
+        </message>
+        <message>
+            <source>运行结果会显示在这里。</source>
+            <translation>The result will appear here.</translation>
+        </message>
+        <message>
+            <source>先写一段脚本再运行。</source>
+            <translation>Write a script first, then run it.</translation>
+        </message>
+        <message>
+            <source>写一段脚本，例如：
+AFNumber_Format(2, event.value, 0, 0, ".", false)</source>
+            <translation>Write a script, for example:
+AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
+        </message>
+        <message>
+            <source>结果：%1</source>
+            <translation>Result: %1</translation>
+        </message>
+        <message>
+            <source>提示：%1</source>
+            <translation>Note: %1</translation>
+        </message>
+        <message>
+            <source>脚本没跑通：%1</source>
+            <translation>The script did not run: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::FormDesignAssistantDialog</name>
+        <message>
+            <source>表单设计助手</source>
+            <translation>Form design assistant</translation>
+        </message>
+        <message>
+            <source>生成设计</source>
+            <translation>Generate design</translation>
+        </message>
+        <message>
+            <source>在当前页创建</source>
+            <translation>Create on current page</translation>
+        </message>
+        <message>
+            <source>模型原始回答</source>
+            <translation>Raw model answer</translation>
+        </message>
+        <message>
+            <source>字段名</source>
+            <translation>Field name</translation>
+        </message>
+        <message>
+            <source>提示</source>
+            <translation>Tooltip</translation>
+        </message>
+        <message>
+            <source>类型</source>
+            <translation>Type</translation>
+        </message>
+        <message>
+            <source>左 %</source>
+            <translation>Left %</translation>
+        </message>
+        <message>
+            <source>上 %</source>
+            <translation>Top %</translation>
+        </message>
+        <message>
+            <source>宽 %</source>
+            <translation>Width %</translation>
+        </message>
+        <message>
+            <source>高 %</source>
+            <translation>Height %</translation>
+        </message>
+        <message>
+            <source>写一句描述，例如：一张增值税发票，需要购买方名称、纳税人识别号、开票日期、金额、税率。</source>
+            <translation>Describe the form, for example: a VAT invoice with buyer name, tax ID, invoice date, amount and tax rate.</translation>
+        </message>
+        <message>
+            <source>模型正在设计…</source>
+            <translation>The model is designing…</translation>
+        </message>
+        <message>
+            <source>模型给出了 %1 个字段，改完再创建。</source>
+            <translation>The model proposed %1 fields; review them, then create.</translation>
+        </message>
+        <message>
+            <source>模型没有返回可用的 JSON 字段清单。</source>
+            <translation>The model did not return a usable JSON field list.</translation>
+        </message>
+        <message>
+            <source>模型没有给出任何字段。</source>
+            <translation>The model did not propose any fields.</translation>
+        </message>
+        <message>
+            <source>模型返回的字段清单解析失败：%1</source>
+            <translation>Failed to parse the field list returned by the model: %1</translation>
+        </message>
+        <message>
+            <source>模型调用失败：%1</source>
+            <translation>Model call failed: %1</translation>
+        </message>
+        <message>
+            <source>AI 服务调用失败：%1</source>
+            <translation>AI service call failed: %1</translation>
+        </message>
+        <message>
+            <source>AI 服务还没连上。</source>
+            <translation>The AI service is not connected yet.</translation>
+        </message>
+        <message>
+            <source>先写一句描述。</source>
+            <translation>Write a description first.</translation>
+        </message>
+        <message>
+            <source>（已停止）</source>
+            <translation>(stopped)</translation>
+        </message>
+        <message>
+            <source>表单设计描述</source>
+            <translation>Form design description</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::FormToolSettingsDialog</name>
+        <message>
+            <source>表单工具设置</source>
+            <translation>Form tool settings</translation>
+        </message>
+        <message>
+            <source>默认字体</source>
+            <translation>Default font</translation>
+        </message>
+        <message>
+            <source>默认字号</source>
+            <translation>Default font size</translation>
+        </message>
+        <message>
+            <source>文字颜色</source>
+            <translation>Text color</translation>
+        </message>
+        <message>
+            <source>选择文字颜色</source>
+            <translation>Choose text color</translation>
+        </message>
     </context>
 </TS>

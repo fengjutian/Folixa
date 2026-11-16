@@ -8,6 +8,8 @@
 #include "app/TileCache.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/PdfSecurity.h"
+#include "pdf/FormFieldWriter.h"
+#include "pdf/FormScriptStore.h"
 #include "i18n/Translate.h"
 
 #include <memory>
@@ -153,6 +155,18 @@ public slots:
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);
     bool editFormFieldProperties(int pageIndex, const QString& name);
+    // 按给定的参数建一个表单域（套用表单模板、批量建域都走这里）。
+    // 失败时 reason 里是中文原因。
+    bool createFormFieldWith(const pdf::FormFieldInsert& insert, QString* reason);
+    // 字段上挂的脚本与默认值（对象层的 /AA、/A、/DV）。
+    QVector<pdf::FormFieldScript> formFieldScripts() const;
+    // AcroForm /CO 里的计算次序（字段名）。
+    QStringList formCalculationOrder() const;
+    // 把脚本与计算次序写回文档；失败时 reason 里是中文原因。
+    bool saveFormScripts(const QVector<pdf::FormFieldScript>& scripts, const QStringList& order,
+                         QString* reason);
+    // 重置表单：有默认值的恢复默认值，没有默认值的清空。返回被重置的字段数。
+    int resetFormFields();
 
     // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
     void mergeDocumentDialog();

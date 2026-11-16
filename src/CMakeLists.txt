@@ -2,6 +2,12 @@
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
+    app/FormScriptDialog.h
+    app/FormScriptDialog.cpp
+    app/FormToolSettingsDialog.h
+    app/FormToolSettingsDialog.cpp
+    app/FormDesignAssistantDialog.h
+    app/FormDesignAssistantDialog.cpp
     app/Language.cpp
     app/Language.h
     i18n/Translate.h
@@ -109,6 +115,9 @@
     pdf/FormFieldWriter.h
     pdf/FormJsEvaluator.h
     pdf/FormTemplateStore.h
+    pdf/FormScriptStore.h
+    pdf/BarcodeEncoder.h
+    pdf/FormToolSettings.h
     pdf/PageAnnotsInjector.h
     pdf/PageAnnotsInjector.cpp
     pdf/OutlineWriter.h
@@ -117,6 +126,9 @@
     pdf/FormFieldWriter.cpp
     pdf/FormJsEvaluator.cpp
     pdf/FormTemplateStore.cpp
+    pdf/FormScriptStore.cpp
+    pdf/BarcodeEncoder.cpp
+    pdf/FormToolSettings.cpp
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp

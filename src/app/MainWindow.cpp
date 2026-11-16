@@ -16,6 +16,9 @@
 #include "app/AiPanel.h"
 #include "app/SettingsDialog.h"
 #include "app/SignatureDialog.h"
+#include "app/FormScriptDialog.h"
+#include "app/FormToolSettingsDialog.h"
+#include "app/FormDesignAssistantDialog.h"
 #include "ai/AuditLog.h"
 #include "app/OcrController.h"
 #include "tools/ProposalValidator.h"
@@ -30,6 +33,9 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
 #include "pdf/FormData.h"
+#include "pdf/FormScriptStore.h"
+#include "pdf/FormTemplateStore.h"
+#include "pdf/Xfdf.h"
 #include "pdf/Navigation.h"
 
 #include "i18n/Translate.h"
@@ -1475,9 +1481,10 @@ void MainWindow::buildUi() {
     auto* formRecognitionGroup = ribbonBar_->addGroup(formTab, tr("识别"));
     addRibbonCommand(formRecognitionGroup, "表单自动识别", "扫描并列出文档中的 AcroForm 字段",
                      ":/icons/search.svg", showFormsPanel, true, "form.recognize");
-    addRibbonCommand(formRecognitionGroup, "设计助手", "打开表单字段面板",
-                     ":/icons/form.svg", showFormsPanel, true, "form.assistant");
-    addRibbonCommand(formRecognitionGroup, "工具提示", "查看字段名称、类型和值",
+    addRibbonCommand(formRecognitionGroup, "设计助手", "用一句描述生成表单字段设计",
+                     ":/icons/form.svg", [this] { designFormWithAssistant(); }, true,
+                     "form.assistant");
+    addRibbonCommand(formRecognitionGroup, "工具提示", "在表单面板里查看字段的名称、类型、值与提示",
                      ":/icons/form.svg", showFormsPanel, true, "form.tooltip");
 
     auto* formFieldGroup = ribbonBar_->addGroup(formTab, tr("建域"));
@@ -1496,40 +1503,35 @@ void MainWindow::buildUi() {
     }
 
     auto* formTemplateGroup = ribbonBar_->addGroup(formTab, tr("模板"));
-    addRibbonCommand(formTemplateGroup, "页面模板", "表单页面模板正在开发",
-                     ":/icons/pages.svg", [] {}, false, "form.pageTemplate");
+    addRibbonCommand(formTemplateGroup, "保存页面模板", "把当前页的表单域存成可复用的模板",
+                     ":/icons/pages.svg", [this] { saveFormTemplate(); }, true,
+                     "form.pageTemplate.save");
+    addRibbonCommand(formTemplateGroup, "套用页面模板", "按模板在当前页创建表单域",
+                     ":/icons/pages.svg", [this] { applyFormTemplate(); }, true,
+                     "form.pageTemplate.apply");
     addRibbonCommand(formTemplateGroup, "编辑静态 XFA", "PDFium 不提供 XFA 编辑引擎",
                      ":/icons/form.svg", [] {}, false, "form.xfa");
-    addRibbonCommand(formTemplateGroup, "计算次序", "重新读取计算后的字段值",
-                     ":/icons/form.svg", showFormsPanel, true, "form.calculationOrder");
+    addRibbonCommand(formTemplateGroup, "计算次序", "调整并执行各字段的计算脚本",
+                     ":/icons/form.svg", [this] { showFormCalculationOrder(); }, true,
+                     "form.calculationOrder");
 
     auto* formDataGroup = ribbonBar_->addGroup(formTab, tr("数据"));
-    addRibbonCommand(formDataGroup, "重置表单", "清空所有可写字段",
-                     ":/icons/form.svg", [this] {
-        PdfView* view = currentView();
-        if (view == nullptr) {
-            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
-            return;
-        }
-        const QVector<pdf::FormField> fields = view->formFields();
-        int resetCount = 0;
-        for (const pdf::FormField& field : fields) {
-            if (!field.readOnly && view->setFormFieldValue(field.pageIndex, field.name, QString())) {
-                ++resetCount;
-            }
-        }
-        refreshForms(view);
-        statusBar()->showMessage(tr("已重置 %1 个表单字段").arg(resetCount), 3000);
-    }, true, "form.reset");
+    addRibbonCommand(formDataGroup, "重置表单", "把字段恢复成默认值",
+                     ":/icons/form.svg", [this] { resetForms(); }, true, "form.reset");
     addRibbonCommand(formDataGroup, "表单到工作表", "把字段和值导出为 Excel 可打开的 CSV",
                      ":/icons/convert.svg", [this] { exportFormCsv(); }, true,
                      "form.toWorksheet");
-    addRibbonCommand(formDataGroup, "导入", "从 CSV 或 FDF 导入表单数据",
-                     ":/icons/convert.svg", [this] { importFormCsv(); }, true, "form.import");
-    addRibbonCommand(formDataGroup, "导出", "把表单数据导出为 CSV",
-                     ":/icons/convert.svg", [this] { exportFormCsv(); }, true, "form.export");
-    addRibbonCommand(formDataGroup, "JavaScript", "刷新计算、校验和格式化后的字段值",
-                     ":/icons/form.svg", showFormsPanel, true, "form.javascript");
+    addRibbonCommand(formDataGroup, "导入", "从 CSV、FDF 或 XFDF 导入表单数据",
+                     ":/icons/convert.svg", [this] { importFormDataDialog(); }, true, "form.import");
+    addRibbonCommand(formDataGroup, "导出", "把表单数据导出为 CSV、FDF 或 XFDF",
+                     ":/icons/convert.svg", [this] { exportFormDataDialog(); }, true, "form.export");
+    addRibbonCommand(formDataGroup, "JavaScript", "写一段脚本并把结果写回表单字段",
+                     ":/icons/form.svg", [this] { runFormScript(); }, true, "form.javascript");
+
+    auto* formSettingsGroup = ribbonBar_->addGroup(formTab, tr("设置"));
+    addRibbonCommand(formSettingsGroup, "工具设置", "新建表单域时默认的字体、字号与颜色",
+                     ":/icons/form.svg", [this] { configureFormTools(); }, true,
+                     "form.toolSettings");
     const int signatureTab = ribbonBar_->addTab(tr("电子签章"));
     auto chooseSignature = [this](bool ridingSeam) {
         auto* view = currentView();
@@ -2791,6 +2793,10 @@ QWidget* MainWindow::createFormTab() {
     formExportFdfButton_->setObjectName(QStringLiteral("formExportFdf"));
     formImportFdfButton_ = new QPushButton(tr("导入 FDF…"), editor);
     formImportFdfButton_->setObjectName(QStringLiteral("formImportFdf"));
+    formExportXfdfButton_ = new QPushButton(tr("导出 XFDF…"), editor);
+    formExportXfdfButton_->setObjectName(QStringLiteral("formExportXfdf"));
+    formImportXfdfButton_ = new QPushButton(tr("导入 XFDF…"), editor);
+    formImportXfdfButton_->setObjectName(QStringLiteral("formImportXfdf"));
     buttons->addWidget(formApplyButton_, 0, 0);
     buttons->addWidget(formFlattenButton_, 0, 1);
     buttons->addWidget(formPropertiesButton_, 1, 0, 1, 2);
@@ -2798,6 +2804,8 @@ QWidget* MainWindow::createFormTab() {
     buttons->addWidget(formImportCsvButton_, 2, 1);
     buttons->addWidget(formExportFdfButton_, 3, 0);
     buttons->addWidget(formImportFdfButton_, 3, 1);
+    buttons->addWidget(formExportXfdfButton_, 4, 0);
+    buttons->addWidget(formImportXfdfButton_, 4, 1);
     editorLayout->addLayout(buttons);
     layout->addWidget(editor);
 
@@ -2829,6 +2837,8 @@ QWidget* MainWindow::createFormTab() {
             refreshForms(view);
         }
     });
+    connect(formExportXfdfButton_, &QPushButton::clicked, this, [this]() { exportFormXfdf(); });
+    connect(formImportXfdfButton_, &QPushButton::clicked, this, [this]() { importFormXfdf(); });
     connect(formTable_, &QTableWidget::itemSelectionChanged, this, [this]() {
         const auto items = formTable_->selectedItems();
         if (items.isEmpty() || formValueEdit_ == nullptr) {
@@ -2977,6 +2987,424 @@ void MainWindow::importFormCsv() {
     }
     refreshForms(view);
     statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+}
+
+// 表单数据的 XFDF 导出。
+//
+// 为什么单独一份 XFDF：批注的 XFDF 是给审阅的人用的，表单数据的 XFDF 是给
+// 填表的人用的。混在一起，对方软件会看到一堆它不认识的字段值，反而不敢导入。
+void MainWindow::exportFormXfdf() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出表单数据"), QString(),
+                                                      tr("XFDF (*.xfdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QVector<pdf::FormFieldData> data;
+    for (const pdf::FormField& field : view->formFields())
+        data.append(pdf::FormFieldData{field.name, field.value});
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        statusBar()->showMessage(tr("写不了这个文件"), 3000);
+        return;
+    }
+    file.write(pdf::formFieldsToXfdf(data).toUtf8());
+    file.close();
+    statusBar()->showMessage(tr("已导出表单数据"), 3000);
+}
+
+void MainWindow::importFormXfdf() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("导入表单数据"), QString(),
+                                                      tr("XFDF (*.xfdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        statusBar()->showMessage(tr("读不了这个文件"), 3000);
+        return;
+    }
+    const QVector<pdf::FormFieldData> values =
+        pdf::formFieldsFromXfdf(QString::fromUtf8(file.readAll()));
+    file.close();
+    // 按名字匹配现有字段：XFDF 里多的字段忽略，少的保持原值。
+    const QVector<pdf::FormField> fields = view->formFields();
+    int applied = 0;
+    for (const pdf::FormFieldData& value : values) {
+        for (const pdf::FormField& field : fields) {
+            if (field.name == value.name && !field.readOnly) {
+                if (view->setFormFieldValue(field.pageIndex, field.name, value.value)) ++applied;
+                break;
+            }
+        }
+    }
+    refreshForms(view);
+    statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+}
+
+void MainWindow::exportFormDataDialog() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QStringList formats{ tr("CSV"), tr("FDF"), tr("XFDF") };
+    bool ok = false;
+    const QString choice = QInputDialog::getItem(this, tr("导出表单数据"), tr("文件格式"), formats,
+                                                  0, false, &ok);
+    if (!ok) return;
+    if (choice == formats.at(0)) {
+        exportFormCsv();
+    } else if (choice == formats.at(1)) {
+        view->exportFormFdfDialog();
+    } else {
+        exportFormXfdf();
+    }
+}
+
+void MainWindow::importFormDataDialog() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QStringList formats{ tr("CSV"), tr("FDF"), tr("XFDF") };
+    bool ok = false;
+    const QString choice = QInputDialog::getItem(this, tr("导入表单数据"), tr("文件格式"), formats,
+                                                  0, false, &ok);
+    if (!ok) return;
+    if (choice == formats.at(0)) {
+        importFormCsv();
+    } else if (choice == formats.at(1)) {
+        view->importFormFdfDialog();
+        refreshForms(view);
+    } else {
+        importFormXfdf();
+    }
+}
+
+// 「JavaScript」：写一段脚本，跑一次，把结果写回目标字段。
+void MainWindow::runFormScript() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QVector<pdf::FormField> fields = view->formFields();
+    if (fields.isEmpty()) {
+        statusBar()->showMessage(tr("这份文档没有表单字段。"), 3000);
+        return;
+    }
+    QVector<FormScriptField> scriptFields;
+    for (const pdf::FormField& field : fields) {
+        FormScriptField item;
+        item.name = field.name;
+        item.pageIndex = field.pageIndex;
+        item.value = field.value;
+        item.readOnly = field.readOnly;
+        scriptFields.append(item);
+    }
+    FormScriptDialog dialog(scriptFields, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QString target = dialog.targetField();
+    if (target.isEmpty()) {
+        statusBar()->showMessage(tr("脚本已运行，结果没有写回字段。"), 3000);
+        return;
+    }
+    for (const pdf::FormField& field : fields) {
+        if (field.name != target) continue;
+        if (view->setFormFieldValue(field.pageIndex, field.name, dialog.resultValue())) {
+            refreshForms(view);
+            statusBar()->showMessage(tr("已把脚本结果写入 %1").arg(target), 3000);
+        } else {
+            statusBar()->showMessage(tr("写入失败：这个字段可能只读"), 4000);
+        }
+        break;
+    }
+}
+
+// 「计算次序」：按次序执行各字段的计算脚本，并把次序与脚本写回文档。
+void MainWindow::showFormCalculationOrder() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const QVector<pdf::FormField> fields = view->formFields();
+    if (fields.isEmpty()) {
+        statusBar()->showMessage(tr("这份文档没有表单字段。"), 3000);
+        return;
+    }
+    QVector<FormScriptField> scriptFields;
+    for (const pdf::FormField& field : fields) {
+        FormScriptField item;
+        item.name = field.name;
+        item.pageIndex = field.pageIndex;
+        item.value = field.value;
+        item.readOnly = field.readOnly;
+        scriptFields.append(item);
+    }
+    FormCalculationDialog dialog(scriptFields, view->formFieldScripts(),
+                                 view->formCalculationOrder(), this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    int applied = 0;
+    for (const auto& pair : dialog.results()) {
+        for (const pdf::FormField& field : fields) {
+            if (field.name != pair.first) continue;
+            if (view->setFormFieldValue(field.pageIndex, field.name, pair.second)) ++applied;
+            break;
+        }
+    }
+    refreshForms(view);
+    // 次序与脚本写不回文件时要说清楚：结果已经生效，丢的只是"下次打开还按这个次序"。
+    QString reason;
+    if (view->saveFormScripts(dialog.scripts(), dialog.newOrder(), &reason)) {
+        statusBar()->showMessage(tr("已按次序计算 %1 个字段，次序已保存").arg(applied), 4000);
+    } else {
+        statusBar()->showMessage(
+            tr("已按次序计算 %1 个字段；次序未能保存：%2").arg(applied).arg(reason), 5000);
+    }
+}
+
+void MainWindow::resetForms() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const int count = view->resetFormFields();
+    refreshForms(view);
+    statusBar()->showMessage(tr("已重置 %1 个表单字段").arg(count), 3000);
+}
+
+namespace {
+
+// PDFium 的字段类型 → 建域用的类型枚举。
+pdf::FormFieldKind formKindOf(int type) {
+    switch (type) {
+        case 1:
+            return pdf::FormFieldKind::PushButton;
+        case 2:
+            return pdf::FormFieldKind::CheckBox;
+        case 3:
+            return pdf::FormFieldKind::RadioButton;
+        case 4:
+            return pdf::FormFieldKind::ComboBox;
+        case 5:
+            return pdf::FormFieldKind::ListBox;
+        default:
+            return pdf::FormFieldKind::Text;
+    }
+}
+
+// 生成一个当前文档里还没用过的字段名。
+QString uniqueFieldName(const QVector<pdf::FormField>& fields, const QString& base) {
+    QString name = base.trimmed();
+    if (name.isEmpty()) name = QStringLiteral("field");
+    bool taken = false;
+    for (const pdf::FormField& field : fields) {
+        if (field.name == name) {
+            taken = true;
+            break;
+        }
+    }
+    if (!taken) return name;
+    for (int suffix = 2; suffix < 1000; ++suffix) {
+        const QString candidate = QStringLiteral("%1_%2").arg(name).arg(suffix);
+        bool used = false;
+        for (const pdf::FormField& field : fields) {
+            if (field.name == candidate) {
+                used = true;
+                break;
+            }
+        }
+        if (!used) return candidate;
+    }
+    return name;
+}
+
+}  // namespace
+
+// 把当前页的表单域存成模板（比例坐标，套到别的页面也能对齐）。
+void MainWindow::saveFormTemplate() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    const int page = view->currentPage();
+    const QVector<pdf::FormField> fields = view->formFields();
+    const QSizeF pageSize = view->pageSizePoints(page);
+    if (pageSize.isEmpty() || pageSize.width() <= 0.0 || pageSize.height() <= 0.0) {
+        statusBar()->showMessage(tr("拿不到当前页的尺寸。"), 3000);
+        return;
+    }
+    pdf::FormTemplate tmpl;
+    for (const pdf::FormField& field : fields) {
+        if (field.pageIndex != page) continue;
+        pdf::FormTemplateField item;
+        item.name = field.name;
+        item.toolTip = field.toolTip;
+        item.kind = formKindOf(field.type);
+        item.relX = field.rect.left() / pageSize.width();
+        // 模板里的 y 从页面顶往下算：界面上的坐标就是那样，套用时再翻回用户空间。
+        item.relY = (pageSize.height() - field.rect.top()) / pageSize.height();
+        item.relWidth = field.rect.width() / pageSize.width();
+        item.relHeight = field.rect.height() / pageSize.height();
+        item.options = field.options;
+        item.readOnly = field.readOnly;
+        item.required = field.required;
+        item.multiline = field.multiline;
+        tmpl.fields.append(item);
+    }
+    if (tmpl.fields.isEmpty()) {
+        statusBar()->showMessage(tr("当前页没有表单字段。"), 3000);
+        return;
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("保存表单模板"), tr("模板名称"),
+                                                QLineEdit::Normal, QString(), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+    tmpl.name = name.trimmed();
+    pdf::FormTemplateStore store;
+    QString error;
+    if (!store.save(tmpl, &error)) {
+        statusBar()->showMessage(tr("保存模板失败：%1").arg(error), 4000);
+        return;
+    }
+    statusBar()->showMessage(tr("已保存模板“%1”（%2 个字段）")
+                                 .arg(tmpl.name)
+                                 .arg(tmpl.fields.size()), 3000);
+}
+
+// 按模板在当前页创建表单域。
+void MainWindow::applyFormTemplate() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    pdf::FormTemplateStore store;
+    const QStringList names = store.templateNames();
+    if (names.isEmpty()) {
+        statusBar()->showMessage(tr("还没有保存过表单模板。"), 3000);
+        return;
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getItem(this, tr("套用表单模板"), tr("模板"), names, 0,
+                                                false, &ok);
+    if (!ok) return;
+    pdf::FormTemplate tmpl;
+    QString error;
+    if (!store.load(name, &tmpl, &error)) {
+        statusBar()->showMessage(tr("读取模板失败：%1").arg(error), 4000);
+        return;
+    }
+    const int page = view->currentPage();
+    const QSizeF pageSize = view->pageSizePoints(page);
+    if (pageSize.isEmpty() || pageSize.width() <= 0.0 || pageSize.height() <= 0.0) {
+        statusBar()->showMessage(tr("拿不到当前页的尺寸。"), 3000);
+        return;
+    }
+    int created = 0;
+    QString firstError;
+    for (const pdf::FormTemplateField& item : tmpl.fields) {
+        pdf::FormFieldInsert insert;
+        insert.pageIndex = page;
+        insert.name = uniqueFieldName(view->formFields(), item.name);
+        insert.toolTip = item.toolTip;
+        insert.kind = item.kind;
+        insert.readOnly = item.readOnly;
+        insert.required = item.required;
+        insert.multiline = item.multiline;
+        insert.options = item.options;
+        // 比例坐标翻回本页的用户空间：y 轴在 PDF 里是朝上的。
+        const double left = item.relX * pageSize.width();
+        const double top = pageSize.height() - (item.relY + item.relHeight) * pageSize.height();
+        insert.rect = QRectF(left, top, item.relWidth * pageSize.width(),
+                             item.relHeight * pageSize.height());
+        QString reason;
+        if (view->createFormFieldWith(insert, &reason)) {
+            ++created;
+        } else if (firstError.isEmpty()) {
+            firstError = reason;
+        }
+    }
+    refreshForms(view);
+    if (created == tmpl.fields.size()) {
+        statusBar()->showMessage(tr("已按模板创建 %1 个字段").arg(created), 3000);
+    } else {
+        statusBar()->showMessage(tr("已按模板创建 %1 个字段（%2 个失败：%3）")
+                                     .arg(created)
+                                     .arg(tmpl.fields.size() - created)
+                                     .arg(firstError), 5000);
+    }
+}
+
+// 设计助手：模型给字段设计，人确认后才建域。
+void MainWindow::designFormWithAssistant() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    FormDesignAssistantDialog dialog(workerClient_, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QVector<DesignedFormField> fields = dialog.fields();
+    if (fields.isEmpty()) return;
+    const int page = view->currentPage();
+    const QSizeF pageSize = view->pageSizePoints(page);
+    if (pageSize.isEmpty() || pageSize.width() <= 0.0 || pageSize.height() <= 0.0) {
+        statusBar()->showMessage(tr("拿不到当前页的尺寸。"), 3000);
+        return;
+    }
+    int created = 0;
+    QString firstError;
+    for (const DesignedFormField& field : fields) {
+        pdf::FormFieldInsert insert;
+        insert.pageIndex = page;
+        insert.name = uniqueFieldName(view->formFields(), field.name);
+        insert.toolTip = field.toolTip;
+        insert.kind = field.kind;
+        insert.appearance = pdf::FormToolSettings::load().appearance();
+        // 比例坐标翻回本页的用户空间：y 轴在 PDF 里是朝上的。
+        const double left = field.relX * pageSize.width();
+        const double top = pageSize.height() - (field.relY + field.relHeight) * pageSize.height();
+        insert.rect = QRectF(left, top, field.relWidth * pageSize.width(),
+                             field.relHeight * pageSize.height());
+        QString reason;
+        if (view->createFormFieldWith(insert, &reason)) {
+            ++created;
+        } else if (firstError.isEmpty()) {
+            firstError = reason;
+        }
+    }
+    refreshForms(view);
+    if (created == fields.size()) {
+        statusBar()->showMessage(tr("已按设计创建 %1 个字段").arg(created), 3000);
+    } else {
+        statusBar()->showMessage(tr("已按设计创建 %1 个字段（%2 个失败：%3）")
+                                     .arg(created)
+                                     .arg(fields.size() - created)
+                                     .arg(firstError), 5000);
+    }
+}
+
+// 表单工具设置：新建域时默认的字体、字号与颜色。
+void MainWindow::configureFormTools() {
+    FormToolSettingsDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    dialog.settings().save();
+    statusBar()->showMessage(tr("表单工具设置已保存，新建字段将使用这套外观。"), 3000);
 }
 
 void MainWindow::bindAnnotations(PdfView* view) {

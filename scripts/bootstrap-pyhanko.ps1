@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build the self-contained pyHanko command used by release packages.
 

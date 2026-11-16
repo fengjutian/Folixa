@@ -87,6 +87,24 @@ private:
     void flattenCurrentPageForms();
     void exportFormCsv();
     void importFormCsv();
+    // 表单数据的 XFDF 导入导出（与批注的 XFDF 分开，避免对方软件认不得）。
+    void exportFormXfdf();
+    void importFormXfdf();
+    // 导入/导出前先选格式（CSV / FDF / XFDF）。
+    void exportFormDataDialog();
+    void importFormDataDialog();
+    // 表单脚本：跑一段脚本并把结果写回字段；按次序执行各字段的计算脚本。
+    void runFormScript();
+    void showFormCalculationOrder();
+    // 重置表单：有默认值的恢复默认值，没有的清空。
+    void resetForms();
+    // 表单模板：把当前页的域存成模板 / 按模板在当前页建域。
+    void saveFormTemplate();
+    void applyFormTemplate();
+    // 表单工具设置：新建域时默认的字体、字号与颜色。
+    void configureFormTools();
+    // 设计助手：用一句描述让模型给出字段设计，人确认后才建域。
+    void designFormWithAssistant();
     static QString formFieldTypeName(int type);
     void openPdfDialog();
     void sendHealthCheck();
@@ -240,6 +258,8 @@ private:
     QPushButton* formImportCsvButton_ = nullptr;
     QPushButton* formExportFdfButton_ = nullptr;
     QPushButton* formImportFdfButton_ = nullptr;
+    QPushButton* formExportXfdfButton_ = nullptr;
+    QPushButton* formImportXfdfButton_ = nullptr;
     QColor annotationPendingColor_ = QColor(255, 214, 0);
     QPushButton* annotationStateButton_ = nullptr;
     // 页面页的页面管理按钮（v0.8.0）。

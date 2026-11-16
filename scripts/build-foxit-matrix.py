@@ -168,7 +168,8 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         "[对标基线](FOXIT_BENCHMARK.md) 的 95 项评分卡；标 `—` 表示评分卡没有单列。"
     )
     lines.append("")
-    lines.append("> 状态按 **2026-11-16 重算**，基线是提交 `bf6671a`：逐条回到 `src/` 里核"
+    lines.append("> 状态按 **2026-11-16 重算**（基线提交 `bf6671a`，含当日页面组装与表单两批实现）："
+                 "逐条回到 `src/` 里核"
                  "「底层实现 → 能否写盘 → 界面入口 → 验收」四层，四层齐备才算「已对齐」。"
                  "只实现了一半、或按钮在但功能不对口的，按「部分」记。")
     lines.append("")
@@ -284,6 +285,15 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         "应用内用户手册 / 命令行帮助 / 关于对话框。"
     )
     lines.append("")
+    lines.append(
+        "同日第二批（页面组装 + 表单）又补上：页面拆分四种口径（范围 / 每 N 页 / 按书签 / "
+        "按体积）、任意位置移动页、替换页、裁剪页面、贝茨编号与自定义页码格式、"
+        "从其他文件插入页、表格检测；表单侧则是建域全类型（经典 xref 与交叉引用流都能写）、"
+        "单选按钮 /Parent 分组、Code128 真条码、表单域 JS 子集与「计算次序」、"
+        "XFDF 表单数据、表单模板与「重置表单」、表单工具设置与 AI 设计助手。"
+        "**后两项缺专项单测，命令矩阵里仍记「部分」而不是「已对齐」。**"
+    )
+    lines.append("")
     lines.append("### 5.2 最大的三个缺口")
     lines.append("")
     lines.append(
@@ -292,7 +302,7 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         "AI 助手 10 条只对齐「对话」1 条，朗读、内容检测、PPT 生成全空。"
     )
     lines.append(
-        "2. **保护与签章（保护 / 电子签章）**：两个页签加起来 28 条，**没有一条算已对齐**——"
+        "2. **保护与签章（保护 / 电子签章）**：两个页签加起来 28 条，只对齐 2 条——"
         "加密、权限、遮盖、元数据清理全是「部分」；证书签名、验签、时间戳依赖随包 pyHanko，"
         "界面只弹原始输出；密文四件套（标记为密文 / 马赛克 / 擦除 / 应用密文）一条没做。"
     )
@@ -310,7 +320,7 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         f"{total['excluded'] + total['na']} 条标成 🚫/➖，理由集中在 "
         "[对标基线 1.2](FOXIT_BENCHMARK.md#12-明确不追的四类)。"
         "**原口径里的「在线查重、发票流程、表单设计器」已不在此列**："
-        "查重改成本地实现并已对齐，发票六条命令早已有真实入口，表单建域也已落地为「部分」。"
+        "查重改成本地实现并已对齐，发票六条命令早已有真实入口，表单建域也已落地并对齐。"
     )
     lines.append("")
 
@@ -325,8 +335,8 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         "批量加密、保护设置面板、签名列表与证书链 UI | G1–G7 |"
     )
     lines.append(
-        "| P1 | 把几十份 PDF 拼成一本 | 按书签与按大小拆分、替换页的验收、页面标签 /PageLabels、"
-        "书签排序与层级编辑、批处理 JSON 报告 | D2–D9 |"
+        "| P1 | 把几十份 PDF 拼成一本 | 页面标签 /PageLabels、书签排序与层级编辑的专项单测、"
+        "批处理 JSON 报告 | D2–D9 |"
     )
     lines.append(
         "| P1 | 转换出能交付的合规格式 | PDF→Office、HTML 导出、印前检查、PDF 转曲、"

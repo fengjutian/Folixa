@@ -8,6 +8,7 @@
 #include "pdf/AnnotationSummary.h"
 #include "pdf/FormData.h"
 #include "pdf/FormFieldWriter.h"
+#include "pdf/FormToolSettings.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
@@ -2676,11 +2677,25 @@ void PdfView::createFormFieldAt(const QString& kind, int pageIndex, const QRectF
     auto* optionsEdit = new QTextEdit(&dialog);
     optionsEdit->setPlaceholderText(tr("每行一个选项"));
     optionsEdit->setFixedHeight(90);
+    // 单选分组：同名的单选按钮共享一个父字段（/Parent），勾一个其余自动取消。
+    // 默认用字段名当组名，用户改成同一个名字就归成一组。
+    auto* groupEdit = new QLineEdit(&dialog);
+    groupEdit->setPlaceholderText(tr("同名的单选按钮归为一组"));
+    // 条形码内容：Code 128 只能编 ASCII，留空时用字段名。
+    auto* barcodeEdit = new QLineEdit(&dialog);
+    barcodeEdit->setPlaceholderText(tr("条码内容（只能是 ASCII）"));
+    auto* barcodeCaptionEdit = new QLineEdit(&dialog);
+    barcodeCaptionEdit->setPlaceholderText(tr("条码下方的说明文字"));
     form->addRow(tr("字段名称"), nameEdit);
     form->addRow(tr("工具提示"), tooltipEdit);
     form->addRow(QString(), readOnly);
     form->addRow(QString(), required);
     if (kind == QStringLiteral("text")) form->addRow(QString(), multiline);
+    if (kind == QStringLiteral("radio")) form->addRow(tr("单选分组"), groupEdit);
+    if (kind == QStringLiteral("barcode")) {
+        form->addRow(tr("条码内容"), barcodeEdit);
+        form->addRow(tr("条码说明"), barcodeCaptionEdit);
+    }
     const bool hasOptions = kind == QStringLiteral("combo") || kind == QStringLiteral("list");
     if (hasOptions) form->addRow(tr("选项"), optionsEdit);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
@@ -2726,6 +2741,17 @@ void PdfView::createFormFieldAt(const QString& kind, int pageIndex, const QRectF
     insert.readOnly = readOnly->isChecked();
     insert.required = required->isChecked();
     insert.multiline = multiline->isChecked();
+    if (kind == QStringLiteral("radio")) {
+        // 分组名留空就退回字段名：单个按钮不受影响，同名字段才会归成一组。
+        insert.groupName = groupEdit->text().trimmed().isEmpty() ? name
+                                                                : groupEdit->text().trimmed();
+    }
+    if (kind == QStringLiteral("barcode")) {
+        insert.barcodeText = barcodeEdit->text().trimmed();
+        insert.barcodeCaption = barcodeCaptionEdit->text().trimmed();
+    }
+    // 外观统一由「表单工具设置」决定，用户不必逐个域调。
+    insert.appearance = pdf::FormToolSettings::load().appearance();
     if (hasOptions)
         insert.options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
     const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
@@ -2819,6 +2845,105 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
     modified_ = true;
     emit formFieldsChanged();
     return true;
+}
+
+bool PdfView::createFormFieldWith(const pdf::FormFieldInsert& insert, QString* reason) {
+    if (!requirePermission(effectivePermissions().allowModifying, tr("创建表单域"))) {
+        if (reason != nullptr) *reason = tr("这份文档不允许修改。");
+        return false;
+    }
+    if (!document_.isValid()) {
+        if (reason != nullptr) *reason = tr("请先打开一份 PDF。");
+        return false;
+    }
+    QString serializeError;
+    const QByteArray source = document_.serialize(&serializeError);
+    if (source.isEmpty()) {
+        if (reason != nullptr)
+            *reason = tr("无法序列化文档：%1").arg(serializeError);
+        return false;
+    }
+    const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
+    if (!written.ok) {
+        if (reason != nullptr) *reason = written.error;
+        return false;
+    }
+    // 写完必须重新打开校验：字段字典写坏了的话，PDFium 可能照样能渲染，
+    // 但别的阅读器会认为这份文件是坏的。
+    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
+    if (!reopened.document.isValid()) {
+        if (reason != nullptr)
+            *reason = tr("字段写入后校验失败：%1").arg(reopened.errorMessage);
+        return false;
+    }
+    document_ = std::move(reopened.document);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    modified_ = true;
+    emit formFieldsChanged();
+    return true;
+}
+
+QVector<pdf::FormFieldScript> PdfView::formFieldScripts() const {
+    if (!document_.isValid()) return {};
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (bytes.isEmpty()) return {};
+    return pdf::readFormFieldScripts(bytes);
+}
+
+QStringList PdfView::formCalculationOrder() const {
+    if (!document_.isValid()) return {};
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (bytes.isEmpty()) return {};
+    return pdf::readCalculationOrder(bytes);
+}
+
+bool PdfView::saveFormScripts(const QVector<pdf::FormFieldScript>& scripts,
+                              const QStringList& order, QString* reason) {
+    if (!requirePermission(effectivePermissions().allowModifying, tr("写入表单脚本"))) {
+        if (reason != nullptr) *reason = tr("这份文档不允许修改。");
+        return false;
+    }
+    QString serializeError;
+    const QByteArray source = document_.serialize(&serializeError);
+    if (source.isEmpty()) {
+        if (reason != nullptr)
+            *reason = tr("无法序列化文档：%1").arg(serializeError);
+        return false;
+    }
+    const pdf::FormScriptWriteResult written = pdf::writeFormScripts(source, scripts, order);
+    if (!written.ok) {
+        if (reason != nullptr) *reason = written.error;
+        return false;
+    }
+    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
+    if (!reopened.document.isValid()) {
+        if (reason != nullptr)
+            *reason = tr("写入后校验失败：%1").arg(reopened.errorMessage);
+        return false;
+    }
+    document_ = std::move(reopened.document);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    modified_ = true;
+    emit formFieldsChanged();
+    return true;
+}
+
+int PdfView::resetFormFields() {
+    // 有默认值的恢复默认值，没有的清空——这才是"重置"，而不是"抹掉"。
+    QHash<QString, QString> defaults;
+    for (const pdf::FormFieldScript& script : formFieldScripts())
+        defaults.insert(script.fieldName, script.defaultValue);
+    int count = 0;
+    for (const pdf::FormField& field : document_.formFields()) {
+        if (field.readOnly) continue;
+        const QString value = defaults.value(field.name);
+        if (setFormFieldValue(field.pageIndex, field.name, value)) ++count;
+    }
+    return count;
 }
 
 void PdfView::mergeDocumentDialog() {

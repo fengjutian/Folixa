@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Preset = 'windows-debug',
     [switch]$NoLaunch,

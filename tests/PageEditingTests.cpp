@@ -9,6 +9,8 @@
 
 #include "app/AnnotationController.h"
 #include "app/PdfPageOperations.h"
+#include "pdf/FormFieldWriter.h"
+#include "pdf/FormScriptStore.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/PdfiumAdapter.h"
 
@@ -81,6 +83,7 @@ private slots:
     void replacePageSwapsContent();
     void detectTableFindsGrid();
     void tableCellTextCanBeRewritten();
+    void formScriptsSurvivePdfiumRoundTrip();
 };
 
 // 裁剪：写进去的 CropBox 必须真的变成页面的有效盒子。
@@ -206,6 +209,56 @@ void PageEditingTests::tableCellTextCanBeRewritten() {
     QVERIFY(pageText(result.document, 0).contains(QStringLiteral("Z9")));
     // 原来的文字被换掉了，不是多写了一份。
     QVERIFY(!pageText(result.document, 0).contains(QStringLiteral("B1")));
+}
+
+// 表单脚本必须能活过 PDFium 的重新序列化。
+//
+// 为什么单独测这一条：计算脚本住在字段字典的 /AA 里，计算次序住在
+// AcroForm 的 /CO 里。这两处都不是"值"，PDFium 保存时完全可能把它们丢掉——
+// 一旦丢了，界面上"计算次序"看着能跑，实际每次都是空跑。
+void PageEditingTests::formScriptsSurvivePdfiumRoundTrip() {
+#ifndef AIPDF_WITH_QPDF
+    QSKIP("本次构建未启用 qpdf（写脚本走 qpdf 的对象级接口）");
+#else
+    auto result = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(result.document.isValid());
+    QString error;
+    const QByteArray base = result.document.serialize(&error);
+    QVERIFY2(!base.isEmpty(), qPrintable(error));
+
+    aipdf::pdf::FormFieldInsert insert;
+    insert.pageIndex = 0;
+    insert.name = QStringLiteral("total");
+    insert.toolTip = QStringLiteral("合计");
+    insert.rect = QRectF(50.0, 700.0, 160.0, 24.0);
+    insert.kind = aipdf::pdf::FormFieldKind::Text;
+    const aipdf::pdf::FormFieldWriteResult written = aipdf::pdf::appendFormField(base, insert);
+    QVERIFY2(written.ok, qPrintable(written.error));
+
+    aipdf::pdf::FormFieldScript script;
+    script.fieldName = QStringLiteral("total");
+    script.calculate = QStringLiteral("event.value * 2");
+    const aipdf::pdf::FormScriptWriteResult scripted =
+        aipdf::pdf::writeFormScripts(written.bytes, {script}, {QStringLiteral("total")});
+    QVERIFY2(scripted.ok, qPrintable(scripted.error));
+
+    // 走一遍 PDFium：重新打开、重新保存，再读一遍脚本。
+    auto reopened = aipdf::pdf::openDocumentFromBytes(scripted.bytes, QString());
+    QVERIFY(reopened.document.isValid());
+    QString serializeError;
+    const QByteArray resaved = reopened.document.serialize(&serializeError);
+    QVERIFY2(!resaved.isEmpty(), qPrintable(serializeError));
+
+    const QVector<aipdf::pdf::FormFieldScript> scripts =
+        aipdf::pdf::readFormFieldScripts(resaved);
+    QCOMPARE(scripts.size(), 1);
+    QCOMPARE(scripts.first().fieldName, QStringLiteral("total"));
+    QCOMPARE(scripts.first().calculate, QStringLiteral("event.value * 2"));
+    // 计算次序也要活下来：AcroForm 的 /CO 是数组，不是值。
+    const QStringList order = aipdf::pdf::readCalculationOrder(resaved);
+    QCOMPARE(order.size(), 1);
+    QCOMPARE(order.first(), QStringLiteral("total"));
+#endif
 }
 
 QTEST_MAIN(PageEditingTests)

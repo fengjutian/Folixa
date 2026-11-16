@@ -340,6 +340,10 @@ Test-Check 'J5 依赖没有精确版本时必须失败' ($exit -ne 0) "exit=$exi
 # J6. 包内出现未登记二进制
 $fakePackage = Join-Path $workRoot 'dependency-package'
 New-Item -ItemType Directory -Path $fakePackage -Force | Out-Null
+# pyHanko 运行时是随包硬依赖：假包也得带上 pyhanko/pyhanko.exe，
+# 否则「已登记的包应当通过」会被 pyHanko 缺失项打红（4422058 引入的检查）。
+New-Item -ItemType Directory -Path (Join-Path $fakePackage 'pyhanko') -Force | Out-Null
+New-Item -ItemType File -Path (Join-Path $fakePackage 'pyhanko\pyhanko.exe') -Force | Out-Null
 foreach ($name in @('AiPdfEditor.exe', 'PdfAiWorker.exe', 'pdfium.dll', 'Qt6Core.dll', 'libgcc_s_seh-1.dll')) {
     New-Item -ItemType File -Path (Join-Path $fakePackage $name) -Force | Out-Null
 }

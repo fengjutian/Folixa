@@ -9,6 +9,9 @@
 
 using aipdf::pdf::annotationsFromXfdf;
 using aipdf::pdf::annotationsToXfdf;
+using aipdf::pdf::formFieldsFromXfdf;
+using aipdf::pdf::formFieldsToXfdf;
+using aipdf::pdf::FormFieldData;
 using aipdf::pdf::Annotation;
 using aipdf::pdf::AnnotationType;
 
@@ -37,6 +40,9 @@ private slots:
     void ignoresUnknownElements();
     void malformedXmlYieldsNothing();
     void roundTripsReviewMetadata();
+    void roundTripsFormFieldData();
+    void skipsFormFieldsWithoutNameOrValue();
+    void keepsFormDataOutOfAnnotationXfdf();
 };
 
 void XfdfTests::roundTripsSimpleMarkup() {
@@ -116,6 +122,56 @@ void XfdfTests::roundTripsReviewMetadata() {
     QCOMPARE(parsed.first().reviewState, QStringLiteral("Accepted"));
     QCOMPARE(parsed.first().replyToId, 9);
     QCOMPARE(parsed.first().createdAt.toUTC(), annotation.createdAt);
+}
+
+// 表单数据往返：字段名与值都不能丢。
+//
+// 为什么单独测：批注的 XFDF 与表单数据的 XFDF 是两种交换格式，
+// 混在一起对方软件会看到一堆它不认识的字段值。
+void XfdfTests::roundTripsFormFieldData() {
+    QVector<FormFieldData> source;
+    source.append(FormFieldData{QStringLiteral("customer"), QStringLiteral("张三")});
+    source.append(FormFieldData{QStringLiteral("amount"), QStringLiteral("128.50")});
+    source.append(FormFieldData{QStringLiteral("note"), QStringLiteral("a & b < c")});
+
+    const QString xml = formFieldsToXfdf(source);
+    QVERIFY(xml.contains(QStringLiteral("<fields>")));
+
+    const auto parsed = formFieldsFromXfdf(xml);
+    QCOMPARE(parsed.size(), 3);
+    QCOMPARE(parsed.at(0).name, QStringLiteral("customer"));
+    QCOMPARE(parsed.at(0).value, QStringLiteral("张三"));
+    QCOMPARE(parsed.at(1).value, QStringLiteral("128.50"));
+    // 特殊字符要转义，否则解析回来会缺字。
+    QCOMPARE(parsed.at(2).value, QStringLiteral("a & b < c"));
+}
+
+// 缺名字或缺值的条目要跳过，不要猜。
+void XfdfTests::skipsFormFieldsWithoutNameOrValue() {
+    const QString xml = QStringLiteral(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<xfdf xmlns=\"http://ns.adobe.com/xfdf/\">\n"
+        "  <fields>\n"
+        "    <field name=\"\"><value>x</value></field>\n"
+        "    <field name=\"novalue\"/>\n"
+        "    <field name=\"empty\"><value></value></field>\n"
+        "    <field name=\"good\"><value>1</value></field>\n"
+        "  </fields>\n"
+        "</xfdf>\n");
+    const auto parsed = formFieldsFromXfdf(xml);
+    // 缺名字、缺 <value> 的两条跳过；空值是"有值但为空"，要留下。
+    QCOMPARE(parsed.size(), 2);
+    QCOMPARE(parsed.at(0).name, QStringLiteral("empty"));
+    QVERIFY(parsed.at(0).value.isEmpty());
+    QCOMPARE(parsed.at(1).name, QStringLiteral("good"));
+    QCOMPARE(parsed.at(1).value, QStringLiteral("1"));
+}
+
+// 批注的 XFDF 里不该出现表单数据——两份交换格式要分开。
+void XfdfTests::keepsFormDataOutOfAnnotationXfdf() {
+    const QString xml = annotationsToXfdf({ make(AnnotationType::Highlight, 0) }, 1);
+    QVERIFY(!xml.contains(QStringLiteral("<fields>")));
+    QVERIFY(formFieldsFromXfdf(xml).isEmpty());
 }
 
 QTEST_MAIN(XfdfTests)

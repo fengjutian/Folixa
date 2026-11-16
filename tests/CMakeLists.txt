@@ -233,6 +233,8 @@ qt_add_executable(PdfiumAdapterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
 )
 
 target_link_libraries(PdfiumAdapterTests PRIVATE
@@ -962,6 +964,12 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.h
 )
 
 target_link_libraries(PageEditingTests PRIVATE
@@ -976,6 +984,15 @@ target_include_directories(PageEditingTests PRIVATE
 target_compile_definitions(PageEditingTests PRIVATE
     AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}"
 )
+# 表单脚本写回走 qpdf 的对象级接口：开了 qpdf 才测得到写回与 PDFium 往返。
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(PageEditingTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(PageEditingTests PRIVATE AIPDF_WITH_QPDF=1)
+    add_custom_command(TARGET PageEditingTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:PageEditingTests>"
+        COMMENT "Copying qpdf runtime for tests")
+endif()
 set_target_properties(PageEditingTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(PageEditingTests)
 aipdf_deploy_pdfium(PageEditingTests)
@@ -1013,6 +1030,62 @@ set_target_properties(FormTemplateStoreTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(FormTemplateStoreTests)
 
 add_test(NAME FormTemplateStoreTests COMMAND FormTemplateStoreTests)
+
+# ------------------------------------------------ 表单脚本与默认值读写 ----
+
+qt_add_executable(FormScriptStoreTests
+    FormScriptStoreTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.h
+)
+
+target_link_libraries(FormScriptStoreTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(FormScriptStoreTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(FormScriptStoreTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FormScriptStoreTests)
+# 写脚本走 qpdf 的对象级接口：开了 qpdf 才测得到写回，没开就只测读取。
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(FormScriptStoreTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(FormScriptStoreTests PRIVATE AIPDF_WITH_QPDF=1)
+    add_custom_command(TARGET FormScriptStoreTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:FormScriptStoreTests>"
+        COMMENT "Copying qpdf runtime")
+endif()
+
+add_test(NAME FormScriptStoreTests COMMAND FormScriptStoreTests)
+
+# ---------------------------------------------------------- Code128 条形码 ----
+
+qt_add_executable(BarcodeEncoderTests
+    BarcodeEncoderTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+)
+
+target_link_libraries(BarcodeEncoderTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(BarcodeEncoderTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(BarcodeEncoderTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(BarcodeEncoderTests)
+
+add_test(NAME BarcodeEncoderTests COMMAND BarcodeEncoderTests)
+
+# ------------------------------------------------------ 表单建域写入 ----
+
+qt_add_executable(FormFieldWriterTests
+    FormFieldWriterTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+)
+
+target_link_libraries(FormFieldWriterTests PRIVATE Qt6::Core Qt6::Test)
+target_include_directories(FormFieldWriterTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(FormFieldWriterTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(FormFieldWriterTests)
+
+add_test(NAME FormFieldWriterTests COMMAND FormFieldWriterTests)
 
 qt_add_executable(PageOperationTests
     PageOperationTests.cpp
