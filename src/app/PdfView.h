@@ -174,11 +174,21 @@ public slots:
     void exportFormFdfDialog();
 
 private:
+    struct ContentEditRecord {
+        int pageIndex = -1;
+        pdf::PdfDocument before;
+        pdf::PdfDocument after;
+        QString name;
+    };
+
     bool requirePermission(bool allowed, const QString& action);
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
     void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);
     void editObjectsInRect(int pageIndex, const QRectF& userRect);
+    void transformSelectedObjects(int pageIndex, const QRectF& oldRect, const QRectF& newRect);
+    void recordContentEdit(int pageIndex, const pdf::PdfDocument& before, const QString& name);
+    bool restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
 
@@ -300,6 +310,10 @@ private:
     // 视图历史：只记用户主动换位置的动作（跳页、缩放），滚轮不记。
     NavigationHistory history_;
     bool restoringHistory_ = false;
+    QVector<ContentEditRecord> contentUndo_;
+    QVector<ContentEditRecord> contentRedo_;
+    int selectedObjectPage_ = -1;
+    QVector<int> selectedObjectIndexes_;
 
     ViewState captureViewState() const;
     void applyViewState(const ViewState& state);

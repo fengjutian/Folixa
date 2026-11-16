@@ -441,6 +441,8 @@ void PdfView::buildUi() {
     });
     connect(canvas_, &PageCanvas::objectRectSelected, this,
             [this](int pageIndex, const QRectF& rect) { editObjectsInRect(pageIndex, rect); });
+    connect(canvas_, &PageCanvas::objectSelectionTransformed,
+            this, &PdfView::transformSelectedObjects);
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -803,6 +805,11 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     document_ = std::move(document);
     filePath_ = path;
     ownerPermissionsUnlocked_ = false;
+    contentUndo_.clear();
+    contentRedo_.clear();
+    selectedObjectPage_ = -1;
+    selectedObjectIndexes_.clear();
+    canvas_->clearObjectSelection();
     pageCount_ = document_.isValid() ? document_.pageCount() : 0;
     // 换文档就把历史清掉：旧页码对新文档没有意义，留着只会在后退时跳到无关位置。
     history_.reset(ViewState{});
@@ -1273,6 +1280,11 @@ void PdfView::clear() {
     qaController_.reset();
     indexController_.reset();
     document_ = pdf::PdfDocument();
+    contentUndo_.clear();
+    contentRedo_.clear();
+    selectedObjectPage_ = -1;
+    selectedObjectIndexes_.clear();
+    canvas_->clearObjectSelection();
     history_.reset(ViewState{});
     filePath_.clear();
     pageCount_ = 0;
@@ -2780,12 +2792,20 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     }
     QVector<int> indexes;
     for (const auto& object : objects) indexes.append(object.index);
+    selectedObjectPage_ = pageIndex;
+    selectedObjectIndexes_ = indexes;
+    canvas_->setObjectSelection(pageIndex, userRect);
     const QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性")};
     bool accepted = false;
     const QString action = QInputDialog::getItem(this, tr("编辑对象"),
                                                   tr("已选择 %1 个对象：").arg(objects.size()),
                                                   actions, 0, false, &accepted);
     if (!accepted) return;
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    if (!before.isValid()) {
+        QMessageBox::warning(this, tr("编辑对象"), tr("无法创建页面安全备份，文档没有修改。"));
+        return;
+    }
     bool changed = false;
     if (action == actions[0]) {
         const double dx = QInputDialog::getDouble(this, tr("移动对象"), tr("水平移动（点）:"), 0, -10000, 10000, 1, &accepted);
@@ -2837,7 +2857,70 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     }
     refreshAfterDecoration();
     setModified(true);
+    recordContentEdit(pageIndex, before, action);
+    if (action == actions[2]) {
+        canvas_->clearObjectSelection();
+        selectedObjectPage_ = -1;
+        selectedObjectIndexes_.clear();
+    }
     emit statusMessage(tr("已修改 %1 个页面对象").arg(objects.size()));
+}
+
+void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
+                                       const QRectF& newRect) {
+    if (pageIndex != selectedObjectPage_ || selectedObjectIndexes_.isEmpty() ||
+        oldRect.isEmpty() || newRect.isEmpty()) {
+        return;
+    }
+    if (!requirePermission(effectivePermissions().allowModifying, tr("编辑页面对象"))) {
+        canvas_->setObjectSelection(pageIndex, oldRect);
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    if (!page || !before.isValid()) {
+        canvas_->setObjectSelection(pageIndex, oldRect);
+        return;
+    }
+    const double scaleX = newRect.width() / oldRect.width();
+    const double scaleY = newRect.height() / oldRect.height();
+    if (!page->transformObjects(selectedObjectIndexes_, newRect.left() - oldRect.left(),
+                                newRect.top() - oldRect.top(), scaleX, scaleY)) {
+        canvas_->setObjectSelection(pageIndex, oldRect);
+        emit statusMessage(tr("页面对象没有修改。"));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    recordContentEdit(pageIndex, before, tr("变换页面对象"));
+    emit statusMessage(tr("已变换 %1 个页面对象").arg(selectedObjectIndexes_.size()));
+}
+
+void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,
+                                const QString& name) {
+    const pdf::PdfDocument after = document_.backupPage(pageIndex);
+    if (!before.isValid() || !after.isValid()) return;
+    contentUndo_.append(ContentEditRecord{pageIndex, before, after, name});
+    constexpr int kMaxContentHistory = 50;
+    if (contentUndo_.size() > kMaxContentHistory) contentUndo_.removeFirst();
+    contentRedo_.clear();
+    updateAnnotationToolBar();
+}
+
+bool PdfView::restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex) {
+    if (!snapshot.isValid() || pageIndex < 0 || pageIndex >= document_.pageCount()) return false;
+    const pdf::PdfDocument current = document_.backupPage(pageIndex);
+    if (!current.isValid() || !document_.deletePage(pageIndex)) return false;
+    if (!document_.restorePageFrom(snapshot, pageIndex)) {
+        document_.restorePageFrom(current, pageIndex);
+        return false;
+    }
+    selectedObjectPage_ = -1;
+    selectedObjectIndexes_.clear();
+    canvas_->clearObjectSelection();
+    refreshAfterDecoration();
+    setModified(true);
+    return true;
 }
 
 void PdfView::reflowSelectionDialog(bool paragraph) {
@@ -2941,6 +3024,8 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
     }
     refreshAfterDecoration();
     setModified(true);
+    recordContentEdit(pageIndex, backup,
+                      paragraph ? tr("段落重排") : tr("行内自动换行"));
     emit statusMessage(paragraph ? tr("已完成段落重排") : tr("已完成行内自动换行"));
 }
 
@@ -3424,6 +3509,16 @@ void PdfView::applyMarkAnnotation(pdf::AnnotationType type) {
 }
 
 void PdfView::undoAnnotation() {
+    if (!contentUndo_.isEmpty()) {
+        const ContentEditRecord record = contentUndo_.takeLast();
+        if (restoreContentSnapshot(record.before, record.pageIndex)) {
+            contentRedo_.append(record);
+            updateAnnotationToolBar();
+            emit statusMessage(tr("已撤销：%1").arg(record.name));
+            return;
+        }
+        contentUndo_.append(record);
+    }
     if (!annotationController_) {
         return;
     }
@@ -3433,6 +3528,16 @@ void PdfView::undoAnnotation() {
 }
 
 void PdfView::redoAnnotation() {
+    if (!contentRedo_.isEmpty()) {
+        const ContentEditRecord record = contentRedo_.takeLast();
+        if (restoreContentSnapshot(record.after, record.pageIndex)) {
+            contentUndo_.append(record);
+            updateAnnotationToolBar();
+            emit statusMessage(tr("已重做：%1").arg(record.name));
+            return;
+        }
+        contentRedo_.append(record);
+    }
     if (!annotationController_) {
         return;
     }
@@ -3453,12 +3558,18 @@ void PdfView::updateAnnotationToolBar() {
     noteButton_->setEnabled(hasDocument);
     squareButton_->setEnabled(hasDocument);
     inkButton_->setEnabled(hasDocument);
-    undoButton_->setEnabled(hasDocument && annotationController_->canUndo());
-    redoButton_->setEnabled(hasDocument && annotationController_->canRedo());
-    undoButton_->setToolTip(hasDocument && annotationController_->canUndo()
+    const bool canUndoContent = !contentUndo_.isEmpty();
+    const bool canRedoContent = !contentRedo_.isEmpty();
+    undoButton_->setEnabled(canUndoContent || (hasDocument && annotationController_->canUndo()));
+    redoButton_->setEnabled(canRedoContent || (hasDocument && annotationController_->canRedo()));
+    undoButton_->setToolTip(canUndoContent
+                                ? tr("撤销 %1 (Ctrl+Z)").arg(contentUndo_.constLast().name)
+                            : hasDocument && annotationController_->canUndo()
                                 ? annotationController_->undoText()
                                 : tr("撤销上一步批注操作 (Ctrl+Z)"));
-    redoButton_->setToolTip(hasDocument && annotationController_->canRedo()
+    redoButton_->setToolTip(canRedoContent
+                                ? tr("重做 %1 (Ctrl+Shift+Z)").arg(contentRedo_.constLast().name)
+                            : hasDocument && annotationController_->canRedo()
                                 ? annotationController_->redoText()
                                 : tr("重做上一步批注操作 (Ctrl+Shift+Z)"));
 }

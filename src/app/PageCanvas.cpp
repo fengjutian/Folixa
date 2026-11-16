@@ -16,6 +16,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPolygonF>
+#include <QLineF>
 #include <QScrollBar>
 
 #include <algorithm>
@@ -1021,9 +1022,14 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
         objectDragHandle_ = -1;
         if (before != after) {
             PageTransform transform;
-            if (annotationController_ && annotationController_->transformForPage(objectSelectionPage_, &transform))
-                emit objectSelectionTransformed(objectSelectionPage_, transform.toUserSpace(before),
-                                                transform.toUserSpace(after));
+            if (annotationController_ && annotationController_->transformForPage(objectSelectionPage_, &transform)) {
+                const auto toUserRect = [&transform](const QRectF& rect) {
+                    return QRectF(transform.toUserSpace(rect.topLeft()),
+                                  transform.toUserSpace(rect.bottomRight())).normalized();
+                };
+                emit objectSelectionTransformed(objectSelectionPage_, toUserRect(before),
+                                                toUserRect(after));
+            }
         }
         return;
     }

@@ -4278,5 +4278,13 @@ Starred: %7</translation></message>
     <context>
         <name>aipdf::app::PdfView</name>
         <message><source>文内重复比例</source><translation>Internal repetition ratio</translation></message>
+        <message><source>变换页面对象</source><translation>Transform page objects</translation></message>
+        <message><source>已变换 %1 个页面对象</source><translation>Transformed %1 page object(s)</translation></message>
+        <message><source>已撤销：%1</source><translation>Undone: %1</translation></message>
+        <message><source>已重做：%1</source><translation>Redone: %1</translation></message>
+        <message><source>撤销 %1 (Ctrl+Z)</source><translation>Undo %1 (Ctrl+Z)</translation></message>
+        <message><source>段落重排</source><translation>paragraph reflow</translation></message>
+        <message><source>行内自动换行</source><translation>inline wrapping</translation></message>
+        <message><source>重做 %1 (Ctrl+Shift+Z)</source><translation>Redo %1 (Ctrl+Shift+Z)</translation></message>
     </context>
 </TS>
