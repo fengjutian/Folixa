@@ -16,6 +16,10 @@
     <file>icons/zoom-in.svg</file>
     <file>icons/fit-width.svg</file>
     <file>icons/fit-page.svg</file>
+    <file>icons/layout-continuous.svg</file>
+    <file>icons/layout-single.svg</file>
+    <file>icons/layout-facing.svg</file>
+    <file>icons/layout-facing-cover.svg</file>
     <file>icons/rotate-left.svg</file>
     <file>icons/rotate-right.svg</file>
     <file>icons/save.svg</file>

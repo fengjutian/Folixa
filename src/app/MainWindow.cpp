@@ -1010,9 +1010,10 @@ void MainWindow::buildUi() {
     layoutButtons->setExclusive(true);
     auto addLayoutCommand = [this, ribbonLayoutRow, layoutButtons](
                                 const char* source, const char* tip,
-                                PageLayout::LayoutMode mode, bool checked) {
+                                const char* icon, PageLayout::LayoutMode mode, bool checked) {
         QToolButton* button = ribbonBar_->addCommand(ribbonLayoutRow, tr(source),
-                                                     QIcon(), tr(tip), true, QString());
+                                                     QIcon(QString::fromLatin1(icon)), tr(tip),
+                                                     true, QString());
         button->setCheckable(true);
         button->setChecked(checked);
         layoutButtons->addButton(button);
@@ -1025,11 +1026,14 @@ void MainWindow::buildUi() {
         });
         return button;
     };
-    addLayoutCommand("连续", "连续滚动", PageLayout::LayoutMode::Continuous, true);
-    addLayoutCommand("单页", "一次显示一页", PageLayout::LayoutMode::SinglePage, false);
-    addLayoutCommand("双页", "双页对开", PageLayout::LayoutMode::Facing, false);
-    addLayoutCommand("双页封面", "第一页单独作为封面", PageLayout::LayoutMode::FacingCover,
-                     false);
+    addLayoutCommand("连续", "连续滚动", ":/icons/layout-continuous.svg",
+                     PageLayout::LayoutMode::Continuous, true);
+    addLayoutCommand("单页", "一次显示一页", ":/icons/layout-single.svg",
+                     PageLayout::LayoutMode::SinglePage, false);
+    addLayoutCommand("双页", "双页对开", ":/icons/layout-facing.svg",
+                     PageLayout::LayoutMode::Facing, false);
+    addLayoutCommand("双页封面", "第一页单独作为封面", ":/icons/layout-facing-cover.svg",
+                     PageLayout::LayoutMode::FacingCover, false);
     auto* showGroup = ribbonBar_->addGroup(viewTab, tr("显示"));
     addRibbonCommand(showGroup, "放映", "全屏放映", ":/icons/book.svg", [this] {
         if (auto* view = currentView()) { view->startPresentation(); }

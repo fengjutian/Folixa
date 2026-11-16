@@ -41,6 +41,10 @@ void IconResourceTests::iconHasInk_data() {
                             // 文档工具栏与批注工具栏的图标（v0.11.0）。
                             QStringLiteral("zoom-out"), QStringLiteral("zoom-in"),
                             QStringLiteral("fit-width"), QStringLiteral("fit-page"),
+                            QStringLiteral("layout-continuous"),
+                            QStringLiteral("layout-single"),
+                            QStringLiteral("layout-facing"),
+                            QStringLiteral("layout-facing-cover"),
                             QStringLiteral("rotate-left"), QStringLiteral("rotate-right"),
                             QStringLiteral("save"),     QStringLiteral("highlight"),
                             QStringLiteral("underline"), QStringLiteral("strikethrough"),

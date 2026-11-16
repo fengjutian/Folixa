@@ -2214,7 +2214,7 @@ void PdfView::replaceSelectionTextDialog() {
     }
     bool accepted = false;
     const QString text = QInputDialog::getText(this, tr("替换文字"),
-                                               tr("新文字（仅支持西文）:"), QLineEdit::Normal,
+                                               tr("新文字:"), QLineEdit::Normal,
                                                QString(), &accepted);
     if (!accepted || text.isEmpty()) {
         return;
@@ -2250,17 +2250,10 @@ void PdfView::searchReplaceDialog() {
         return;
     }
     const QString replacement = QInputDialog::getText(
-        this, tr("搜索替换"), tr("替换为（目前仅支持西文）:"), QLineEdit::Normal,
+        this, tr("搜索替换"), tr("替换为:"), QLineEdit::Normal,
         QString(), &accepted);
     if (!accepted || replacement.isEmpty()) {
         return;
-    }
-    for (const QChar character : replacement) {
-        if (character.unicode() > 0x00ff) {
-            QMessageBox::warning(this, tr("搜索替换"),
-                                 tr("当前 PDF 写入字体只支持西文，不能写入这段替换文字。"));
-            return;
-        }
     }
     const QStringList scopes{tr("当前页"), tr("整个文档")};
     const QString scope = QInputDialog::getItem(this, tr("搜索替换"), tr("替换范围:"),
@@ -2466,6 +2459,11 @@ void PdfView::detectWebLinks() {
 
 // 显示空间（页面左上原点、y 向下）→ PDF 用户空间（左下原点、y 向上）。
 QPointF PdfView::displayToUser(int pageIndex, const QPointF& displayPoint) const {
+    PageTransform transform;
+    if (annotationController_ != nullptr &&
+        annotationController_->transformForPage(pageIndex, &transform)) {
+        return transform.toUserSpace(displayPoint);
+    }
     auto page = document_.page(pageIndex);
     if (!page.has_value()) {
         return displayPoint;

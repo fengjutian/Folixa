@@ -25,6 +25,7 @@
 #include <QStringDecoder>
 
 #include <cstring>
+#include <limits>
 #include <mutex>
 
 namespace aipdf::pdf {
@@ -159,6 +160,51 @@ QString describePdfiumError(unsigned long error) {
 // references"），所以深度和条目数都要设上限，否则会无限展开。
 constexpr int kMaxOutlineDepth = 32;
 constexpr int kMaxOutlineItems = 10000;
+
+bool needsEmbeddedUnicodeFont(const QString& text) {
+    for (const QChar character : text) {
+        if (character.unicode() > 0x00ff) return true;
+    }
+    return false;
+}
+
+FPDF_FONT loadEditingFont(FPDF_DOCUMENT document, const QString& text) {
+    if (!needsEmbeddedUnicodeFont(text)) {
+        return FPDFText_LoadStandardFont(document, "Helvetica");
+    }
+    QStringList candidates;
+    const QString configured = qEnvironmentVariable("AIPDF_CJK_FONT");
+    if (!configured.isEmpty()) candidates.append(configured);
+    candidates.append({QStringLiteral("C:/Windows/Fonts/msyh.ttc"),
+                       QStringLiteral("C:/Windows/Fonts/simhei.ttf"),
+                       QStringLiteral("C:/Windows/Fonts/simsunb.ttf"),
+                       QStringLiteral("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+                       QStringLiteral("/System/Library/Fonts/PingFang.ttc")});
+    for (const QString& path : std::as_const(candidates)) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        const QByteArray data = file.readAll();
+        if (data.isEmpty() || data.size() > std::numeric_limits<uint32_t>::max()) continue;
+        FPDF_FONT font = FPDFText_LoadFont(document,
+                                           reinterpret_cast<const uint8_t*>(data.constData()),
+                                           static_cast<uint32_t>(data.size()),
+                                           FPDF_FONT_TRUETYPE, 1);
+        if (font != nullptr) return font;
+    }
+    return nullptr;
+}
+
+FPDF_PAGEOBJECT createEditingTextObject(FPDF_DOCUMENT document, FPDF_FONT font,
+                                        const QString& text, double fontSize) {
+    FPDF_PAGEOBJECT object = FPDFPageObj_CreateTextObj(document, font, fontSize);
+    if (object == nullptr) return nullptr;
+    const std::u16string wide = text.toStdU16String();
+    if (!FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str()))) {
+        FPDFPageObj_Destroy(object);
+        return nullptr;
+    }
+    return object;
+}
 
 // PDFium 返回的字符串是 UTF-16LE（带终止符）。
 QString decodeUtf16(const unsigned char* bytes, unsigned long byteCount) {
@@ -1430,6 +1476,20 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
         return false;
     }
 
+    // 先完整创建替换对象。字体缺失或字符无法编码时，不得删除原文字。
+    FPDF_FONT font = loadEditingFont(document, newText);
+    if (font == nullptr) {
+        return false;
+    }
+    FPDF_PAGEOBJECT replacement = createEditingTextObject(document, font, newText, fontSize);
+    if (replacement == nullptr) {
+        FPDFFont_Close(font);
+        return false;
+    }
+    FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(), 255);
+    FPDFPageObj_Transform(replacement, 1.0, 0.0, 0.0, 1.0,
+                          rectPoints.left(), rectPoints.top() + fontSize * 0.2);
+
     // 1) 删掉与目标矩形重叠过半的文本对象。
     const int count = FPDFPage_CountObjects(impl_->page);
     QVector<FPDF_PAGEOBJECT> victims;
@@ -1468,13 +1528,11 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
         FPDFPage_InsertObject(impl_->page, cover);
     }
 
-    // 3) 新文字画在矩形左下角略上的位置。
-    const bool ok = addTextLayer(newText, rectPoints.left(), rectPoints.top() + fontSize * 0.2,
-                                 fontSize, color, 0.0, 1.0);
-    if (!ok) {
-        return false;
-    }
-    return FPDFPage_GenerateContent(impl_->page) != 0;
+    // 3) 最后插入新文字，保证位于白色遮盖块之上。
+    FPDFPage_InsertObject(impl_->page, replacement);
+    const bool ok = FPDFPage_GenerateContent(impl_->page) != 0;
+    FPDFFont_Close(font);
+    return ok;
 }
 
 bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
@@ -1487,17 +1545,15 @@ bool PdfPage::addTextLayer(const QString& text, double xPoints, double yPoints, 
     if (document == nullptr) {
         return false;
     }
-    FPDF_FONT font = FPDFText_LoadStandardFont(document, "Helvetica");
+    FPDF_FONT font = loadEditingFont(document, text);
     if (font == nullptr) {
         return false;
     }
-    FPDF_PAGEOBJECT object = FPDFPageObj_NewTextObj(document, "Helvetica", fontSize);
+    FPDF_PAGEOBJECT object = createEditingTextObject(document, font, text, fontSize);
     if (object == nullptr) {
         FPDFFont_Close(font);
         return false;
     }
-    const std::u16string wide = text.toStdU16String();
-    FPDFText_SetText(object, reinterpret_cast<FPDF_WIDESTRING>(wide.c_str()));
     FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(),
                              static_cast<unsigned int>(std::clamp(opacity, 0.0, 1.0) * 255.0));
     // 先平移到基线起点，再绕该点旋转。

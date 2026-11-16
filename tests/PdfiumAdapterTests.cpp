@@ -1,8 +1,11 @@
 ﻿#include "pdf/PdfiumAdapter.h"
 
 #include <QDir>
+#include <QFileInfo>
 #include <QImage>
 #include <QtTest>
+
+#include <algorithm>
 
 namespace {
 
@@ -66,6 +69,7 @@ private slots:
     void imageLayerCoversRect();
     void imageCanBeRemovedAgain();
     void textReplacementSwapsContent();
+    void textReplacementSupportsChinese();
     void formValuesSurviveSaveAndReopen();
     void checkboxAndChoiceFieldsAcceptValues();
 
@@ -392,6 +396,29 @@ void PdfiumAdapterTests::textReplacementSwapsContent() {
     const auto after = updated->extractText();
     QVERIFY(after.has_value());
     QVERIFY2(after->plainText().contains(QStringLiteral("REPLACED LINE")), "新文字没写进去");
+}
+
+void PdfiumAdapterTests::textReplacementSupportsChinese() {
+    const QStringList fonts{QStringLiteral("C:/Windows/Fonts/msyh.ttc"),
+                            QStringLiteral("C:/Windows/Fonts/simhei.ttf"),
+                            QStringLiteral("C:/Windows/Fonts/simsunb.ttf"),
+                            QStringLiteral("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+                            QStringLiteral("/System/Library/Fonts/PingFang.ttc")};
+    if (std::none_of(fonts.cbegin(), fonts.cend(), [](const QString& path) {
+            return QFileInfo::exists(path);
+        })) {
+        QSKIP("测试机没有可嵌入的 CJK 字体");
+    }
+    auto opened = openDocument(fixturePath(QStringLiteral("text.pdf")));
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    const double width = page->widthPoints();
+    const double height = page->heightPoints();
+    QVERIFY(page->replaceTextInRect(QRectF(0.0, height * 0.5, width, height * 0.5),
+                                    QStringLiteral("替换成功"), 14.0, QColor(0, 0, 0)));
+    const auto text = page->extractText();
+    QVERIFY(text.has_value());
+    QVERIFY2(text->plainText().contains(QStringLiteral("替换成功")), "中文字体未正确嵌入");
 }
 
 void PdfiumAdapterTests::formValuesSurviveSaveAndReopen() {
