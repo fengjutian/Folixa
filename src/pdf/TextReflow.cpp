@@ -2,8 +2,9 @@
 
 #include <QFont>
 #include <QFontMetricsF>
-#include <QRegularExpression>
 #include <QTextBoundaryFinder>
+#include <QTextLayout>
+#include <QTextOption>
 
 namespace aipdf::pdf {
 namespace {
@@ -18,12 +19,6 @@ double alignedX(double width, double boxWidth, TextAlignment alignment) {
     if (alignment == TextAlignment::Center) return (boxWidth - width) * 0.5;
     if (alignment == TextAlignment::Right) return boxWidth - width;
     return 0.0;
-}
-QStringList units(const QString& text) {
-    QStringList result;
-    const QStringList words = text.split(QRegularExpression(QStringLiteral("(\\s+)")), Qt::SkipEmptyParts);
-    for (const QString& word : words) result.append(word);
-    return result;
 }
 QString chopLastGrapheme(QString text) {
     QTextBoundaryFinder finder(QTextBoundaryFinder::Grapheme, text);
@@ -55,8 +50,10 @@ ReflowResult TextReflow::layoutLine(const QString& text, const QRectF& box, cons
     while (!fitted.isEmpty() && metrics.horizontalAdvance(fitted) > box.width()) fitted = chopLastGrapheme(fitted);
     const double width = metrics.horizontalAdvance(fitted);
     result.lines.append({fitted, QPointF(box.left() + alignedX(width, box.width(), style.alignment),
-                                         box.top() + metrics.ascent()), width});
+                                         box.top() + metrics.ascent()), width, 0, fitted.size()});
+    result.consumedLength = fitted.size();
     result.overflow = fitted.size() < text.size();
+    result.remainingText = text.mid(result.consumedLength);
     result.bounds = QRectF(box.left(), box.top(), result.lines.constFirst().width, metrics.height());
     return result;
 }
@@ -69,6 +66,7 @@ ReflowResult TextReflow::layoutParagraph(const QString& text, const QRectF& box,
     if (style.vertical) {
         double x = box.right() - metrics.ascent();
         double y = box.top() + metrics.ascent();
+        qsizetype sourceOffset = 0;
         for (const QString& grapheme : graphemes(text)) {
             if (grapheme.trimmed().isEmpty()) continue;
             if (y + metrics.descent() > box.bottom()) {
@@ -79,85 +77,75 @@ ReflowResult TextReflow::layoutParagraph(const QString& text, const QRectF& box,
                 result.overflow = true;
                 break;
             }
-            result.lines.append({grapheme, QPointF(x, y), metrics.horizontalAdvance(grapheme)});
+            result.lines.append({grapheme, QPointF(x, y), metrics.horizontalAdvance(grapheme),
+                                 sourceOffset, grapheme.size()});
+            sourceOffset += grapheme.size();
             y += step;
         }
+        result.consumedLength = sourceOffset;
+        result.remainingText = text.mid(sourceOffset);
+        result.overflow = !result.remainingText.isEmpty();
         if (!result.lines.isEmpty()) result.bounds = box;
         return result;
     }
-    QString current;
-    auto flush = [&] {
-        if (current.isEmpty()) return;
-        const double y = box.top() + metrics.ascent() + result.lines.size() * step;
-        if (y + metrics.descent() > box.bottom()) { result.overflow = true; current.clear(); return; }
-        QString output = current;
-        double width = metrics.horizontalAdvance(output);
-        if (style.alignment == TextAlignment::Justify && output.contains(QLatin1Char(' ')) &&
-            width < box.width() * 0.92) {
-            const QStringList words = output.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-            const int gaps = words.size() - 1;
-            const double spaceWidth = qMax(0.1, metrics.horizontalAdvance(QLatin1Char(' ')));
-            int extras = qMax(0, qFloor((box.width() - width) / spaceWidth));
-            output.clear();
-            for (int word = 0; word < words.size(); ++word) {
-                if (word > 0) {
-                    const int gap = word - 1;
-                    const int count = 1 + extras / gaps + (gap < extras % gaps ? 1 : 0);
-                    output += QString(count, QLatin1Char(' '));
-                }
-                output += words[word];
-            }
-            width = metrics.horizontalAdvance(output);
-        }
-        result.lines.append({output, QPointF(box.left() + alignedX(width, box.width(), style.alignment), y), width});
-        current.clear();
-    };
-    for (const QString& word : units(text)) {
-        const QString candidate = current.isEmpty() ? word : current + QLatin1Char(' ') + word;
-        if (metrics.horizontalAdvance(candidate) <= box.width()) { current = candidate; continue; }
-        flush();
-        if (result.overflow) break;
-        if (metrics.horizontalAdvance(word) <= box.width()) current = word;
-        else {
-            for (const QString& grapheme : graphemes(word)) {
-                const QString candidateChar = current + grapheme;
-                if (!current.isEmpty() && metrics.horizontalAdvance(candidateChar) > box.width()) flush();
-                if (result.overflow) break;
-                current += grapheme;
-            }
-        }
+    // QTextLayout is the same shaping stack Qt uses for editors.  Unlike the
+    // old word splitter it preserves whitespace/newlines and handles Unicode
+    // BiDi, kerning, ligatures, combining marks and fallback fonts before line
+    // breaking.  Source offsets let the next linked frame resume losslessly.
+    QTextOption option;
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    switch (style.alignment) {
+    case TextAlignment::Center: option.setAlignment(Qt::AlignHCenter); break;
+    case TextAlignment::Right: option.setAlignment(Qt::AlignRight); break;
+    case TextAlignment::Justify: option.setAlignment(Qt::AlignJustify); break;
+    default: option.setAlignment(Qt::AlignLeft); break;
     }
-    if (!result.overflow) flush();
-    if (!result.lines.isEmpty()) result.bounds = QRectF(box.left(), box.top(), box.width(), result.lines.size() * step);
+    QTextLayout layout(text, fontFor(style));
+    layout.setTextOption(option);
+    layout.beginLayout();
+    double y = 0.0;
+    while (true) {
+        QTextLine line = layout.createLine();
+        if (!line.isValid()) break;
+        const double lineHeight = qMax(step, line.height());
+        if (y + lineHeight > box.height() + 0.01) break;
+        line.setLineWidth(box.width());
+        line.setPosition(QPointF(0.0, y));
+        const qsizetype start = line.textStart();
+        const qsizetype length = line.textLength();
+        const QString source = text.mid(start, length);
+        const double width = qMin(box.width(), line.naturalTextWidth());
+        const double x = box.left() + line.x();
+        result.lines.append({source, QPointF(x, box.top() + y + line.ascent()),
+                             width, start, length});
+        result.consumedLength = qMax(result.consumedLength, start + length);
+        y += lineHeight;
+    }
+    layout.endLayout();
+    result.remainingText = text.mid(result.consumedLength);
+    result.overflow = !result.remainingText.isEmpty();
+    if (!result.lines.isEmpty())
+        result.bounds = QRectF(box.left(), box.top(), box.width(), y);
     return result;
 }
 
 ReflowResult TextReflow::layoutFrames(const QString& text, const QVector<QRectF>& frames,
                                       const TextStyle& style) {
     ReflowResult result;
-    QString remaining = text.simplified();
+    QString remaining = text;
+    qsizetype sourceBase = 0;
     for (const QRectF& frame : frames) {
         if (remaining.isEmpty()) break;
-        int low = 1;
-        int high = remaining.size();
-        int best = 0;
-        while (low <= high) {
-            const int middle = (low + high) / 2;
-            const ReflowResult candidate = layoutParagraph(remaining.left(middle), frame, style);
-            if (!candidate.overflow) { best = middle; low = middle + 1; }
-            else high = middle - 1;
-        }
-        if (best <= 0) break;
-        if (best < remaining.size() && !remaining.at(best).isSpace()) {
-            const int boundary = remaining.lastIndexOf(QLatin1Char(' '), best - 1);
-            if (boundary > 0) best = boundary;
-        }
-        const QString portion = remaining.left(best).trimmed();
-        const ReflowResult laidOut = layoutParagraph(portion, frame, style);
+        ReflowResult laidOut = layoutParagraph(remaining, frame, style);
+        if (laidOut.consumedLength <= 0) break;
+        for (ReflowLine& line : laidOut.lines) line.sourceStart += sourceBase;
         result.lines += laidOut.lines;
         result.bounds = result.bounds.isNull() ? laidOut.bounds : result.bounds.united(laidOut.bounds);
-        remaining = remaining.mid(best).trimmed();
+        sourceBase += laidOut.consumedLength;
+        remaining = laidOut.remainingText;
     }
+    result.consumedLength = sourceBase;
+    result.remainingText = remaining;
     result.overflow = !remaining.isEmpty();
     return result;
 }

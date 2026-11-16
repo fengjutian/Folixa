@@ -2975,6 +2975,8 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message><source>已修改 %1 个页面对象</source><translation>Modified %1 page objects</translation></message>
         <message><source>流式编辑</source><translation>Reflow editing</translation></message>
         <message><source>先选中要重排的文字。</source><translation>Select the text to reflow first.</translation></message>
+        <message><source>当前文本框无法容纳任何文字，请增大文本框或减小字号。</source><translation>The text frame cannot hold any text. Enlarge it or reduce the font size.</translation></message>
+        <message><source>链接文本框空间不足，仍有 %1 个字符未排入；原内容未修改。</source><translation>The linked frames are full with %1 characters left; the original content was not changed.</translation></message>
         <message><source>无法安全移除原文字对象。</source><translation>The original text objects could not be removed safely.</translation></message>
         <message><source>无法创建页面安全备份，文档没有修改。</source><translation>Could not create a safe page backup. The document was not modified.</translation></message>
         <message><source>部分文字无法用当前字体写入，已恢复原页面。</source><translation>Some text could not be written with the current font. The original page was restored.</translation></message>

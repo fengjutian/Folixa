@@ -247,6 +247,27 @@ FPDF_PAGEOBJECT createEditingTextObject(FPDF_DOCUMENT document, FPDF_FONT font,
     return object;
 }
 
+void copyPageObjectStrokeStyle(FPDF_PAGEOBJECT source, FPDF_PAGEOBJECT destination,
+                               std::optional<unsigned int> alphaOverride = std::nullopt) {
+    if (!source || !destination) return;
+    unsigned int red = 0, green = 0, blue = 0, alpha = 255;
+    if (FPDFPageObj_GetStrokeColor(source, &red, &green, &blue, &alpha))
+        FPDFPageObj_SetStrokeColor(destination, red, green, blue,
+                                   alphaOverride.value_or(alpha));
+    float width = 0.0F;
+    if (FPDFPageObj_GetStrokeWidth(source, &width))
+        FPDFPageObj_SetStrokeWidth(destination, width);
+    FPDFPageObj_SetLineJoin(destination, FPDFPageObj_GetLineJoin(source));
+    FPDFPageObj_SetLineCap(destination, FPDFPageObj_GetLineCap(source));
+    const int dashCount = FPDFPageObj_GetDashCount(source);
+    float dashPhase = 0.0F;
+    if (dashCount >= 0 && dashCount <= 1024 && FPDFPageObj_GetDashPhase(source, &dashPhase)) {
+        QVector<float> dashArray(dashCount);
+        if (dashCount == 0 || FPDFPageObj_GetDashArray(source, dashArray.data(), dashArray.size()))
+            FPDFPageObj_SetDashArray(destination, dashArray.constData(), dashArray.size(), dashPhase);
+    }
+}
+
 // PDFium 返回的字符串是 UTF-16LE（带终止符）。
 QString decodeUtf16(const unsigned char* bytes, unsigned long byteCount) {
     if (bytes == nullptr || byteCount < 2) {
@@ -1750,6 +1771,7 @@ bool PdfPage::setTextObjectText(int index, const QString& text) {
     }
     FPDFPageObj_GetFillColor(object, &r, &g, &b, &a);
     FPDFPageObj_SetFillColor(replacement, r, g, b, a);
+    copyPageObjectStrokeStyle(object, replacement);
     const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
     FPDFTextObj_SetTextRenderMode(replacement, mode);
     for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex)
@@ -2088,6 +2110,8 @@ bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString
         FPDFPageObj_SetMatrix(replacement, &matrix);
         FPDFPageObj_SetFillColor(replacement, color.red(), color.green(), color.blue(),
                                  qRound(255.0 * opacity));
+        copyPageObjectStrokeStyle(object, replacement,
+                                  static_cast<unsigned int>(qRound(255.0 * opacity)));
         const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
         FPDFTextObj_SetTextRenderMode(replacement, mode);
         for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex)

@@ -3393,6 +3393,18 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
         ? pdf::TextReflow::layoutFrames(source, linkedFrames, style)
         : paragraph ? pdf::TextReflow::layoutParagraph(source.simplified(), localBox, style)
                     : pdf::TextReflow::layoutLine(source.simplified(), localBox, style);
+    // Never delete the original objects when the destination frames cannot
+    // hold all source text.  The old implementation reported overflow only
+    // after saving the partial result, which silently discarded the tail.
+    if (layout.lines.isEmpty() || layout.overflow) {
+        QMessageBox::warning(
+            this, tr("流式编辑"),
+            layout.lines.isEmpty()
+                ? tr("当前文本框无法容纳任何文字，请增大文本框或减小字号。")
+                : tr("链接文本框空间不足，仍有 %1 个字符未排入；原内容未修改。")
+                      .arg(layout.remainingText.size()));
+        return;
+    }
     const pdf::PdfDocument backup = document_.backupPage(pageIndex);
     if (!backup.isValid()) {
         QMessageBox::warning(this, tr("流式编辑"), tr("无法创建页面安全备份，文档没有修改。"));
@@ -3462,9 +3474,7 @@ void PdfView::reflowSelectionDialog(bool paragraph) {
     setModified(true);
     recordContentEdit(pageIndex, backup,
                       paragraph ? tr("段落重排") : tr("行内自动换行"));
-    emit statusMessage(layout.overflow ? tr("文本框空间不足，仍有文字未排入")
-                                      : paragraph ? tr("已完成段落重排")
-                                                  : tr("已完成行内自动换行"));
+    emit statusMessage(paragraph ? tr("已完成段落重排") : tr("已完成行内自动换行"));
 }
 
 void PdfView::searchReplaceDialog() {

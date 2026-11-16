@@ -17,6 +17,8 @@ private slots:
     void wrapsLinesAndReportsOverflow();
     void alignsReflowedText();
     void flowsAcrossLinkedFrames();
+    void preservesTextAcrossLinkedFrames();
+    void shapesBidirectionalAndLigatureText();
     void laysOutVerticalText();
 #ifdef AIPDF_WITH_QPDF
     void safelyRewritesRealPdfContent();
@@ -90,6 +92,32 @@ void ContentEditingTests::flowsAcrossLinkedFrames() {
     QVERIFY(std::any_of(result.lines.begin(), result.lines.end(), [](const ReflowLine& line) {
         return line.baseline.x() >= 100;
     }));
+}
+
+void ContentEditingTests::preservesTextAcrossLinkedFrames() {
+    TextStyle style;
+    style.fontSize = 11;
+    const QString source = QStringLiteral("first  line\nsecond paragraph 中文内容 and final words");
+    const QVector<QRectF> frames{QRectF(0, 0, 75, 32), QRectF(100, 0, 90, 70)};
+    const auto result = TextReflow::layoutFrames(source, frames, style);
+    QCOMPARE(source.left(result.consumedLength) + result.remainingText, source);
+    QVERIFY(result.consumedLength > 0);
+    for (const ReflowLine& line : result.lines) {
+        QVERIFY(line.sourceStart >= 0);
+        QVERIFY(line.sourceStart + line.sourceLength <= source.size());
+        QCOMPARE(line.text, source.mid(line.sourceStart, line.sourceLength));
+    }
+}
+
+void ContentEditingTests::shapesBidirectionalAndLigatureText() {
+    TextStyle style;
+    style.fontSize = 12;
+    const QString source = QStringLiteral("office العربية עברית 中文");
+    const auto result = TextReflow::layoutParagraph(source, QRectF(0, 0, 105, 120), style);
+    QVERIFY(!result.lines.isEmpty());
+    QCOMPARE(source.left(result.consumedLength) + result.remainingText, source);
+    QCOMPARE(result.consumedLength, source.size());
+    QVERIFY(!result.overflow);
 }
 
 void ContentEditingTests::laysOutVerticalText() {
