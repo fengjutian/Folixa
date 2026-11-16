@@ -890,6 +890,9 @@
         <message><source>文件审阅</source><translation>File review</translation></message>
         <message><source>邮件审阅</source><translation>Email review</translation></message>
         <message><source>请先打开并保存一份 PDF。</source><translation>Open and save a PDF first.</translation></message>
+        <message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
+        <message><source>保存后共享</source><translation>Save before sharing</translation></message>
+        <message><source>当前文档有未保存的修改。要先保存最新版本再共享吗？</source><translation>The document has unsaved changes. Save the latest version before sharing?</translation></message>
         <message><source>当前 PDF 尚未保存到磁盘。</source><translation>The current PDF has not been saved to disk.</translation></message>
         <message><source>请审阅：%1</source><translation>Please review: %1</translation></message>
         <message><source>请审阅：</source><translation>Please review: </translation></message>

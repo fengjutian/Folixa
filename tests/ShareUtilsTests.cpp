@@ -32,9 +32,9 @@ void ShareUtilsTests::emailUrlCarriesSubjectAndFileLink() {
                                      QStringLiteral("Open this file:\n"));
     QCOMPARE(url.scheme(), QStringLiteral("mailto"));
     const QUrlQuery query(url);
-    QCOMPARE(query.queryItemValue(QStringLiteral("subject")),
+    QCOMPARE(query.queryItemValue(QStringLiteral("subject"), QUrl::FullyDecoded),
              QStringLiteral("Review: quarterly review.pdf"));
-    QCOMPARE(query.queryItemValue(QStringLiteral("body")),
+    QCOMPARE(query.queryItemValue(QStringLiteral("body"), QUrl::FullyDecoded),
              QStringLiteral("Open this file:\n") + share::fileLink(path));
 }
 

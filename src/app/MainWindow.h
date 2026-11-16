@@ -121,6 +121,8 @@ private:
     void shareByEmail();
     void copyDocumentLink();
     void showReviewTracker();
+    PdfView* shareDocument();
+    PdfView* savedShareDocument();
     // 启动时看看有没有上次没保存完的工作。
     void checkRecovery();
     // 当前标签页的文档视图；不是文档页时返回 nullptr。

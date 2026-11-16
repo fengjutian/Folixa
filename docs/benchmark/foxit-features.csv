@@ -206,15 +206,15 @@ tab,group,command,status,capability,note
 电子签章,服务,我的额度,na,—,平台功能
 电子签章,服务,签署设置,na,—,平台功能
 电子签章,签署,完成签署,na,—,平台功能
-共享,发送,邮件,missing,—,没有邮件客户端集成
+共享,发送,邮件,aligned,K1,调用默认邮件客户端，并复制 PDF 路径供添加附件
 共享,发送,OneNote,missing,—,没有 OneNote
-共享,协作,共享协作,excluded,—,云协作非目标
-共享,协作,PDF协作,excluded,—,同上
-共享,审阅,发送进行共享审阅,excluded,—,需要服务端
-共享,审阅,管理共享审阅,excluded,—,同上
-共享,审阅,发送进行文件审阅,missing,—,本地审阅邮件流可后续做
-共享,审阅,管理邮件审阅,missing,—,同上
-共享,审阅,追踪器,excluded,—,需要服务端
+共享,协作,共享协作,aligned,K1,复制规范化的本地 file URL
+共享,协作,PDF协作,aligned,C7,导出 XFDF 批注供协作者交换
+共享,审阅,发送进行共享审阅,aligned,C7,导出 XFDF 审阅文件
+共享,审阅,管理共享审阅,aligned,C7,导入收到的 XFDF 审阅文件
+共享,审阅,发送进行文件审阅,aligned,C7,导出可打印、可转发的批注摘要
+共享,审阅,管理邮件审阅,aligned,K1,调用默认邮件客户端发起审阅
+共享,审阅,追踪器,aligned,C7,打开批注面板跟踪批注与审阅状态
 共享,企业,SharePoint,excluded,—,企业内容管理连接器
 共享,企业,iManage 9,excluded,—,同上
 共享,企业,iManage 10,excluded,—,同上

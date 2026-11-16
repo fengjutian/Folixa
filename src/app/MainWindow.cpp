@@ -1426,21 +1426,21 @@ void MainWindow::buildUi() {
                      "share.copyLink");
     addRibbonCommand(shareCollaborationGroup, "PDF 协作", "导出批注供他人审阅",
                      ":/icons/convert.svg", [this] {
-        if (auto* view = currentView()) { view->exportAnnotationsXfdf(); }
+        if (auto* view = shareDocument()) { view->exportAnnotationsXfdf(); }
     }, true, "share.pdfCollaboration");
 
     auto* shareReviewGroup = ribbonBar_->addGroup(shareTab, tr("审阅"));
     addRibbonCommand(shareReviewGroup, "共享审阅", "导出 XFDF 审阅文件",
                      ":/icons/send.svg", [this] {
-        if (auto* view = currentView()) { view->exportAnnotationsXfdf(); }
+        if (auto* view = shareDocument()) { view->exportAnnotationsXfdf(); }
     }, true, "share.exportReview");
     addRibbonCommand(shareReviewGroup, "管理共享审阅", "导入收到的 XFDF 审阅文件",
                      ":/icons/convert.svg", [this] {
-        if (auto* view = currentView()) { view->importAnnotationsXfdf(); }
+        if (auto* view = shareDocument()) { view->importAnnotationsXfdf(); }
     }, true, "share.importReview");
     addRibbonCommand(shareReviewGroup, "文件审阅", "导出可打印和转发的批注摘要",
                      ":/icons/annotation.svg", [this] {
-        if (auto* view = currentView()) { view->exportAnnotationSummary(); }
+        if (auto* view = shareDocument()) { view->exportAnnotationSummary(); }
     }, true, "share.fileReview");
     addRibbonCommand(shareReviewGroup, "邮件审阅", "用默认邮件客户端发起审阅",
                      ":/icons/send.svg", [this] { shareByEmail(); }, true,
@@ -2803,9 +2803,8 @@ void MainWindow::updatePageActionState() {
 // --------------------------------------------------------------- 共享 ----
 
 void MainWindow::shareByEmail() {
-    PdfView* view = currentView();
-    if (view == nullptr || view->filePath().isEmpty()) {
-        QMessageBox::information(this, tr("邮件发送"), tr("请先打开并保存一份 PDF。"));
+    PdfView* view = savedShareDocument();
+    if (view == nullptr) {
         return;
     }
 
@@ -2830,9 +2829,8 @@ void MainWindow::shareByEmail() {
 }
 
 void MainWindow::copyDocumentLink() {
-    PdfView* view = currentView();
-    if (view == nullptr || view->filePath().isEmpty()) {
-        QMessageBox::information(this, tr("共享协作"), tr("请先打开并保存一份 PDF。"));
+    PdfView* view = savedShareDocument();
+    if (view == nullptr) {
         return;
     }
     const QFileInfo file(view->filePath());
@@ -2847,9 +2845,50 @@ void MainWindow::copyDocumentLink() {
 }
 
 void MainWindow::showReviewTracker() {
+    if (shareDocument() == nullptr) {
+        return;
+    }
     navigationDock_->setVisible(true);
     showNavigationPage(4);
     trace(QStringLiteral("share open review tracker"));
+}
+
+PdfView* MainWindow::shareDocument() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        QMessageBox::information(this, tr("共享"), tr("请先打开一份 PDF。"));
+    }
+    return view;
+}
+
+PdfView* MainWindow::savedShareDocument() {
+    PdfView* view = shareDocument();
+    if (view == nullptr) {
+        return nullptr;
+    }
+
+    if (view->filePath().isEmpty()) {
+        saveDocumentAs();
+        view = currentView();
+        if (view == nullptr || view->filePath().isEmpty()) {
+            return nullptr;  // 用户取消了“另存为”。
+        }
+    } else if (view->isModified()) {
+        const QMessageBox::StandardButton choice = QMessageBox::question(
+            this, tr("保存后共享"),
+            tr("当前文档有未保存的修改。要先保存最新版本再共享吗？"),
+            QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Save);
+        if (choice != QMessageBox::Save) {
+            return nullptr;
+        }
+        saveDocument();
+    }
+
+    view = currentView();
+    if (view == nullptr || view->filePath().isEmpty() || view->isModified()) {
+        return nullptr;  // 保存失败时 saveDocument() 已显示具体原因。
+    }
+    return view;
 }
 
 // ---------------------------------------------------------- 保存（v0.8.0）----
