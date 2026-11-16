@@ -34,7 +34,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, false);
         painter.fillRect(QRect(tab.left() + 12, tab.bottom() - 1, qMax(0, tab.width() - 24), 2),
-                         QColor(0x7C, 0x3A, 0xED));
+                         QColor(0x41, 0x69, 0xC1));
     }
 };
 

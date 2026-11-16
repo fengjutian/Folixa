@@ -23,11 +23,11 @@ void BrandMark::paintEvent(QPaintEvent*) {
     const QRectF tile(0, 0, s, s);
     const qreal radius = s * 0.29;
 
-    // 底色：Prism Blue → Intelligence Violet 的对角渐变。
+    // 底色：沉稳商务蓝的轻微明暗渐变。
     QLinearGradient base(tile.topLeft(), tile.bottomRight());
-    base.setColorAt(0.0, QColor(0x5B, 0x8D, 0xEF));
-    base.setColorAt(0.55, QColor(0x62, 0x7C, 0xE8));
-    base.setColorAt(1.0, QColor(0x7C, 0x63, 0xDC));
+    base.setColorAt(0.0, QColor(0x5A, 0x7F, 0xCE));
+    base.setColorAt(0.55, QColor(0x41, 0x69, 0xC1));
+    base.setColorAt(1.0, QColor(0x2E, 0x4E, 0x93));
     painter.setPen(Qt::NoPen);
     painter.setBrush(base);
     painter.drawRoundedRect(tile, radius, radius);

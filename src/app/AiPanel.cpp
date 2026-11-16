@@ -155,17 +155,17 @@ void AiPanel::buildUi() {
     conversation_->setOpenExternalLinks(false);
     conversation_->document()->setDefaultStyleSheet(QStringLiteral(
         "body{font-family:'Segoe UI','Microsoft YaHei UI';color:#202A3A;}"
-        ".welcome{background:#FFFFFF;border:1px solid #E2DDF2;padding:14px;margin:4px;}"
-        ".eyebrow{color:#765ECC;font-size:11px;font-weight:600;}"
+        ".welcome{background:#FFFFFF;border:1px solid #D9E3F2;padding:14px;margin:4px;}"
+        ".eyebrow{color:#4169C1;font-size:11px;font-weight:600;}"
         ".message{background:#FFFFFF;padding:10px;margin:8px 2px;}"
         ".user{background:#EAF0FF;padding:10px;margin:8px 2px;}"
         ".scope{color:#8792A3;font-size:11px;}"
         ".muted{color:#8792A3;font-size:11px;}"
-        ".citations{background:#FFFFFF;border:1px solid #E2DDF2;padding:10px;margin:4px 2px;}"
+        ".citations{background:#FFFFFF;border:1px solid #D9E3F2;padding:10px;margin:4px 2px;}"
         ".citation{font-size:12px;margin:3px 0;}"
         ".ok{color:#2E7D53;}"
         ".bad{color:#C0562F;}"
-        "a{color:#765ECC;text-decoration:none;}"
+        "a{color:#4169C1;text-decoration:none;}"
         "a:hover{text-decoration:underline;}"));
     texts_.bind([this] {
         // 欢迎语是常驻说明；已经开聊后不能再覆盖对话记录。

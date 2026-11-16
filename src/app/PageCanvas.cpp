@@ -241,11 +241,11 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         paintAnnotations(painter, index, pageRect, layout_.zoom());
         if (index == objectSelectionPage_ && !objectSelectionRect_.isEmpty()) {
             const QRectF selection = toViewportRect(objectSelectionRect_, pageRect, layout_.zoom());
-            painter.setPen(QPen(QColor(QStringLiteral("#6D45E5")), 1.5, Qt::DashLine));
+            painter.setPen(QPen(QColor(QStringLiteral("#4169C1")), 1.5, Qt::DashLine));
             painter.setBrush(Qt::NoBrush);
             painter.drawRect(selection);
             painter.setPen(QPen(Qt::white, 1.0));
-            painter.setBrush(QColor(QStringLiteral("#6D45E5")));
+            painter.setBrush(QColor(QStringLiteral("#4169C1")));
             const QPointF points[] = {selection.topLeft(), QPointF(selection.center().x(), selection.top()),
                 selection.topRight(), QPointF(selection.right(), selection.center().y()),
                 selection.bottomRight(), QPointF(selection.center().x(), selection.bottom()),
@@ -254,7 +254,7 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
             const QPointF rotationHandle(selection.center().x(), selection.top() - 24.0);
             painter.drawLine(QPointF(selection.center().x(), selection.top()), rotationHandle);
             painter.drawEllipse(rotationHandle, 5.0, 5.0);
-            painter.setPen(QPen(QColor(QStringLiteral("#B44CFF")), 1.0, Qt::DashLine));
+            painter.setPen(QPen(QColor(QStringLiteral("#6F8FD0")), 1.0, Qt::DashLine));
             if (std::isfinite(objectGuideX_)) {
                 const double x = pageRect.left() + objectGuideX_ * layout_.zoom();
                 painter.drawLine(QPointF(x, pageRect.top()), QPointF(x, pageRect.bottom()));
@@ -1348,7 +1348,7 @@ void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRect
     font.setPointSizeF(qMax(6.0, fontSize * layout_.zoom()));
     inlineEditor_->setFont(font);
     inlineEditor_->setStyleSheet(QStringLiteral(
-        "QPlainTextEdit { border: 2px solid #6D45E5; background: rgba(255,255,255,235); padding: 2px; }"));
+        "QPlainTextEdit { border: 2px solid #4169C1; background: rgba(255,255,255,235); padding: 2px; }"));
     inlineEditor_->installEventFilter(this);
     repositionInlineEditor();
     inlineEditor_->show();
