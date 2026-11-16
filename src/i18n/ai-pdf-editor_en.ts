@@ -4048,6 +4048,19 @@ Folixa requires no purchase or activation and offers no paid subscription.</tran
     <context>
         <name>aipdf::app::MainWindow</name>
         <message><source>查重</source><translation>Similarity check</translation></message>
+        <message><source>开始录制</source><translation>Start recording</translation></message>
+        <message><source>录制 PDF 演示或应用窗口、创建持续声音批注，并集中查看输出文件。</source><translation>Record a PDF presentation or app window, create continuous audio annotations, and manage outputs in one place.</translation></message>
+        <message><source>录制与捕获</source><translation>Record and capture</translation></message>
+        <message><source>录制中心</source><translation>Recording center</translation></message>
+        <message><source>录制文件夹</source><translation>Recording folder</translation></message>
+        <message><source>录制面板已打开；按 Win+Alt+R 开始或停止，视频保存在“视频\捕获”。</source><translation>The recording panel is open. Press Win+Alt+R to start or stop. Videos are saved under Videos\Captures.</translation></message>
+        <message><source>打开录制文件夹</source><translation>Open recording folder</translation></message>
+        <message><source>捕获</source><translation>Capture</translation></message>
+        <message><source>无法打开文件夹：%1</source><translation>Could not open folder: %1</translation></message>
+        <message><source>暂无截图或视频输出</source><translation>No screenshots or video outputs yet</translation></message>
+        <message><source>持续录音</source><translation>Continuous audio recording</translation></message>
+        <message><source>管理</source><translation>Manage</translation></message>
+        <message><source>最近输出</source><translation>Recent outputs</translation></message>
     </context>
     <context>
         <name>aipdf::app::PdfView</name>

@@ -30,6 +30,7 @@ namespace aipdf::app { class OcrController; }
 class QTreeWidget;
 class QTreeWidgetItem;
 class QToolButton;
+class QFileSystemWatcher;
 
 namespace aipdf::ipc {
 class WorkerClient;
@@ -122,6 +123,21 @@ private:
     void copyDocumentLink();
     void showReviewTracker();
     void batchRenameDocuments();
+    void showDocumentOverview();
+    void editDocumentTags();
+    void editDocumentCategory();
+    void toggleDocumentStar();
+    void openDocumentCabinet();
+    void configureAutoImport();
+    void importWatchedDirectory(const QString& directory);
+    void archiveInvoice();
+    void openInvoiceManager();
+    void createReimbursementList();
+    void batchConvertOfd();
+    void showRecordingCenter();
+    void startScreenRecording(bool presentPdf);
+    void captureWindowScreenshot();
+    void openRecordingFolder();
     PdfView* shareDocument();
     PdfView* savedShareDocument();
     // 启动时看看有没有上次没保存完的工作。
@@ -247,6 +263,7 @@ private:
     i18n::TextBindings texts_;
     QActionGroup* languageActions_ = nullptr;
     QAction* followSystemAction_ = nullptr;
+    QFileSystemWatcher* autoImportWatcher_ = nullptr;
 };
 
 }  // namespace aipdf::app

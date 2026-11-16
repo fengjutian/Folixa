@@ -7,6 +7,7 @@
 #include "app/SearchPanel.h"
 #include "app/ShareUtils.h"
 #include "app/BatchRename.h"
+#include "app/DocumentOutput.h"
 #include "app/IndexPanel.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
@@ -44,6 +45,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QClipboard>
+#include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -51,11 +53,15 @@
 #include <QDragLeaveEvent>
 #include <QDropEvent>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QFileDialog>
+#include <QFile>
+#include <QFileSystemWatcher>
 #include <QFileInfo>
 #include <QInputDialog>
 #include <QIntValidator>
@@ -72,12 +78,14 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
+#include <QProcess>
 #include <QSettings>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QSaveFile>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QScrollArea>
@@ -101,6 +109,24 @@
 namespace aipdf::app {
 
 namespace {
+QString documentSettingsKey(const QString& path) {
+    return QStringLiteral("documentManagement/documents/") +
+           QString::fromLatin1(QCryptographicHash::hash(
+               QFileInfo(path).canonicalFilePath().toUtf8(), QCryptographicHash::Sha256).toHex());
+}
+
+QString invoiceArchiveDirectory() {
+    const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                             .filePath(QStringLiteral("invoices"));
+    QDir().mkpath(path);
+    return path;
+}
+
+QString csvCell(QString value) {
+    value.replace('"', QStringLiteral("\"\""));
+    return QStringLiteral("\"") + value + QStringLiteral("\"");
+}
+
 void trace(const QString& message) {
     const QString path = qEnvironmentVariable("AIPDF_TRACE_FILE");
     if (path.isEmpty()) {
@@ -1518,76 +1544,66 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) view->showThesisCheckHistory();
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "thesis.history");
-    // 文档管理页不能走通用占位页：全文检索已经由本地索引实现，应当提供真实入口。
-    // 其余入口仍明确禁用，既完整呈现对标界面，也不把尚未实现的流程伪装成可用功能。
+    // 文档管理全部使用本地能力：元数据写入 QSettings，文件柜、自动导入和发票归档
+    // 只访问用户明确选择的目录；打印、图片导出和合并复用已有 PDF 输出通路。
     const int documentManagementTab = ribbonBar_->addTab(tr("文档管理"));
-    auto addDocumentManagementCommand =
-        [this, &addRibbonCommand, &placeholderIcon](QHBoxLayout* group, const char* label,
-                                                    const char* objectName) {
-            addRibbonCommand(group, label, "将在后续版本中提供", placeholderIcon(tr(label)),
-                             [] {}, false, QString::fromLatin1(objectName));
-        };
 
     auto* documentOrganizeGroup =
         ribbonBar_->addGroup(documentManagementTab, tr("组织"));
-    addDocumentManagementCommand(documentOrganizeGroup, "文档雷达", "documentManagement.radar");
-    addDocumentManagementCommand(documentOrganizeGroup, "标签", "documentManagement.tags");
-    addDocumentManagementCommand(documentOrganizeGroup, "分类", "documentManagement.categories");
-    addDocumentManagementCommand(documentOrganizeGroup, "星标", "documentManagement.starred");
-    addDocumentManagementCommand(documentOrganizeGroup, "文件柜", "documentManagement.cabinet");
+    addRibbonCommand(documentOrganizeGroup, "文档概述", "查看当前文档页数、大小和管理属性",
+                     ":/icons/outline.svg", [this] { showDocumentOverview(); }, true, "documentManagement.radar");
+    addRibbonCommand(documentOrganizeGroup, "标签", "编辑当前文档的标签", ":/icons/bookmark.svg",
+                     [this] { editDocumentTags(); }, true, "documentManagement.tags");
+    addRibbonCommand(documentOrganizeGroup, "分类", "设置当前文档分类", ":/icons/bookmark.svg",
+                     [this] { editDocumentCategory(); }, true, "documentManagement.categories");
+    addRibbonCommand(documentOrganizeGroup, "星标", "添加或取消星标", ":/icons/bookmark.svg",
+                     [this] { toggleDocumentStar(); }, true, "documentManagement.starred");
+    addRibbonCommand(documentOrganizeGroup, "文件柜", "打开当前文档所在文件夹", ":/icons/folder.svg",
+                     [this] { openDocumentCabinet(); }, true, "documentManagement.cabinet");
 
     auto* documentSearchGroup = ribbonBar_->addGroup(documentManagementTab, tr("检索"));
-    addDocumentManagementCommand(documentSearchGroup, "自动导入", "documentManagement.autoImport");
+    addRibbonCommand(documentSearchGroup, "自动导入", "监控目录并自动打开新增 PDF", ":/icons/open.svg",
+                     [this] { configureAutoImport(); }, true, "documentManagement.autoImport");
     addRibbonCommand(documentSearchGroup, "全文检索", "打开本地全文索引与检索",
                      ":/icons/search.svg", [this] { showNavigationPage(6); }, true,
                      "documentManagement.fullTextSearch");
 
     auto* invoiceGroup = ribbonBar_->addGroup(documentManagementTab, tr("发票"));
-    addDocumentManagementCommand(invoiceGroup, "发票归档", "documentManagement.invoiceArchive");
-    addDocumentManagementCommand(invoiceGroup, "发票管理", "documentManagement.invoiceManager");
-    addDocumentManagementCommand(invoiceGroup, "生成报销单", "documentManagement.reimbursement");
-    addDocumentManagementCommand(invoiceGroup, "票据打印", "documentManagement.invoicePrint");
-    addDocumentManagementCommand(invoiceGroup, "发票转图片", "documentManagement.invoiceToImage");
-    addDocumentManagementCommand(invoiceGroup, "发票合并", "documentManagement.invoiceMerge");
+    addRibbonCommand(invoiceGroup, "发票归档", "把当前 PDF 复制到本地发票库", ":/icons/save.svg",
+                     [this] { archiveInvoice(); }, true, "documentManagement.invoiceArchive");
+    addRibbonCommand(invoiceGroup, "发票管理", "打开本地发票库", ":/icons/folder.svg",
+                     [this] { openInvoiceManager(); }, true, "documentManagement.invoiceManager");
+    addRibbonCommand(invoiceGroup, "生成报销单", "为已归档发票生成 CSV 清单", ":/icons/form.svg",
+                     [this] { createReimbursementList(); }, true, "documentManagement.reimbursement");
+    addRibbonCommand(invoiceGroup, "票据打印", "打印当前发票", ":/icons/print.svg",
+                     [this] { if (auto* view = currentView()) view->printDocument(); }, true, "documentManagement.invoicePrint");
+    addRibbonCommand(invoiceGroup, "发票转图片", "把当前发票逐页导出为图片", ":/icons/image.svg",
+                     [this] { if (auto* view = currentView()) view->exportPageImages(); }, true, "documentManagement.invoiceToImage");
+    addRibbonCommand(invoiceGroup, "发票合并", "把另一份发票合并到当前文档", ":/icons/merge.svg",
+                     [this] { if (auto* view = currentView()) view->mergeDocumentDialog(); }, true, "documentManagement.invoiceMerge");
 
     auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
     addRibbonCommand(documentBatchGroup, "批量重命名", "按统一前缀和序号重命名多个文件",
                      ":/icons/edit.svg", [this] { batchRenameDocuments(); }, true,
                      "documentManagement.batchRename");
-    addDocumentManagementCommand(documentBatchGroup, "OFD 批量转换", "documentManagement.ofdConvert");
+    addRibbonCommand(documentBatchGroup, "OFD 批量转换", "调用已安装的 OFD 转换器批量转为 PDF",
+                     ":/icons/convert.svg", [this] { batchConvertOfd(); }, true,
+                     "documentManagement.ofdConvert");
     // 录制：复用 Windows 自带的录屏能力，声音直接写成 PDF 声音批注；
     // 截图保存当前 Folixa 窗口，不把尚未实现的自有视频编码器伪装成可用功能。
     const int recordTab = ribbonBar_->addTab(tr("录制"));
-    auto* recordGroup = ribbonBar_->addGroup(recordTab, tr("录制"));
-    const auto openScreenRecorder = [this] {
-#ifdef Q_OS_WIN
-        if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-gamingoverlay:")))) {
-            QMessageBox::warning(
-                this, tr("屏幕录制"),
-                tr("无法打开 Windows 游戏栏。请在“设置 > 游戏 > Xbox Game Bar”中启用它，"
-                   "或按 Win+Alt+R 开始录制。"));
-        } else {
-            statusBar()->showMessage(tr("已打开 Windows 游戏栏；按 Win+Alt+R 开始或停止录制。"),
-                                     8000);
-        }
-#else
-        QMessageBox::information(this, tr("屏幕录制"),
-                                 tr("请使用系统自带的屏幕录制工具录制 Folixa 窗口。"));
-#endif
-    };
-    addRibbonCommand(recordGroup, "PDF 录制", "放映当前 PDF，并打开系统录屏工具",
-                     ":/icons/book.svg", [this, openScreenRecorder] {
-        PdfView* view = currentView();
-        if (view == nullptr) {
-            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
-            return;
-        }
-        view->startPresentation();
-        openScreenRecorder();
-    }, true, "record.pdf");
-    addRibbonCommand(recordGroup, "屏幕录制", "使用 Windows 游戏栏录制 Folixa 窗口",
-                     ":/icons/convert.svg", openScreenRecorder, true, "record.screen");
-    addRibbonCommand(recordGroup, "声音录制", "录音并插入当前页声音批注",
+    auto* recordStartGroup = ribbonBar_->addGroup(recordTab, tr("开始录制"));
+    addRibbonCommand(recordStartGroup, "录制中心", "选择录制方式并管理输出文件",
+                     ":/icons/app.svg", [this] { showRecordingCenter(); }, true,
+                     "record.center");
+    addRibbonCommand(recordStartGroup, "PDF 录制", "放映当前 PDF，并打开系统录屏工具",
+                     ":/icons/book.svg", [this] { startScreenRecording(true); }, true,
+                     "record.pdf");
+    addRibbonCommand(recordStartGroup, "屏幕录制", "使用 Windows 游戏栏录制 Folixa 窗口",
+                     ":/icons/convert.svg", [this] { startScreenRecording(false); }, true,
+                     "record.screen");
+    auto* recordCaptureGroup = ribbonBar_->addGroup(recordTab, tr("捕获"));
+    addRibbonCommand(recordCaptureGroup, "声音录制", "持续录音并插入当前页声音批注",
                      ":/icons/annotation.svg", [this] {
         if (PdfView* view = currentView()) {
             view->recordSoundAnnotationDialog();
@@ -1595,24 +1611,14 @@ void MainWindow::buildUi() {
             statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
         }
     }, true, "record.audio");
-    addRibbonCommand(recordGroup, "截图", "把当前 Folixa 窗口保存为 PNG 图片",
-                     ":/icons/square.svg", [this] {
-        const QString suggested =
-            QDir(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation))
-                .filePath(QStringLiteral("Folixa-%1.png")
-                              .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss")));
-        const QString path = QFileDialog::getSaveFileName(
-            this, tr("保存截图"), suggested, tr("PNG 图片 (*.png)"));
-        if (path.isEmpty()) {
-            return;
-        }
-        if (!grab().save(path, "PNG")) {
-            QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
-            return;
-        }
-        statusBar()->showMessage(tr("截图已保存到 %1").arg(QDir::toNativeSeparators(path)), 8000);
-    }, true, "record.screenshot");
-    addRibbonCommand(recordGroup, "录制列表", "在批注面板中查看声音录制",
+    addRibbonCommand(recordCaptureGroup, "截图", "把当前 Folixa 窗口保存为 PNG 图片",
+                     ":/icons/square.svg", [this] { captureWindowScreenshot(); }, true,
+                     "record.screenshot");
+    auto* recordManageGroup = ribbonBar_->addGroup(recordTab, tr("管理"));
+    addRibbonCommand(recordManageGroup, "打开录制文件夹", "查看屏幕录制和截图文件",
+                     ":/icons/pages.svg", [this] { openRecordingFolder(); }, true,
+                     "record.openFolder");
+    addRibbonCommand(recordManageGroup, "录制列表", "在批注面板中查看声音录制",
                      ":/icons/annotation.svg", [this] {
         if (currentView() == nullptr) {
             statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
@@ -3106,6 +3112,152 @@ PdfView* MainWindow::shareDocument() {
     return view;
 }
 
+void MainWindow::startScreenRecording(bool presentPdf) {
+    if (presentPdf) {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        view->startPresentation();
+    }
+#ifdef Q_OS_WIN
+    if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-gamingoverlay:")))) {
+        QMessageBox::warning(
+            this, tr("屏幕录制"),
+            tr("无法打开 Windows 游戏栏。请在“设置 > 游戏 > Xbox Game Bar”中启用它，"
+               "或按 Win+Alt+R 开始录制。"));
+        return;
+    }
+    statusBar()->showMessage(
+        tr("录制面板已打开；按 Win+Alt+R 开始或停止，视频保存在“视频\\捕获”。"), 10000);
+#else
+    QMessageBox::information(this, tr("屏幕录制"),
+                             tr("请使用系统自带的屏幕录制工具录制 Folixa 窗口。"));
+#endif
+}
+
+void MainWindow::captureWindowScreenshot() {
+    const QString suggested =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation))
+            .filePath(QStringLiteral("Folixa-%1.png")
+                          .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss")));
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("保存截图"), suggested, tr("PNG 图片 (*.png)"));
+    if (path.isEmpty()) return;
+    if (!grab().save(path, "PNG")) {
+        QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
+        return;
+    }
+    statusBar()->showMessage(tr("截图已保存到 %1").arg(QDir::toNativeSeparators(path)), 8000);
+}
+
+void MainWindow::openRecordingFolder() {
+    QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation))
+                       .filePath(QStringLiteral("Captures"));
+    if (!QDir(path).exists()) {
+        path = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
+    }
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+        QMessageBox::warning(this, tr("录制文件夹"),
+                             tr("无法打开文件夹：%1").arg(QDir::toNativeSeparators(path)));
+    }
+}
+
+void MainWindow::showRecordingCenter() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("录制中心"));
+    dialog.setMinimumSize(720, 520);
+    dialog.setObjectName(QStringLiteral("recordingCenter"));
+    auto* root = new QVBoxLayout(&dialog);
+    root->setContentsMargins(28, 24, 28, 22);
+    root->setSpacing(18);
+
+    auto* title = new QLabel(tr("录制与捕获"), &dialog);
+    QFont titleFont = title->font();
+    titleFont.setPointSize(titleFont.pointSize() + 7);
+    titleFont.setBold(true);
+    title->setFont(titleFont);
+    root->addWidget(title);
+    auto* intro = new QLabel(
+        tr("录制 PDF 演示或应用窗口、创建持续声音批注，并集中查看输出文件。"), &dialog);
+    intro->setStyleSheet(QStringLiteral("color:#667085;"));
+    root->addWidget(intro);
+
+    auto* actions = new QGridLayout();
+    actions->setHorizontalSpacing(12);
+    actions->setVerticalSpacing(12);
+    struct ActionCard { const char* title; const char* detail; };
+    const ActionCard cards[] = {
+        {"PDF 演示录制", "进入放映并打开系统录屏；适合课程、汇报与批注讲解"},
+        {"窗口屏幕录制", "录制 Folixa 操作过程；Win+Alt+R 可快速开始或停止"},
+        {"声音批注", "持续录制麦克风，并把 WAV 音频嵌入当前 PDF 页面"},
+        {"窗口截图", "捕获当前 Folixa 窗口并保存为 PNG 图片"},
+    };
+    for (int i = 0; i < 4; ++i) {
+        auto* button = new QPushButton(&dialog);
+        button->setMinimumHeight(82);
+        button->setText(tr(cards[i].title) + QStringLiteral("\n") + tr(cards[i].detail));
+        button->setStyleSheet(QStringLiteral(
+            "QPushButton{text-align:left;padding:14px 16px;border:1px solid #d8deea;"
+            "border-radius:10px;background:white;color:#182033;font-weight:600;}"
+            "QPushButton:hover{border-color:#7657e8;background:#f7f5ff;}"));
+        actions->addWidget(button, i / 2, i % 2);
+        if (i == 0) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
+            dialog.accept(); startScreenRecording(true);
+        });
+        if (i == 1) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
+            dialog.accept(); startScreenRecording(false);
+        });
+        if (i == 2) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
+            if (PdfView* view = currentView()) { dialog.hide(); view->recordSoundAnnotationDialog(); dialog.show(); }
+            else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        });
+        if (i == 3) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
+            dialog.hide(); captureWindowScreenshot(); dialog.show();
+        });
+    }
+    root->addLayout(actions);
+
+    auto* recentTitle = new QLabel(tr("最近输出"), &dialog);
+    recentTitle->setStyleSheet(QStringLiteral("font-weight:700;margin-top:6px;"));
+    root->addWidget(recentTitle);
+    auto* recent = new QListWidget(&dialog);
+    recent->setMinimumHeight(130);
+    QStringList roots = {
+        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation),
+        QDir(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)).filePath("Captures")
+    };
+    QFileInfoList files;
+    for (const QString& directory : roots) {
+        QDir dir(directory);
+        files.append(dir.entryInfoList({QStringLiteral("Folixa-*.png"), QStringLiteral("*.mp4")},
+                                       QDir::Files, QDir::Time));
+    }
+    std::sort(files.begin(), files.end(), [](const QFileInfo& a, const QFileInfo& b) {
+        return a.lastModified() > b.lastModified();
+    });
+    for (int i = 0; i < qMin(8, files.size()); ++i) {
+        auto* item = new QListWidgetItem(
+            QStringLiteral("%1    %2").arg(files[i].fileName(),
+                files[i].lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm"))), recent);
+        item->setData(Qt::UserRole, files[i].absoluteFilePath());
+    }
+    if (recent->count() == 0) recent->addItem(tr("暂无截图或视频输出"));
+    connect(recent, &QListWidget::itemDoubleClicked, &dialog, [](QListWidgetItem* item) {
+        const QString path = item->data(Qt::UserRole).toString();
+        if (!path.isEmpty()) QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    });
+    root->addWidget(recent);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto* folderButton = buttons->addButton(tr("打开录制文件夹"), QDialogButtonBox::ActionRole);
+    connect(folderButton, &QPushButton::clicked, this, &MainWindow::openRecordingFolder);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    root->addWidget(buttons);
+    dialog.exec();
+}
+
 void MainWindow::batchRenameDocuments() {
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("选择要批量重命名的文件"), QString(),
@@ -3124,6 +3276,200 @@ void MainWindow::batchRenameDocuments() {
         return;
     }
     statusBar()->showMessage(tr("已重命名 %1 个文件").arg(result.renamedPaths.size()), 5000);
+}
+
+void MainWindow::showDocumentOverview() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        statusBar()->showMessage(tr("请先打开并保存一份 PDF。"), 3000);
+        return;
+    }
+    const QFileInfo info(view->filePath());
+    QSettings settings;
+    const QString key = documentSettingsKey(view->filePath());
+    const QString tags = settings.value(key + QStringLiteral("/tags")).toString();
+    const QString category = settings.value(key + QStringLiteral("/category")).toString();
+    const bool starred = settings.value(key + QStringLiteral("/starred"), false).toBool();
+    QMessageBox::information(
+        this, tr("文档概述"),
+        tr("文件：%1\n页数：%2\n大小：%3 KB\n修改时间：%4\n分类：%5\n标签：%6\n星标：%7")
+            .arg(info.fileName()).arg(view->pageCount()).arg((info.size() + 1023) / 1024)
+            .arg(info.lastModified().toString(Qt::DefaultLocaleShortDate))
+            .arg(category.isEmpty() ? tr("未分类") : category)
+            .arg(tags.isEmpty() ? tr("无") : tags)
+            .arg(starred ? tr("是") : tr("否")));
+}
+
+void MainWindow::editDocumentTags() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        statusBar()->showMessage(tr("请先打开并保存一份 PDF。"), 3000);
+        return;
+    }
+    QSettings settings;
+    const QString setting = documentSettingsKey(view->filePath()) + QStringLiteral("/tags");
+    bool accepted = false;
+    const QString value = QInputDialog::getText(this, tr("文档标签"), tr("标签（用逗号分隔）："),
+                                                QLineEdit::Normal, settings.value(setting).toString(), &accepted);
+    if (accepted) {
+        settings.setValue(setting, value.trimmed());
+        statusBar()->showMessage(tr("文档标签已保存。"), 3000);
+    }
+}
+
+void MainWindow::editDocumentCategory() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        statusBar()->showMessage(tr("请先打开并保存一份 PDF。"), 3000);
+        return;
+    }
+    QSettings settings;
+    const QString setting = documentSettingsKey(view->filePath()) + QStringLiteral("/category");
+    bool accepted = false;
+    const QString value = QInputDialog::getText(this, tr("文档分类"), tr("分类名称："),
+                                                QLineEdit::Normal, settings.value(setting).toString(), &accepted);
+    if (accepted) {
+        settings.setValue(setting, value.trimmed());
+        statusBar()->showMessage(tr("文档分类已保存。"), 3000);
+    }
+}
+
+void MainWindow::toggleDocumentStar() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        statusBar()->showMessage(tr("请先打开并保存一份 PDF。"), 3000);
+        return;
+    }
+    QSettings settings;
+    const QString setting = documentSettingsKey(view->filePath()) + QStringLiteral("/starred");
+    const bool starred = !settings.value(setting, false).toBool();
+    settings.setValue(setting, starred);
+    statusBar()->showMessage(starred ? tr("已添加星标。") : tr("已取消星标。"), 3000);
+}
+
+void MainWindow::openDocumentCabinet() {
+    PdfView* view = currentView();
+    const QString directory = view != nullptr && !view->filePath().isEmpty()
+                                  ? QFileInfo(view->filePath()).absolutePath()
+                                  : QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(directory))) {
+        QMessageBox::warning(this, tr("文件柜"), tr("无法打开目录：%1").arg(QDir::toNativeSeparators(directory)));
+    }
+}
+
+void MainWindow::configureAutoImport() {
+    const QString initial = QSettings().value(QStringLiteral("documentManagement/autoImportDirectory")).toString();
+    const QString directory = QFileDialog::getExistingDirectory(this, tr("选择自动导入目录"), initial);
+    if (directory.isEmpty()) return;
+    QSettings().setValue(QStringLiteral("documentManagement/autoImportDirectory"), directory);
+    if (autoImportWatcher_ == nullptr) {
+        autoImportWatcher_ = new QFileSystemWatcher(this);
+        connect(autoImportWatcher_, &QFileSystemWatcher::directoryChanged,
+                this, &MainWindow::importWatchedDirectory);
+    }
+    const QStringList watched = autoImportWatcher_->directories();
+    if (!watched.isEmpty()) autoImportWatcher_->removePaths(watched);
+    autoImportWatcher_->addPath(directory);
+    importWatchedDirectory(directory);
+    statusBar()->showMessage(tr("正在监控自动导入目录：%1").arg(QDir::toNativeSeparators(directory)), 5000);
+}
+
+void MainWindow::importWatchedDirectory(const QString& directory) {
+    QDir dir(directory);
+    const QFileInfoList files = dir.entryInfoList({QStringLiteral("*.pdf"), QStringLiteral("*.PDF")},
+                                                   QDir::Files, QDir::Time);
+    QStringList imported = QSettings().value(QStringLiteral("documentManagement/autoImportedFiles")).toStringList();
+    for (const QFileInfo& info : files) {
+        const QString path = info.canonicalFilePath();
+        if (path.isEmpty() || imported.contains(path, Qt::CaseInsensitive)) continue;
+        imported.prepend(path);
+        openPdfFile(path);
+    }
+    while (imported.size() > 500) imported.removeLast();
+    QSettings().setValue(QStringLiteral("documentManagement/autoImportedFiles"), imported);
+}
+
+void MainWindow::archiveInvoice() {
+    PdfView* view = savedShareDocument();
+    if (view == nullptr) return;
+    const QFileInfo source(view->filePath());
+    QString target = QDir(invoiceArchiveDirectory()).filePath(source.fileName());
+    if (QFileInfo::exists(target)) {
+        target = QDir(invoiceArchiveDirectory()).filePath(
+            source.completeBaseName() + QDateTime::currentDateTime().toString(QStringLiteral("-yyyyMMdd-HHmmss.pdf")));
+    }
+    if (!QFile::copy(source.absoluteFilePath(), target)) {
+        QMessageBox::warning(this, tr("发票归档"), tr("无法复制发票到归档目录。"));
+        return;
+    }
+    statusBar()->showMessage(tr("发票已归档：%1").arg(QDir::toNativeSeparators(target)), 6000);
+}
+
+void MainWindow::openInvoiceManager() {
+    const QString directory = invoiceArchiveDirectory();
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(directory)))
+        QMessageBox::warning(this, tr("发票管理"), tr("无法打开发票归档目录。"));
+}
+
+void MainWindow::createReimbursementList() {
+    const QDir archive(invoiceArchiveDirectory());
+    const QFileInfoList invoices = archive.entryInfoList({QStringLiteral("*.pdf")}, QDir::Files, QDir::Name);
+    if (invoices.isEmpty()) {
+        QMessageBox::information(this, tr("生成报销单"), tr("发票库中还没有已归档的 PDF。"));
+        return;
+    }
+    const QString suggested = archive.filePath(QStringLiteral("报销单-%1.csv").arg(QDate::currentDate().toString("yyyyMMdd")));
+    const QString path = QFileDialog::getSaveFileName(this, tr("保存报销单"), suggested, tr("CSV 文件 (*.csv)"));
+    if (path.isEmpty()) return;
+    QSaveFile output(path);
+    if (!output.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, tr("生成报销单"), tr("无法写入所选文件。"));
+        return;
+    }
+    output.write("\xEF\xBB\xBF");
+    output.write(QStringLiteral("序号,发票文件,归档时间,金额,备注\r\n").toUtf8());
+    for (int i = 0; i < invoices.size(); ++i) {
+        const QFileInfo& invoice = invoices.at(i);
+        output.write(QStringLiteral("%1,%2,%3,,\r\n").arg(i + 1)
+                         .arg(csvCell(invoice.fileName()), csvCell(invoice.lastModified().toString(Qt::ISODate))).toUtf8());
+    }
+    if (!output.commit()) {
+        QMessageBox::warning(this, tr("生成报销单"), tr("保存报销单失败。"));
+        return;
+    }
+    statusBar()->showMessage(tr("已生成包含 %1 张发票的报销单。 ").arg(invoices.size()), 5000);
+}
+
+void MainWindow::batchConvertOfd() {
+    QString converter = QStandardPaths::findExecutable(QStringLiteral("ofd2pdf"));
+    if (converter.isEmpty()) converter = QSettings().value(QStringLiteral("documentManagement/ofdConverter")).toString();
+    if (converter.isEmpty() || !QFileInfo::exists(converter)) {
+        converter = QFileDialog::getOpenFileName(this, tr("选择 OFD 转 PDF 工具"), QString(), tr("可执行文件 (*.exe)"));
+        if (converter.isEmpty()) return;
+        QSettings().setValue(QStringLiteral("documentManagement/ofdConverter"), converter);
+    }
+    const QStringList files = QFileDialog::getOpenFileNames(this, tr("选择 OFD 文件"), QString(), tr("OFD 文件 (*.ofd *.OFD)"));
+    if (files.isEmpty()) return;
+    int converted = 0;
+    QStringList failures;
+    for (const QString& input : files) {
+        const QString output = QFileInfo(input).dir().filePath(QFileInfo(input).completeBaseName() + QStringLiteral(".pdf"));
+        QProcess process;
+        process.start(converter, {input, output});
+        if (process.waitForFinished(120000) && process.exitStatus() == QProcess::NormalExit &&
+            process.exitCode() == 0 && QFileInfo::exists(output)) {
+            ++converted;
+        } else {
+            failures.append(QFileInfo(input).fileName());
+        }
+    }
+    if (!failures.isEmpty()) {
+        QMessageBox::warning(this, tr("OFD 批量转换"),
+                             tr("已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。\n失败：%3")
+                                 .arg(converted).arg(failures.size()).arg(failures.join(QStringLiteral("、"))));
+    } else {
+        statusBar()->showMessage(tr("已转换 %1 个 OFD 文件。 ").arg(converted), 5000);
+    }
 }
 
 PdfView* MainWindow::savedShareDocument() {
