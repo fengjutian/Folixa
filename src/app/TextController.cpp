@@ -258,26 +258,22 @@ private:
             return hits;
         }
 
-        // plain 的每个 UTF-16 位置属于哪个字符。
-        QVector<int> charOfPosition;
-        charOfPosition.reserve(plain.size() + 1);
-        for (int index = 0; index < page.chars.size(); ++index) {
-            const int units = qMax(1, page.chars.at(index).text.size());
-            for (int unit = 0; unit < units; ++unit) {
-                charOfPosition.append(index);
-            }
+        QVector<int> utf16UnitsPerCharacter;
+        utf16UnitsPerCharacter.reserve(page.chars.size());
+        for (const pdf::TextChar& character : page.chars) {
+            utf16UnitsPerCharacter.append(qMax(1, character.text.size()));
         }
-        charOfPosition.append(page.chars.size());  // 末尾哨兵
 
         for (const TextMatch& match : findTextMatches(plain, query, options)) {
-            const int at = match.at;
-            const int lastUnit = at + match.length - 1;
-            if (lastUnit >= 0 && lastUnit < charOfPosition.size() && at < charOfPosition.size()) {
+            int startCharacter = 0;
+            int endCharacter = 0;
+            if (mapTextMatchToCharacterRange(utf16UnitsPerCharacter, match,
+                                             &startCharacter, &endCharacter)) {
                 SearchHit hit;
                 hit.pageIndex = pageIndex;
-                hit.start = charOfPosition.at(at);
-                hit.end = charOfPosition.at(lastUnit) + 1;
-                hit.snippet = buildSnippet(plain, at, match.length);
+                hit.start = startCharacter;
+                hit.end = endCharacter;
+                hit.snippet = buildSnippet(plain, match.at, match.length);
                 hits.append(hit);
             }
         }

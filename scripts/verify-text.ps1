@@ -254,7 +254,7 @@ try {
         ($null -ne $probe -and $probe.Text -match '第\s*1\s*/\s*2\s*页') ''
 
     # --- 拖选 + 复制 ---
-    $viewport = Get-AiPdfElementById -Process $app -IdPattern '*pdfCanvas*viewport*'
+    $viewport = Get-AiPdfElementById -Process $app -IdPattern 'pdfCanvas.viewport'
     Test-Check '找到画布视口' ($null -ne $viewport) ''
     if ($viewport) {
         $scale = Set-AiPdfForeground -Process $app
@@ -264,7 +264,7 @@ try {
         # 弹到前台盖住我们的窗口（实测点击落到了隔壁程序上）。
         Set-AiPdfWindowTopmost -Process $app -Enable $true | Out-Null
         $scale = Set-AiPdfForeground -Process $app
-        $viewport = Get-AiPdfElementById -Process $app -IdPattern '*pdfCanvas*viewport*'
+        $viewport = Get-AiPdfElementById -Process $app -IdPattern 'pdfCanvas.viewport'
         $rect = $viewport.Current.BoundingRectangle
         $viewportWidth = $rect.Width / $scale
         # 页面在视口里水平居中（PageCanvas::pageLeft 的算法）：
@@ -473,9 +473,10 @@ try {
         $started = Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'search start query=Page' -TimeoutSeconds 15
         Test-Check '搜索已启动' $started ''
 
-        # 状态标签可能在轨迹落盘后才刷新，轮询一小会儿。
+        # 状态标签可能在轨迹落盘后才刷新，但搜索本身很快；只给一个很短的
+        # 观察窗口，随后立刻停止，避免为了读取瞬时文案反而错过取消时机。
         $status = ''
-        $deadline = (Get-Date).AddSeconds(5)
+        $deadline = (Get-Date).AddMilliseconds(600)
         while ((Get-Date) -lt $deadline) {
             try {
                 $status = $statusElement.Current.Name

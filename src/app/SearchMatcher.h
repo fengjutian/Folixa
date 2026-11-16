@@ -31,6 +31,14 @@ struct TextMatch {
     }
 };
 
+// 把 QString 的 UTF-16 命中区间映射回 PDFium 字符区间 [start, end)。
+// utf16UnitsPerCharacter 与 TextPage::chars 一一对应；代理对通常占 2，普通字符占 1。
+// 返回 false 表示命中越界或落在字符中间，调用方不得据此绘制高亮。
+bool mapTextMatchToCharacterRange(const QVector<int>& utf16UnitsPerCharacter,
+                                  const TextMatch& match,
+                                  int* startCharacter,
+                                  int* endCharacter);
+
 // 在一段纯文本里找关键词。
 //
 // 单独拆出来是为了能脱离文档、线程与界面直接测：大小写和全字匹配这两条规则

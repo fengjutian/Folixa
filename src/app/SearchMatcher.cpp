@@ -5,6 +5,41 @@
 
 namespace aipdf::app {
 
+bool mapTextMatchToCharacterRange(const QVector<int>& utf16UnitsPerCharacter,
+                                  const TextMatch& match,
+                                  int* startCharacter,
+                                  int* endCharacter) {
+    if (match.at < 0 || match.length <= 0 || startCharacter == nullptr ||
+        endCharacter == nullptr) {
+        return false;
+    }
+
+    int position = 0;
+    int start = -1;
+    int end = -1;
+    const int matchEnd = match.at + match.length;
+    for (int character = 0; character < utf16UnitsPerCharacter.size(); ++character) {
+        const int units = qMax(1, utf16UnitsPerCharacter.at(character));
+        if (position == match.at) {
+            start = character;
+        }
+        position += units;
+        if (position == matchEnd) {
+            end = character + 1;
+            break;
+        }
+        if ((start < 0 && position > match.at) || (start >= 0 && position > matchEnd)) {
+            return false;
+        }
+    }
+    if (start < 0 || end <= start) {
+        return false;
+    }
+    *startCharacter = start;
+    *endCharacter = end;
+    return true;
+}
+
 namespace {
 
 // 全字匹配的边界判定。

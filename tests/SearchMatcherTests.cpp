@@ -9,6 +9,7 @@
 #include <QTest>
 
 using aipdf::app::findTextMatches;
+using aipdf::app::mapTextMatchToCharacterRange;
 using aipdf::app::SearchOptions;
 using aipdf::app::TextMatch;
 
@@ -38,6 +39,7 @@ private slots:
     void countsEveryOccurrence();
     void regexMatchesPatterns();
     void invalidRegexYieldsNothing();
+    void regexRangeMapsToExactCharacterBoxesAcrossLines();
 };
 
 void SearchMatcherTests::emptyInputsProduceNothing() {
@@ -114,6 +116,33 @@ void SearchMatcherTests::invalidRegexYieldsNothing() {
     options.regex = true;
     // 写坏的正则不给命中、也不抛：搜索框里最忌讳打断输入
     QVERIFY(findTextMatches(QStringLiteral("abc"), QStringLiteral("(["), options).isEmpty());
+}
+
+void SearchMatcherTests::regexRangeMapsToExactCharacterBoxesAcrossLines() {
+    SearchOptions options;
+    options.regex = true;
+    // 😀 占两个 UTF-16 码元；换行也是 TextPage 中的一个字符。
+    const QString text = QString::fromUtf8("A😀B\nCD");
+    const auto matches = findTextMatches(text, QStringLiteral("😀B\\nC"), options);
+    QCOMPARE(matches.size(), 1);
+
+    // A, 😀, B, \n, C, D 的 PDFium 字符框；命中必须逐字映射到 1..4。
+    const QVector<int> units{1, 2, 1, 1, 1, 1};
+    int start = -1;
+    int end = -1;
+    QVERIFY(mapTextMatchToCharacterRange(units, matches.first(), &start, &end));
+    QCOMPARE(start, 1);
+    QCOMPARE(end, 5);
+
+    const QVector<QRectF> boxes{
+        QRectF(0, 0, 8, 10), QRectF(8, 0, 10, 10), QRectF(18, 0, 8, 10),
+        QRectF(), QRectF(0, 12, 8, 10), QRectF(8, 12, 8, 10)};
+    const QVector<QRectF> highlighted(boxes.cbegin() + start, boxes.cbegin() + end);
+    QCOMPARE(highlighted.size(), 4);
+    QCOMPARE(highlighted.at(0), boxes.at(1));
+    QCOMPARE(highlighted.at(1), boxes.at(2));
+    QCOMPARE(highlighted.at(2), boxes.at(3));
+    QCOMPARE(highlighted.at(3), boxes.at(4));
 }
 
 QTEST_MAIN(SearchMatcherTests)

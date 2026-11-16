@@ -67,6 +67,9 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     setPalette(canvasPalette);
     setBackgroundRole(QPalette::Mid);
     setFrameShape(QFrame::NoFrame);
+    // QAbstractScrollArea 会创建多个名为 qt_scrollarea_viewport 的控件；给 PDF
+    // 画布视口唯一标识，避免验收脚本误拿到左侧导航面板的 viewport。
+    viewport()->setObjectName(QStringLiteral("pdfCanvas.viewport"));
     viewport()->setAutoFillBackground(true);
     viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
     // 画布要能拿到焦点：点一下之后 Ctrl+C 才能复制选中的文字。
