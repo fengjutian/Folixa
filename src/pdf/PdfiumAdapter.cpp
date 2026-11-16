@@ -1707,6 +1707,36 @@ bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, d
     return changed && FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
+bool PdfPage::rotateObjects(const QVector<int>& indexes, double degrees) {
+    if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || qFuzzyIsNull(degrees)) return false;
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    QRectF groupBounds;
+    for (int index : indexes) {
+        if (index < 0 || index >= count) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (object && FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top))
+            groupBounds = groupBounds.united(QRectF(left, bottom, right - left, top - bottom));
+    }
+    if (groupBounds.isEmpty()) return false;
+    const double radians = qDegreesToRadians(degrees);
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    const QPointF center = groupBounds.center();
+    const double translateX = center.x() - cosine * center.x() + sine * center.y();
+    const double translateY = center.y() - sine * center.x() - cosine * center.y();
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= count) continue;
+        if (FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index)) {
+            FPDFPageObj_Transform(object, cosine, sine, -sine, cosine, translateX, translateY);
+            changed = true;
+        }
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
 bool PdfPage::removeObjects(const QVector<int>& indexes) {
     if (!impl_ || impl_->page == nullptr || indexes.isEmpty()) return false;
     const detail::PdfiumGuard guard;

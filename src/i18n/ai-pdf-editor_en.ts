@@ -4286,5 +4286,16 @@ Starred: %7</translation></message>
         <message><source>段落重排</source><translation>paragraph reflow</translation></message>
         <message><source>行内自动换行</source><translation>inline wrapping</translation></message>
         <message><source>重做 %1 (Ctrl+Shift+Z)</source><translation>Redo %1 (Ctrl+Shift+Z)</translation></message>
+        <message><source>X 坐标（点）:</source><translation>X coordinate (pt):</translation></message>
+        <message><source>Y 坐标（点）:</source><translation>Y coordinate (pt):</translation></message>
+        <message><source>已旋转 %1 个页面对象</source><translation>Rotated %1 page object(s)</translation></message>
+        <message><source>已选择 %1 个对象</source><translation>Selected %1 object(s)</translation></message>
+        <message><source>已选择 %1 个对象；再次单击可切换下层对象</source><translation>Selected %1 object(s); click again to cycle through objects underneath</translation></message>
+        <message><source>当前位置没有页面对象</source><translation>There is no page object at this position</translation></message>
+        <message><source>旋转</source><translation>Rotate</translation></message>
+        <message><source>旋转对象</source><translation>Rotate objects</translation></message>
+        <message><source>旋转角度（度）:</source><translation>Rotation angle (degrees):</translation></message>
+        <message><source>旋转页面对象</source><translation>Rotate page objects</translation></message>
+        <message><source>精确几何</source><translation>Precise geometry</translation></message>
     </context>
 </TS>

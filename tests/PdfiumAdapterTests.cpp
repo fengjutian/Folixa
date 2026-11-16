@@ -111,6 +111,14 @@ void PdfiumAdapterTests::pageObjectsCanBeSelectedTransformedStyledAndRemoved() {
     QVERIFY(match != objects.end());
     QVERIFY(match->bounds.left() > before.left());
     QVERIFY(match->bounds.width() > before.width());
+    const QRectF scaled = match->bounds;
+    QVERIFY(page->rotateObjects({index}, 20.0));
+    objects = page->objectsInRect(scaled.adjusted(-80, -80, 80, 80), 0.01);
+    match = std::find_if(objects.begin(), objects.end(), [index](const PageObjectInfo& info) {
+        return info.index == index;
+    });
+    QVERIFY(match != objects.end());
+    QVERIFY(match->bounds.height() > scaled.height());
     QVERIFY(page->setTextObjectProperties({index}, QStringLiteral("Courier"), 20, QColor(Qt::red)));
     objects = page->objectsInRect(QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
     match = std::find_if(objects.begin(), objects.end(), [](const PageObjectInfo& info) {

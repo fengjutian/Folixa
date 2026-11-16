@@ -87,6 +87,7 @@ public:
                                           double minimumOverlap = 0.15) const;
     bool transformObjects(const QVector<int>& indexes, double translateX, double translateY,
                           double scaleX = 1.0, double scaleY = 1.0);
+    bool rotateObjects(const QVector<int>& indexes, double degrees);
     bool removeObjects(const QVector<int>& indexes);
     bool setTextObjectProperties(const QVector<int>& indexes, const QString& fontFamily,
                                  double fontSize, const QColor& color);

@@ -186,7 +186,9 @@ private:
     void refreshAfterDecoration();
     void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);
     void editObjectsInRect(int pageIndex, const QRectF& userRect);
+    void selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool additive);
     void transformSelectedObjects(int pageIndex, const QRectF& oldRect, const QRectF& newRect);
+    void rotateSelectedObjects(int pageIndex, double degrees);
     void recordContentEdit(int pageIndex, const pdf::PdfDocument& before, const QString& name);
     bool restoreContentSnapshot(const pdf::PdfDocument& snapshot, int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。
@@ -314,6 +316,9 @@ private:
     QVector<ContentEditRecord> contentRedo_;
     int selectedObjectPage_ = -1;
     QVector<int> selectedObjectIndexes_;
+    int objectCyclePage_ = -1;
+    QPointF objectCyclePoint_;
+    int objectCyclePosition_ = -1;
 
     ViewState captureViewState() const;
     void applyViewState(const ViewState& state);

@@ -441,8 +441,12 @@ void PdfView::buildUi() {
     });
     connect(canvas_, &PageCanvas::objectRectSelected, this,
             [this](int pageIndex, const QRectF& rect) { editObjectsInRect(pageIndex, rect); });
+    connect(canvas_, &PageCanvas::objectPointSelected,
+            this, &PdfView::selectObjectAtPoint);
     connect(canvas_, &PageCanvas::objectSelectionTransformed,
             this, &PdfView::transformSelectedObjects);
+    connect(canvas_, &PageCanvas::objectSelectionRotated,
+            this, &PdfView::rotateSelectedObjects);
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -809,6 +813,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     contentRedo_.clear();
     selectedObjectPage_ = -1;
     selectedObjectIndexes_.clear();
+    objectCyclePage_ = -1;
+    objectCyclePosition_ = -1;
     canvas_->clearObjectSelection();
     pageCount_ = document_.isValid() ? document_.pageCount() : 0;
     // 换文档就把历史清掉：旧页码对新文档没有意义，留着只会在后退时跳到无关位置。
@@ -2766,6 +2772,21 @@ void PdfView::replaceSelectionTextDialog() {
 void PdfView::editSelectedObjectsDialog() {
     if (!document_.isValid() || textController_ == nullptr) return;
     if (!requirePermission(effectivePermissions().allowModifying, tr("编辑页面对象"))) return;
+    if (selectedObjectPage_ >= 0 && !selectedObjectIndexes_.isEmpty()) {
+        auto selectedPage = document_.page(selectedObjectPage_);
+        QRectF selectedBounds;
+        if (selectedPage) {
+            const auto objects = selectedPage->objectsInRect(
+                QRectF(0, 0, selectedPage->widthPoints(), selectedPage->heightPoints()), 0.0);
+            for (const auto& object : objects)
+                if (selectedObjectIndexes_.contains(object.index))
+                    selectedBounds = selectedBounds.united(object.bounds);
+        }
+        if (!selectedBounds.isEmpty()) {
+            editObjectsInRect(selectedObjectPage_, selectedBounds);
+            return;
+        }
+    }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -2795,7 +2816,8 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     selectedObjectPage_ = pageIndex;
     selectedObjectIndexes_ = indexes;
     canvas_->setObjectSelection(pageIndex, userRect);
-    const QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性")};
+    const QStringList actions{tr("移动"), tr("缩放"), tr("删除"), tr("文字属性"),
+                              tr("精确几何"), tr("旋转")};
     bool accepted = false;
     const QString action = QInputDialog::getItem(this, tr("编辑对象"),
                                                   tr("已选择 %1 个对象：").arg(objects.size()),
@@ -2822,7 +2844,7 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
     } else if (action == actions[2]) {
         if (QMessageBox::question(this, tr("删除对象"), tr("永久删除选中的 %1 个页面对象？").arg(objects.size())) != QMessageBox::Yes) return;
         changed = page->removeObjects(indexes);
-    } else {
+    } else if (action == actions[3]) {
         QVector<int> textIndexes;
         double initialSize = 12.0;
         QString initialFamily = QStringLiteral("Helvetica");
@@ -2850,6 +2872,26 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
         const QColor color = QColorDialog::getColor(initialColor, this, tr("文字颜色"));
         if (!color.isValid()) return;
         changed = page->setTextObjectProperties(textIndexes, family, size, color);
+    } else if (action == actions[4]) {
+        const double x = QInputDialog::getDouble(this, tr("精确几何"), tr("X 坐标（点）:"),
+                                                  userRect.left(), -100000, 100000, 2, &accepted);
+        if (!accepted) return;
+        const double y = QInputDialog::getDouble(this, tr("精确几何"), tr("Y 坐标（点）:"),
+                                                  userRect.top(), -100000, 100000, 2, &accepted);
+        if (!accepted) return;
+        const double width = QInputDialog::getDouble(this, tr("精确几何"), tr("宽度（点）:"),
+                                                      userRect.width(), 0.01, 100000, 2, &accepted);
+        if (!accepted) return;
+        const double height = QInputDialog::getDouble(this, tr("精确几何"), tr("高度（点）:"),
+                                                       userRect.height(), 0.01, 100000, 2, &accepted);
+        if (!accepted) return;
+        changed = page->transformObjects(indexes, x - userRect.left(), y - userRect.top(),
+                                         width / userRect.width(), height / userRect.height());
+    } else {
+        const double degrees = QInputDialog::getDouble(this, tr("旋转对象"), tr("旋转角度（度）:"),
+                                                        0, -3600, 3600, 1, &accepted);
+        if (!accepted) return;
+        changed = page->rotateObjects(indexes, degrees);
     }
     if (!changed) {
         QMessageBox::warning(this, tr("编辑对象"), tr("页面对象没有修改。"));
@@ -2864,6 +2906,57 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
         selectedObjectIndexes_.clear();
     }
     emit statusMessage(tr("已修改 %1 个页面对象").arg(objects.size()));
+}
+
+void PdfView::selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool additive) {
+    auto page = document_.page(pageIndex);
+    if (!page) return;
+    constexpr double kHitRadius = 4.0;
+    QVector<pdf::PageObjectInfo> hits = page->objectsInRect(
+        QRectF(userPoint.x() - kHitRadius, userPoint.y() - kHitRadius,
+               kHitRadius * 2.0, kHitRadius * 2.0), 0.0);
+    hits.erase(std::remove_if(hits.begin(), hits.end(), [userPoint](const auto& object) {
+        return !object.bounds.adjusted(-2.0, -2.0, 2.0, 2.0).contains(userPoint);
+    }), hits.end());
+    std::sort(hits.begin(), hits.end(), [](const auto& a, const auto& b) {
+        return a.index > b.index;
+    });
+    if (hits.isEmpty()) {
+        if (!additive) {
+            selectedObjectPage_ = -1;
+            selectedObjectIndexes_.clear();
+            canvas_->clearObjectSelection();
+        }
+        emit statusMessage(tr("当前位置没有页面对象"));
+        return;
+    }
+    const bool samePoint = objectCyclePage_ == pageIndex &&
+                           QLineF(objectCyclePoint_, userPoint).length() <= kHitRadius;
+    objectCyclePosition_ = samePoint ? (objectCyclePosition_ + 1) % hits.size() : 0;
+    objectCyclePage_ = pageIndex;
+    objectCyclePoint_ = userPoint;
+    const pdf::PageObjectInfo& hit = hits.at(objectCyclePosition_);
+    if (!additive || selectedObjectPage_ != pageIndex) {
+        selectedObjectIndexes_ = {hit.index};
+    } else if (selectedObjectIndexes_.contains(hit.index)) {
+        selectedObjectIndexes_.removeAll(hit.index);
+    } else {
+        selectedObjectIndexes_.append(hit.index);
+    }
+    selectedObjectPage_ = selectedObjectIndexes_.isEmpty() ? -1 : pageIndex;
+    if (selectedObjectIndexes_.isEmpty()) {
+        canvas_->clearObjectSelection();
+        return;
+    }
+    QRectF bounds;
+    const auto all = page->objectsInRect(
+        QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+    for (const auto& object : all)
+        if (selectedObjectIndexes_.contains(object.index)) bounds = bounds.united(object.bounds);
+    canvas_->setObjectSelection(pageIndex, bounds);
+    emit statusMessage(hits.size() > 1
+        ? tr("已选择 %1 个对象；再次单击可切换下层对象").arg(selectedObjectIndexes_.size())
+        : tr("已选择 %1 个对象").arg(selectedObjectIndexes_.size()));
 }
 
 void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
@@ -2894,6 +2987,29 @@ void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
     setModified(true);
     recordContentEdit(pageIndex, before, tr("变换页面对象"));
     emit statusMessage(tr("已变换 %1 个页面对象").arg(selectedObjectIndexes_.size()));
+}
+
+void PdfView::rotateSelectedObjects(int pageIndex, double degrees) {
+    if (pageIndex != selectedObjectPage_ || selectedObjectIndexes_.isEmpty()) return;
+    auto page = document_.page(pageIndex);
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    if (!page || !before.isValid() || !page->rotateObjects(selectedObjectIndexes_, -degrees)) {
+        emit statusMessage(tr("页面对象没有修改。"));
+        return;
+    }
+    refreshAfterDecoration();
+    recordContentEdit(pageIndex, before, tr("旋转页面对象"));
+    auto refreshed = document_.page(pageIndex);
+    QRectF bounds;
+    if (refreshed) {
+        const auto objects = refreshed->objectsInRect(
+            QRectF(0, 0, refreshed->widthPoints(), refreshed->heightPoints()), 0.0);
+        for (const auto& object : objects)
+            if (selectedObjectIndexes_.contains(object.index)) bounds = bounds.united(object.bounds);
+    }
+    if (!bounds.isEmpty()) canvas_->setObjectSelection(pageIndex, bounds);
+    setModified(true);
+    emit statusMessage(tr("已旋转 %1 个页面对象").arg(selectedObjectIndexes_.size()));
 }
 
 void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,

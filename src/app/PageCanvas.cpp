@@ -249,6 +249,9 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
                 selection.bottomRight(), QPointF(selection.center().x(), selection.bottom()),
                 selection.bottomLeft(), QPointF(selection.left(), selection.center().y())};
             for (const QPointF& point : points) painter.drawRect(QRectF(point - QPointF(4, 4), QSizeF(8, 8)));
+            const QPointF rotationHandle(selection.center().x(), selection.top() - 24.0);
+            painter.drawLine(QPointF(selection.center().x(), selection.top()), rotationHandle);
+            painter.drawEllipse(rotationHandle, 5.0, 5.0);
         }
         // 正在拖的批注工具的预览。
         if (index == drawPage_) {
@@ -714,9 +717,11 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
             objectSelectionRect_.bottomRight(),
             QPointF(objectSelectionRect_.center().x(), objectSelectionRect_.bottom()),
             objectSelectionRect_.bottomLeft(),
-            QPointF(objectSelectionRect_.left(), objectSelectionRect_.center().y())};
+            QPointF(objectSelectionRect_.left(), objectSelectionRect_.center().y()),
+            QPointF(objectSelectionRect_.center().x(),
+                    objectSelectionRect_.top() - 24.0 / qMax(0.01, layout_.zoom()))};
         objectDragHandle_ = -1;
-        for (int handle = 0; handle < 8; ++handle) {
+        for (int handle = 0; handle < 9; ++handle) {
             if (QLineF(displayPoint, handles[handle]).length() <= tolerance) {
                 objectDragHandle_ = handle;
                 break;
@@ -726,13 +731,20 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
             draggingObjectSelection_ = true;
             objectDragStart_ = displayPoint;
             objectDragStartRect_ = objectSelectionRect_;
+            if (objectDragHandle_ == 8) {
+                const QPointF offset = displayPoint - objectSelectionRect_.center();
+                objectRotationStartAngle_ = qRadiansToDegrees(std::atan2(offset.y(), offset.x()));
+                objectRotationDegrees_ = 0.0;
+            }
             return;
         }
     }
 
-    if (drawingObjectSelection_) {
+    if (drawingObjectSelection_ || objectEditMode_) {
         selecting_ = false;
         drawingSquare_ = true;
+        drawingObjectSelection_ = true;
+        objectSelectionAdditive_ = event->modifiers().testFlag(Qt::ShiftModifier);
         drawPage_ = pageIndex;
         drawAnchor_ = displayPoint;
         drawCurrent_ = displayPoint;
@@ -921,12 +933,39 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
         if (!pagePointAt(event->pos(), &pageIndex, &point) || pageIndex != objectSelectionPage_) return;
         const QPointF delta = point - objectDragStart_;
         QRectF next = objectDragStartRect_;
-        if (objectDragHandle_ < 0) next.translate(delta);
+        if (objectDragHandle_ == 8) {
+            const QPointF offset = point - objectDragStartRect_.center();
+            const double angle = qRadiansToDegrees(std::atan2(offset.y(), offset.x()));
+            objectRotationDegrees_ = angle - objectRotationStartAngle_;
+            if (event->modifiers().testFlag(Qt::ShiftModifier))
+                objectRotationDegrees_ = qRound(objectRotationDegrees_ / 15.0) * 15.0;
+            viewport()->update();
+            return;
+        } else if (objectDragHandle_ < 0) next.translate(delta);
         else {
             if (objectDragHandle_ == 0 || objectDragHandle_ == 6 || objectDragHandle_ == 7) next.setLeft(next.left() + delta.x());
             if (objectDragHandle_ == 2 || objectDragHandle_ == 3 || objectDragHandle_ == 4) next.setRight(next.right() + delta.x());
             if (objectDragHandle_ == 0 || objectDragHandle_ == 1 || objectDragHandle_ == 2) next.setTop(next.top() + delta.y());
             if (objectDragHandle_ == 4 || objectDragHandle_ == 5 || objectDragHandle_ == 6) next.setBottom(next.bottom() + delta.y());
+            if (event->modifiers().testFlag(Qt::ShiftModifier) &&
+                (objectDragHandle_ == 0 || objectDragHandle_ == 2 ||
+                 objectDragHandle_ == 4 || objectDragHandle_ == 6)) {
+                const double ratio = objectDragStartRect_.width() /
+                                     qMax(0.01, objectDragStartRect_.height());
+                const double width = next.width();
+                const double height = next.height();
+                if (width / qMax(0.01, height) > ratio) {
+                    const double targetHeight = width / ratio;
+                    if (objectDragHandle_ < 3) next.setTop(next.bottom() - targetHeight);
+                    else next.setBottom(next.top() + targetHeight);
+                } else {
+                    const double targetWidth = height * ratio;
+                    if (objectDragHandle_ == 0 || objectDragHandle_ == 6)
+                        next.setLeft(next.right() - targetWidth);
+                    else
+                        next.setRight(next.left() + targetWidth);
+                }
+            }
         }
         if (next.width() >= 2.0 && next.height() >= 2.0) objectSelectionRect_ = next.normalized();
         viewport()->update();
@@ -1017,9 +1056,16 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     }
     if (draggingObjectSelection_) {
         draggingObjectSelection_ = false;
+        const int releasedHandle = objectDragHandle_;
         const QRectF before = objectDragStartRect_;
         const QRectF after = objectSelectionRect_;
         objectDragHandle_ = -1;
+        if (releasedHandle == 8) {
+            const double degrees = objectRotationDegrees_;
+            objectRotationDegrees_ = 0.0;
+            if (!qFuzzyIsNull(degrees)) emit objectSelectionRotated(objectSelectionPage_, degrees);
+            return;
+        }
         if (before != after) {
             PageTransform transform;
             if (annotationController_ && annotationController_->transformForPage(objectSelectionPage_, &transform)) {
@@ -1064,6 +1110,14 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
             drawingSquare_ = false;
             drawPage_ = -1;
             viewport()->update();
+            if (drawingObjectSelection_ && QLineF(drawAnchor_, drawCurrent_).length() <
+                                               4.0 / qMax(0.01, layout_.zoom())) {
+                drawingObjectSelection_ = false;
+                objectSelectionPage_ = pageIndex;
+                emit objectPointSelected(pageIndex, a, objectSelectionAdditive_);
+                updateToolCursor();
+                return;
+            }
             if (a != b) {
                 const QRectF rect = QRectF(a, b).normalized();
                 if (drawingObjectSelection_) {
@@ -1118,6 +1172,7 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void PageCanvas::beginObjectSelection() {
+    objectEditMode_ = true;
     drawingObjectSelection_ = true;
     drawingSquare_ = false;
     drawingFormField_ = false;
