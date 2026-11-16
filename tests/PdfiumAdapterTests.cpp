@@ -154,8 +154,6 @@ void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
     QString optionSerializeError;
     const QByteArray optionSource = verified.document.serialize(&optionSerializeError);
     QVERIFY2(!optionSource.isEmpty(), qPrintable(optionSerializeError));
-    QFile optionDump(QStringLiteral("D:/github/pdf/.tmp/options-source.pdf"));
-    if (optionDump.open(QIODevice::WriteOnly)) optionDump.write(optionSource);
     const FormFieldWriteResult optionsUpdated = updateFormFieldOptions(
         optionSource, QStringLiteral("country"),
         {QStringLiteral("Gamma"), QStringLiteral("Delta")});

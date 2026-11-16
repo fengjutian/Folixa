@@ -10,6 +10,7 @@
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
 #include "app/SettingsDialog.h"
+#include "app/SignatureDialog.h"
 #include "ai/AuditLog.h"
 #include "app/OcrController.h"
 #include "tools/ProposalValidator.h"
@@ -40,6 +41,8 @@
 #include <QButtonGroup>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QClipboard>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -88,6 +91,7 @@
 #include <QTreeWidgetItem>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -1360,18 +1364,98 @@ void MainWindow::buildUi() {
                      ":/icons/convert.svg", [this] { exportFormCsv(); }, true, "form.export");
     addRibbonCommand(formDataGroup, "JavaScript", "刷新计算、校验和格式化后的字段值",
                      ":/icons/form.svg", showFormsPanel, true, "form.javascript");
-    addPlaceholderTab("电子签章", {
-        {"签署", {"对外签署", "对内签署", "邀请他人签署", "完成签署"}},
-        {"签章", {"管理签章", "骑缝章", "签章"}},
-        {"流程", {"签署流程", "签署报告", "签署记录"}},
-        {"服务", {"分享反馈", "了解更多", "我的额度", "签署设置"}},
-    });
-    addPlaceholderTab("共享", {
-        {"发送", {"邮件", "OneNote"}},
-        {"协作", {"共享协作", "PDF 协作"}},
-        {"审阅", {"共享审阅", "管理共享审阅", "文件审阅", "邮件审阅", "追踪器"}},
-        {"企业", {"SharePoint", "iManage 9", "iManage 10", "eDOCS DM"}},
-    });
+    const int signatureTab = ribbonBar_->addTab(tr("电子签章"));
+    auto chooseSignature = [this](bool ridingSeam) {
+        auto* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        SignatureDialog dialog(true, this);
+        if (dialog.exec() != QDialog::Accepted) return;
+        const StoredSignature signature = dialog.selectedSignature();
+        if (!signature.isValid()) return;
+        if (ridingSeam) view->applyRidingSeamSignature(signature.image, signature.name);
+        else view->activateSignaturePlacement(signature.image, signature.name);
+    };
+    auto* signingGroup = ribbonBar_->addGroup(signatureTab, tr("签署"));
+    addRibbonCommand(signingGroup, "对外签署", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.external");
+    addRibbonCommand(signingGroup, "对内签署", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.internal");
+    addRibbonCommand(signingGroup, "邀请他人签署", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.invite");
+    addRibbonCommand(signingGroup, "完成签署", "保存当前已放置的签章", ":/icons/save.svg",
+                     [this] { saveDocument(); }, true, "signature.finish");
+    auto* sealGroup = ribbonBar_->addGroup(signatureTab, tr("签章"));
+    addRibbonCommand(sealGroup, "管理签章", "导入、手写或删除本地签章", ":/icons/annotation.svg",
+                     [this] { SignatureDialog(false, this).exec(); }, true, "signature.manage");
+    addRibbonCommand(sealGroup, "骑缝章", "把签章切分并放到文档每一页右侧", ":/icons/pages.svg",
+                     [chooseSignature] { chooseSignature(true); }, true, "signature.seam");
+    addRibbonCommand(sealGroup, "签章", "选择本地签章并在页面上放置", ":/icons/ink.svg",
+                     [chooseSignature] { chooseSignature(false); }, true, "signature.place");
+    auto* signatureFlowGroup = ribbonBar_->addGroup(signatureTab, tr("流程"));
+    addRibbonCommand(signatureFlowGroup, "签署流程", "云端签署流程尚未连接", ":/icons/protect.svg",
+                     [] {}, false, "signature.workflow");
+    addRibbonCommand(signatureFlowGroup, "签署报告", "导出当前文档的批注与签章摘要",
+                     ":/icons/annotation.svg", [this] {
+        if (auto* view = currentView()) view->exportAnnotationSummary();
+    }, true, "signature.report");
+    addRibbonCommand(signatureFlowGroup, "签署记录", "打开批注与签章记录", ":/icons/annotation.svg",
+                     [this] { navigationDock_->setVisible(true); showNavigationPage(4); },
+                     true, "signature.records");
+    auto* signatureServiceGroup = ribbonBar_->addGroup(signatureTab, tr("服务"));
+    addRibbonCommand(signatureServiceGroup, "分享反馈", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.feedback");
+    addRibbonCommand(signatureServiceGroup, "了解更多", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.learn");
+    addRibbonCommand(signatureServiceGroup, "我的额度", "需要电子签平台服务", ":/icons/protect.svg",
+                     [] {}, false, "signature.quota");
+    addRibbonCommand(signatureServiceGroup, "签署设置", "管理本机签章", ":/icons/protect.svg",
+                     [this] { SignatureDialog(false, this).exec(); }, true, "signature.settings");
+    const int shareTab = ribbonBar_->addTab(tr("共享"));
+    auto* shareSendGroup = ribbonBar_->addGroup(shareTab, tr("发送"));
+    addRibbonCommand(shareSendGroup, "邮件", "用默认邮件客户端发送当前 PDF",
+                     ":/icons/send.svg", [this] { shareByEmail(); }, true, "share.email");
+    addRibbonCommand(shareSendGroup, "OneNote", "需要安装并配置 OneNote 桌面集成",
+                     ":/icons/note.svg", [] {}, false, "share.oneNote");
+
+    auto* shareCollaborationGroup = ribbonBar_->addGroup(shareTab, tr("协作"));
+    addRibbonCommand(shareCollaborationGroup, "共享协作", "复制当前 PDF 的文件链接",
+                     ":/icons/send.svg", [this] { copyDocumentLink(); }, true,
+                     "share.copyLink");
+    addRibbonCommand(shareCollaborationGroup, "PDF 协作", "导出批注供他人审阅",
+                     ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->exportAnnotationsXfdf(); }
+    }, true, "share.pdfCollaboration");
+
+    auto* shareReviewGroup = ribbonBar_->addGroup(shareTab, tr("审阅"));
+    addRibbonCommand(shareReviewGroup, "共享审阅", "导出 XFDF 审阅文件",
+                     ":/icons/send.svg", [this] {
+        if (auto* view = currentView()) { view->exportAnnotationsXfdf(); }
+    }, true, "share.exportReview");
+    addRibbonCommand(shareReviewGroup, "管理共享审阅", "导入收到的 XFDF 审阅文件",
+                     ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->importAnnotationsXfdf(); }
+    }, true, "share.importReview");
+    addRibbonCommand(shareReviewGroup, "文件审阅", "导出可打印和转发的批注摘要",
+                     ":/icons/annotation.svg", [this] {
+        if (auto* view = currentView()) { view->exportAnnotationSummary(); }
+    }, true, "share.fileReview");
+    addRibbonCommand(shareReviewGroup, "邮件审阅", "用默认邮件客户端发起审阅",
+                     ":/icons/send.svg", [this] { shareByEmail(); }, true,
+                     "share.emailReview");
+    addRibbonCommand(shareReviewGroup, "追踪器", "打开批注面板跟踪审阅状态",
+                     ":/icons/annotation.svg", [this] { showReviewTracker(); }, true,
+                     "share.tracker");
+
+    auto* shareEnterpriseGroup = ribbonBar_->addGroup(shareTab, tr("企业"));
+    for (const char* connector : {"SharePoint", "iManage 9", "iManage 10", "eDOCS DM"}) {
+        addRibbonCommand(shareEnterpriseGroup, connector, "需要管理员配置企业内容管理连接器",
+                         ":/icons/book.svg", [] {}, false,
+                         QStringLiteral("share.enterprise.") +
+                             QString::fromLatin1(connector).replace(' ', '_'));
+    }
     addPlaceholderTab("辅助工具", {
         {"标签", {"自动添加文档标签", "自动添加表单域标签"}},
         {"检查", {"完整检查", "辅助功能报告", "设置助手"}},
@@ -2714,6 +2798,63 @@ void MainWindow::updatePageActionState() {
     pageRotateLeftButton_->setEnabled(hasDocument);
     pageMoveUpButton_->setEnabled(hasDocument && current > 0);
     pageMoveDownButton_->setEnabled(hasDocument && current >= 0 && current < count - 1);
+}
+
+// --------------------------------------------------------------- 共享 ----
+
+void MainWindow::shareByEmail() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        QMessageBox::information(this, tr("邮件发送"), tr("请先打开并保存一份 PDF。"));
+        return;
+    }
+
+    const QFileInfo file(view->filePath());
+    if (!file.exists()) {
+        QMessageBox::warning(this, tr("邮件发送"), tr("当前 PDF 尚未保存到磁盘。"));
+        return;
+    }
+
+    // mailto 没有跨邮件客户端通用的附件参数。把文件链接写入正文并同时复制到
+    // 剪贴板，用户可以在系统默认邮件客户端中粘贴或拖入该文件。
+    const QUrl fileUrl = QUrl::fromLocalFile(file.absoluteFilePath());
+    QUrl mail(QStringLiteral("mailto:"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("subject"), tr("请审阅：%1").arg(file.fileName()));
+    query.addQueryItem(QStringLiteral("body"),
+                       tr("请审阅随邮件发送的 PDF：\n%1").arg(fileUrl.toString()));
+    mail.setQuery(query);
+    QGuiApplication::clipboard()->setText(file.absoluteFilePath());
+
+    if (!QDesktopServices::openUrl(mail)) {
+        QMessageBox::warning(this, tr("邮件发送"), tr("无法打开系统默认邮件客户端。"));
+        return;
+    }
+    statusBar()->showMessage(tr("已打开邮件客户端；PDF 路径已复制，可粘贴为附件。"), 5000);
+    trace(QStringLiteral("share email path=%1").arg(file.absoluteFilePath()));
+}
+
+void MainWindow::copyDocumentLink() {
+    PdfView* view = currentView();
+    if (view == nullptr || view->filePath().isEmpty()) {
+        QMessageBox::information(this, tr("共享协作"), tr("请先打开并保存一份 PDF。"));
+        return;
+    }
+    const QFileInfo file(view->filePath());
+    if (!file.exists()) {
+        QMessageBox::warning(this, tr("共享协作"), tr("当前 PDF 尚未保存到磁盘。"));
+        return;
+    }
+    const QString link = QUrl::fromLocalFile(file.absoluteFilePath()).toString();
+    QGuiApplication::clipboard()->setText(link);
+    statusBar()->showMessage(tr("已复制当前 PDF 的文件链接。"), 3000);
+    trace(QStringLiteral("share copy link path=%1").arg(file.absoluteFilePath()));
+}
+
+void MainWindow::showReviewTracker() {
+    navigationDock_->setVisible(true);
+    showNavigationPage(4);
+    trace(QStringLiteral("share open review tracker"));
 }
 
 // ---------------------------------------------------------- 保存（v0.8.0）----

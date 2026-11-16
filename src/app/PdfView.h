@@ -160,6 +160,9 @@ public slots:
     void detectWebLinks();
     // 录音声音批注（v1.4.0 尾巴）。
     void recordSoundAnnotationDialog();
+    // 本地电子签章：选中的签章在下一次点击页面时落下；骑缝章会拆分到全部页面。
+    void activateSignaturePlacement(const QByteArray& image, const QString& name);
+    bool applyRidingSeamSignature(const QByteArray& image, const QString& name);
     // 表单数据：FDF 导入导出（CSV 在面板里）。
     void importFormFdfDialog();
     void exportFormFdfDialog();
@@ -348,6 +351,8 @@ private:
     // 保存时的加密设置（v1.6.0）。encryptionEnabled_ 为假时按明文保存。
     pdf::PdfEncryptionOptions encryptionOptions_;
     bool encryptionEnabled_ = false;
+    QByteArray pendingSignatureImage_;
+    QString pendingSignatureName_;
     // 一次设定、长期显示的界面文案：切换语言时就地重译。
     i18n::TextBindings texts_;
 };

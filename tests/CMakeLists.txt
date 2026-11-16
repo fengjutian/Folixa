@@ -170,6 +170,14 @@ target_link_libraries(PdfiumAdapterTests PRIVATE
     Qt6::Core Qt6::Gui Qt6::Test
     ${AIPDF_PDFIUM_LIBRARY}
 )
+if (AIPDF_WITH_QPDF AND qpdf_FOUND)
+    target_link_libraries(PdfiumAdapterTests PRIVATE qpdf::libqpdf)
+    target_compile_definitions(PdfiumAdapterTests PRIVATE AIPDF_WITH_QPDF=1)
+    add_custom_command(TARGET PdfiumAdapterTests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:PdfiumAdapterTests>"
+    )
+endif()
 target_include_directories(PdfiumAdapterTests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${AIPDF_PDFIUM_INCLUDE_DIR}

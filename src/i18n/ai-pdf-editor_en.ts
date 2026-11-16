@@ -881,6 +881,23 @@
             <source>共享</source>
             <translation>Share</translation>
         </message>
+        <message><source>发送</source><translation>Send</translation></message>
+        <message><source>邮件</source><translation>Email</translation></message>
+        <message><source>企业</source><translation>Enterprise</translation></message>
+        <message><source>共享协作</source><translation>Share link</translation></message>
+        <message><source>PDF 协作</source><translation>PDF collaboration</translation></message>
+        <message><source>管理共享审阅</source><translation>Manage shared review</translation></message>
+        <message><source>文件审阅</source><translation>File review</translation></message>
+        <message><source>邮件审阅</source><translation>Email review</translation></message>
+        <message><source>请先打开并保存一份 PDF。</source><translation>Open and save a PDF first.</translation></message>
+        <message><source>当前 PDF 尚未保存到磁盘。</source><translation>The current PDF has not been saved to disk.</translation></message>
+        <message><source>请审阅：%1</source><translation>Please review: %1</translation></message>
+        <message><source>请审阅随邮件发送的 PDF：
+%1</source><translation>Please review the PDF sent with this email:
+%1</translation></message>
+        <message><source>无法打开系统默认邮件客户端。</source><translation>Could not open the default email client.</translation></message>
+        <message><source>已打开邮件客户端；PDF 路径已复制，可粘贴为附件。</source><translation>The email client is open. The PDF path was copied so you can paste it as an attachment.</translation></message>
+        <message><source>已复制当前 PDF 的文件链接。</source><translation>Copied the current PDF file link.</translation></message>
         <message>
             <source>输出</source>
             <translation>Output</translation>

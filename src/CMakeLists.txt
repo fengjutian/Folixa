@@ -41,6 +41,8 @@
     app/SettingsDialog.cpp
     app/EncryptionDialog.h
     app/EncryptionDialog.cpp
+    app/SignatureDialog.h
+    app/SignatureDialog.cpp
     app/RibbonBar.h
     app/RibbonBar.cpp
     app/UploadPreviewDialog.h

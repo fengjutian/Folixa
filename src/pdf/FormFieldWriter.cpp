@@ -4,6 +4,14 @@
 
 #include <algorithm>
 
+#ifdef AIPDF_WITH_QPDF
+#include <qpdf/Buffer.hh>
+#include <qpdf/QPDF.hh>
+#include <qpdf/QPDFObjectHandle.hh>
+#include <qpdf/QPDFWriter.hh>
+#include <memory>
+#endif
+
 namespace aipdf::pdf {
 namespace {
 
@@ -424,6 +432,13 @@ FormFieldWriteResult updateFormFieldOptions(const QByteArray& pdf,
 
     const QVector<ObjectSpan> objects = scanObjects(pdf);
     const QByteArray encodedName = "/T (" + escapedPdfString(fieldName) + ")";
+    QByteArray utf16Name("\xFE\xFF", 2);
+    for (QChar ch : fieldName) {
+        const ushort u = ch.unicode();
+        utf16Name.append(char((u >> 8) & 0xff));
+        utf16Name.append(char(u & 0xff));
+    }
+    const QByteArray hexName = "/T <" + utf16Name.toHex() + ">";
     QByteArray latinName = fieldName.toLatin1();
     latinName.replace("\\", "\\\\");
     latinName.replace("(", "\\(");
@@ -437,7 +452,8 @@ FormFieldWriteResult updateFormFieldOptions(const QByteArray& pdf,
         if (visited.contains(it->number)) continue;
         visited.append(it->number);
         const QByteArray candidate = pdf.mid(it->bodyBegin, it->bodyEnd - it->bodyBegin);
-        if ((candidate.contains(encodedName) || candidate.contains(latinName)) &&
+        if ((candidate.contains(encodedName) || candidate.contains(hexName) ||
+             candidate.contains(latinName)) &&
             (candidate.contains("/FT /Ch") || candidate.contains("/FT/Ch"))) {
             target = *it;
             body = candidate;
@@ -445,8 +461,52 @@ FormFieldWriteResult updateFormFieldOptions(const QByteArray& pdf,
         }
     }
     if (target.number <= 0) {
+#ifdef AIPDF_WITH_QPDF
+        try {
+            QPDF qpdf;
+            qpdf.processMemoryFile("form-options.pdf", pdf.constData(),
+                                   static_cast<size_t>(pdf.size()));
+            bool updated = false;
+            for (QPDFObjectHandle object : qpdf.getAllObjects()) {
+                if (!object.isDictionary()) continue;
+                QPDFObjectHandle ft = object.getKey("/FT");
+                QPDFObjectHandle name = object.getKey("/T");
+                if (!ft.isName() || ft.getName() != "/Ch" || !name.isString() ||
+                    QString::fromUtf8(name.getUTF8Value()) != fieldName) continue;
+                std::vector<QPDFObjectHandle> values;
+                values.reserve(static_cast<size_t>(options.size()));
+                for (const QString& option : options)
+                    values.push_back(QPDFObjectHandle::newUnicodeString(
+                        option.trimmed().toUtf8().toStdString()));
+                object.replaceKey("/Opt", QPDFObjectHandle::newArray(values));
+                updated = true;
+                break;
+            }
+            if (!updated) {
+                result.error = QStringLiteral("找不到可编辑的组合框或列表框字段");
+                return result;
+            }
+            QPDFWriter writer(qpdf);
+            writer.setOutputMemory();
+            writer.write();
+            std::unique_ptr<Buffer> buffer(writer.getBuffer());
+            if (!buffer || buffer->getSize() == 0) {
+                result.error = QStringLiteral("qpdf 没有写出选项更新结果");
+                return result;
+            }
+            result.bytes = QByteArray(reinterpret_cast<const char*>(buffer->getBuffer()),
+                                      static_cast<int>(buffer->getSize()));
+            result.ok = true;
+            return result;
+        } catch (const std::exception& exception) {
+            result.error = QStringLiteral("更新字段选项失败：%1")
+                               .arg(QString::fromUtf8(exception.what()));
+            return result;
+        }
+#else
         result.error = QStringLiteral("找不到可编辑的组合框或列表框字段");
         return result;
+#endif
     }
 
     QByteArray replacement = "/Opt [";

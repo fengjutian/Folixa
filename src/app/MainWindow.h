@@ -116,6 +116,11 @@ private:
     // ---------------------------------------------------------- 保存 ----
     void saveDocument();
     void saveDocumentAs();
+    // ---------------------------------------------------------- 共享 ----
+    // 共享功能只使用本机能力：默认邮件客户端、文件链接与 XFDF 审阅交换。
+    void shareByEmail();
+    void copyDocumentLink();
+    void showReviewTracker();
     // 启动时看看有没有上次没保存完的工作。
     void checkRecovery();
     // 当前标签页的文档视图；不是文档页时返回 nullptr。

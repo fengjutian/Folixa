@@ -30,6 +30,7 @@
 #include "pdf/OutlineWriter.h"
 
 #include <QColorDialog>
+#include <QBuffer>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDateTime>
@@ -731,29 +732,35 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             });
     connect(canvas_, &PageCanvas::imageStampRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
-                const QString path = QFileDialog::getOpenFileName(
-                    this, tr("选择图章图片"), QString(), tr("图片 (*.png *.jpg *.jpeg *.bmp)"));
-                if (path.isEmpty() || !annotationController_) {
-                    return;
+                if (!annotationController_) return;
+                QByteArray bytes = pendingSignatureImage_;
+                QString label = pendingSignatureName_;
+                if (bytes.isEmpty()) {
+                    const QString path = QFileDialog::getOpenFileName(
+                        this, tr("选择图章图片"), QString(), tr("图片 (*.png *.jpg *.jpeg *.bmp)"));
+                    if (path.isEmpty()) return;
+                    QFile file(path);
+                    if (!file.open(QIODevice::ReadOnly)) return;
+                    bytes = file.readAll();
+                    label = QFileInfo(path).baseName();
                 }
-                QFile file(path);
-                if (!file.open(QIODevice::ReadOnly)) {
-                    return;
-                }
-                const QByteArray bytes = file.readAll();
-                file.close();
                 QImage image;
                 if (!image.loadFromData(bytes)) {
                     QMessageBox::warning(this, tr("图片图章"), tr("这看起来不是一张图片。"));
                     return;
                 }
-                // 保持原图宽高比，宽度固定 160pt。
-                constexpr double kWidth = 160.0;
+                // 签名通常比普通图片图章窄；仍保持原图宽高比。
+                const double kWidth = pendingSignatureImage_.isEmpty() ? 160.0 : 120.0;
                 const double height = kWidth * image.height() / std::max(1, image.width());
                 const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - height / 2.0,
                                   kWidth, height);
-                annotationController_->addImageStamp(pageIndex, rect, bytes,
-                                                     QFileInfo(path).baseName());
+                annotationController_->addImageStamp(pageIndex, rect, bytes, label);
+                if (!pendingSignatureImage_.isEmpty()) {
+                    pendingSignatureImage_.clear();
+                    pendingSignatureName_.clear();
+                    annotationController_->setTool(AnnotationController::Tool::None);
+                    emit statusMessage(tr("签章已放置；保存文档后写入 PDF。"));
+                }
             });
     connect(canvas_, &PageCanvas::soundRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
@@ -2764,6 +2771,54 @@ void PdfView::recordSoundAnnotationDialog() {
     emit statusMessage(tr("已插入录音批注"));
 }
 
+void PdfView::activateSignaturePlacement(const QByteArray& image, const QString& name) {
+    QImage decoded;
+    if (!annotationController_ || !decoded.loadFromData(image)) {
+        QMessageBox::warning(this, tr("电子签章"), tr("签章图片无效，无法放置。"));
+        return;
+    }
+    pendingSignatureImage_ = image;
+    pendingSignatureName_ = name;
+    annotationController_->setTool(AnnotationController::Tool::ImageStamp);
+    emit statusMessage(tr("请在页面上单击签章位置；按其他工具可取消。"));
+}
+
+bool PdfView::applyRidingSeamSignature(const QByteArray& imageBytes, const QString& name) {
+    QImage image;
+    if (!annotationController_ || pageCount_ < 1 || !image.loadFromData(imageBytes)) return false;
+
+    // 沿图片宽度均分：每页只保存自己那一条，合拢纸张才能看到完整签章。
+    const int pages = pageCount_;
+    int created = 0;
+    for (int pageIndex = 0; pageIndex < pages; ++pageIndex) {
+        const int left = image.width() * pageIndex / pages;
+        const int right = image.width() * (pageIndex + 1) / pages;
+        const QImage slice = image.copy(left, 0, qMax(1, right - left), image.height());
+        QByteArray sliceBytes;
+        QBuffer buffer(&sliceBytes);
+        if (!buffer.open(QIODevice::WriteOnly) || !slice.save(&buffer, "PNG")) continue;
+
+        auto page = document_.page(pageIndex);
+        if (!page.has_value()) continue;
+        constexpr double kSliceWidth = 18.0;
+        const double sliceHeight = qMin(page->heightPoints() * 0.45,
+                                        kSliceWidth * slice.height() / qMax(1, slice.width()));
+        const QRectF rect(page->widthPoints() - kSliceWidth,
+                          page->heightPoints() / 2.0 - sliceHeight / 2.0,
+                          kSliceWidth, sliceHeight);
+        if (annotationController_->addImageStamp(
+                pageIndex, rect, sliceBytes, tr("骑缝章：%1 (%2/%3)").arg(name).arg(pageIndex + 1).arg(pages)) != 0) {
+            ++created;
+        }
+    }
+    if (created == pages) {
+        emit statusMessage(tr("骑缝章已拆分到 %1 页；保存文档后写入 PDF。").arg(pages));
+        return true;
+    }
+    emit statusMessage(tr("骑缝章只写入了 %1/%2 页。").arg(created).arg(pages));
+    return false;
+}
+
 
 void PdfView::setToolBarsVisible(bool visible) {
     for (const char* name : {"documentToolBar", "annotationToolBar", "shapeToolBar"}) {
@@ -2775,6 +2830,10 @@ void PdfView::setToolBarsVisible(bool visible) {
 
 void PdfView::activateAnnotationTool(const QString& id) {
     if (canvas_ != nullptr) canvas_->setFormFieldPlacementKind(QString());
+    if (id != QStringLiteral("imagestamp")) {
+        pendingSignatureImage_.clear();
+        pendingSignatureName_.clear();
+    }
     if (id == QStringLiteral("undo")) {
         undoAnnotation();
         return;
