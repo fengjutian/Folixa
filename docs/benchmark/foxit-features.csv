@@ -6,7 +6,7 @@ tab,group,command,status,capability,note
 文件,文件操作,另存为,aligned,—,可换路径并保留备份
 文件,文件操作,关闭,aligned,—,标签页关闭并清理
 文件,打印,打印,aligned,H1,范围与份数可用；输出到打印机或 PDF
-文件,打印,批量打印,missing,D9,计划 1.8 批处理
+文件,打印,批量打印,missing,D9,没有批量打印；批量能力只有重命名与 OFD 转换
 文件,打印,高级打印,partial,H1,双面/多页合一取决于打印驱动
 文件,打印,发票打印,missing,—,地区性发票排版
 文件,打印,打印模板,missing,—,没有模板管理
@@ -14,24 +14,24 @@ tab,group,command,status,capability,note
 文件,共享与恢复,恢复,aligned,—,恢复日志可重放未保存命令
 文件,共享与恢复,本地备份,aligned,—,保存时留下 .folixa.bak
 文件,导出与工具,导出,aligned,H3,导出页面图片与纯文本
-文件,导出与工具,PDF优化,missing,H8,计划 1.9
+文件,导出与工具,PDF优化,partial,H8,调 Ghostscript 压缩；依赖本机安装 gs，无体积断言
 文件,导出与工具,索引,aligned,—,本地分块索引与检索
-文件,导出与工具,动作向导,missing,D9,批量动作编排计划 1.8
+文件,导出与工具,动作向导,missing,D9,没有动作向导编排
 文件,导出与工具,皮肤,missing,—,当前只有浅色主题
 文件,最近文档,最近文档,aligned,—,显示文件名/路径/时间
 文件,最近文档,云文档,na,—,没有云盘接入
 文件,最近文档,添加一个位置,na,—,同上
 全局,导航,手型工具,partial,—,没有手型拖拽平移；滚轮与滚动条可用
 全局,导航,选择,aligned,—,文本选择/复制/双击选词
-主页,捕获,截图,missing,—,没有区域截图到剪贴板
+主页,捕获,截图,partial,—,只有整窗截图（grab()），无区域框选
 主页,捕获,剪贴板,partial,—,只能复制文本；无图像与富内容
-主页,导航,书签,aligned,B3,浏览与跳转；编辑计划 1.8
+主页,导航,书签,aligned,B3,浏览跳转 + 新建/改名/删除；排序与层级未做
 主页,显示,缩放,aligned,A6,25%–400% + 适应宽度/页面
 主页,显示,页面适合,aligned,A6,适合宽度与适合页面
 主页,显示,重排,excluded,A8,重排质量不可用，由朗读与 AI 摘要替代
 主页,显示,旋转视图,aligned,A7,只转视图，不改页面
-主页,内容,编辑文本,partial,E1,工作区已有选区文字替换
-主页,内容,编辑对象,partial,E2,工作区已有选区图片替换
+主页,内容,编辑文本,aligned,E1,就地编辑 + 文字属性，可写盘
+主页,内容,编辑对象,aligned,E2,对象选择/拖拽/旋转/缩放/删除，可撤销
 主页,注释,打字机,aligned,C4,FreeText 带外观流与 /DA
 主页,注释,高亮,aligned,C1,文本选区高亮
 主页,页面,旋转页面,aligned,D1,写页面 /Rotate，可撤销
@@ -39,7 +39,7 @@ tab,group,command,status,capability,note
 主页,扫描,从扫描仪,missing,H6,需要 WIA/TWAIN 接入
 主页,扫描,快速识别,aligned,I1,Tesseract 或 Windows OCR
 主页,扫描,优化扫描的PDF,partial,I1,只有图像预处理；没有完整去噪/纠偏
-主页,表单,填写&签名,partial,F1,表单填写可用；签名未做
+主页,表单,填写&签名,aligned,F1,表单填写 + 证书签名（随包 pyHanko）
 主页,放映,从头开始,aligned,A5,F5 全屏逐页
 主页,放映,从当前页开始,aligned,A5,从当前页进入放映
 主页,放映,循环放映,missing,A5,没有循环播放选项
@@ -49,7 +49,7 @@ tab,group,command,status,capability,note
 主页,商业,立即购买,na,—,无订阅
 主页,商业,订阅,na,—,无订阅
 主页,AI,翻译助手,aligned,L2,翻译选区/当前页
-转换,输入,文件转换,missing,H6,Office→PDF 依赖 LibreOffice 或打印机
+转换,输入,文件转换,partial,H6,Office→PDF 走本机 LibreOffice；扫描仪/剪贴板/网页仍无
 转换,输入,从扫描仪,missing,H6,同上
 转换,输入,从剪贴板,missing,—,没有剪贴板转 PDF
 转换,输入,从网页,missing,—,没有网页抓取
@@ -57,63 +57,63 @@ tab,group,command,status,capability,note
 转换,输入,表单,missing,—,没有表单文件转换
 转换,打包,PDF文件包,missing,—,不支持 Portfolio
 转换,打包,制作活页夹,missing,—,同上
-转换,组装,合并文件,partial,D2,工作区已实现合并
+转换,组装,合并文件,partial,D2,单选一次并一份；跨文件书签不随页搬运
 转换,组装,空白页,aligned,D1,插入空白页
 转换,输出,导出全部图像,aligned,H3,按 DPI 导出 PNG/JPEG
-转换,输出,到MS Office,missing,H5,计划 1.9（Nice）
+转换,输出,到MS Office,missing,H5,入口禁用占位，未实现
 转换,输出,到图片,aligned,H3,与导出图片同一条通路
 转换,输出,到HTML,missing,—,没有 HTML 导出
 转换,输出,转为基于图像的PDF,missing,—,没有整页栅格化导出
 转换,输出,到CAD,missing,—,没有 CAD
 转换,输出,到其它格式,missing,—,没有其它格式
-转换,输出,到PDF,missing,H6,任意文件→PDF 未做
+转换,输出,到PDF,partial,H6,Office/HTML→PDF 走 LibreOffice；非任意文件
 转换,输出,到OFD,missing,—,没有 OFD
 转换,输出,OFD批量转换,missing,—,同上
-转换,OCR,识别文本,aligned,I1,OCR 回写隐藏文本层
+转换,OCR,识别文本,aligned,I1,识别结果进本地索引，可检索可问答；未回写 PDF 隐藏文本层
 转换,OCR,快速识别,aligned,I1,与 OCR 同一引擎
 转换,OCR,疑似错误,missing,—,没有识别纠错
 转换,印前,印前检查,missing,—,没有印前检查
 转换,印前,PDF转曲,missing,E5,没有字体转曲
-编辑,内容,编辑文本,partial,E1,工作区已有文字替换
-编辑,内容,编辑对象,partial,E3,工作区已有图片替换
-编辑,内容,链接&合并文本,missing,E4,没有文本块链接
+编辑,内容,编辑文本,aligned,E1,行级重写 + 就地编辑，可写盘
+编辑,内容,编辑对象,aligned,E3,选择/移动/旋转/缩放/删除，可撤销
+编辑,内容,链接&合并文本,missing,E4,没有文本块链接与合并
 编辑,文本工具,拼写检查,missing,—,没有拼写检查
-编辑,文本工具,搜索&替换,partial,B5,有查找；没有替换
-编辑,文本工具,批量替换,missing,—,没有批量替换
+编辑,文本工具,搜索&替换,aligned,B5,查找与替换都能走通；批量替换复用同一对话框
+编辑,文本工具,批量替换,missing,—,没有独立的批量替换入口
 编辑,插入,添加文本,aligned,C4,FreeText 文本框
 编辑,插入,添加图像,aligned,C7,图片图章/图片注释
 编辑,插入,添加形状,aligned,C5,矩形/椭圆/线/箭头/多边形/云线
 编辑,内容,流式编辑,excluded,A8,依赖重排，不做
 编辑,插入,添加文章框,missing,—,没有文章框
-编辑,链接,添加链接,missing,E4,不能新建链接注释
-编辑,链接,网络链接,missing,E4,同上
-编辑,导航,书签,partial,B3,可读可跳；编辑计划 1.8
+编辑,链接,添加链接,aligned,E4,网址链接与页内跳转都能写盘
+编辑,链接,网络链接,aligned,E4,可加外链，并能自动识别文本中的网页链接
+编辑,导航,书签,partial,B3,新建/改名/删除可点；排序与层级编辑未做
 编辑,导航,自动创建书签,missing,B3,没有按标题生成
 编辑,导航,交叉引用,missing,—,没有交叉引用
-编辑,附件,文件附件,partial,C8,批注级附件；文档级附件面板待做
+编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
 编辑,附件,图像标注,aligned,C7,图片图章
 编辑,附件,音频&视频,partial,C8,录音以 WAV 附件保存；无视频
 编辑,3D,添加3D,excluded,A11,不追 3D/多媒体
 页面管理,页面,插入,aligned,D1,插入空白页
 页面管理,页面,删除,aligned,D1,删除当前页，可撤销
-页面管理,页面,提取,partial,D3,工作区已实现提取当前页
-页面管理,排序,逆序,missing,D2,没有整篇逆序
+页面管理,页面,提取,partial,D3,提取当前页与按范围提取；无专项验收
+页面管理,排序,逆序,partial,D2,整篇页面逆序可写盘
 页面管理,排序,重新排列,partial,D1,只有上移/下移
-页面管理,排序,移动,partial,D2,只能相邻移动
-页面管理,排序,复制,missing,D2,没有复制页
-页面管理,排序,替换,missing,D4,没有替换页
-页面管理,组装,拆分,missing,D3,没有拆分
-页面管理,组装,交换,missing,D2,没有交换页
-页面管理,组装,交叉合并,missing,D2,没有交叉合并
+页面管理,排序,移动,partial,D2,只能相邻移动；引擎支持任意位置但无入口
+页面管理,排序,复制,aligned,D2,复制当前页有入口有单测
+页面管理,排序,替换,partial,D4,替换页有入口与命令层；无专项单测
+页面管理,组装,拆分,partial,D3,按范围与每 N 页拆分；按书签与按大小未做
+页面管理,组装,交换,partial,D2,交换两页可写盘
+页面管理,组装,交叉合并,partial,D2,交叉合并有入口
 页面管理,页面,旋转页面,aligned,D1,写 /Rotate 并可撤销
-页面管理,页面,裁剪页面,missing,D5,没有 CropBox 交互
-页面管理,页面,调整页面大小,missing,D5,没有页面尺寸调整
+页面管理,页面,裁剪页面,partial,D5,CropBox 可写；无专项单测
+页面管理,页面,调整页面大小,aligned,D5,改尺寸并等比缩放内容，有单测
 页面管理,页面,扁平化,aligned,F2,表单扁平化
-页面管理,装饰,水印,partial,D8,引擎与对话框已提交；未接菜单
-页面管理,装饰,背景,missing,D8,没有背景
-页面管理,装饰,页眉/页脚,partial,D8,同上
-页面管理,装饰,贝茨编号,missing,D8,没有贝茨编号
-页面管理,装饰,格式化页码,partial,D8,页码引擎已提交；无格式选项
+页面管理,装饰,水印,aligned,D8,已接菜单入口；仅标准 14 字体
+页面管理,装饰,背景,aligned,D8,页面背景可设，有单测
+页面管理,装饰,页眉/页脚,aligned,D8,已接菜单入口；仅标准 14 字体
+页面管理,装饰,贝茨编号,partial,D8,编号引擎有入口；无专项单测
+页面管理,装饰,格式化页码,partial,D8,引擎有格式字段，界面无格式输入
 注释,标记,高亮,aligned,C1,带 /AP 外观流
 注释,标记,下划线,aligned,C1,带 /AP 外观流
 注释,标记,删除线,aligned,C1,带 /AP 外观流
@@ -138,14 +138,14 @@ tab,group,command,status,capability,note
 注释,审阅,小结注释,aligned,C12,批注摘要 HTML/打印
 注释,审阅,导入,aligned,C12,XFDF 导入
 注释,审阅,导出,aligned,C12,XFDF/HTML 导出
-注释,审阅,邮件发送PDF,missing,—,没有邮件集成
+注释,审阅,邮件发送PDF,aligned,K1,调默认邮件客户端并复制路径供贴附件
 注释,审阅,管理注释,partial,C11,列表/跳转/删除/回复；无批量筛选
 注释,工具,保持工具选择,partial,C6,工具互斥；用后回到选择
 注释,工具,批注模式,missing,—,没有连续批注模式
 视图,阅读,阅读模式,partial,A4,专注模式隐藏面板；没有全屏沉浸阅读
 视图,阅读,重排,excluded,A8,明确不做
-视图,阅读,逆序阅读,missing,—,没有逆序
-视图,显示,视觉模式,missing,A9,护眼/夜间计划 1.10
+视图,阅读,逆序阅读,missing,—,逆序指整篇页面逆序，不是逆序阅读版式
+视图,显示,视觉模式,missing,A9,只有浅色主题；护眼/夜间未做
 视图,显示,文本查看器,missing,—,没有纯文本视图
 视图,显示,旋转视图,aligned,A7,90° 步进并记忆
 视图,显示,切换标尺,missing,—,没有标尺
@@ -154,50 +154,50 @@ tab,group,command,status,capability,note
 视图,布局,连续,aligned,A3,连续滚动 + 瓦片渲染
 视图,交互,自动滚动,missing,—,没有自动滚动
 视图,交互,页面过渡,missing,—,没有过渡
-视图,AI,助手,missing,—,没有上下文阅读助手
-视图,朗读,朗读,missing,J4,计划 1.10
+视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
+视图,朗读,朗读,missing,J4,没有朗读实现
 视图,比较,比较,missing,L7,计划 2.0
-视图,统计,字数统计,missing,—,没有字数统计
+视图,统计,字数统计,missing,—,分块器里算过字数，但没有界面入口
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
-表单,识别,执行表单自动识别,missing,F5,没有表单域自动识别
-表单,设计,设计助手,missing,E7,不做建域，交给 2.0 AI 生成
-表单,建域,文本域,excluded,E7,不提供表单设计器
-表单,建域,复选框,excluded,E7,同上
-表单,建域,单选按钮,excluded,E7,同上
-表单,建域,组合框,excluded,E7,同上
-表单,建域,列表框,excluded,E7,同上
-表单,建域,按钮,excluded,E7,同上
-表单,建域,条形码,excluded,E7,同上
+表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页
+表单,设计,设计助手,missing,E7,没有 AI 设计助手；建域按钮已单独提供
+表单,建域,文本域,partial,E7,可新建并落盘；仅支持经典 xref PDF
+表单,建域,复选框,partial,E7,可新建并落盘；仅支持经典 xref PDF
+表单,建域,单选按钮,partial,E7,可新建并落盘；没有 /Parent 分组
+表单,建域,组合框,partial,E7,可新建并落盘；选项可维护
+表单,建域,列表框,partial,E7,可新建并落盘；选项可维护
+表单,建域,按钮,partial,E7,可新建并落盘；仅支持经典 xref PDF
+表单,建域,条形码,partial,E7,实为文本域，没有真条形码
 表单,模板,页面模板,missing,—,没有表单模板
 表单,XFA,编辑静态XFA表单,excluded,F6,PDFium 无 XFA 引擎，须显式提示
-表单,计算,计算次序,partial,F3,JS 子集计算
-表单,设计,添加工具提示,missing,F5,字段提示未做
+表单,计算,计算次序,missing,F3,按钮只打开表单面板；没有 JS 引擎
+表单,设计,添加工具提示,partial,F5,域属性里可填提示；面板没有提示列
 表单,填写,重置表单,missing,F2,没有重置
-表单,数据,表单到工作表,missing,F4,没有导出到 Excel 表格
-表单,数据,导入,aligned,F4,CSV/XFDF/FDF 导入
-表单,数据,导出,aligned,F4,CSV/XFDF/FDF 导出
-表单,脚本,JavaScript,partial,F3,计算/校验/格式化子集
+表单,数据,表单到工作表,partial,F4,导出 Excel 可打开的 CSV，不是 xlsx
+表单,数据,导入,partial,F4,CSV/FDF 可用；XFDF 表单数据未做
+表单,数据,导出,partial,F4,CSV/FDF 可用；XFDF 表单数据未做
+表单,脚本,JavaScript,missing,F3,没有 JS 引擎；按钮只打开表单面板
 表单,设置,工具设置,missing,—,没有表单工具设置
-保护,密文,标记为密文,missing,G4,计划 1.6
+保护,密文,标记为密文,missing,G4,没有标记为密文
 保护,密文,马赛克,missing,G4,没有马赛克
-保护,密文,擦除,missing,G4,没有擦除
+保护,密文,擦除,missing,G4,没有密文擦除
 保护,密文,保护密文,missing,G4,没有应用密文
-保护,隐私,隐藏数据,missing,G3,元数据清理计划 1.6
-保护,文档,安全文档,partial,G8,Worker 进程隔离与最小权限
-保护,文档,限制访问,missing,G1,AES-256 与权限位计划 1.6
+保护,隐私,隐藏数据,partial,G3,清名称树与元数据；嵌入文件本体仍留在字节里
+保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；PDF 解析仍在主进程
+保护,文档,限制访问,partial,G1,AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建
 保护,文档,批量加密,missing,G1,没有批量
 保护,设置,设置,missing,—,没有保护设置面板
 保护,企业,敏感度,na,—,企业敏感度标签
-保护,签名,填写&签名,partial,F1,填写可用；签名未做
-保护,签名,签名&认证,missing,G5,计划 1.7
-保护,签名,时间戳文档,missing,G7,RFC 3161 计划 1.7
-保护,签名,验证,missing,G6,验签计划 1.7
+保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
+保护,签名,签名&认证,partial,G5,PKCS#12 证书签名走随包 pyHanko
+保护,签名,时间戳文档,partial,G7,时间戳地址透传给 pyHanko
+保护,签名,验证,partial,G6,调 pyHanko 校验并显示原始输出；无签名列表与证书链 UI
 电子签章,签署,对外签署,na,—,云端电子签平台
 电子签章,签署,对内签署,na,—,同上
-电子签章,签章,管理对外签章,missing,G5,没有签章库
-电子签章,签章,骑缝章,missing,G5,没有骑缝章
+电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；无对外平台
+电子签章,签章,骑缝章,aligned,G5,骑缝章有入口与实现
 电子签章,签署,邀请他人签署,na,—,需要服务端
-电子签章,签章,签章,missing,G5,本地签章计划 1.7
+电子签章,签章,签章,partial,G5,手写或导入签章并盖到页面
 电子签章,流程,签署流程,missing,—,没有流程
 电子签章,流程,签署报告,missing,—,没有报告
 电子签章,流程,签署记录,missing,—,没有记录
@@ -219,19 +219,19 @@ tab,group,command,status,capability,note
 共享,企业,iManage 9,excluded,—,同上
 共享,企业,iManage 10,excluded,—,同上
 共享,企业,eDOCS DM,excluded,—,同上
-辅助工具,标签,自动添加标签到文档中,missing,J5,计划 1.10
+辅助工具,标签,自动添加标签到文档中,missing,J5,入口是禁用占位
 辅助工具,标签,自动添加标签到表单域,missing,J5,同上
-辅助工具,检查,完整检查,missing,J3,没有无障碍检查
-辅助工具,检查,辅助功能报告,missing,J3,没有报告
-辅助工具,设置,设置助手,missing,J2,没有设置向导
-辅助工具,阅读,阅读选项,missing,J4,没有朗读选项
-辅助工具,阅读,阅读顺序,missing,J5,没有阅读顺序编辑
-辅助工具,阅读,设置替代文本,missing,J5,没有替代文本
-辅助工具,阅读,设置区域阅读顺序,missing,J5,没有区域顺序
-辅助工具,阅读,更改区域顺序,missing,J5,同上
-辅助工具,阅读,应用区域顺序,missing,J5,同上
-论文工具,查重,论文查重,na,—,在线查重服务
-论文工具,查重,查重历史,na,—,同上
+辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
+辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
+辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导
+辅助工具,阅读,阅读选项,partial,J4,当前指向阅读顺序预览；未接朗读
+辅助工具,阅读,阅读顺序,partial,J5,只按文本层输出顺序；不读 StructTreeRoot 标签树
+辅助工具,阅读,设置替代文本,missing,J5,入口是禁用占位
+辅助工具,阅读,设置区域阅读顺序,missing,J5,入口是禁用占位
+辅助工具,阅读,更改区域顺序,missing,J5,入口是禁用占位
+辅助工具,阅读,应用区域顺序,missing,J5,入口是禁用占位
+论文工具,查重,论文查重,aligned,—,本地重复度检测并输出报告
+论文工具,查重,查重历史,aligned,—,历史存在本地设置里
 文档管理,组织,文档雷达,aligned,—,本地文档概述显示页数、大小、时间与管理属性
 文档管理,组织,标签,aligned,—,按文档路径保存本地标签
 文档管理,组织,分类,aligned,—,按文档路径保存本地分类
@@ -247,27 +247,27 @@ tab,group,command,status,capability,note
 文档管理,发票,发票合并,aligned,—,复用 PDF 页面合并通路
 文档管理,批量,批量重命名,aligned,D9,本地安全批量重命名并拒绝外部覆盖
 文档管理,批量,OFD批量转换,partial,—,依赖本机外部转换器；支持进度、取消、超时与失败汇总
-录制,录制,PDF录制,missing,—,没有 PDF 录制
-录制,录制,屏幕录制,missing,—,没有屏幕录制
+录制,录制,PDF录制,partial,—,先进入放映再调系统录屏工具；不产出文件
+录制,录制,屏幕录制,partial,—,委托 Windows 游戏栏录制任意窗口
 录制,录制,声音录制,partial,C8,已有录音组件（批注用），没有录制中心
-录制,录制,截图,missing,—,没有截图工具
-录制,录制,录制列表,missing,—,没有录制列表
-帮助,帮助,用户手册,missing,—,没有应用内手册
-帮助,帮助,帮助中心,missing,—,没有帮助中心
-帮助,帮助,命令行帮助,missing,—,没有命令行帮助页
+录制,录制,截图,partial,—,只有整窗截图
+录制,录制,录制列表,partial,—,录制中心可管理输出文件
+帮助,帮助,用户手册,aligned,—,应用内手册窗口
+帮助,帮助,帮助中心,partial,—,打开仓库 Issues 页面，不是站内帮助中心
+帮助,帮助,命令行帮助,aligned,—,命令行用法对话框
 帮助,帮助,发表想法,na,—,反馈平台
 帮助,帮助,在线教程,na,—,在线内容
 帮助,帮助,插件管理,excluded,—,不引入插件 SDK
 帮助,帮助,设置默认PDF阅读器,missing,—,没有系统关联设置
 帮助,帮助,插件商店,excluded,—,同上
-帮助,关于,关于,missing,—,没有关于对话框
+帮助,关于,关于,aligned,—,版本与项目信息对话框
 帮助,商业,立即购买,na,—,无订阅
 帮助,商业,激活,na,—,无账号
 帮助,商业,产品信息,na,—,无订阅
 帮助,商业,订阅,na,—,无订阅
 AI助手,对话,AI聊天,aligned,L1,流式回答/停止/用量与费用
 AI助手,翻译,翻译文档,partial,L2,选区与当前页；整篇未做
-AI助手,朗读,智能朗读,missing,J4,计划 1.10
+AI助手,朗读,智能朗读,missing,J4,没有朗读实现
 AI助手,检测,AI内容检测,missing,—,没有内容检测
 AI助手,生成,生成图像,missing,—,没有文生图
 AI助手,生成,AI总结生图,missing,—,没有总结配图
