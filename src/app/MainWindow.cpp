@@ -1285,12 +1285,73 @@ void MainWindow::buildUi() {
     addEditTool(attachmentEditGroup, "音频和视频", "在页面上添加声音批注",
                 ":/icons/annotation.svg", "sound", "edit.sound");
     addUnavailableEditCommand(attachmentEditGroup, "添加 3D");
-    addPlaceholderTab("表单", {
-        {"识别", {"表单自动识别", "设计助手", "工具提示"}},
-        {"建域", {"文本域", "复选框", "单选按钮", "组合框", "列表框", "按钮", "条形码"}},
-        {"模板", {"页面模板", "编辑静态 XFA", "计算次序"}},
-        {"数据", {"重置表单", "表单到工作表", "导入", "导出", "JavaScript"}},
-    });
+    // 表单不是占位页：仓库已有 AcroForm 枚举、填写、扁平化和数据交换能力，
+    // 这里必须把真实入口接出来。建域/XFA 等尚未具备对象级写入能力的命令仍然
+    // 保留在 Ribbon 中（不隐藏），但不能伪装成可用功能。
+    const int formTab = ribbonBar_->addTab(tr("表单"));
+    const auto showFormsPanel = [this] {
+        PdfView* view = currentView();
+        if (view == nullptr || navigationPages_ == nullptr || navigationDock_ == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        navigationPages_->setCurrentIndex(5);
+        updateNavigationHeader(5);
+        navigationDock_->show();
+        navigationDock_->raise();
+        refreshForms(view);
+    };
+
+    auto* formRecognitionGroup = ribbonBar_->addGroup(formTab, tr("识别"));
+    addRibbonCommand(formRecognitionGroup, "表单自动识别", "扫描并列出文档中的 AcroForm 字段",
+                     ":/icons/search.svg", showFormsPanel, true, "form.recognize");
+    addRibbonCommand(formRecognitionGroup, "设计助手", "打开表单字段面板",
+                     ":/icons/form.svg", showFormsPanel, true, "form.assistant");
+    addRibbonCommand(formRecognitionGroup, "工具提示", "查看字段名称、类型和值",
+                     ":/icons/form.svg", showFormsPanel, true, "form.tooltip");
+
+    auto* formFieldGroup = ribbonBar_->addGroup(formTab, tr("建域"));
+    for (const char* command : {"文本域", "复选框", "单选按钮", "组合框", "列表框", "按钮", "条形码"}) {
+        addRibbonCommand(formFieldGroup, command, "表单域创建器正在开发",
+                         placeholderIcon(tr(command)), [] {}, false,
+                         QStringLiteral("form.create.") + QString::fromUtf8(command));
+    }
+
+    auto* formTemplateGroup = ribbonBar_->addGroup(formTab, tr("模板"));
+    addRibbonCommand(formTemplateGroup, "页面模板", "表单页面模板正在开发",
+                     ":/icons/pages.svg", [] {}, false, "form.pageTemplate");
+    addRibbonCommand(formTemplateGroup, "编辑静态 XFA", "PDFium 不提供 XFA 编辑引擎",
+                     ":/icons/form.svg", [] {}, false, "form.xfa");
+    addRibbonCommand(formTemplateGroup, "计算次序", "重新读取计算后的字段值",
+                     ":/icons/form.svg", showFormsPanel, true, "form.calculationOrder");
+
+    auto* formDataGroup = ribbonBar_->addGroup(formTab, tr("数据"));
+    addRibbonCommand(formDataGroup, "重置表单", "清空所有可写字段",
+                     ":/icons/form.svg", [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+            return;
+        }
+        const QVector<pdf::FormField> fields = view->formFields();
+        int resetCount = 0;
+        for (const pdf::FormField& field : fields) {
+            if (!field.readOnly && view->setFormFieldValue(field.pageIndex, field.name, QString())) {
+                ++resetCount;
+            }
+        }
+        refreshForms(view);
+        statusBar()->showMessage(tr("已重置 %1 个表单字段").arg(resetCount), 3000);
+    }, true, "form.reset");
+    addRibbonCommand(formDataGroup, "表单到工作表", "把字段和值导出为 Excel 可打开的 CSV",
+                     ":/icons/convert.svg", [this] { exportFormCsv(); }, true,
+                     "form.toWorksheet");
+    addRibbonCommand(formDataGroup, "导入", "从 CSV 或 FDF 导入表单数据",
+                     ":/icons/convert.svg", [this] { importFormCsv(); }, true, "form.import");
+    addRibbonCommand(formDataGroup, "导出", "把表单数据导出为 CSV",
+                     ":/icons/convert.svg", [this] { exportFormCsv(); }, true, "form.export");
+    addRibbonCommand(formDataGroup, "JavaScript", "刷新计算、校验和格式化后的字段值",
+                     ":/icons/form.svg", showFormsPanel, true, "form.javascript");
     addPlaceholderTab("电子签章", {
         {"签署", {"对外签署", "对内签署", "邀请他人签署", "完成签署"}},
         {"签章", {"管理签章", "骑缝章", "签章"}},

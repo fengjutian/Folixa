@@ -2030,12 +2030,19 @@ void PdfView::refreshAfterDecoration() {
         document_.syncBytes(bytes);
     }
     cache_.clear();
+    // 渲染、文本、链接和索引控制器都持有独立的 PDFium 文档副本。
+    // 只清缓存会让它们继续读取修改前的内容，必须基于刚同步的字节整体重建。
+    stopRenderThread();
+    startRenderThread();
+    setupControllers();
+    emit controllersRefreshed();
     if (layout_.pageCount() != document_.pageCount()) {
         rebuildLayout();
     }
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
+    requestVisiblePages();
 }
 
 QVector<pdf::FormField> PdfView::formFields() const {
