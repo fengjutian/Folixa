@@ -21,6 +21,7 @@
 #include <fpdfview.h>
 
 #include <QByteArray>
+#include <QBuffer>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -1751,6 +1752,9 @@ bool PdfPage::setTextObjectText(int index, const QString& text) {
     FPDFPageObj_SetFillColor(replacement, r, g, b, a);
     const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
     FPDFTextObj_SetTextRenderMode(replacement, mode);
+    for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex)
+        if (FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex)))
+            FPDFPageObj_AddExistingMark(replacement, mark);
     if (!FPDFPage_RemoveObject(impl_->page, object) ||
         !FPDFPage_InsertObjectAtIndex(impl_->page, replacement, static_cast<size_t>(index))) {
         FPDFPageObj_Destroy(replacement);
@@ -1800,7 +1804,20 @@ bool PdfPage::cropImageObject(int index, const QRectF& normalizedCrop) {
     const QRect pixels(qFloor(crop.left() * width), qFloor(crop.top() * height),
                        qMax(1, qCeil(crop.width() * width)),
                        qMax(1, qCeil(crop.height() * height)));
-    return replaceImageObject(index, source.copy(pixels.intersected(source.rect())));
+    const bool replaced = replaceImageObject(index, source.copy(pixels.intersected(source.rect())));
+    if (replaced) {
+        for (int markIndex = FPDFPageObj_CountMarks(object) - 1; markIndex >= 0; --markIndex) {
+            FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex));
+            unsigned long bytes = 0;
+            if (!mark || !FPDFPageObjMark_GetName(mark, nullptr, 0, &bytes) || bytes < 2) continue;
+            QVector<FPDF_WCHAR> name(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+            if (FPDFPageObjMark_GetName(mark, name.data(), bytes, &bytes) &&
+                QString::fromUtf16(reinterpret_cast<const char16_t*>(name.constData()))
+                        .remove(QChar::Null) == QStringLiteral("FolixaOpacity"))
+                FPDFPageObj_RemoveMark(object, mark);
+        }
+    }
+    return replaced;
 }
 
 bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
@@ -1811,6 +1828,19 @@ bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
         if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
         FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
         if (object && FPDFPageObj_GetType(object) == FPDF_PAGEOBJ_IMAGE) {
+            FPDF_PAGEOBJECTMARK opacityMark = nullptr;
+            for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex) {
+                FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex));
+                unsigned long bytes = 0;
+                if (!mark || !FPDFPageObjMark_GetName(mark, nullptr, 0, &bytes) || bytes < 2) continue;
+                QVector<FPDF_WCHAR> name(static_cast<qsizetype>(bytes / sizeof(FPDF_WCHAR)));
+                if (FPDFPageObjMark_GetName(mark, name.data(), bytes, &bytes) &&
+                    QString::fromUtf16(reinterpret_cast<const char16_t*>(name.constData()))
+                            .remove(QChar::Null) == QStringLiteral("FolixaOpacity")) {
+                    opacityMark = mark;
+                    break;
+                }
+            }
             FPDF_BITMAP bitmap = FPDFImageObj_GetBitmap(object);
             if (!bitmap) continue;
             const int width = FPDFBitmap_GetWidth(bitmap);
@@ -1821,13 +1851,44 @@ bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
             for (int y = 0; y < height; ++y)
                 std::memcpy(image.scanLine(y), buffer + y * stride, static_cast<size_t>(width) * 4);
             FPDFBitmap_Destroy(bitmap);
+            if (opacityMark) {
+                unsigned long sourceSize = 0;
+                if (FPDFPageObjMark_GetParamBlobValue(opacityMark, "source", nullptr, 0, &sourceSize) &&
+                    sourceSize > 0 && sourceSize < 256UL * 1024UL * 1024UL) {
+                    QByteArray source(static_cast<qsizetype>(sourceSize), Qt::Uninitialized);
+                    if (FPDFPageObjMark_GetParamBlobValue(
+                            opacityMark, "source", reinterpret_cast<unsigned char*>(source.data()),
+                            sourceSize, &sourceSize)) {
+                        const QImage original = QImage::fromData(source, "PNG");
+                        if (!original.isNull()) image = original.convertToFormat(QImage::Format_ARGB32);
+                    }
+                }
+            }
+            QByteArray originalPng;
+            if (!opacityMark) {
+                QBuffer pngBuffer(&originalPng);
+                pngBuffer.open(QIODevice::WriteOnly);
+                image.save(&pngBuffer, "PNG");
+            }
             for (int y = 0; y < image.height(); ++y) {
                 QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
                 for (int x = 0; x < image.width(); ++x)
                     line[x] = qRgba(qRed(line[x]), qGreen(line[x]), qBlue(line[x]),
-                                    qRound(qAlpha(line[x]) * opacity));
+                                    qBound(0, qRound(qAlpha(line[x]) * opacity), 255));
             }
-            changed = replaceImageObject(index, image) || changed;
+            if (replaceImageObject(index, image)) {
+                if (!opacityMark) opacityMark = FPDFPageObj_AddMark(object, "FolixaOpacity");
+                if (opacityMark) {
+                    if (!originalPng.isEmpty())
+                        FPDFPageObjMark_SetBlobParam(
+                            impl_->document->handle, object, opacityMark, "source",
+                            reinterpret_cast<const unsigned char*>(originalPng.constData()),
+                            static_cast<unsigned long>(originalPng.size()));
+                    FPDFPageObjMark_SetFloatParam(impl_->document->handle, object, opacityMark,
+                                                  "value", static_cast<float>(opacity));
+                }
+                changed = true;
+            }
             continue;
         }
         unsigned int r = 255, g = 255, b = 255, a = 255;
@@ -2029,6 +2090,9 @@ bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString
                                  qRound(255.0 * opacity));
         const FPDF_TEXT_RENDERMODE mode = FPDFTextObj_GetTextRenderMode(object);
         FPDFTextObj_SetTextRenderMode(replacement, mode);
+        for (int markIndex = 0; markIndex < FPDFPageObj_CountMarks(object); ++markIndex)
+            if (FPDF_PAGEOBJECTMARK mark = FPDFPageObj_GetMark(object, static_cast<unsigned long>(markIndex)))
+                FPDFPageObj_AddExistingMark(replacement, mark);
         FPDFPage_RemoveObject(impl_->page, object);
         FPDFPage_InsertObjectAtIndex(impl_->page, replacement, static_cast<size_t>(index));
         FPDFPageObj_Destroy(object);

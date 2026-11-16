@@ -41,6 +41,7 @@ public:
     int undoCount() const;
     int redoCount() const;
     void clear();
+    void clearRedo();
 
     // 当前撤销历史的序列化命令（按执行顺序，从最早到最新）。
     //

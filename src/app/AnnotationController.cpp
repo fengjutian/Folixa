@@ -695,6 +695,12 @@ bool AnnotationController::canRedo() const {
 int AnnotationController::undoCount() const { return undoStack_.undoCount(); }
 int AnnotationController::redoCount() const { return undoStack_.redoCount(); }
 
+void AnnotationController::discardRedoHistory() {
+    if (!undoStack_.canRedo()) return;
+    undoStack_.clearRedo();
+    emit undoStateChanged();
+}
+
 QString AnnotationController::undoText() const {
     return undoStack_.undoText();
 }

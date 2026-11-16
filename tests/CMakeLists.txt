@@ -23,7 +23,7 @@ if (AIPDF_WITH_QPDF AND qpdf_FOUND)
     target_link_libraries(ContentEditingTests PRIVATE qpdf::libqpdf)
     target_compile_definitions(ContentEditingTests PRIVATE
         AIPDF_WITH_QPDF=1
-        AIPDF_PDF_FIXTURES_DIR="${PDF_FIXTURE_DIR}")
+        AIPDF_PDF_FIXTURES_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixtures")
     add_custom_command(TARGET ContentEditingTests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:ContentEditingTests>")

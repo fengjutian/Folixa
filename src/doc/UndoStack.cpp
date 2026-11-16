@@ -85,6 +85,8 @@ void UndoStack::clear() {
     redoStack_.clear();
 }
 
+void UndoStack::clearRedo() { redoStack_.clear(); }
+
 QVector<QByteArray> UndoStack::serializedHistory() const {
     QVector<QByteArray> result;
     result.reserve(undoStack_.size());

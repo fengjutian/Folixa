@@ -14,6 +14,7 @@
 #include "i18n/Translate.h"
 
 class QMouseEvent;
+class QKeyEvent;
 class QPainter;
 class QLineEdit;
 
@@ -122,6 +123,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
 
 private:
     // 切换语言后就地重译画布上的常驻文案（未打开文档时的占位提示）。

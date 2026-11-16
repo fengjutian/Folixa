@@ -18,6 +18,7 @@
 #include <QPolygonF>
 #include <QLineF>
 #include <QLineEdit>
+#include <QKeyEvent>
 #include <QScrollBar>
 
 #include <algorithm>
@@ -1212,6 +1213,8 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void PageCanvas::beginObjectSelection() {
+    if (annotationController_ && annotationController_->tool() != AnnotationController::Tool::None)
+        annotationController_->setTool(AnnotationController::Tool::None);
     objectEditMode_ = true;
     drawingObjectSelection_ = true;
     drawingSquare_ = false;
@@ -1232,10 +1235,22 @@ void PageCanvas::clearObjectSelection() {
     objectSelectionPage_ = -1;
     objectSelectionRect_ = {};
     draggingObjectSelection_ = false;
+    if (inlineEditor_) {
+        inlineEditor_->blockSignals(true);
+        inlineEditor_->deleteLater();
+        inlineEditor_ = nullptr;
+        inlineEditPage_ = -1;
+        inlineEditObject_ = -1;
+    }
     viewport()->update();
 }
 
 void PageCanvas::setFormFieldPlacementKind(const QString& kind) {
+    if (!kind.isEmpty()) {
+        objectEditMode_ = false;
+        drawingObjectSelection_ = false;
+        clearObjectSelection();
+    }
     formFieldKind_ = kind;
     drawingFormField_ = false;
     updateToolCursor();
@@ -1294,6 +1309,19 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     viewport()->update();
 }
 
+void PageCanvas::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Escape && objectEditMode_) {
+        objectEditMode_ = false;
+        drawingObjectSelection_ = false;
+        drawingSquare_ = false;
+        clearObjectSelection();
+        updateToolCursor();
+        event->accept();
+        return;
+    }
+    QAbstractScrollArea::keyPressEvent(event);
+}
+
 void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRectF& displayRect,
                                      const QString& text, double fontSize) {
     if (inlineEditor_) {
@@ -1341,9 +1369,15 @@ void PageCanvas::repositionInlineEditor() {
 }
 
 void PageCanvas::updateToolCursor() {
+    const bool annotationTool = annotationController_ != nullptr &&
+                                annotationController_->tool() != AnnotationController::Tool::None;
+    if (annotationTool && objectEditMode_) {
+        objectEditMode_ = false;
+        drawingObjectSelection_ = false;
+        clearObjectSelection();
+    }
     const bool drawing = drawingObjectSelection_ || !formFieldKind_.isEmpty() ||
-                         (annotationController_ != nullptr &&
-                          annotationController_->tool() != AnnotationController::Tool::None);
+                         annotationTool;
     if (drawing) {
         viewport()->setCursor(Qt::CrossCursor);
         return;

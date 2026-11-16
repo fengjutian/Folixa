@@ -185,7 +185,7 @@ private:
     // 页面内容变了之后刷新渲染缓存与布局。
     void refreshAfterDecoration();
     void createFormFieldAt(const QString& kind, int pageIndex, const QRectF& rect);
-    void editObjectsInRect(int pageIndex, const QRectF& userRect);
+    void editObjectsInRect(int pageIndex, const QRectF& userRect, bool useCurrentSelection = false);
     void selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool additive);
     void transformSelectedObjects(int pageIndex, const QRectF& oldRect, const QRectF& newRect);
     void rotateSelectedObjects(int pageIndex, double degrees);

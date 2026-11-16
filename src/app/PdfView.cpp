@@ -871,6 +871,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                     for (int i = knownAnnotationUndoCount_; i < currentCount; ++i)
                         editUndoTimeline_.append(EditHistoryKind::Annotation);
                     editRedoTimeline_.clear();
+                    contentRedo_.clear();
                 }
                 knownAnnotationUndoCount_ = currentCount;
                 updateAnnotationToolBar();
@@ -2837,7 +2838,7 @@ void PdfView::editSelectedObjectsDialog() {
                     selectedBounds = selectedBounds.united(object.bounds);
         }
         if (!selectedBounds.isEmpty()) {
-            editObjectsInRect(selectedObjectPage_, selectedBounds);
+            editObjectsInRect(selectedObjectPage_, selectedBounds, true);
             return;
         }
     }
@@ -2857,10 +2858,25 @@ void PdfView::editSelectedObjectsDialog() {
     editObjectsInRect(pageIndex, userRect);
 }
 
-void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect) {
+void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useCurrentSelection) {
     auto page = document_.page(pageIndex);
     if (!page || userRect.isEmpty()) return;
-    const QVector<pdf::PageObjectInfo> objects = page->objectsInRect(userRect);
+    QVector<pdf::PageObjectInfo> objects = page->objectsInRect(userRect);
+    if (useCurrentSelection && pageIndex == selectedObjectPage_ && !selectedObjectIndexes_.isEmpty())
+        objects.erase(std::remove_if(objects.begin(), objects.end(), [this](const auto& object) {
+            return !selectedObjectIndexes_.contains(object.index);
+        }), objects.end());
+    if (!useCurrentSelection) {
+        const auto allObjects = page->objectsInRect(
+            QRectF(0, 0, page->widthPoints(), page->heightPoints()), 0.0);
+        QSet<int> groups;
+        for (const auto& object : objects) if (object.groupId >= 0) groups.insert(object.groupId);
+        for (const auto& object : allObjects)
+            if (groups.contains(object.groupId) &&
+                std::none_of(objects.cbegin(), objects.cend(), [&object](const auto& selected) {
+                    return selected.index == object.index;
+                })) objects.append(object);
+    }
     if (objects.isEmpty()) {
         QMessageBox::information(this, tr("编辑对象"), tr("选区内没有可编辑的页面对象。"));
         return;
@@ -3197,6 +3213,10 @@ void PdfView::beginInlineTextEdit(int pageIndex, const QPointF& userPoint) {
         emit statusMessage(tr("双击位置没有可编辑文字"));
         return;
     }
+    if (found->locked) {
+        emit statusMessage(tr("文字对象已锁定，请先解锁"));
+        return;
+    }
     PageTransform transform;
     if (!transformForIndexPage(pageIndex, &transform)) return;
     selectedObjectPage_ = pageIndex;
@@ -3230,6 +3250,7 @@ void PdfView::recordContentEdit(int pageIndex, const pdf::PdfDocument& before,
     constexpr int kMaxContentHistory = 50;
     if (contentUndo_.size() > kMaxContentHistory) contentUndo_.removeFirst();
     contentRedo_.clear();
+    if (annotationController_) annotationController_->discardRedoHistory();
     editUndoTimeline_.append(EditHistoryKind::Content);
     editRedoTimeline_.clear();
     updateAnnotationToolBar();

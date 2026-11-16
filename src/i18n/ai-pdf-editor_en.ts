@@ -4331,5 +4331,9 @@ Starred: %7</translation></message>
         <message><source>透明度（%）:</source><translation>Opacity (%):</translation></message>
         <message><source>锁定</source><translation>Lock</translation></message>
         <message><source>顶部裁剪（%）:</source><translation>Crop top (%):</translation></message>
+        <message><source>安全替换选中文字</source><translation>safely replace selected text</translation></message>
+        <message><source>已安全替换选中文字</source><translation>Selected text was safely replaced</translation></message>
+        <message><source>替换选中文字</source><translation>replace selected text</translation></message>
+        <message><source>文字对象已锁定，请先解锁</source><translation>The text object is locked. Unlock it first.</translation></message>
     </context>
 </TS>
