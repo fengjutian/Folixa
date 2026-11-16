@@ -1684,6 +1684,18 @@ void MainWindow::buildUi() {
         settings.setValue(QStringLiteral("appearance/theme"), QStringLiteral("light"));
         settings.setValue(QStringLiteral("appearance/fontFamily"), selected.family());
         settings.setValue(QStringLiteral("appearance/fontPointSize"), selected.pointSize());
+        settings.setValue(QStringLiteral("workspace/navigationVisible"),
+                          dialog.navigationVisibleOnStartup());
+        settings.setValue(QStringLiteral("workspace/aiVisible"), dialog.aiVisibleOnStartup());
+        i18n::LanguageManager::instance().setPreference(dialog.languagePreference());
+
+        navigationUserVisible_ = dialog.navigationVisibleOnStartup();
+        if (navigationDock_ != nullptr && !navHiddenForWelcome_) {
+            navigationDock_->setVisible(navigationUserVisible_);
+        }
+        if (aiDock_ != nullptr && currentView() != nullptr) {
+            aiDock_->setVisible(dialog.aiVisibleOnStartup());
+        }
         statusBar()->showMessage(tr("设置已保存"), 3000);
     });
     // 不注册成 QStatusBar 的 normal widget：showMessage() 会隐藏所有 normal widget。

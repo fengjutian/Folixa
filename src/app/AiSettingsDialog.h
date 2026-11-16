@@ -55,6 +55,8 @@ private:
     void retranslateUi();
     // 演示模式时把联网相关字段灰掉：填了也没用，容易误导。
     void updateEnabledState();
+    // 选择内置服务商时填入其 OpenAI 兼容地址与推荐模型。
+    void applyProviderPreset();
     // 数据模式下方的说明：每种模式会把什么送出去。
     void updateDataModeHint();
 

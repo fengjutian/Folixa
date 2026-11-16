@@ -8,7 +8,13 @@ ProviderKind resolveProviderKind(const ProviderConfig& config, bool hasCredentia
     if (!mayUseCloud(config.effectiveDataMode())) {
         return ProviderKind::Demo;
     }
-    if (config.providerId == QLatin1String("openai") && hasCredential) {
+    // MiniMax、DeepSeek、Qwen、Kimi 与自定义服务都走同一套 OpenAI 兼容实现。
+    const bool compatible = config.providerId == QLatin1String("minimax") ||
+                            config.providerId == QLatin1String("deepseek") ||
+                            config.providerId == QLatin1String("qwen") ||
+                            config.providerId == QLatin1String("kimi") ||
+                            config.providerId == QLatin1String("openai");
+    if (compatible && hasCredential) {
         return ProviderKind::OpenAi;
     }
     return ProviderKind::Demo;

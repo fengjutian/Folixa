@@ -258,6 +258,13 @@ void DataPolicyTests::cloudOnlyWhenConfiguredAndCredentialPresent() {
     // 没有密钥：演示模式接管，不能拿空密钥去联网。
     QVERIFY(resolveProviderKind(config, false) == ProviderKind::Demo);
 
+    for (const QString& provider : {QStringLiteral("minimax"), QStringLiteral("deepseek"),
+                                    QStringLiteral("qwen"), QStringLiteral("kimi")}) {
+        config.providerId = provider;
+        QVERIFY(resolveProviderKind(config, true) == ProviderKind::OpenAi);
+        QVERIFY(resolveProviderKind(config, false) == ProviderKind::Demo);
+    }
+
     config.providerId = QStringLiteral("demo");
     QVERIFY(resolveProviderKind(config, true) == ProviderKind::Demo);
 

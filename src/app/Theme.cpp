@@ -232,6 +232,16 @@ QListWidget#settingsNavigation {
 QListWidget#settingsNavigation::item { min-height: 40px; padding: 0 12px; border-radius: 7px; }
 QListWidget#settingsNavigation::item:selected { background: #EDE9FE; color: #6D28D9; font-weight: 600; }
 QLabel#settingsPageTitle { color: #18181B; font-size: 20px; font-weight: 700; }
+QFrame#settingsCard {
+    background: #FAFAFB; border: 1px solid #E4E4E7; border-radius: 10px;
+}
+QLabel#settingsSectionTitle { color: #27272A; font-size: 14px; font-weight: 700; }
+QLabel#settingsProductName { color: #18181B; font-size: 24px; font-weight: 750; }
+QLabel#settingsFontPreview {
+    background: #FFFFFF; border: 1px solid #E4E4E7; border-radius: 8px; padding: 10px;
+}
+QDialog#settingsDialog QComboBox, QDialog#settingsDialog QFontComboBox,
+QDialog#settingsDialog QSpinBox { min-width: 220px; }
 
 /* ------------------------------------------------------------ 欢迎页 -- */
 QScrollArea#welcomeScroll, QScrollArea#welcomeScroll > QWidget { background: transparent; border: 0; }

@@ -1,26 +1,36 @@
 #include "app/SettingsDialog.h"
 
+#include "ai/ProviderConfig.h"
+#include "app/Language.h"
+
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QFontComboBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QPushButton>
+#include <QSettings>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace aipdf::app {
 
 namespace {
-QWidget* makePage(const QString& title, const QString& description, QWidget* parent) {
-    auto* page = new QWidget(parent);
+QVBoxLayout* makePage(const QString& title, const QString& description,
+                      QStackedWidget* pages) {
+    auto* page = new QWidget(pages);
     auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(24, 20, 24, 20);
-    layout->setSpacing(12);
+    layout->setContentsMargins(28, 24, 28, 24);
+    layout->setSpacing(14);
     auto* heading = new QLabel(title, page);
     heading->setObjectName(QStringLiteral("settingsPageTitle"));
     layout->addWidget(heading);
@@ -28,7 +38,23 @@ QWidget* makePage(const QString& title, const QString& description, QWidget* par
     hint->setObjectName(QStringLiteral("secondaryText"));
     hint->setWordWrap(true);
     layout->addWidget(hint);
-    return page;
+    pages->addWidget(page);
+    return layout;
+}
+
+QFrame* makeCard(QWidget* parent) {
+    auto* card = new QFrame(parent);
+    card->setObjectName(QStringLiteral("settingsCard"));
+    return card;
+}
+
+QString dataModeLabel(ai::DataMode mode) {
+    switch (mode) {
+        case ai::DataMode::LocalOnly: return QObject::tr("仅本地处理");
+        case ai::DataMode::SelectedChunks: return QObject::tr("仅发送检索片段");
+        case ai::DataMode::SelectedPages: return QObject::tr("发送选定页面");
+    }
+    return QObject::tr("未知");
 }
 }  // namespace
 
@@ -36,7 +62,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     setObjectName(QStringLiteral("settingsDialog"));
     setWindowTitle(tr("设置"));
     setModal(true);
-    resize(620, 420);
+    resize(760, 520);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 14);
@@ -47,56 +73,148 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     auto* navigation = new QListWidget(this);
     navigation->setObjectName(QStringLiteral("settingsNavigation"));
-    navigation->setFixedWidth(150);
-    navigation->addItems({tr("主题"), tr("字体"), tr("AI 设置")});
+    navigation->setFixedWidth(174);
+    navigation->addItems({tr("常规"), tr("外观"), tr("AI 设置"), tr("隐私与数据"), tr("关于")});
     body->addWidget(navigation);
 
     auto* pages = new QStackedWidget(this);
     body->addWidget(pages, 1);
+    QSettings settings;
 
-    auto* themePage = makePage(tr("主题"), tr("选择应用的外观主题。"), pages);
-    auto* themeLayout = qobject_cast<QVBoxLayout*>(themePage->layout());
-    auto* themeCombo = new QComboBox(themePage);
-    themeCombo->setObjectName(QStringLiteral("settingsTheme"));
-    themeCombo->addItem(tr("浅色"), QStringLiteral("light"));
-    themeLayout->addWidget(themeCombo);
-    themeLayout->addStretch();
-    pages->addWidget(themePage);
+    auto* general = makePage(tr("常规"), tr("管理界面语言和工作区的启动状态。"), pages);
+    auto* generalCard = makeCard(this);
+    auto* generalForm = new QFormLayout(generalCard);
+    generalForm->setContentsMargins(18, 16, 18, 16);
+    generalForm->setSpacing(14);
+    language_ = new QComboBox(generalCard);
+    language_->setObjectName(QStringLiteral("settingsLanguage"));
+    language_->addItem(tr("跟随系统"), QStringLiteral("system"));
+    for (const i18n::Language& language : i18n::supportedLanguages()) {
+        language_->addItem(language.nativeName, language.code);
+    }
+    const QString preference = i18n::LanguageManager::instance().preference();
+    language_->setCurrentIndex(std::max(0, language_->findData(preference)));
+    generalForm->addRow(tr("界面语言"), language_);
+    navigationVisible_ = new QCheckBox(tr("启动时显示左侧导航栏"), generalCard);
+    navigationVisible_->setChecked(
+        settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool());
+    generalForm->addRow(QString(), navigationVisible_);
+    aiVisible_ = new QCheckBox(tr("打开文档后显示 AI 助手"), generalCard);
+    aiVisible_->setChecked(settings.value(QStringLiteral("workspace/aiVisible"), false).toBool());
+    generalForm->addRow(QString(), aiVisible_);
+    general->addWidget(generalCard);
+    general->addStretch();
 
-    auto* fontPage = makePage(tr("字体"), tr("设置界面使用的字体和字号。"), pages);
-    auto* fontLayout = qobject_cast<QVBoxLayout*>(fontPage->layout());
-    auto* form = new QFormLayout();
-    fontFamily_ = new QFontComboBox(fontPage);
+    auto* appearance = makePage(tr("外观"), tr("调整应用主题、界面字体和字号。"), pages);
+    auto* appearanceCard = makeCard(this);
+    auto* appearanceForm = new QFormLayout(appearanceCard);
+    appearanceForm->setContentsMargins(18, 16, 18, 16);
+    appearanceForm->setSpacing(14);
+    auto* theme = new QComboBox(appearanceCard);
+    theme->setObjectName(QStringLiteral("settingsTheme"));
+    theme->addItem(tr("浅色"), QStringLiteral("light"));
+    appearanceForm->addRow(tr("主题"), theme);
+    fontFamily_ = new QFontComboBox(appearanceCard);
     fontFamily_->setObjectName(QStringLiteral("settingsFontFamily"));
     fontFamily_->setCurrentFont(qApp->font());
-    fontSize_ = new QSpinBox(fontPage);
+    appearanceForm->addRow(tr("字体"), fontFamily_);
+    fontSize_ = new QSpinBox(appearanceCard);
     fontSize_->setObjectName(QStringLiteral("settingsFontSize"));
     fontSize_->setRange(8, 24);
     fontSize_->setSuffix(tr(" 磅"));
-    fontSize_->setValue(qApp->font().pointSize());
-    form->addRow(tr("字体"), fontFamily_);
-    form->addRow(tr("字号"), fontSize_);
-    fontLayout->addLayout(form);
-    fontLayout->addStretch();
-    pages->addWidget(fontPage);
+    fontSize_->setValue(std::max(8, qApp->font().pointSize()));
+    appearanceForm->addRow(tr("字号"), fontSize_);
+    fontPreview_ = new QLabel(tr("Folixa · 专注阅读，也为文档智能留出空间"), appearanceCard);
+    fontPreview_->setObjectName(QStringLiteral("settingsFontPreview"));
+    fontPreview_->setMinimumHeight(56);
+    appearanceForm->addRow(tr("预览"), fontPreview_);
+    auto updatePreview = [this] { fontPreview_->setFont(selectedFont()); };
+    connect(fontFamily_, &QFontComboBox::currentFontChanged, this, updatePreview);
+    connect(fontSize_, &QSpinBox::valueChanged, this, updatePreview);
+    updatePreview();
+    appearance->addWidget(appearanceCard);
+    appearance->addStretch();
 
-    auto* aiPage = makePage(tr("AI 设置"), tr("配置 AI 服务商、模型和 API 密钥。"), pages);
-    auto* aiLayout = qobject_cast<QVBoxLayout*>(aiPage->layout());
-    auto* aiButton = new QPushButton(tr("打开 AI 服务设置…"), aiPage);
+    auto* aiPage = makePage(tr("AI 设置"), tr("查看当前 AI 服务状态并进入详细配置。"), pages);
+    auto* aiCard = makeCard(this);
+    auto* aiForm = new QFormLayout(aiCard);
+    aiForm->setContentsMargins(18, 16, 18, 16);
+    aiForm->setSpacing(12);
+    aiProviderValue_ = new QLabel(aiCard);
+    aiModelValue_ = new QLabel(aiCard);
+    aiDataModeValue_ = new QLabel(aiCard);
+    aiCredentialValue_ = new QLabel(aiCard);
+    aiForm->addRow(tr("服务商"), aiProviderValue_);
+    aiForm->addRow(tr("模型"), aiModelValue_);
+    aiForm->addRow(tr("数据模式"), aiDataModeValue_);
+    aiForm->addRow(tr("API 密钥"), aiCredentialValue_);
+    aiPage->addWidget(aiCard);
+    auto* aiButton = new QPushButton(tr("配置 AI 服务…"), this);
     aiButton->setObjectName(QStringLiteral("openAiSettingsButton"));
-    aiLayout->addWidget(aiButton, 0, Qt::AlignLeft);
-    aiLayout->addStretch();
-    pages->addWidget(aiPage);
+    aiPage->addWidget(aiButton, 0, Qt::AlignLeft);
+    aiPage->addStretch();
+    connect(aiButton, &QPushButton::clicked, this, [this] {
+        emit aiSettingsRequested();
+        refreshAiSummary();
+    });
+    refreshAiSummary();
+
+    auto* privacy = makePage(tr("隐私与数据"), tr("了解文档内容如何在本地与 AI 服务之间流转。"), pages);
+    auto* privacyCard = makeCard(this);
+    auto* privacyLayout = new QVBoxLayout(privacyCard);
+    privacyLayout->setContentsMargins(18, 16, 18, 16);
+    privacyLayout->setSpacing(10);
+    auto* localTitle = new QLabel(tr("本地优先"), privacyCard);
+    localTitle->setObjectName(QStringLiteral("settingsSectionTitle"));
+    privacyLayout->addWidget(localTitle);
+    auto* localText = new QLabel(
+        tr("PDF 渲染、文本索引和搜索默认在本机完成。只有执行云端 AI 功能时，才会按所选数据模式发送内容。"),
+        privacyCard);
+    localText->setWordWrap(true);
+    localText->setObjectName(QStringLiteral("secondaryText"));
+    privacyLayout->addWidget(localText);
+    auto* configPath = new QLabel(tr("AI 配置目录：%1").arg(ai::ProviderConfig::sharedDataDirectory()), privacyCard);
+    configPath->setWordWrap(true);
+    configPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    privacyLayout->addWidget(configPath);
+    privacy->addWidget(privacyCard);
+    privacy->addStretch();
+
+    auto* about = makePage(tr("关于"), tr("Folixa · AI PDF Editor"), pages);
+    auto* aboutCard = makeCard(this);
+    auto* aboutLayout = new QVBoxLayout(aboutCard);
+    aboutLayout->setContentsMargins(18, 18, 18, 18);
+    aboutLayout->setSpacing(8);
+    auto* product = new QLabel(QStringLiteral("Folixa"), aboutCard);
+    product->setObjectName(QStringLiteral("settingsProductName"));
+    aboutLayout->addWidget(product);
+    aboutLayout->addWidget(new QLabel(tr("版本 %1").arg(QCoreApplication::applicationVersion()), aboutCard));
+    auto* aboutText = new QLabel(tr("专注于 PDF 阅读、编辑、检索与受控 AI 协作。"), aboutCard);
+    aboutText->setWordWrap(true);
+    aboutText->setObjectName(QStringLiteral("secondaryText"));
+    aboutLayout->addWidget(aboutText);
+    about->addWidget(aboutCard);
+    about->addStretch();
 
     connect(navigation, &QListWidget::currentRowChanged, pages, &QStackedWidget::setCurrentIndex);
-    connect(aiButton, &QPushButton::clicked, this, &SettingsDialog::aiSettingsRequested);
     navigation->setCurrentRow(0);
     root->addLayout(body, 1);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
+    buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     root->addWidget(buttons, 0, Qt::AlignRight);
+}
+
+void SettingsDialog::refreshAiSummary() {
+    const ai::ProviderConfig config = ai::ProviderConfig::load();
+    aiProviderValue_->setText(config.providerId == QStringLiteral("demo") ? tr("演示模式")
+                                                                          : config.providerId);
+    aiModelValue_->setText(config.model.isEmpty() ? tr("未设置") : config.model);
+    aiDataModeValue_->setText(dataModeLabel(config.effectiveDataMode()));
+    aiCredentialValue_->setText(config.hasCredential() ? tr("已安全保存") : tr("未设置"));
 }
 
 QFont SettingsDialog::selectedFont() const {
@@ -104,5 +222,9 @@ QFont SettingsDialog::selectedFont() const {
     font.setPointSize(fontSize_->value());
     return font;
 }
+
+QString SettingsDialog::languagePreference() const { return language_->currentData().toString(); }
+bool SettingsDialog::navigationVisibleOnStartup() const { return navigationVisible_->isChecked(); }
+bool SettingsDialog::aiVisibleOnStartup() const { return aiVisible_->isChecked(); }
 
 }  // namespace aipdf::app

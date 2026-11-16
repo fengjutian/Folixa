@@ -21,6 +21,10 @@ namespace aipdf::app {
 namespace {
 
 constexpr auto kProviderDemo = "demo";
+constexpr auto kProviderMiniMax = "minimax";
+constexpr auto kProviderDeepSeek = "deepseek";
+constexpr auto kProviderQwen = "qwen";
+constexpr auto kProviderKimi = "kimi";
 constexpr auto kProviderOpenAi = "openai";
 
 }  // namespace
@@ -45,10 +49,14 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     providerCombo_ = new QComboBox(this);
     providerCombo_->setObjectName(QStringLiteral("aiSettingsProvider"));
     providerCombo_->addItem(QString(), QString::fromLatin1(kProviderDemo));
+    providerCombo_->addItem(QStringLiteral("MiniMax"), QString::fromLatin1(kProviderMiniMax));
+    providerCombo_->addItem(QStringLiteral("DeepSeek"), QString::fromLatin1(kProviderDeepSeek));
+    providerCombo_->addItem(QStringLiteral("Qwen"), QString::fromLatin1(kProviderQwen));
+    providerCombo_->addItem(QStringLiteral("Kimi"), QString::fromLatin1(kProviderKimi));
     providerCombo_->addItem(QString(), QString::fromLatin1(kProviderOpenAi));
     texts_.bind([this] {
         providerCombo_->setItemText(0, tr("演示模式（本地生成，不联网）"));
-        providerCombo_->setItemText(1, tr("OpenAI 兼容（云端模型）"));
+        providerCombo_->setItemText(5, tr("自定义 OpenAI 兼容服务"));
     });
 
     // 数据策略（v0.12.0）：决定文档内容能不能离开本机、离开多少。
@@ -160,8 +168,10 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
         accept();
     });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(providerCombo_, &QComboBox::currentIndexChanged, this,
-            [this](int) { updateEnabledState(); });
+    connect(providerCombo_, &QComboBox::currentIndexChanged, this, [this](int) {
+        applyProviderPreset();
+        updateEnabledState();
+    });
     connect(dataModeCombo_, &QComboBox::currentIndexChanged, this,
             [this](int) { updateDataModeHint(); });
     updateDataModeHint();
@@ -216,8 +226,7 @@ void AiSettingsDialog::updateDataModeHint() {
 }
 
 void AiSettingsDialog::updateEnabledState() {
-    const bool cloud = providerCombo_->currentData().toString() ==
-                       QLatin1String(kProviderOpenAi);
+    const bool cloud = providerCombo_->currentData().toString() != QLatin1String(kProviderDemo);
     baseUrlEdit_->setEnabled(cloud);
     modelEdit_->setEnabled(cloud);
     apiKeyEdit_->setEnabled(cloud);
@@ -233,6 +242,23 @@ void AiSettingsDialog::updateEnabledState() {
     keyHint_->setText(hasKey_
         ? tr("凭据管理器里已经存了这个服务商的密钥；留空表示不修改。")
         : tr("还没有存过密钥。演示模式会在没有密钥时自动接管。"));
+}
+
+void AiSettingsDialog::applyProviderPreset() {
+    const QString provider = providerCombo_->currentData().toString();
+    if (provider == QLatin1String(kProviderMiniMax)) {
+        baseUrlEdit_->setText(QStringLiteral("https://api.minimax.chat/v1"));
+        modelEdit_->setText(QStringLiteral("MiniMax-Text-01"));
+    } else if (provider == QLatin1String(kProviderDeepSeek)) {
+        baseUrlEdit_->setText(QStringLiteral("https://api.deepseek.com"));
+        modelEdit_->setText(QStringLiteral("deepseek-chat"));
+    } else if (provider == QLatin1String(kProviderQwen)) {
+        baseUrlEdit_->setText(QStringLiteral("https://dashscope.aliyuncs.com/compatible-mode/v1"));
+        modelEdit_->setText(QStringLiteral("qwen-plus"));
+    } else if (provider == QLatin1String(kProviderKimi)) {
+        baseUrlEdit_->setText(QStringLiteral("https://api.moonshot.cn/v1"));
+        modelEdit_->setText(QStringLiteral("moonshot-v1-8k"));
+    }
 }
 
 QString AiSettingsDialog::providerId() const {
