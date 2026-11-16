@@ -40,4 +40,9 @@ struct FormFieldWriteResult {
 // /AcroForm/Fields。写入采用增量更新，不改动原 PDF 的既有字节。
 FormFieldWriteResult appendFormField(const QByteArray& pdf, const FormFieldInsert& field);
 
+// 修改已有组合框/列表框的 /Opt 数组。采用增量重写字段对象，保持其它字典项不变。
+FormFieldWriteResult updateFormFieldOptions(const QByteArray& pdf,
+                                            const QString& fieldName,
+                                            const QStringList& options);
+
 }  // namespace aipdf::pdf

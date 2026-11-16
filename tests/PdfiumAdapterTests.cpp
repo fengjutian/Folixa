@@ -151,6 +151,21 @@ void PdfiumAdapterTests::createdFormFieldsAreRealWidgets() {
                                                      QStringLiteral("Beta")}));
     QCOMPARE(fields.at(4).options, QVector<QString>({QStringLiteral("Alpha"),
                                                      QStringLiteral("Beta")}));
+    QString optionSerializeError;
+    const QByteArray optionSource = verified.document.serialize(&optionSerializeError);
+    QVERIFY2(!optionSource.isEmpty(), qPrintable(optionSerializeError));
+    QFile optionDump(QStringLiteral("D:/github/pdf/.tmp/options-source.pdf"));
+    if (optionDump.open(QIODevice::WriteOnly)) optionDump.write(optionSource);
+    const FormFieldWriteResult optionsUpdated = updateFormFieldOptions(
+        optionSource, QStringLiteral("country"),
+        {QStringLiteral("Gamma"), QStringLiteral("Delta")});
+    QVERIFY2(optionsUpdated.ok, qPrintable(optionsUpdated.error));
+    auto optionsVerified = openDocumentFromBytes(optionsUpdated.bytes);
+    QVERIFY2(optionsVerified.document.isValid(), qPrintable(optionsVerified.errorMessage));
+    const QVector<FormField> updatedOptionFields = optionsVerified.document.formFields();
+    QCOMPARE(updatedOptionFields.at(3).options,
+             QVector<QString>({QStringLiteral("Gamma"), QStringLiteral("Delta")}));
+    verified.document = std::move(optionsVerified.document);
     QVERIFY(verified.document.setFormFieldProperties(0, QStringLiteral("customerName"),
                                                      QStringLiteral("customerName"),
                                                      QStringLiteral("Your full name"),

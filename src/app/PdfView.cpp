@@ -2222,14 +2222,14 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
     form->addRow(QString(), readOnly);
     form->addRow(QString(), required);
     if (found->type == 6) form->addRow(QString(), multiline);
-    if (!found->options.isEmpty()) {
-        auto* options = new QTextEdit(&dialog);
+    QTextEdit* optionsEdit = nullptr;
+    if (found->type == 4 || found->type == 5) {
+        optionsEdit = new QTextEdit(&dialog);
         QStringList optionLines;
         for (const QString& option : found->options) optionLines.append(option);
-        options->setPlainText(optionLines.join('\n'));
-        options->setReadOnly(true);
-        options->setToolTip(tr("现有字段的选项结构将在后续对象级编辑器中开放修改。"));
-        form->addRow(tr("选项"), options);
+        optionsEdit->setPlainText(optionLines.join('\n'));
+        optionsEdit->setPlaceholderText(tr("每行一个选项"));
+        form->addRow(tr("选项"), optionsEdit);
     }
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                          &dialog);
@@ -2250,9 +2250,20 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
                                            readOnly->isChecked(), required->isChecked(),
                                            multiline->isChecked())) return false;
     QString error;
-    const QByteArray bytes = document_.serialize(&error);
+    QByteArray bytes = document_.serialize(&error);
     if (bytes.isEmpty()) return false;
-    document_.syncBytes(bytes);
+    if (optionsEdit != nullptr) {
+        const QStringList options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
+        const pdf::FormFieldWriteResult updated = pdf::updateFormFieldOptions(bytes, name, options);
+        if (!updated.ok) {
+            QMessageBox::warning(this, tr("字段属性"), updated.error);
+            return false;
+        }
+        bytes = updated.bytes;
+    }
+    auto reopened = pdf::openDocumentFromBytes(bytes, document_.filePath());
+    if (!reopened.document.isValid()) return false;
+    document_ = std::move(reopened.document);
     cache_.clear();
     if (canvas_ != nullptr) canvas_->viewport()->update();
     modified_ = true;

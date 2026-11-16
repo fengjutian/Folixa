@@ -394,4 +394,97 @@ FormFieldWriteResult appendFormField(const QByteArray& pdf, const FormFieldInser
     return result;
 }
 
+FormFieldWriteResult updateFormFieldOptions(const QByteArray& pdf,
+                                            const QString& fieldName,
+                                            const QStringList& options) {
+    FormFieldWriteResult result;
+    if (fieldName.isEmpty() || options.isEmpty()) {
+        result.error = QStringLiteral("字段名称和选项不能为空");
+        return result;
+    }
+    const qsizetype startxrefAt = pdf.lastIndexOf("startxref");
+    const qsizetype trailerAt = pdf.lastIndexOf("trailer", startxrefAt);
+    if (startxrefAt < 0 || trailerAt < 0) {
+        result.error = QStringLiteral("只支持带经典 trailer 的 PDF");
+        return result;
+    }
+    const QByteArray trailer = pdf.mid(trailerAt, startxrefAt - trailerAt);
+    const qsizetype rootAt = findName(trailer, "/Root");
+    int rootNumber = 0;
+    if (rootAt < 0 || !parseReferenceAfter(trailer, rootAt + 5, &rootNumber)) {
+        result.error = QStringLiteral("无法解析 PDF 根目录");
+        return result;
+    }
+    qsizetype previousXref = 0;
+    qsizetype cursor = startxrefAt + 9;
+    while (cursor < pdf.size() && (pdf.at(cursor) < '0' || pdf.at(cursor) > '9')) ++cursor;
+    const qsizetype numberBegin = cursor;
+    while (cursor < pdf.size() && pdf.at(cursor) >= '0' && pdf.at(cursor) <= '9') ++cursor;
+    previousXref = pdf.mid(numberBegin, cursor - numberBegin).toLongLong();
+
+    const QVector<ObjectSpan> objects = scanObjects(pdf);
+    const QByteArray encodedName = "/T (" + escapedPdfString(fieldName) + ")";
+    QByteArray latinName = fieldName.toLatin1();
+    latinName.replace("\\", "\\\\");
+    latinName.replace("(", "\\(");
+    latinName.replace(")", "\\)");
+    latinName = "/T (" + latinName + ")";
+
+    ObjectSpan target;
+    QByteArray body;
+    QVector<int> visited;
+    for (auto it = objects.crbegin(); it != objects.crend(); ++it) {
+        if (visited.contains(it->number)) continue;
+        visited.append(it->number);
+        const QByteArray candidate = pdf.mid(it->bodyBegin, it->bodyEnd - it->bodyBegin);
+        if ((candidate.contains(encodedName) || candidate.contains(latinName)) &&
+            (candidate.contains("/FT /Ch") || candidate.contains("/FT/Ch"))) {
+            target = *it;
+            body = candidate;
+            break;
+        }
+    }
+    if (target.number <= 0) {
+        result.error = QStringLiteral("找不到可编辑的组合框或列表框字段");
+        return result;
+    }
+
+    QByteArray replacement = "/Opt [";
+    for (const QString& option : options)
+        replacement += "(" + escapedPdfString(option.trimmed()) + ") ";
+    replacement += "]";
+    const qsizetype optAt = findName(body, "/Opt");
+    if (optAt >= 0) {
+        const qsizetype open = body.indexOf('[', optAt + 4);
+        const qsizetype close = open >= 0 ? matching(body, open, '[', ']') : -1;
+        if (open < 0 || close < 0) {
+            result.error = QStringLiteral("字段 /Opt 数组无法解析");
+            return result;
+        }
+        body.replace(optAt, close - optAt + 1, replacement);
+    } else {
+        const qsizetype close = dictClose(body);
+        if (close < 0) {
+            result.error = QStringLiteral("字段对象不是字典");
+            return result;
+        }
+        body.insert(close - 2, replacement + " ");
+    }
+
+    const qsizetype objectOffset = pdf.size();
+    QByteArray tail = QByteArray::number(target.number) + " 0 obj\n" + body + "\nendobj\n";
+    const qsizetype xrefOffset = pdf.size() + tail.size();
+    tail += "xref\n" + QByteArray::number(target.number) + " 1\n" + padded(objectOffset) +
+            " 00000 n \n";
+    int maxObject = 0;
+    for (const ObjectSpan& object : objects) maxObject = std::max(maxObject, object.number);
+    tail += "trailer\n<< /Size " + QByteArray::number(maxObject + 1) + " /Root " +
+            QByteArray::number(rootNumber) + " 0 R /Prev " + QByteArray::number(previousXref) +
+            " >>\nstartxref\n" + QByteArray::number(xrefOffset) + "\n%%EOF\n";
+    result.bytes = pdf + tail;
+    result.ok = true;
+    result.fieldObject = target.number;
+    return result;
+}
+
 }  // namespace aipdf::pdf
