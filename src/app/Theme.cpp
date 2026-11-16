@@ -175,17 +175,48 @@ QToolButton[railButton="true"]:hover { background: #EAF0F8; color: #365AA8; }
 QToolButton[railButton="true"]:checked { background: #EEF3FC; color: #365AA8; border-left: 3px solid #4169C1; }
 
 /* ---------------------------------------------------------------- AI -- */
-QFrame#aiPanel { background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #F3F8FD,stop:0.55 #F7F9FC,stop:1 #EEF3FC); }
-QLabel#aiTitle { color: #3555B7; font-size: 19px; font-weight: 700; padding-top: 4px; }
-QLabel#aiSubtitle { color: #6C7890; font-size: 12px; }
-QPushButton#aiChip { min-height: 28px; padding: 0 10px; color: #365AA8; background: rgba(255,255,255,190); border: 1px solid #C9D7EA; border-radius: 14px; }
-QPushButton#aiChip:disabled { color: #7F8DA3; background: rgba(255,255,255,150); }
-QFrame#aiPanel QTextBrowser { background: rgba(255,255,255,210); border: 1px solid #D9E3F2; border-radius: 12px; padding: 8px; }
-QFrame#aiComposer { background: rgba(255,255,255,220); border: 1px solid #C9D7EA; border-radius: 12px; }
-QFrame#aiComposer QLineEdit { min-height: 34px; padding: 0 6px; border: 0; background: transparent; }
+QWidget#aiPanel { background: #F6F8FB; }
+QFrame#aiHeader, QFrame#aiContextCard {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 12px;
+}
+QLabel#aiTitle { color: #24499D; font-size: 18px; font-weight: 700; }
+QLabel#aiSubtitle { color: #67748A; font-size: 12px; }
+QLabel#aiProviderLabel { color: #8A95A8; font-size: 11px; padding-top: 4px; }
+QLabel#aiSectionLabel { color: #465267; font-size: 12px; font-weight: 600; }
+QLabel#aiScopeLabel, QLabel#aiUsageLabel, QLabel#aiCitationStatus {
+    color: #7C8799; font-size: 11px;
+}
+QPushButton#aiSettingsButton {
+    min-height: 28px; padding: 0 10px; border: 1px solid #E0E5ED;
+    border-radius: 7px; background: #F8F9FB; color: #596579;
+}
+QPushButton#aiSettingsButton:hover { background: #EEF3FC; color: #3159B8; border-color: #CAD7EA; }
+QPushButton#aiScopePageButton, QPushButton#aiScopeDocumentButton {
+    min-height: 32px; padding: 0 12px; border-radius: 7px;
+    background: #F5F7FA; border: 1px solid #E3E8F0; color: #596579;
+}
+QPushButton#aiScopePageButton:checked, QPushButton#aiScopeDocumentButton:checked {
+    color: #24499D; background: #EAF1FF; border-color: #B9CBEA; font-weight: 600;
+}
+QPushButton#aiSummaryButton, QPushButton#aiExplainButton, QPushButton#aiTranslateButton {
+    min-height: 34px; padding: 0 8px; border-radius: 8px;
+    background: #FFFFFF; border: 1px solid #DCE3EC; color: #39475D;
+}
+QPushButton#aiSummaryButton:hover, QPushButton#aiExplainButton:hover, QPushButton#aiTranslateButton:hover {
+    color: #3159B8; background: #F1F5FC; border-color: #B9CBEA;
+}
+QWidget#aiPanel QTextBrowser#aiConversation {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 12px; padding: 8px;
+}
+QListWidget#aiCitationList { background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px; padding: 4px; }
+QFrame#aiComposer { background: #FFFFFF; border: 1px solid #C9D5E6; border-radius: 12px; }
+QFrame#aiComposer:focus-within { border-color: #5277E8; }
+QFrame#aiComposer QLineEdit { min-height: 36px; padding: 0 6px; border: 0; background: transparent; }
 QFrame#aiComposer QLineEdit:focus { border: 0; }
 QFrame#aiComposer QPushButton#aiButton { min-width: 38px; max-width: 38px; min-height: 38px; max-height: 38px; padding: 0; border-radius: 9px; color: white; background: #4169C1; border: 0; }
-QFrame#aiComposer QPushButton#aiButton:hover { background: #365AA8; }
+QFrame#aiComposer QPushButton#aiButton:hover { background: #3159B8; }
+QFrame#aiComposer QPushButton#aiCancelButton { min-height: 34px; padding: 0 10px; border: 0; background: transparent; color: #7C8799; }
+QFrame#aiComposer QPushButton#aiCancelButton:hover { color: #C0562F; background: #FFF3F0; }
 QFrame#aiQuickCard { background: rgba(255,255,255,252); border: 1px solid #D9E3F2; border-radius: 14px; }
 QLabel#aiQuickTitle { color: #3555B7; font-size: 15px; font-weight: 700; padding: 1px 2px 0 2px; }
 QLabel#aiQuickSubtitle { color: #6C7890; font-size: 11px; padding: 2px 2px 6px 2px; }

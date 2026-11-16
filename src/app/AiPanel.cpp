@@ -18,6 +18,7 @@
 #include <QButtonGroup>
 #include <QDateTime>
 #include <QFile>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonArray>
@@ -77,9 +78,16 @@ void AiPanel::buildUi() {
     setObjectName(QStringLiteral("aiPanel"));
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(16, 16, 16, 16);
-    layout->setSpacing(12);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(10);
 
+    auto* header = new QFrame(this);
+    header->setObjectName(QStringLiteral("aiHeader"));
+    auto* headerLayout = new QVBoxLayout(header);
+    headerLayout->setContentsMargins(14, 12, 12, 10);
+    headerLayout->setSpacing(3);
+    auto* titleRow = new QHBoxLayout();
+    titleRow->setSpacing(8);
     auto* title = new QLabel(QString(), this);
     title->setObjectName(QStringLiteral("aiTitle"));
     texts_.bind([this, title] { title->setText(tr("✦  Folixa AI")); });
@@ -93,6 +101,13 @@ void AiPanel::buildUi() {
     settingsButton_->setObjectName(QStringLiteral("aiSettingsButton"));
     texts_.bind([this] { settingsButton_->setText(tr("设置")); });
     texts_.bind([this] { settingsButton_->setToolTip(tr("设置服务商与 API 密钥")); });
+    titleRow->addWidget(title);
+    titleRow->addStretch(1);
+    titleRow->addWidget(settingsButton_);
+    headerLayout->addLayout(titleRow);
+    headerLayout->addWidget(subtitle);
+    providerLabel_->setWordWrap(true);
+    headerLayout->addWidget(providerLabel_);
     scopeLabel_ = new QLabel(QString(), this);
     scopeLabel_->setObjectName(QStringLiteral("aiScopeLabel"));
     scopeLabel_->setWordWrap(true);
@@ -120,33 +135,45 @@ void AiPanel::buildUi() {
     scopeGroup_->addButton(scopePageButton_);
     scopeGroup_->addButton(scopeDocumentButton_);
 
+    auto* contextCard = new QFrame(this);
+    contextCard->setObjectName(QStringLiteral("aiContextCard"));
+    auto* contextLayout = new QVBoxLayout(contextCard);
+    contextLayout->setContentsMargins(12, 10, 12, 10);
+    contextLayout->setSpacing(8);
     auto* scopeRow = new QHBoxLayout();
-    scopeRow->setSpacing(6);
+    scopeRow->setSpacing(4);
     auto* scopeTitle = new QLabel(QString(), this);
-    texts_.bind([this, scopeTitle] { scopeTitle->setText(tr("范围")); });
+    scopeTitle->setObjectName(QStringLiteral("aiSectionLabel"));
+    texts_.bind([this, scopeTitle] { scopeTitle->setText(tr("回答范围")); });
     scopeRow->addWidget(scopeTitle);
-    scopeRow->addWidget(scopePageButton_);
-    scopeRow->addWidget(scopeDocumentButton_);
     scopeRow->addStretch(1);
+
+    auto* scopeSwitch = new QHBoxLayout();
+    scopeSwitch->setSpacing(4);
+    scopeSwitch->addWidget(scopePageButton_, 1);
+    scopeSwitch->addWidget(scopeDocumentButton_, 1);
 
     auto* actions = new QHBoxLayout();
     actions->setSpacing(6);
     summaryButton_ = new QPushButton(QString(), this);
     summaryButton_->setObjectName(QStringLiteral("aiSummaryButton"));
-    texts_.bind([this] { summaryButton_->setText(tr("总结")); });
+    texts_.bind([this] { summaryButton_->setText(tr("总结要点")); });
     texts_.bind([this] { summaryButton_->setToolTip(tr("总结当前页")); });
     explainButton_ = new QPushButton(QString(), this);
     explainButton_->setObjectName(QStringLiteral("aiExplainButton"));
-    texts_.bind([this] { explainButton_->setText(tr("解释")); });
+    texts_.bind([this] { explainButton_->setText(tr("解释选区")); });
     texts_.bind([this] { explainButton_->setToolTip(tr("解释选中的文字")); });
     translateButton_ = new QPushButton(QString(), this);
     translateButton_->setObjectName(QStringLiteral("aiTranslateButton"));
-    texts_.bind([this] { translateButton_->setText(tr("翻译")); });
+    texts_.bind([this] { translateButton_->setText(tr("翻译选区")); });
     texts_.bind([this] { translateButton_->setToolTip(tr("翻译选中的文字")); });
-    actions->addWidget(summaryButton_);
-    actions->addWidget(explainButton_);
-    actions->addWidget(translateButton_);
-    actions->addStretch(1);
+    actions->addWidget(summaryButton_, 1);
+    actions->addWidget(explainButton_, 1);
+    actions->addWidget(translateButton_, 1);
+    contextLayout->addLayout(scopeRow);
+    contextLayout->addLayout(scopeSwitch);
+    contextLayout->addWidget(scopeLabel_);
+    contextLayout->addLayout(actions);
 
     conversation_ = new QTextBrowser(this);
     conversation_->setObjectName(QStringLiteral("aiConversation"));
@@ -154,11 +181,11 @@ void AiPanel::buildUi() {
     conversation_->setOpenLinks(false);
     conversation_->setOpenExternalLinks(false);
     conversation_->document()->setDefaultStyleSheet(QStringLiteral(
-        "body{font-family:'Segoe UI','Microsoft YaHei UI';color:#202A3A;}"
-        ".welcome{background:#FFFFFF;border:1px solid #D9E3F2;padding:14px;margin:4px;}"
-        ".eyebrow{color:#4169C1;font-size:11px;font-weight:600;}"
-        ".message{background:#FFFFFF;padding:10px;margin:8px 2px;}"
-        ".user{background:#EAF0FF;padding:10px;margin:8px 2px;}"
+        "body{font-family:'Microsoft YaHei UI','Segoe UI';color:#253047;font-size:13px;}"
+        ".welcome{background:#F7F9FC;border:1px solid #E5EAF1;padding:16px;margin:6px 2px;}"
+        ".eyebrow{color:#4169C1;font-size:10px;font-weight:600;}"
+        ".message{background:#F7F9FC;padding:12px;margin:8px 2px;}"
+        ".user{background:#EAF1FF;padding:12px;margin:8px 2px;}"
         ".scope{color:#8792A3;font-size:11px;}"
         ".muted{color:#8792A3;font-size:11px;}"
         ".citations{background:#FFFFFF;border:1px solid #D9E3F2;padding:10px;margin:4px 2px;}"
@@ -175,9 +202,9 @@ void AiPanel::buildUi() {
         conversation_->setHtml(
             QStringLiteral("<div class='welcome'><div class='eyebrow'>FOLIXA AI</div>") +
             tr("<h3>从当前文档开始</h3>") +
-            tr("<p>我可以帮你总结当前页、解释选中的文字、翻译选中的文字。</p>") +
-            tr("<p>切到「整篇文档」范围，我会先检索最相关的几块，再回答并给出<strong>可核对的引用</strong>。</p>") +
-            tr("<p class='muted'>每次只会送出当前页、当前选区或检索到的几块，发送前会先告诉你范围。</p>") +
+            tr("<p>可以总结页面、解释或翻译选区，也可以直接询问文档内容。</p>") +
+            tr("<p>切换到“整篇文档”后，我会检索相关内容并附上可核对的引用。</p>") +
+            tr("<p class='muted'>文档内容只会按照上方显示的范围使用。</p>") +
             QStringLiteral("</div>"));
     });
 
@@ -191,17 +218,18 @@ void AiPanel::buildUi() {
     citationList_ = new QListWidget(this);
     citationList_->setObjectName(QStringLiteral("aiCitationList"));
     citationList_->setMaximumHeight(132);
+    citationList_->setVisible(false);
     texts_.bind([this] { citationList_->setToolTip(tr("点一条引用，跳到原文并高亮那一块")); });
 
     prompt_ = new QLineEdit(this);
     prompt_->setObjectName(QStringLiteral("aiPromptInput"));
-    texts_.bind([this] { prompt_->setPlaceholderText(tr("就当前页提问…")); });
+    texts_.bind([this] { prompt_->setPlaceholderText(tr("询问当前文档…")); });
     texts_.bind([this] { prompt_->setAccessibleName(tr("向 AI 提问")); });
     sendButton_ = new QPushButton(QString(), this);
     sendButton_->setObjectName(QStringLiteral("aiButton"));
     sendButton_->setIcon(QIcon(QStringLiteral(":/icons/send.svg")));
     sendButton_->setIconSize(QSize(18, 18));
-    texts_.bind([this] { sendButton_->setText(tr("发送")); });
+    sendButton_->setText(QString());
     texts_.bind([this] { sendButton_->setToolTip(tr("发送")); });
     sendButton_->setEnabled(false);
     cancelButton_ = new QPushButton(QString(), this);
@@ -210,28 +238,22 @@ void AiPanel::buildUi() {
     texts_.bind([this] { cancelButton_->setToolTip(tr("停止这次生成")); });
     cancelButton_->setEnabled(false);
 
-    auto* composer = new QHBoxLayout();
+    auto* composerFrame = new QFrame(this);
+    composerFrame->setObjectName(QStringLiteral("aiComposer"));
+    auto* composer = new QHBoxLayout(composerFrame);
+    composer->setContentsMargins(8, 6, 6, 6);
     composer->setSpacing(6);
     composer->addWidget(prompt_, 1);
     composer->addWidget(sendButton_);
     composer->addWidget(cancelButton_);
 
-    auto* providerRow = new QHBoxLayout();
-    providerRow->setSpacing(6);
-    providerRow->addWidget(providerLabel_, 1);
-    providerRow->addWidget(settingsButton_);
-
-    layout->addWidget(title);
-    layout->addWidget(subtitle);
-    layout->addLayout(providerRow);
-    layout->addLayout(scopeRow);
-    layout->addWidget(scopeLabel_);
-    layout->addLayout(actions);
+    layout->addWidget(header);
+    layout->addWidget(contextCard);
     layout->addWidget(conversation_, 1);
     layout->addWidget(citationList_);
     layout->addWidget(citationStatusLabel_);
     layout->addWidget(usageLabel_);
-    layout->addLayout(composer);
+    layout->addWidget(composerFrame);
 
     connect(summaryButton_, &QPushButton::clicked, this, &AiPanel::requestSummary);
     connect(explainButton_, &QPushButton::clicked, this, &AiPanel::requestExplain);
@@ -1145,6 +1167,7 @@ void AiPanel::refreshCitationView() {
                                  : QString());
         }
     }
+    citationList_->setVisible(!report.citations.isEmpty());
 }
 
 void AiPanel::retranslateUi() {
