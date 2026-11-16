@@ -64,7 +64,9 @@ Get-ChildItem -LiteralPath $sitePackages -Directory -Filter '*.dist-info' | ForE
         $licenseFiles | Copy-Item -Destination $target
     }
 }
-$pythonLicense = & $pythonExe -c 'import pathlib,sys; p=pathlib.Path(sys.base_prefix)/"LICENSE.txt"; print(p if p.exists() else "")'
+$pythonBase = & $pythonExe -c 'import sys; print(sys.base_prefix)'
+if ($LASTEXITCODE -ne 0) { throw '无法定位 Python 运行时许可证' }
+$pythonLicense = Join-Path $pythonBase 'LICENSE.txt'
 if ($pythonLicense -and (Test-Path -LiteralPath $pythonLicense)) {
     Copy-Item -LiteralPath $pythonLicense -Destination (Join-Path $OutputDir 'licenses\Python-LICENSE.txt')
 }
