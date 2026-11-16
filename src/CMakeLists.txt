@@ -91,6 +91,10 @@
     ipc/IpcProtocol.h
     pdf/PdfiumAdapter.cpp
     pdf/PdfiumAdapter.h
+    pdf/ContentStream.cpp
+    pdf/ContentStream.h
+    pdf/TextReflow.cpp
+    pdf/TextReflow.h
     pdf/Annotation.cpp
     pdf/Annotation.h
     pdf/AnnotationDictionary.h

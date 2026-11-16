@@ -21,6 +21,16 @@ struct PageImpl;
 
 struct PdfOpenResult;
 
+enum class PageObjectType { Unknown, Text, Path, Image, Shading, Form };
+
+struct PageObjectInfo {
+    int index = -1;
+    PageObjectType type = PageObjectType::Unknown;
+    QRectF bounds;
+    double fontSize = 0.0;
+    QColor fillColor = Qt::black;
+};
+
 // 单页句柄。页面生命周期依附于所属文档，文档关闭后页面自动失效。
 class PdfPage {
 public:
@@ -71,6 +81,14 @@ public:
     // 只支持标准 14 字体（西文）。
     bool replaceTextInRect(const QRectF& rectPoints, const QString& newText, double fontSize,
                            const QColor& color);
+
+    QVector<PageObjectInfo> objectsInRect(const QRectF& rectPoints,
+                                          double minimumOverlap = 0.15) const;
+    bool transformObjects(const QVector<int>& indexes, double translateX, double translateY,
+                          double scaleX = 1.0, double scaleY = 1.0);
+    bool removeObjects(const QVector<int>& indexes);
+    bool setTextObjectProperties(const QVector<int>& indexes, double fontSize,
+                                 const QColor& color);
 
     // 安全遮盖：把当前页以指定分辨率渲染，在像素层烧入黑块，然后删除原内容对象和
     // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。

@@ -1617,6 +1617,102 @@ bool PdfPage::replaceTextInRect(const QRectF& rectPoints, const QString& newText
     return ok;
 }
 
+QVector<PageObjectInfo> PdfPage::objectsInRect(const QRectF& rectPoints,
+                                                double minimumOverlap) const {
+    QVector<PageObjectInfo> result;
+    if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty()) return result;
+    minimumOverlap = std::clamp(minimumOverlap, 0.0, 1.0);
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    for (int index = 0; index < count; ++index) {
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (object == nullptr) continue;
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
+        const QRectF bounds(left, bottom, right - left, top - bottom);
+        const QRectF overlap = bounds.intersected(rectPoints);
+        const double area = bounds.width() * bounds.height();
+        if (area <= 0.0 || overlap.width() * overlap.height() < area * minimumOverlap) continue;
+        PageObjectInfo info;
+        info.index = index;
+        info.bounds = bounds;
+        switch (FPDFPageObj_GetType(object)) {
+        case FPDF_PAGEOBJ_TEXT: info.type = PageObjectType::Text; break;
+        case FPDF_PAGEOBJ_PATH: info.type = PageObjectType::Path; break;
+        case FPDF_PAGEOBJ_IMAGE: info.type = PageObjectType::Image; break;
+        case FPDF_PAGEOBJ_SHADING: info.type = PageObjectType::Shading; break;
+        case FPDF_PAGEOBJ_FORM: info.type = PageObjectType::Form; break;
+        default: break;
+        }
+        float size = 0.0F;
+        if (info.type == PageObjectType::Text && FPDFTextObj_GetFontSize(object, &size)) info.fontSize = size;
+        unsigned int r = 0, g = 0, b = 0, a = 255;
+        if (FPDFPageObj_GetFillColor(object, &r, &g, &b, &a)) info.fillColor = QColor(r, g, b, a);
+        result.append(info);
+    }
+    return result;
+}
+
+bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, double translateY,
+                               double scaleX, double scaleY) {
+    if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || scaleX <= 0.0 || scaleY <= 0.0) return false;
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= count) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (!object) continue;
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
+        FPDFPageObj_Transform(object, scaleX, 0.0, 0.0, scaleY,
+                              translateX + left * (1.0 - scaleX),
+                              translateY + bottom * (1.0 - scaleY));
+        changed = true;
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::removeObjects(const QVector<int>& indexes) {
+    if (!impl_ || impl_->page == nullptr || indexes.isEmpty()) return false;
+    const detail::PdfiumGuard guard;
+    QVector<int> sorted = indexes;
+    std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+    bool changed = false;
+    for (int index : sorted) {
+        if (index < 0 || index >= FPDFPage_CountObjects(impl_->page)) continue;
+        if (FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index)) {
+            FPDFPage_RemoveObject(impl_->page, object);
+            FPDFPageObj_Destroy(object);
+            changed = true;
+        }
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
+bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, double fontSize,
+                                      const QColor& color) {
+    if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || fontSize <= 0.0) return false;
+    const detail::PdfiumGuard guard;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    bool changed = false;
+    for (int index : indexes) {
+        if (index < 0 || index >= count) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT) continue;
+        float oldSize = 0.0F;
+        if (!FPDFTextObj_GetFontSize(object, &oldSize) || oldSize <= 0.0F) continue;
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
+        const double scale = fontSize / oldSize;
+        FPDFPageObj_Transform(object, scale, 0.0, 0.0, scale,
+                              left * (1.0 - scale), bottom * (1.0 - scale));
+        FPDFPageObj_SetFillColor(object, color.red(), color.green(), color.blue(), color.alpha());
+        changed = true;
+    }
+    return changed && FPDFPage_GenerateContent(impl_->page) != 0;
+}
+
 bool PdfPage::redactByRasterizing(const QRectF& rectPoints, double scale) {
     if (!isValid() || rectPoints.isEmpty() || scale <= 0.0 || rotationDegrees() != 0) {
         return false;

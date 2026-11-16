@@ -11,6 +11,19 @@ aipdf_deploy_qt_runtime(IpcProtocolTests)
 
 add_test(NAME IpcProtocolTests COMMAND IpcProtocolTests)
 
+qt_add_executable(ContentEditingTests
+    ContentEditingTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
+)
+target_link_libraries(ContentEditingTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(ContentEditingTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(ContentEditingTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ContentEditingTests)
+add_test(NAME ContentEditingTests COMMAND ContentEditingTests)
+
 qt_add_executable(ShareUtilsTests
     ShareUtilsTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/ShareUtils.cpp
