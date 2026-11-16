@@ -6,6 +6,7 @@
 #include "i18n/Translate.h"
 
 #include <QCheckBox>
+#include <QGridLayout>
 #include <QSpinBox>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -67,8 +68,9 @@ void SearchPanel::buildUi() {
 
     // 检索选项：改了立刻重搜。勾选项本身就是查询的一部分，
     // 让用户改完还得再敲一次回车，等于把"选项"变成了"提示"。
-    auto* optionsRow = new QHBoxLayout();
-    optionsRow->setSpacing(12);
+    auto* optionsGrid = new QGridLayout();
+    optionsGrid->setHorizontalSpacing(10);
+    optionsGrid->setVerticalSpacing(6);
     caseSensitiveBox_ = new QCheckBox(this);
     caseSensitiveBox_->setObjectName(QStringLiteral("searchCaseSensitive"));
     wholeWordBox_ = new QCheckBox(this);
@@ -80,11 +82,12 @@ void SearchPanel::buildUi() {
         wholeWordBox_->setText(tr("全字匹配"));
         regexBox_->setText(tr("正则"));
     });
-    optionsRow->addWidget(caseSensitiveBox_);
-    optionsRow->addWidget(wholeWordBox_);
-    optionsRow->addWidget(regexBox_);
-    optionsRow->addStretch(1);
-    layout->addLayout(optionsRow);
+    optionsGrid->addWidget(caseSensitiveBox_, 0, 0);
+    optionsGrid->addWidget(wholeWordBox_, 0, 1);
+    optionsGrid->addWidget(regexBox_, 1, 0);
+    optionsGrid->setColumnStretch(0, 1);
+    optionsGrid->setColumnStretch(1, 1);
+    layout->addLayout(optionsGrid);
 
     // 页码范围：0 表示"不限"，用户改完立刻重搜。
     auto* rangeRow = new QHBoxLayout();
@@ -94,14 +97,14 @@ void SearchPanel::buildUi() {
     fromPageSpin_ = new QSpinBox(this);
     fromPageSpin_->setObjectName(QStringLiteral("searchFromPage"));
     fromPageSpin_->setRange(0, 99999);
-    fromPageSpin_->setMinimumWidth(76);
+    fromPageSpin_->setMinimumWidth(56);
     rangeRow->addWidget(fromPageSpin_);
     auto* toPageLabel = new QLabel(QString(), this);
     rangeRow->addWidget(toPageLabel);
     toPageSpin_ = new QSpinBox(this);
     toPageSpin_->setObjectName(QStringLiteral("searchToPage"));
     toPageSpin_->setRange(0, 99999);
-    toPageSpin_->setMinimumWidth(76);
+    toPageSpin_->setMinimumWidth(56);
     rangeRow->addWidget(toPageSpin_);
     auto* pageLabel = new QLabel(QString(), this);
     rangeRow->addWidget(pageLabel);

@@ -12,7 +12,10 @@ QString lightStyleSheet() {
     return QStringLiteral(R"(
 QWidget {
     color: #202A3A;
+    outline: 0;
 }
+QAbstractItemView, QPushButton, QToolButton, QCheckBox, QRadioButton,
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QSlider { outline: 0; }
 QMainWindow, QDialog { background: #F3F4F6; }
 QMenuBar { background: #FFFFFF; border-bottom: 1px solid #E6EAF2; padding: 2px 8px; }
 QMenuBar::item { padding: 6px 10px; border-radius: 6px; }
@@ -223,7 +226,8 @@ QStatusBar QToolButton#statusSettingsButton::menu-indicator { image: none; width
 
 QDialog#settingsDialog { background: #FFFFFF; }
 QListWidget#settingsNavigation {
-    background: #F7F7F8; border: 0; border-right: 1px solid #E4E4E7; padding: 12px 8px;
+    background: #F7F7F8; border: 0; border-right: 1px solid #E4E4E7;
+    padding: 12px 8px; outline: 0;
 }
 QListWidget#settingsNavigation::item { min-height: 40px; padding: 0 12px; border-radius: 7px; }
 QListWidget#settingsNavigation::item:selected { background: #EDE9FE; color: #6D28D9; font-weight: 600; }
