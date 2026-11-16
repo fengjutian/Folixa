@@ -23,14 +23,14 @@ QMenuBar::item:selected, QMenu::item:selected { background: #F1F4FF; color: #355
 QMenu { background: #FFFFFF; border: 1px solid #E3E7EE; padding: 6px; }
 QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
 
-/* ---------------------------------------------------------- 底部命令栏 -- */
+/* ---------------------------------------------------------- 顶部命令栏 -- */
 QToolBar#commandBar {
-    min-height: 42px; max-height: 42px; padding: 0 8px; spacing: 2px;
-    background: #FAFAFB; border: 0; border-top: 1px solid #E4E4E7;
+    min-height: 34px; max-height: 34px; padding: 0 6px; spacing: 2px;
+    background: #FAFAFB; border: 0; border-bottom: 1px solid #E4E4E7;
 }
 QToolBar::separator { background: #E8ECF3; width: 1px; margin: 11px 9px; }
 QToolBar#commandBar QToolButton {
-    min-height: 32px; padding: 0 13px; border: 1px solid transparent;
+    min-height: 28px; padding: 0 11px; border: 1px solid transparent;
     border-radius: 9px; background: transparent; color: #4A576E; font-weight: 600;
 }
 QToolBar#commandBar QToolButton:hover { color: #2F4FA8; background: #F2F6FD; }
@@ -40,28 +40,28 @@ QToolBar#commandBar QToolButton:checked {
 }
 QToolBar#commandBar QToolButton:disabled { color: #B4BDCB; background: transparent; }
 QToolBar#commandBar QToolButton#appMenuButton {
-    min-width: 112px; max-width: 112px; min-height: 30px; max-height: 30px;
+    min-width: 112px; max-width: 112px; min-height: 28px; max-height: 28px;
     padding: 0 12px; border: 1px solid #6D28D9; border-radius: 6px;
     background: #7C3AED; color: #FFFFFF; font-size: 14px; font-weight: 700;
 }
 QToolBar#commandBar QToolButton#appMenuButton:hover { background: #6D28D9; color: #FFFFFF; }
 QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #5B21B6; }
 QToolBar#commandBar QToolButton[titleQuick="true"] {
-    min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px;
+    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px;
     padding: 0; border: 0; border-radius: 5px; color: #52525B; background: transparent;
 }
 QToolBar#commandBar QToolButton[titleQuick="true"]:hover { background: #EEEFF2; }
 QToolBar#commandBar QToolButton[titleQuick="true"]:disabled { background: transparent; color: #A1A1AA; }
 QLineEdit#globalSearch {
-    min-height: 30px; max-height: 30px; padding: 0 14px;
+    min-height: 26px; max-height: 26px; padding: 0 12px;
     border: 1px solid #E4E4E7; border-radius: 7px;
     background: #F0F0F2; color: #27272A; selection-background-color: #DDD6FE;
 }
 QLineEdit#globalSearch:hover { background: #ECECEF; border-color: #D4D4D8; }
 QLineEdit#globalSearch:focus { background: #FFFFFF; border-color: #8B5CF6; }
 QToolBar#commandBar QToolButton[titleAccount="true"] {
-    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px; padding: 0;
-    border: 0; border-radius: 14px;
+    min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px; padding: 0;
+    border: 0; border-radius: 13px;
     background: #7C3AED; color: #FFFFFF; font-weight: 800;
 }
 QToolBar#commandBar QToolButton#aiCommandButton {

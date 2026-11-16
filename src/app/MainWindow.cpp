@@ -461,17 +461,17 @@ void MainWindow::buildUi() {
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
     auto* commandBar = new QToolBar(this);
-    addToolBar(Qt::BottomToolBarArea, commandBar);
+    addToolBar(Qt::TopToolBarArea, commandBar);
     texts_.bind([this, commandBar] { commandBar->setWindowTitle(tr("功能导航")); });
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
     commandBar->setIconSize(QSize(18, 18));
-    commandBar->setFixedHeight(42);
+    commandBar->setFixedHeight(34);
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setIcon(QIcon(QStringLiteral(":/icons/app.svg")));
-    appMenuButton->setIconSize(QSize(20, 20));
+    appMenuButton->setIconSize(QSize(18, 18));
     appMenuButton->setText(QStringLiteral("工作台"));
     appMenuButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     texts_.bind([this, appMenuButton] { appMenuButton->setToolTip(tr("主菜单")); });
@@ -479,7 +479,7 @@ void MainWindow::buildUi() {
     // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
     // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
-    appMenuButton->setFixedSize(112, 30);
+    appMenuButton->setFixedSize(112, 28);
     auto* appMenu = new QMenu(appMenuButton);
     appMenu->addAction(openAction);
     appMenu->addSeparator();
@@ -668,7 +668,7 @@ void MainWindow::buildUi() {
     texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
     appMenuButton->setMenu(appMenu);
     commandBar->addWidget(appMenuButton);
-    // 快速访问区放在窗口底部、状态栏上方，不占 Ribbon 命令区。
+    // 快速访问区保持紧凑，不占 Ribbon 命令区。
     auto addQuickButton = [commandBar](const QIcon& icon, const QString& tip,
                                        const std::function<void()>& handler,
                                        const QString& objectName) {
@@ -840,7 +840,7 @@ void MainWindow::buildUi() {
     if (auto* aiButton = qobject_cast<QToolButton*>(commandBar->widgetForAction(aiAction))) {
         aiButton->setObjectName(QStringLiteral("aiCommandButton"));
     }
-    // 底部工具栏只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
+    // 顶部工具栏只保留主菜单与品牌：导航动作已经分别进 Ribbon 和左侧导航轨。
     // 注意不能遍历 commandBar->actions() 全隐藏——菜单按钮与品牌是 QWidgetAction，
     // 一起隐藏会把主菜单也弄没。
     homeAction->setVisible(false);
