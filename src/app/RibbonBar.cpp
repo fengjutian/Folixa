@@ -112,6 +112,7 @@ int RibbonBar::appendPage() {
     scroll->viewport()->setAutoFillBackground(true);
 
     pages_->addWidget(scroll);
+    pageContainers_.append(scroll);
     pageWidgets_.append(page);
     pageLayouts_.append(pageLayout);
     return pageWidgets_.size() - 1;
@@ -226,12 +227,14 @@ void RibbonBar::setTabOrder(const QStringList& titles) {
             continue;
         }
         tabs_->moveTab(source, target);
+        QWidget* container = pageContainers_.takeAt(source);
         QWidget* page = pageWidgets_.takeAt(source);
         QHBoxLayout* pageLayout = pageLayouts_.takeAt(source);
+        pageContainers_.insert(target, container);
         pageWidgets_.insert(target, page);
         pageLayouts_.insert(target, pageLayout);
-        pages_->removeWidget(page);
-        pages_->insertWidget(target, page);
+        pages_->removeWidget(container);
+        pages_->insertWidget(target, container);
     }
     pages_->setCurrentIndex(tabs_->currentIndex());
 }

@@ -115,6 +115,19 @@ $env:AIPDF_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64'
   conda 版保持 `Library/bin` + `share/tessdata` 结构）——应用会自动找到它。
 
 `tools/tess/` 不进仓库（约 1 GB），语言包目录也可以用 `AIPDF_TESSDATA_PREFIX` 指定。
+
+## 本地运行（Windows Debug）
+
+在项目根目录打开 PowerShell，依次执行：
+
+```powershell
+cmake --build --preset windows-debug --target AiPdfEditor
+.\build\windows-debug\bin\AiPdfEditor.exe
+```
+
+如果程序正在运行，请先关闭窗口再重新构建，否则 Windows 会锁定
+`AiPdfEditor.exe`，导致链接阶段提示 `Permission denied`。
+
 ## 构建与测试
 
 ```powershell

@@ -1048,15 +1048,68 @@ void MainWindow::buildUi() {
         const char* title;
         std::initializer_list<const char*> commands;
     };
-    auto addPlaceholderTab = [this, &addRibbonCommand](
+    auto placeholderIcon = [](const QString& command) {
+        const auto containsAny = [&command](std::initializer_list<QString> words) {
+            for (const QString& word : words) {
+                if (command.contains(word, Qt::CaseInsensitive)) { return true; }
+            }
+            return false;
+        };
+        if (containsAny({QStringLiteral("搜索"), QStringLiteral("检索"), QStringLiteral("查重"),
+                         QStringLiteral("识别"), QStringLiteral("检查")})) {
+            return QStringLiteral(":/icons/search.svg");
+        }
+        if (containsAny({QStringLiteral("文本"), QStringLiteral("编辑"), QStringLiteral("替换"),
+                         QStringLiteral("拼写"), QStringLiteral("文章")})) {
+            return QStringLiteral(":/icons/edit.svg");
+        }
+        if (containsAny({QStringLiteral("页面"), QStringLiteral("空白页"), QStringLiteral("模板")})) {
+            return QStringLiteral(":/icons/pages.svg");
+        }
+        if (containsAny({QStringLiteral("表单"), QStringLiteral("文本域"), QStringLiteral("复选"),
+                         QStringLiteral("单选"), QStringLiteral("组合框"), QStringLiteral("列表框"),
+                         QStringLiteral("条形码"), QStringLiteral("XFA")})) {
+            return QStringLiteral(":/icons/form.svg");
+        }
+        if (containsAny({QStringLiteral("签"), QStringLiteral("保护"), QStringLiteral("权限")})) {
+            return QStringLiteral(":/icons/protect.svg");
+        }
+        if (containsAny({QStringLiteral("邮件"), QStringLiteral("共享"), QStringLiteral("发送"),
+                         QStringLiteral("反馈"), QStringLiteral("邀请")})) {
+            return QStringLiteral(":/icons/send.svg");
+        }
+        if (containsAny({QStringLiteral("图像"), QStringLiteral("图片"), QStringLiteral("截图"),
+                         QStringLiteral("形状"), QStringLiteral("标注")})) {
+            return QStringLiteral(":/icons/square.svg");
+        }
+        if (containsAny({QStringLiteral("书签"), QStringLiteral("标签"), QStringLiteral("分类"),
+                         QStringLiteral("星标")})) {
+            return QStringLiteral(":/icons/bookmark.svg");
+        }
+        if (containsAny({QStringLiteral("帮助"), QStringLiteral("助手"), QStringLiteral("工具"),
+                         QStringLiteral("设置"), QStringLiteral("管理"), QStringLiteral("关于")})) {
+            return QStringLiteral(":/icons/tools.svg");
+        }
+        if (containsAny({QStringLiteral("文件"), QStringLiteral("文档"), QStringLiteral("手册"),
+                         QStringLiteral("附件"), QStringLiteral("归档")})) {
+            return QStringLiteral(":/icons/book.svg");
+        }
+        if (containsAny({QStringLiteral("导入"), QStringLiteral("导出"), QStringLiteral("转换"),
+                         QStringLiteral("到 "), QStringLiteral("合并"), QStringLiteral("PDF")})) {
+            return QStringLiteral(":/icons/convert.svg");
+        }
+        return QStringLiteral(":/icons/note.svg");
+    };
+    auto addPlaceholderTab = [this, &addRibbonCommand, &placeholderIcon](
                                  const char* title,
                                  std::initializer_list<PlaceholderGroup> groups) {
         const int tab = ribbonBar_->addTab(tr(title));
         for (const PlaceholderGroup& spec : groups) {
             QHBoxLayout* group = ribbonBar_->addGroup(tab, tr(spec.title));
             for (const char* command : spec.commands) {
+                const QString label = tr(command);
                 addRibbonCommand(group, command, "将在后续版本中提供",
-                                 ":/icons/convert.svg", [] {}, false);
+                                 placeholderIcon(label), [] {}, false);
             }
         }
     };

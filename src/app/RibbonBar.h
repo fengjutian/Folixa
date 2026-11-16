@@ -66,6 +66,9 @@ private:
     int appendPage();
     QTabBar* tabs_ = nullptr;
     QStackedWidget* pages_ = nullptr;
+    // QStackedWidget 的直接子项是滚动容器，不是 pageWidgets_ 中的内容页。
+    // 重排时必须移动容器，否则内容页会被错误地从 QScrollArea 中拆走。
+    QVector<QWidget*> pageContainers_;
     QVector<QWidget*> pageWidgets_;
     QVector<QHBoxLayout*> pageLayouts_;
 };

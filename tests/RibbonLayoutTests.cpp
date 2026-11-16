@@ -89,6 +89,7 @@ private slots:
     void initTestCase();
     void ribbonFitsAtStandardSize();
     void ribbonFitsAtMinimumSize();
+    void tabOrderKeepsContentAttached();
 
 private:
     void verifySize(const QSize& requested, const QString& name);
@@ -181,6 +182,42 @@ void RibbonLayoutTests::ribbonFitsAtStandardSize() {
 
 void RibbonLayoutTests::ribbonFitsAtMinimumSize() {
     verifySize(QSize(1024, 680), QStringLiteral("ribbon-1024x680"));
+}
+
+void RibbonLayoutTests::tabOrderKeepsContentAttached() {
+    QWidget window;
+    auto* layout = new QVBoxLayout(&window);
+    auto* ribbon = new RibbonBar(&window);
+    ribbon->setFixedHeight(124);
+    layout->addWidget(ribbon);
+
+    const QStringList original = {QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C")};
+    for (const QString& title : original) {
+        const int tab = ribbon->addTab(title);
+        QHBoxLayout* group = ribbon->addGroup(tab, title);
+        ribbon->addCommand(group, title, QIcon(), title, true, QStringLiteral("command") + title);
+    }
+    ribbon->setTabOrder({QStringLiteral("C"), QStringLiteral("A"), QStringLiteral("B")});
+
+    window.resize(800, 180);
+    window.show();
+    QTest::qWait(50);
+    auto* tabBar = ribbon->findChild<QTabBar*>(QStringLiteral("ribbonTabs"));
+    QVERIFY(tabBar != nullptr);
+    QCOMPARE(tabBar->tabText(0), QStringLiteral("C"));
+    QCOMPARE(tabBar->tabText(1), QStringLiteral("A"));
+    QCOMPARE(tabBar->tabText(2), QStringLiteral("B"));
+
+    for (int index = 0; index < 3; ++index) {
+        ribbon->setCurrentTab(index);
+        QTest::qWait(10);
+        const QString expected = QStringLiteral("command") + tabBar->tabText(index);
+        auto* button = ribbon->findChild<QToolButton*>(expected);
+        QVERIFY2(button != nullptr, qPrintable(expected));
+        QVERIFY2(button->isVisible(), qPrintable(expected + QStringLiteral(" is detached")));
+        QVERIFY(button->parentWidget() != nullptr);
+        QVERIFY(button->parentWidget()->parentWidget() != nullptr);
+    }
 }
 
 QTEST_MAIN(RibbonLayoutTests)
