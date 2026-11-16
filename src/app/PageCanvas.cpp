@@ -236,6 +236,19 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         paintHighlights(painter, index, pageRect, layout_.zoom());
         // 批注画在最上层。
         paintAnnotations(painter, index, pageRect, layout_.zoom());
+        if (index == objectSelectionPage_ && !objectSelectionRect_.isEmpty()) {
+            const QRectF selection = toViewportRect(objectSelectionRect_, pageRect, layout_.zoom());
+            painter.setPen(QPen(QColor(QStringLiteral("#6D45E5")), 1.5, Qt::DashLine));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(selection);
+            painter.setPen(QPen(Qt::white, 1.0));
+            painter.setBrush(QColor(QStringLiteral("#6D45E5")));
+            const QPointF points[] = {selection.topLeft(), QPointF(selection.center().x(), selection.top()),
+                selection.topRight(), QPointF(selection.right(), selection.center().y()),
+                selection.bottomRight(), QPointF(selection.center().x(), selection.bottom()),
+                selection.bottomLeft(), QPointF(selection.left(), selection.center().y())};
+            for (const QPointF& point : points) painter.drawRect(QRectF(point - QPointF(4, 4), QSizeF(8, 8)));
+        }
         // 正在拖的批注工具的预览。
         if (index == drawPage_) {
             paintAnnotationPreview(painter, pageRect, layout_.zoom());
@@ -690,6 +703,32 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
+    if (!drawingObjectSelection_ && pageIndex == objectSelectionPage_ &&
+        !objectSelectionRect_.isEmpty()) {
+        const double tolerance = 8.0 / qMax(0.01, layout_.zoom());
+        const QPointF handles[] = {objectSelectionRect_.topLeft(),
+            QPointF(objectSelectionRect_.center().x(), objectSelectionRect_.top()),
+            objectSelectionRect_.topRight(),
+            QPointF(objectSelectionRect_.right(), objectSelectionRect_.center().y()),
+            objectSelectionRect_.bottomRight(),
+            QPointF(objectSelectionRect_.center().x(), objectSelectionRect_.bottom()),
+            objectSelectionRect_.bottomLeft(),
+            QPointF(objectSelectionRect_.left(), objectSelectionRect_.center().y())};
+        objectDragHandle_ = -1;
+        for (int handle = 0; handle < 8; ++handle) {
+            if (QLineF(displayPoint, handles[handle]).length() <= tolerance) {
+                objectDragHandle_ = handle;
+                break;
+            }
+        }
+        if (objectDragHandle_ >= 0 || objectSelectionRect_.contains(displayPoint)) {
+            draggingObjectSelection_ = true;
+            objectDragStart_ = displayPoint;
+            objectDragStartRect_ = objectSelectionRect_;
+            return;
+        }
+    }
+
     if (drawingObjectSelection_) {
         selecting_ = false;
         drawingSquare_ = true;
@@ -875,6 +914,23 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
 void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseMoveEvent(event);
     updateLinkCursor(event->pos());
+    if (draggingObjectSelection_) {
+        int pageIndex = -1;
+        QPointF point;
+        if (!pagePointAt(event->pos(), &pageIndex, &point) || pageIndex != objectSelectionPage_) return;
+        const QPointF delta = point - objectDragStart_;
+        QRectF next = objectDragStartRect_;
+        if (objectDragHandle_ < 0) next.translate(delta);
+        else {
+            if (objectDragHandle_ == 0 || objectDragHandle_ == 6 || objectDragHandle_ == 7) next.setLeft(next.left() + delta.x());
+            if (objectDragHandle_ == 2 || objectDragHandle_ == 3 || objectDragHandle_ == 4) next.setRight(next.right() + delta.x());
+            if (objectDragHandle_ == 0 || objectDragHandle_ == 1 || objectDragHandle_ == 2) next.setTop(next.top() + delta.y());
+            if (objectDragHandle_ == 4 || objectDragHandle_ == 5 || objectDragHandle_ == 6) next.setBottom(next.bottom() + delta.y());
+        }
+        if (next.width() >= 2.0 && next.height() >= 2.0) objectSelectionRect_ = next.normalized();
+        viewport()->update();
+        return;
+    }
 
     // 批注工具的拖拽中：只收本页的点。
     if (drawingSquare_ || drawingInk_ || erasing_ || drawingLine_) {
@@ -958,6 +1014,19 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() != Qt::LeftButton) {
         return;
     }
+    if (draggingObjectSelection_) {
+        draggingObjectSelection_ = false;
+        const QRectF before = objectDragStartRect_;
+        const QRectF after = objectSelectionRect_;
+        objectDragHandle_ = -1;
+        if (before != after) {
+            PageTransform transform;
+            if (annotationController_ && annotationController_->transformForPage(objectSelectionPage_, &transform))
+                emit objectSelectionTransformed(objectSelectionPage_, transform.toUserSpace(before),
+                                                transform.toUserSpace(after));
+        }
+        return;
+    }
 
     if (drawingLine_) {
         const int pageIndex = drawPage_;
@@ -993,6 +1062,8 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
                 const QRectF rect = QRectF(a, b).normalized();
                 if (drawingObjectSelection_) {
                     drawingObjectSelection_ = false;
+                    objectSelectionPage_ = pageIndex;
+                    objectSelectionRect_ = QRectF(drawAnchor_, drawCurrent_).normalized();
                     emit objectRectSelected(pageIndex, rect);
                     updateToolCursor();
                     return;
@@ -1046,6 +1117,21 @@ void PageCanvas::beginObjectSelection() {
     drawingFormField_ = false;
     formFieldKind_.clear();
     viewport()->setCursor(Qt::CrossCursor);
+}
+
+void PageCanvas::setObjectSelection(int pageIndex, const QRectF& userSpaceRect) {
+    PageTransform transform;
+    if (!annotationController_ || !annotationController_->transformForPage(pageIndex, &transform)) return;
+    objectSelectionPage_ = pageIndex;
+    objectSelectionRect_ = transform.toDisplay(userSpaceRect).normalized();
+    viewport()->update();
+}
+
+void PageCanvas::clearObjectSelection() {
+    objectSelectionPage_ = -1;
+    objectSelectionRect_ = {};
+    draggingObjectSelection_ = false;
+    viewport()->update();
 }
 
 void PageCanvas::setFormFieldPlacementKind(const QString& kind) {

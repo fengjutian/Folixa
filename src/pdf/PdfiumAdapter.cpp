@@ -1683,6 +1683,15 @@ bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, d
     if (!impl_ || impl_->page == nullptr || indexes.isEmpty() || scaleX <= 0.0 || scaleY <= 0.0) return false;
     const detail::PdfiumGuard guard;
     const int count = FPDFPage_CountObjects(impl_->page);
+    QRectF groupBounds;
+    for (int index : indexes) {
+        if (index < 0 || index >= count) continue;
+        FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
+        float left = 0, bottom = 0, right = 0, top = 0;
+        if (object && FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top))
+            groupBounds = groupBounds.united(QRectF(left, bottom, right - left, top - bottom));
+    }
+    if (groupBounds.isEmpty()) return false;
     bool changed = false;
     QVector<int> sorted = indexes;
     std::sort(sorted.begin(), sorted.end(), std::greater<int>());
@@ -1690,11 +1699,9 @@ bool PdfPage::transformObjects(const QVector<int>& indexes, double translateX, d
         if (index < 0 || index >= count) continue;
         FPDF_PAGEOBJECT object = FPDFPage_GetObject(impl_->page, index);
         if (!object) continue;
-        float left = 0, bottom = 0, right = 0, top = 0;
-        if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) continue;
         FPDFPageObj_Transform(object, scaleX, 0.0, 0.0, scaleY,
-                              translateX + left * (1.0 - scaleX),
-                              translateY + bottom * (1.0 - scaleY));
+                              translateX + groupBounds.left() * (1.0 - scaleX),
+                              translateY + groupBounds.top() * (1.0 - scaleY));
         changed = true;
     }
     return changed && FPDFPage_GenerateContent(impl_->page) != 0;
