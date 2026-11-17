@@ -1,6 +1,10 @@
 #include "app/ConversionInputDialog.h"
 
+#include <QBuffer>
 #include <QClipboard>
+#include <QComboBox>
+#include <QImage>
+#include <QImageWriter>
 #include <QDialogButtonBox>
 #include <QEventLoop>
 #include <QFile>
@@ -270,6 +274,50 @@ bool systemClipboardHasImage() {
     return mime != nullptr && mime->hasImage();
 }
 
+// 从系统剪贴板取图片的原始字节。
+//
+// 为什么按 PNG / BMP / JPEG 的**原生**格式依次取，而不是直接用 QImageReader：
+// 部署包里的 Qt 图像插件只保证 gif/ico/jpeg/svg（scripts/package.ps1），
+// 用 QImageReader 读 PNG 在用户机上会直接失败 —— 这正是 wave5-A 自研 PNG 解码器
+// 要绕开的那个坑（所以 pdf 层根本不依赖图像插件）。
+//
+// 只有 QImage（Windows 的 DIB 多数走这一路）时自己编一份 JPEG：
+// 部署包保证带 qjpeg 插件，编 JPEG 不会在用户机上翻车。
+QVector<QByteArray> readSystemClipboardImages() {
+    if (QGuiApplication::instance() == nullptr) {
+        return {};
+    }
+    const QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) {
+        return {};
+    }
+    const QMimeData* mime = clipboard->mimeData();
+    if (mime == nullptr) {
+        return {};
+    }
+    // 原生格式优先：一个字节都不用编。
+    for (const char* format : {"image/png", "image/bmp", "image/jpeg"}) {
+        const QByteArray data = mime->data(QLatin1String(format));
+        if (!data.isEmpty()) {
+            return {data};
+        }
+    }
+    const QImage image = qvariant_cast<QImage>(mime->imageData());
+    if (image.isNull()) {
+        return {};
+    }
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        return {};
+    }
+    QImageWriter writer(&buffer, "JPEG");
+    if (!writer.write(image)) {
+        return {};
+    }
+    return {bytes};
+}
+
 // 一张图没带进来的原因（给用户看的中文）。
 //
 // 为什么在 app 层拼：doc 层没有翻译上下文，给用户看的中文句子一律在这边拼。
@@ -287,6 +335,26 @@ QString imageIssueReasonText(const aipdf::doc::HtmlImageIssue& issue) {
         return i18n::tr("aipdf::app::ConversionInputs", "排不进这份 PDF");
     case aipdf::doc::HtmlImageIssueKind::LimitReached:
         return i18n::tr("aipdf::app::ConversionInputs", "页面里的图太多，超出了单次上限");
+    }
+    return issue.detail;
+}
+
+// 一张剪贴板图片没带进来的原因（给用户看的中文）。
+QString clipboardImageIssueText(const aipdf::doc::ClipboardImageIssue& issue) {
+    using aipdf::doc::ClipboardImageIssueKind;
+    switch (issue.kind) {
+    case ClipboardImageIssueKind::EmptyData:
+        return i18n::tr("aipdf::app::ConversionInputs", "没有内容");
+    case ClipboardImageIssueKind::UnsupportedFormat:
+        return i18n::tr("aipdf::app::ConversionInputs", "格式不支持（%1）").arg(issue.format);
+    case ClipboardImageIssueKind::DecodeFailed:
+        return i18n::tr("aipdf::app::ConversionInputs", "数据损坏，解不开");
+    case ClipboardImageIssueKind::TooLarge:
+        return i18n::tr("aipdf::app::ConversionInputs", "图片太大，一页放不下");
+    case ClipboardImageIssueKind::LimitReached:
+        return i18n::tr("aipdf::app::ConversionInputs", "这次带的图片太多，超出了单次上限");
+    case ClipboardImageIssueKind::LayoutFailed:
+        return i18n::tr("aipdf::app::ConversionInputs", "排不进这份 PDF");
     }
     return issue.detail;
 }
@@ -331,6 +399,47 @@ bool buildClipboardOutcome(const QString& text, const QString& html, const QStri
              : i18n::tr("aipdf::app::ConversionInputs", "这次按纯文本排版。"));
     if (!usedFont.isEmpty()) {
         outcome->detailLines.append(i18n::tr("aipdf::app::ConversionInputs", "已嵌入系统字体 %1 来显示中文。").arg(usedFont));
+    }
+    return true;
+}
+
+// 剪贴板图片 → PDF 的结果。
+//
+// 与文字那一路分开写：失败原因、图片张数、逐张问题都不一样，
+// 混在一起迟早会说错话。
+bool buildClipboardImageOutcome(const QVector<QByteArray>& images, const QString& fontPath,
+                                 ConversionInputOutcome* outcome) {
+    if (images.isEmpty()) {
+        outcome->error = i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有图片，没法生成 PDF。");
+        return false;
+    }
+    const doc::UniversalConverterOptions options = buildTextOptions(QString(), fontPath, nullptr);
+    const doc::ConversionResult result = doc::clipboardImageToPdf(images, QString(), options);
+    if (!result.ok) {
+        outcome->error = clipboardErrorText(result);
+        return false;
+    }
+    outcome->ok = true;
+    outcome->bytes = result.bytes;
+    outcome->warning = result.warning;
+    outcome->pageCount = result.pageCount;
+    outcome->sourceKind = result.sourceKind;
+    outcome->suggestedFileName = i18n::tr("aipdf::app::ConversionInputs", "剪贴板.pdf");
+    outcome->detailLines.append(
+        i18n::tr("aipdf::app::ConversionInputs", "这次按图片排版（每张图一页）。"));
+    outcome->detailLines.append(
+        i18n::tr("aipdf::app::ConversionInputs", "这次带了 %1 张图片。")
+            .arg(result.clipboardImageOutcome.embedded));
+    if (!result.clipboardImageOutcome.issues.isEmpty()) {
+        outcome->detailLines.append(
+            i18n::tr("aipdf::app::ConversionInputs", "有 %1 张图片没能带进来：")
+                .arg(result.clipboardImageOutcome.issues.size()));
+        for (const doc::ClipboardImageIssue& issue : result.clipboardImageOutcome.issues) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "第 %1 张图片：%2")
+                    .arg(issue.index + 1)
+                    .arg(clipboardImageIssueText(issue)));
+        }
     }
     return true;
 }
@@ -484,6 +593,19 @@ ConversionInputDialog::ConversionInputDialog(QWidget* parent) : QDialog(parent) 
     clipboardView_->setAccessibleName(i18n::tr("aipdf::app::ConversionInputs", "剪贴板内容"));
     clipboardLayout->addWidget(clipboardHint);
     clipboardLayout->addWidget(clipboardView_, 1);
+
+    // 内容类型：剪贴板里同时有文字和图片时，用户得自己说转哪一样。
+    auto* contentCombo = new QComboBox(clipboardPage);
+    contentCombo->setObjectName(QStringLiteral("conversionInput.clipboardContent"));
+    contentCombo->setAccessibleName(i18n::tr("aipdf::app::ConversionInputs", "剪贴板内容类型"));
+    contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "自动（有文字用文字，没文字用图片）"),
+                           static_cast<int>(ConversionInputDialog::ClipboardContent::Auto));
+    contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "文字（富文本优先）"),
+                           static_cast<int>(ConversionInputDialog::ClipboardContent::Text));
+    contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "图片（每张一页）"),
+                           static_cast<int>(ConversionInputDialog::ClipboardContent::Images));
+    clipboardContentCombo_ = contentCombo;
+    clipboardLayout->addWidget(contentCombo);
     stack_->addWidget(clipboardPage);
 
     // 打开就把剪贴板里的文本摆出来：用户看得见要转的是什么，才敢点「生成 PDF」。
@@ -634,6 +756,29 @@ void ConversionInputDialog::setClipboardHtml(const QString& value) {
     clipboardHtml_ = value;
 }
 
+void ConversionInputDialog::setClipboardContent(ClipboardContent content) {
+    clipboardContent_ = content;
+    if (clipboardContentCombo_ != nullptr) {
+        clipboardContentCombo_->setCurrentIndex(
+            clipboardContentCombo_->findData(static_cast<int>(content)));
+    }
+}
+
+ConversionInputDialog::ClipboardContent ConversionInputDialog::clipboardContent() const {
+    return clipboardContent_;
+}
+
+void ConversionInputDialog::setClipboardImages(const QVector<QByteArray>& images) {
+    clipboardImages_ = images;
+}
+
+QVector<QByteArray> ConversionInputDialog::clipboardImages() const {
+    if (!clipboardImages_.isEmpty()) {
+        return clipboardImages_;
+    }
+    return readSystemClipboardImages();
+}
+
 QString ConversionInputDialog::clipboardHtml() const {
     if (!clipboardHtml_.trimmed().isEmpty()) {
         return clipboardHtml_;
@@ -711,11 +856,25 @@ bool ConversionInputDialog::convert(ConversionInputOutcome* outcome) {
 bool ConversionInputDialog::convertClipboard(ConversionInputOutcome* outcome) {
     const QString html = clipboardHtml();
     const QString text = clipboardText();
-    // 负例：剪贴板里只有图片 —— 明确说不支持，别让人以为「没内容」。
-    if (html.trimmed().isEmpty() && text.trimmed().isEmpty() && systemClipboardHasImage()) {
-        outcome->error = i18n::tr("aipdf::app::ConversionInputs",
-                                   "剪贴板里只有图片，本程序还不支持把图片转成 PDF（只支持文字和富文本）。");
+    const QVector<QByteArray> images = clipboardImages();
+    const bool hasText = !html.trimmed().isEmpty() || !text.trimmed().isEmpty();
+
+    // 图片这一路：用户点名要图片，或者（自动模式下）剪贴板里只有图片。
+    const bool useImages = clipboardContent_ == ClipboardContent::Images
+        || (clipboardContent_ == ClipboardContent::Auto && !hasText && !images.isEmpty());
+    if (useImages) {
+        return buildClipboardImageOutcome(images, fontPath(), outcome);
+    }
+    if (!hasText) {
+        // 负例：什么都没有 —— 明确说「没内容」，别生成一份空白 PDF。
+        outcome->error = i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有文本，没法生成 PDF。");
         return false;
+    }
+    // 混合内容按文字排：图片没进来要**明说**，不能静默丢掉。
+    if (!images.isEmpty()) {
+        outcome->warning = i18n::tr("aipdf::app::ConversionInputs",
+                                     "剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。")
+                               .arg(images.size());
     }
     return buildClipboardOutcome(text, html, fontPath(), outcome);
 }
@@ -879,11 +1038,21 @@ ConversionInputOutcome convertClipboardToPdf() {
     const QMimeData* mime = clipboard != nullptr ? clipboard->mimeData() : nullptr;
     const QString html = (mime != nullptr && mime->hasHtml()) ? mime->html() : QString();
     const QString body = clipboard != nullptr ? clipboard->text() : QString();
-    // 负例：剪贴板里只有图片 —— 明确说不支持（本程序没有把图片排成 PDF 的能力）。
-    if (html.trimmed().isEmpty() && body.trimmed().isEmpty() && systemClipboardHasImage()) {
-        outcome.error = i18n::tr("aipdf::app::ConversionInputs",
-                                 "剪贴板里只有图片，本程序还不支持把图片转成 PDF（只支持文字和富文本）。");
+    const QVector<QByteArray> images = readSystemClipboardImages();
+    const bool hasText = !html.trimmed().isEmpty() || !body.trimmed().isEmpty();
+    // 只有图片时走图片这一路；文字与图片都有时按文字排（并明说图片没进来）。
+    if (!hasText && !images.isEmpty()) {
+        buildClipboardImageOutcome(images, QString(), &outcome);
         return outcome;
+    }
+    if (!hasText) {
+        outcome.error = i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有文本，没法生成 PDF。");
+        return outcome;
+    }
+    if (!images.isEmpty()) {
+        outcome.warning = i18n::tr("aipdf::app::ConversionInputs",
+                                    "剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。")
+                              .arg(images.size());
     }
     buildClipboardOutcome(body, html, QString(), &outcome);
     return outcome;

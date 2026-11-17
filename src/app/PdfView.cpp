@@ -3,6 +3,7 @@
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
 #include "app/EncryptionDialog.h"
+#include "app/HiddenDataDialog.h"
 #include "app/LastWavePanels.h"
 #include "app/LastWaveWriter.h"
 #include "app/PdfPageOperations.h"
@@ -20,6 +21,7 @@
 #include "pdf/FormData.h"
 #include "pdf/FormFieldWriter.h"
 #include "pdf/FormToolSettings.h"
+#include "pdf/PdfSecurity.h"
 #include "pdf/BatchReplace.h"
 #include "pdf/NamedDestination.h"
 #include "pdf/OutlineGenerator.h"
@@ -1995,20 +1997,42 @@ void PdfView::sanitizeHiddenData() {
                              tr("本次构建没有启用 qpdf，无法可靠清理隐藏信息。"));
         return;
     }
-    if (QMessageBox::question(
-            this, tr("清理隐藏信息"),
-            tr("将删除文档属性、XMP、文档脚本、自动动作，以及嵌入文件（含附件本体）。"
-               "页面正文、可见批注和表单值会保留。继续吗？"),
-            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
-        return;
-    }
     QString error;
     const QByteArray source = document_.serialize(&error);
     if (source.isEmpty()) {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
     }
-    const QByteArray sanitized = pdf::sanitizeHiddenDataFully(source, &error);
+    // 先列清单，再让用户逐项勾选。
+    //
+    // 为什么不再直接问一句「确定全清吗」：原来那个组合入口会把嵌入文件本体
+    // 一起删掉，用户点一下就丢了附件，而且事后不知道自己丢了什么。
+    const QVector<pdf::HiddenDataCategory> categories =
+        pdf::enumerateHiddenData(source, &error);
+    if (categories.isEmpty()) {
+        QMessageBox::warning(this, tr("清理隐藏信息"), error);
+        return;
+    }
+    HiddenDataDialog dialog(this);
+    dialog.setCategories(categories);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QStringList selected = dialog.selectedCategoryIds();
+    if (selected.isEmpty()) {
+        // 一项都没勾 = 什么都不做。
+        //
+        // 绝不能把空集合当成「全清」：用户在空对话框上按确定，意思是「先别动」。
+        QMessageBox::information(this, tr("清理隐藏信息"),
+                                 tr("没有勾选任何类别，文档保持原样。"));
+        return;
+    }
+    QSet<QString> selectedIds;
+    for (const QString& id : selected) {
+        selectedIds.insert(id);
+    }
+    const QByteArray sanitized =
+        pdf::sanitizeHiddenDataSelective(source, selectedIds, &error);
     if (sanitized.isEmpty()) {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
@@ -2021,8 +2045,15 @@ void PdfView::sanitizeHiddenData() {
     }
     setDocument(std::move(reopened.document), filePath_);
     setModified(true);
-    emit statusMessage(tr("隐藏信息与嵌入文件已清理；请保存文档以写入磁盘"));
-    trace(QStringLiteral("hidden data sanitized"));
+    QStringList clearedTitles;
+    for (const QString& id : selected) {
+        clearedTitles.append(hiddenDataCategoryTitle(id));
+    }
+    emit statusMessage(tr("已清理 %1 类隐藏数据：%2；请保存文档以写入磁盘")
+                           .arg(selected.size())
+                           .arg(clearedTitles.join(QStringLiteral("、"))));
+    trace(QStringLiteral("hidden data sanitized categories=%1")
+              .arg(clearedTitles.join(QLatin1Char(','))));
 }
 
 void PdfView::redactSelection() {
@@ -3390,9 +3421,20 @@ void PdfView::batchProcessDialog() {
             }
             const QString title = item->text();
             if (title == stepNames.at(0)) {
-                batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
-                    return pdf::sanitizeHiddenDataFully(in, err);
-                }});
+                // 批处理是对一批文件跑固定步骤，没有逐项勾选的界面，
+                // 所以这里用与界面一致的默认集合。
+                //
+                // 关键差别：不再顺手删掉嵌入文件本体 —— 批处理里有独立的
+                // 「移除嵌入文件」一步，要不要删由用户自己勾那一步。
+                const QStringList defaultIds = HiddenDataDialog::defaultCleanupCategoryIds();
+                QSet<QString> cleanupIds;
+                for (const QString& id : defaultIds) {
+                    cleanupIds.insert(id);
+                }
+                batchSteps.append(doc::BatchStep{
+                    title, [cleanupIds](const QByteArray& in, QString* err) {
+                        return pdf::sanitizeHiddenDataSelective(in, cleanupIds, err);
+                    }});
             } else if (title == stepNames.at(1)) {
                 batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
                     return pdf::removeEmbeddedFiles(in, err);

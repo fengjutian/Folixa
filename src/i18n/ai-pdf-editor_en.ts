@@ -4575,6 +4575,14 @@ Write them into the document?</translation>
                 <source>打开密码不能为空。</source>
                 <translation>The open password cannot be empty.</translation>
             </message>
+            <message>
+                <source>没有勾选任何类别，文档保持原样。</source>
+                <translation>No category was checked, so the document is left unchanged.</translation>
+            </message>
+            <message>
+                <source>已清理 %1 类隐藏数据：%2；请保存文档以写入磁盘</source>
+                <translation>Cleared %1 hidden data categor(y/ies): %2; save the document to write it to disk.</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -6668,6 +6676,54 @@ Notes: %1</translation></message>
                 <source>页面里的图太多，超出了单次上限</source>
                 <translation>the page has too many images (over the limit for one run)</translation>
             </message>
+            <message>
+                <source>剪贴板里没有图片，没法生成 PDF。</source>
+                <translation>There are no images in the clipboard, so no PDF can be created.</translation>
+            </message>
+            <message>
+                <source>这次按图片排版（每张图一页）。</source>
+                <translation>Laid out as images (one image per page).</translation>
+            </message>
+            <message>
+                <source>有 %1 张图片没能带进来：</source>
+                <translation>%1 image(s) could not be included:</translation>
+            </message>
+            <message>
+                <source>第 %1 张图片：%2</source>
+                <translation>Image %1: %2</translation>
+            </message>
+            <message>
+                <source>没有内容</source>
+                <translation>No content</translation>
+            </message>
+            <message>
+                <source>格式不支持（%1）</source>
+                <translation>Unsupported format (%1)</translation>
+            </message>
+            <message>
+                <source>这次带的图片太多，超出了单次上限</source>
+                <translation>Too many images for a single conversion</translation>
+            </message>
+            <message>
+                <source>剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。</source>
+                <translation>The clipboard also has %1 image(s); this time it was laid out as text, so the images are not in the PDF.</translation>
+            </message>
+            <message>
+                <source>剪贴板内容类型</source>
+                <translation>Clipboard content type</translation>
+            </message>
+            <message>
+                <source>自动（有文字用文字，没文字用图片）</source>
+                <translation>Automatic (text if present, otherwise images)</translation>
+            </message>
+            <message>
+                <source>文字（富文本优先）</source>
+                <translation>Text (rich text preferred)</translation>
+            </message>
+            <message>
+                <source>图片（每张一页）</source>
+                <translation>Images (one per page)</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::DocumentCompareDialog</name>
@@ -6847,6 +6903,30 @@ Notes: %1</translation></message>
                 <source>像素比对说明：%1</source>
                 <translation>Pixel comparison note: %1</translation>
             </message>
+            <message>
+                <source>自动对齐</source>
+                <translation>Auto-align pages</translation>
+            </message>
+            <message>
+                <source>已按内容自动对齐：原文独有 %1 页、新文独有 %2 页。</source>
+                <translation>Aligned by content: %1 page(s) only in the original, %2 page(s) only in the revised.</translation>
+            </message>
+            <message>
+                <source>自动对齐未生效，已退回按页码位置配对。</source>
+                <translation>Auto-alignment was not applied; fell back to page position pairing.</translation>
+            </message>
+            <message>
+                <source>自动对齐不比按位置更准。</source>
+                <translation>Auto-alignment was no more accurate than pairing by page position.</translation>
+            </message>
+            <message>
+                <source>已关闭自动对齐。</source>
+                <translation>Auto-alignment was turned off.</translation>
+            </message>
+            <message>
+                <source>页数超过对齐上限。</source>
+                <translation>The page count exceeds the alignment limit.</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::ScannerCapture</name>
@@ -6957,6 +7037,18 @@ Notes: %1</translation></message>
             <message>
                 <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）</source>
                 <translation>The scanner returned an unsupported image format (only BMP, JPEG and PNG are supported)</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
             </message>
             <message>
                 <source> DPI</source>
@@ -7346,6 +7438,113 @@ Notes: %1</translation></message>
                 <message>
                 <source> 建议：%1</source>
                 <translation>Suggestion: %1</translation>
+            </message>
+            <message>
+                <source> 建议：%1</source>
+                <translation>Suggestion: %1</translation>
+            </message>
+            <message>
+                <source> 建议：%1</source>
+                <translation>Suggestion: %1</translation>
+            </message>
+            <message>
+                <source> 建议：%1</source>
+                <translation>Suggestion: %1</translation>
+            </message>
+</context>
+    <context>
+        <name>aipdf::app::HiddenDataDialog</name>
+            <message>
+                <source>清理隐藏信息</source>
+                <translation>Clean hidden data</translation>
+            </message>
+            <message>
+                <source>类别</source>
+                <translation>Category</translation>
+            </message>
+            <message>
+                <source>这份文档里有</source>
+                <translation>In this document</translation>
+            </message>
+            <message>
+                <source>清理</source>
+                <translation>Clean</translation>
+            </message>
+            <message>
+                <source>取消</source>
+                <translation>Cancel</translation>
+            </message>
+            <message>
+                <source>勾掉要清理的类别。页面正文、可见批注和表单域结构都会保留；嵌入文件与附件默认不勾，勾了才会删。</source>
+                <translation>Uncheck the categories to clean. Page content, visible annotations and form structure are kept; embedded files and attachments are unchecked by default and are only removed if you check them.</translation>
+            </message>
+            <message>
+                <source>这份文档里没有</source>
+                <translation>None in this document</translation>
+            </message>
+            <message>
+                <source>%1 项</source>
+                <translation>%1 item(s)</translation>
+            </message>
+            <message>
+                <source>文档属性（标题、作者、主题等）</source>
+                <translation>Document properties (title, author, subject, ...)</translation>
+            </message>
+            <message>
+                <source>元数据流（XMP 等）</source>
+                <translation>Metadata streams (XMP, ...)</translation>
+            </message>
+            <message>
+                <source>增量历史里的旧版本</source>
+                <translation>Old revisions in the incremental history</translation>
+            </message>
+            <message>
+                <source>文档脚本（JavaScript）</source>
+                <translation>Document scripts (JavaScript)</translation>
+            </message>
+            <message>
+                <source>自动动作（打开时 / 关闭时触发）</source>
+                <translation>Automatic actions (run on open / close)</translation>
+            </message>
+            <message>
+                <source>表单字段的已填值</source>
+                <translation>Filled-in form field values</translation>
+            </message>
+            <message>
+                <source>页面缩略图</source>
+                <translation>Page thumbnails</translation>
+            </message>
+            <message>
+                <source>注释（含隐藏注释）</source>
+                <translation>Annotations (including hidden ones)</translation>
+            </message>
+            <message>
+                <source>不可见文字层</source>
+                <translation>Invisible text layers</translation>
+            </message>
+            <message>
+                <source>图层（OCG）</source>
+                <translation>Layers (OCG)</translation>
+            </message>
+            <message>
+                <source>XFA 表单数据</source>
+                <translation>XFA form data</translation>
+            </message>
+            <message>
+                <source>数字签名</source>
+                <translation>Digital signatures</translation>
+            </message>
+            <message>
+                <source>文件附件的引用点</source>
+                <translation>File attachment references</translation>
+            </message>
+            <message>
+                <source>嵌入文件本体</source>
+                <translation>Embedded file payloads</translation>
+            </message>
+                <message>
+                <source>勾掉要清理的类别。默认只清文档属性、元数据流、旧版本、脚本、自动动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件默认不勾，勾了才会删。</source>
+                <translation>Uncheck the categories to clean. By default only document properties, metadata streams, old revisions, scripts, automatic actions and thumbnails are cleared; signatures, filled form values, invisible text layers, layers and embedded files are unchecked and are only removed if you check them.</translation>
             </message>
 </context>
 </TS>

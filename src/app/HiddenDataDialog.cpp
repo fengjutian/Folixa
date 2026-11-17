@@ -4,48 +4,59 @@
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
+#include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
 namespace aipdf::app {
 
-namespace {
-
-// id -> 中文标题。
-//
-// 顺序按「先 innocuous 后要紧」排：属性、脚本、动作这些是用户主动勾的，
-// 嵌入文件排在后面，因为它删了最难恢复。
-struct TitleEntry {
-    const char* id;
-    const char* title;
-};
-
-const TitleEntry kTitles[] = {
-    {"metadata", "文档属性（标题、作者、主题等）"},
-    {"metadata-streams", "元数据流（XMP 等）"},
-    {"incremental-history", "增量历史里的旧版本"},
-    {"scripts", "文档脚本（JavaScript）"},
-    {"actions", "自动动作（打开时 / 关闭时触发）"},
-    {"form-data", "表单字段的已填值"},
-    {"thumbnails", "页面缩略图"},
-    {"annotations", "注释（含隐藏注释）"},
-    {"invisible-text", "不可见文字层"},
-    {"layers", "图层（OCG）"},
-    {"xfa", "XFA 表单数据"},
-    {"signatures", "数字签名"},
-    {"file-attachments", "文件附件的引用点"},
-    {"embedded-files", "嵌入文件本体"},
-};
-
-}  // namespace
-
 QString hiddenDataCategoryTitle(const QString& id)
 {
-    for (const TitleEntry& entry : kTitles) {
-        if (id == QLatin1String(entry.id)) {
-            return i18n::tr("aipdf::app::HiddenDataDialog", entry.title);
-        }
+    // 每条都写成字面量：翻译工具（lupdate）只认 tr() 的字面量参数，
+    // 放进表里再按 id 取，工具抓不到，译文也就永远出不来。
+    if (id == QLatin1String("metadata")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "文档属性（标题、作者、主题等）");
+    }
+    if (id == QLatin1String("metadata-streams")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "元数据流（XMP 等）");
+    }
+    if (id == QLatin1String("incremental-history")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "增量历史里的旧版本");
+    }
+    if (id == QLatin1String("scripts")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "文档脚本（JavaScript）");
+    }
+    if (id == QLatin1String("actions")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "自动动作（打开时 / 关闭时触发）");
+    }
+    if (id == QLatin1String("form-data")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "表单字段的已填值");
+    }
+    if (id == QLatin1String("thumbnails")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "页面缩略图");
+    }
+    if (id == QLatin1String("annotations")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "注释（含隐藏注释）");
+    }
+    if (id == QLatin1String("invisible-text")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "不可见文字层");
+    }
+    if (id == QLatin1String("layers")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "图层（OCG）");
+    }
+    if (id == QLatin1String("xfa")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "XFA 表单数据");
+    }
+    if (id == QLatin1String("signatures")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "数字签名");
+    }
+    if (id == QLatin1String("file-attachments")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "文件附件的引用点");
+    }
+    if (id == QLatin1String("embedded-files")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "嵌入文件本体");
     }
     // 认不出来的 id 原样返回：编一句中文只会让人更看不懂。
     return id;
@@ -59,9 +70,32 @@ QString hiddenDataCategoryCountText(const pdf::HiddenDataCategory& category)
     return i18n::tr("aipdf::app::HiddenDataDialog", "%1 项").arg(category.itemCount);
 }
 
+QStringList HiddenDataDialog::defaultCleanupCategoryIds()
+{
+    // 保守白名单：清掉了不会有人心疼，而且本来就是「隐藏信息」的正主。
+    //
+    //   metadata          文档属性（标题、作者、主题……）
+    //   metadata-streams  XMP 之类的元数据流
+    //   incremental-history 旧版本（写出器重写文件时本来就会拍平，勾不勾都清）
+    //   scripts           文档级 JavaScript
+    //   actions           打开/关闭时触发的自动动作
+    //   thumbnails        预览图（派生缓存，删了无损）
+    //
+    // 不在名单里的（签名、表单已填值、OCR 文字层、图层、XFA、隐藏批注、
+    // 嵌入文件本体、附件引用点）默认不勾 —— 理由见头文件里的注释。
+    return {
+        QStringLiteral("metadata"),
+        QStringLiteral("metadata-streams"),
+        QStringLiteral("incremental-history"),
+        QStringLiteral("scripts"),
+        QStringLiteral("actions"),
+        QStringLiteral("thumbnails"),
+    };
+}
+
 bool HiddenDataDialog::defaultChecked(const QString& id)
 {
-    return id != QLatin1String("embedded-files") && id != QLatin1String("file-attachments");
+    return defaultCleanupCategoryIds().contains(id);
 }
 
 HiddenDataDialog::HiddenDataDialog(QWidget* parent)
@@ -74,8 +108,9 @@ HiddenDataDialog::HiddenDataDialog(QWidget* parent)
 
     auto* hint = new QLabel(
         i18n::tr("aipdf::app::HiddenDataDialog",
-                 "勾掉要清理的类别。页面正文、可见批注和表单域结构都会保留；"
-                 "嵌入文件与附件默认不勾，勾了才会删。"),
+                 "勾掉要清理的类别。默认只清文档属性、元数据流、旧版本、脚本、"
+                 "自动动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件"
+                 "默认不勾，勾了才会删。"),
         this);
     hint->setWordWrap(true);
     hint->setObjectName(QStringLiteral("hiddenDataDialog.hint"));

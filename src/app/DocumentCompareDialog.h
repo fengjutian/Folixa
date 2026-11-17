@@ -93,6 +93,8 @@ private:
     QPushButton* browseNewButton_ = nullptr;
     QPushButton* compareButton_ = nullptr;
     QCheckBox* pixelCompareCheck_ = nullptr;
+    // 「自动对齐」开关：插页 / 删页后按内容配对，而不是按页码位置硬对。
+    QCheckBox* autoAlignCheck_ = nullptr;
     QLabel* summary_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QTableWidget* table_ = nullptr;

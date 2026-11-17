@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QImage>
 #include <QSet>
+#include <QStringList>
 
 #include <algorithm>
 #include <cmath>

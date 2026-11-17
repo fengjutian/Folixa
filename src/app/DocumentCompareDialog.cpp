@@ -118,6 +118,16 @@ void DocumentCompareDialog::buildUi() {
         pixelCompareCheck_->setText(i18n::tr("aipdf::app::DocumentCompareDialog",
                                             "同时比较图形（渲染成位图逐像素比，较慢）"));
     });
+
+    // 自动对齐开关：默认开。
+    // 为什么默认开：两份文档中间插一页，按页码位置硬对会让**后面所有页**错位，
+    // 结果整片飘红；按内容配对才不会。
+    autoAlignCheck_ = new QCheckBox(this);
+    autoAlignCheck_->setObjectName(QStringLiteral("compare.autoAlign"));
+    autoAlignCheck_->setChecked(true);
+    texts_.bind([this] {
+        autoAlignCheck_->setText(i18n::tr("aipdf::app::DocumentCompareDialog", "自动对齐"));
+    });
     auto* closeButton = new QPushButton(this);
     closeButton->setObjectName(QStringLiteral("compare.close"));
     texts_.bind([this, closeButton] {
@@ -126,6 +136,7 @@ void DocumentCompareDialog::buildUi() {
     connect(closeButton, &QPushButton::clicked, this, &DocumentCompareDialog::reject);
     actionRow->addWidget(compareButton_);
     actionRow->addWidget(pixelCompareCheck_);
+    actionRow->addWidget(autoAlignCheck_);
     actionRow->addStretch(1);
     actionRow->addWidget(closeButton);
     layout->addLayout(actionRow);
@@ -215,12 +226,18 @@ void DocumentCompareDialog::setOptions(const pdf::DocumentCompareOptions& option
     if (pixelCompareCheck_ != nullptr) {
         pixelCompareCheck_->setChecked(options.comparePixels);
     }
+    if (autoAlignCheck_ != nullptr) {
+        autoAlignCheck_->setChecked(options.autoAlign);
+    }
 }
 
 pdf::DocumentCompareOptions DocumentCompareDialog::options() const {
     pdf::DocumentCompareOptions options = options_;
     if (pixelCompareCheck_ != nullptr) {
         options.comparePixels = pixelCompareCheck_->isChecked();
+    }
+    if (autoAlignCheck_ != nullptr) {
+        options.autoAlign = autoAlignCheck_->isChecked();
     }
     return options;
 }
@@ -366,6 +383,23 @@ void DocumentCompareDialog::browseNewFile() {
     }
 }
 
+// 对齐备注（ASCII）→ 中文。
+//
+// 领域层只给技术细节，中文句子归界面拼（src/pdf 不放 tr()）。
+// 认不出来的原样返回：不编一句用户看不懂的话。
+QString alignmentNoteText(const QString& note) {
+    if (note.startsWith(QStringLiteral("sequence alignment did not improve"))) {
+        return i18n::tr("aipdf::app::DocumentCompareDialog", "自动对齐不比按位置更准。");
+    }
+    if (note.startsWith(QStringLiteral("sequence alignment disabled"))) {
+        return i18n::tr("aipdf::app::DocumentCompareDialog", "已关闭自动对齐。");
+    }
+    if (note.startsWith(QStringLiteral("page count exceeds"))) {
+        return i18n::tr("aipdf::app::DocumentCompareDialog", "页数超过对齐上限。");
+    }
+    return QStringLiteral(" ") + note;
+}
+
 void DocumentCompareDialog::updateSummary() {
     if (summary_ == nullptr) {
         return;
@@ -396,6 +430,23 @@ void DocumentCompareDialog::updateSummary() {
                   .arg(lastResult_.removedPageCount)
                   .arg(QString::number(qRound(lastResult_.overallSimilarity * 100.0))
                        + QStringLiteral("%"));
+    }
+
+    // 页对齐方式：插页 / 删页之后还能不能配对，必须让用户看见，
+    // 否则「结果整片错位」会被当成「文档真的改了这么多」。
+    if (lastResult_.alignmentApplied) {
+        text += QStringLiteral(" ");
+        text += i18n::tr("aipdf::app::DocumentCompareDialog",
+                         "已按内容自动对齐：原文独有 %1 页、新文独有 %2 页。")
+                    .arg(lastResult_.oldOnlyPageCount)
+                    .arg(lastResult_.newOnlyPageCount);
+    } else {
+        text += QStringLiteral(" ");
+        text += i18n::tr("aipdf::app::DocumentCompareDialog",
+                         "自动对齐未生效，已退回按页码位置配对。");
+        if (!lastResult_.alignmentNote.isEmpty()) {
+            text += alignmentNoteText(lastResult_.alignmentNote);
+        }
     }
 
     // 视觉差异另起一句：它与文字差异是两件事，不能混进同一句里。

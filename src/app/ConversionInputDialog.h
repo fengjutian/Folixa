@@ -5,9 +5,11 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVector>
 
 #include "doc/ConversionInputs.h"
 
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -88,6 +90,18 @@ public:
     };
     Q_ENUM(Mode)
 
+    // 剪贴板内容类型：这次按哪一路排。
+    //
+    // 为什么要有这个选择：剪贴板里同时有文字和图片时，
+    // 排成一份「文字在前、图片在后」的 PDF 并不是用户想要的 ——
+    // 多数时候他只想转其中一样，得让他自己说。
+    enum class ClipboardContent {
+        Auto,    // 有文字走文字，没文字有图走图片
+        Text,    // 强制文字（富文本优先）
+        Images,  // 强制图片（每张一页）
+    };
+    Q_ENUM(ClipboardContent)
+
     explicit ConversionInputDialog(QWidget* parent = nullptr);
 
     void setMode(Mode mode);
@@ -104,6 +118,17 @@ public:
     // 只取纯文本会把标题、段落、列表结构全丢掉。
     void setClipboardHtml(const QString& html);
     QString clipboardHtml() const;
+
+    // 剪贴板内容类型（默认 Auto）。
+    void setClipboardContent(ClipboardContent content);
+    ClipboardContent clipboardContent() const;
+
+    // 剪贴板图片的**原始字节**。设置了就用设置的，否则读系统剪贴板。
+    //
+    // 为什么留一个注入口：单测不该去动用户的剪贴板；
+    // 系统剪贴板被别的进程占着时读不到，测试就会莫名其妙地跳过。
+    void setClipboardImages(const QVector<QByteArray>& images);
+    QVector<QByteArray> clipboardImages() const;
 
     // 网页地址。
     void setUrlText(const QString& text);
@@ -138,6 +163,9 @@ private:
     bool convertFormFile(ConversionInputOutcome* outcome);
 
     Mode mode_ = Mode::Clipboard;
+    ClipboardContent clipboardContent_ = ClipboardContent::Auto;
+    QVector<QByteArray> clipboardImages_;
+    QComboBox* clipboardContentCombo_ = nullptr;
     QStackedWidget* stack_ = nullptr;
     QPlainTextEdit* clipboardView_ = nullptr;
     // 显式设置的剪贴板富文本（为空时看系统剪贴板）。

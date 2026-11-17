@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QByteArray>
+#include <QSet>
 #include <QString>
+#include <QVector>
 
 namespace aipdf::pdf {
 
@@ -86,6 +88,37 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error = nullptr
 // 一起清掉。挂附件的 /FileAttachment 批注会连同附件一起删除（附件没了，批注没有意义）。
 // 页面正文、可见批注与表单值不受影响。
 QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error = nullptr);
+
+// 一类隐藏数据的清单项。
+//
+// 为什么要有这个结构：界面要逐项勾选，领域层不认识中文，只给 ASCII 的 id 和
+// 数字；中文标题由 app 层按 id 拼（见交付报告里的 i18n 清单）。
+struct HiddenDataCategory {
+    QString id;         // ASCII 稳定标识，例如 "metadata" / "embedded-files"
+    int itemCount = 0;  // 这一类有几项（0 = 这份文档里没有）
+    QString detail;     // ASCII 技术细节：这一类凭什么被算进来
+};
+
+// 枚举一份文档里各类隐藏数据。
+//
+// 只读：只解析不写盘，调用前后文档字节不变。
+// 每一类都有可验证的判断依据（依据写在 PdfSecurity.cpp 里），不是猜的。
+// 返回的清单总是包含全部受支持的类别，固定顺序；没有的类别 itemCount = 0，
+// 这样界面可以直接按顺序渲染勾选列表。
+QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& bytes,
+                                                 QString* error = nullptr);
+
+// 只清理勾选的类；没勾的类必须原样保留。
+//
+// 与 sanitizeHiddenDataFully() 的区别：那个是「一键组合」，会把嵌入文件本体
+// 一起删掉；这个是逐项勾选，勾了哪一类才动哪一类。
+//   - categoryIds 为空 → 什么都不做，原样返回（**不是**「全清」），并写明原因。
+//   - 未知 id → 明确失败，不静默忽略。
+//   - 写盘之前会用同一套枚举复验：勾选的类必须归零，没勾的类必须不变
+//     （增量历史除外——任何重写都会把它拍平，这是写出器的固有行为）。
+QByteArray sanitizeHiddenDataSelective(const QByteArray& bytes,
+                                       const QSet<QString>& categoryIds,
+                                       QString* error = nullptr);
 
 // 用 qpdf 区分用户密码和所有者密码。仅“能打开”不足以解除权限限制。
 bool verifyOwnerPassword(const QByteArray& input,

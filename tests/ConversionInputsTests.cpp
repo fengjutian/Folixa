@@ -511,7 +511,8 @@ private slots:
     void dialogClipboardModeUsesClipboard();
     void dialogPrefersClipboardHtmlOverText();
     void dialogRejectsUnreadableTemplateFile();
-    void dialogRejectsImageOnlyClipboard();
+    void dialogConvertsImageOnlyClipboard();
+    void dialogConvertsInjectedClipboardImages();
 };
 
 // ============================================================ 剪贴板 =====
@@ -1332,7 +1333,25 @@ void ConversionInputsTests::dialogPrefersClipboardHtmlOverText() {
     QVERIFY(squeezeWhitespace(probe.allText()).contains(QStringLiteral("https://example.com/rich")));
 }
 
-void ConversionInputsTests::dialogRejectsImageOnlyClipboard() {
+void ConversionInputsTests::dialogConvertsInjectedClipboardImages() {
+    // 注入路径：单测不该去动用户的剪贴板（系统剪贴板被别的进程占着就读不到，
+    // 测试会莫名其妙地跳过）。所以这里直接塞字节。
+    const QByteArray png = makeSolidPng(8, 8, 255, 0, 0);
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Clipboard);
+    dialog.setClipboardContent(aipdf::app::ConversionInputDialog::ClipboardContent::Images);
+    dialog.setClipboardImages({png});
+    aipdf::app::ConversionInputOutcome outcome;
+    QVERIFY(dialog.convert(&outcome));
+    QVERIFY(outcome.ok);
+    QVERIFY(!outcome.bytes.isEmpty());
+    QCOMPARE(outcome.pageCount, 1);
+    QCOMPARE(outcome.sourceKind, aipdf::doc::ConversionSourceKind::Images);
+    // 走图片这一路要说明白：每张图一页。
+    QVERIFY(outcome.detailLines.join(QStringLiteral("|")).contains(QStringLiteral("图片")));
+}
+
+void ConversionInputsTests::dialogConvertsImageOnlyClipboard() {
     QClipboard* clipboard = QGuiApplication::clipboard();
     if (clipboard == nullptr) {
         QSKIP("本机没有剪贴板");
@@ -1367,9 +1386,10 @@ void ConversionInputsTests::dialogRejectsImageOnlyClipboard() {
         clipboard->setText(savedText);
     }
 
-    // 负例：剪贴板里只有图片 —— 明确说「不支持」，不能笼统报「没内容」。
-    QVERIFY(!converted);
-    QVERIFY(error.contains(QStringLiteral("图片")));
+    // 剪贴板里只有图片 —— 现在能转了：一图一页。
+    // （以前这里断言「不支持」，那是能力没落地时的行为。）
+    QVERIFY2(converted, qPrintable(error));
+    QVERIFY(error.isEmpty());
 }
 
 void ConversionInputsTests::dialogRejectsUnreadableTemplateFile() {
