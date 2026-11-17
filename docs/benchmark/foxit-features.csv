@@ -52,7 +52,7 @@ tab,group,command,status,capability,note
 转换,输入,文件转换,aligned,H6,文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 23 条），Office / HTML 另走本机 LibreOffice；扫描仪 / 剪贴板 / 网页仍无
 转换,输入,从扫描仪,partial,I5,与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG**；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 28 条 + `ScannerCaptureTests` 9 条
 转换,输入,从剪贴板,partial,H9,剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；**剪贴板里有富文本时按富文本排版**（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片仍不转换**（明确提示，不静默忽略）；纯文本路径靠嵌入整份系统字体（不子集化，体积大）；`ConversionInputsTests` 34 条
-转换,输入,从网页,partial,H9,网页转 PDF 已实现：抓取 → 抽正文 → 排版（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）；**不执行 JavaScript、不渲染 CSS、不带图片**；只支持 UTF-8 / UTF-16，GBK 明确报错；抓取超时 15 秒
+转换,输入,从网页,partial,H9,网页转 PDF 已实现：抓取 → 抽正文 → 排版（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）；**网页正文里的 `<img src>` 会下载并嵌进 PDF**（每张单独一页，插在它出现的那段正文之后）；**任一张图失败都不中断整篇转换**，逐条记原因（下载失败 / 格式不支持 / 解不开 / 太大 / 超上限）；格式只支持 JPEG / BMP / PNG，TIFF / GIF / WebP 逐条报「格式不支持」；**不执行 JavaScript、不渲染 CSS**，`srcset`、CSS `background-image`、脚本动态插的图都不取；`data:` 内联图不支持；单次最多 50 张；只支持 UTF-8 / UTF-16，GBK 明确报错；抓取超时 15 秒
 转换,输入,从CAJ,na,—,地区性格式
 转换,输入,表单,aligned,H10,表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过
 转换,打包,PDF文件包,aligned,—,PDF 文件包（Portfolio）：添加文件、填包标题/作者、创建 `.pdf` 包、打开已有包、列出并取出条目；`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`

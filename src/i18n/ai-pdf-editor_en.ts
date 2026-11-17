@@ -6628,6 +6628,46 @@ Notes: %1</translation></message>
                 <source>这个网页里没有正文（脚本、样式和导航都去掉之后就没东西了）。</source>
                 <translation>This web page has no body text (nothing is left after scripts, styles and navigation are removed).</translation>
             </message>
+            <message>
+                <source>这次带了 %1 张图片。</source>
+                <translation>%1 image(s) were included this time.</translation>
+            </message>
+            <message>
+                <source>这次没有带图片。</source>
+                <translation>No images were included this time.</translation>
+            </message>
+            <message>
+                <source>这次没有带图片（网页里没有图片）。</source>
+                <translation>No images were included this time (the web page has no images).</translation>
+            </message>
+            <message>
+                <source>图片没带进来：%1（%2）</source>
+                <translation>Image not included: %1 (%2)</translation>
+            </message>
+            <message>
+                <source>下载失败</source>
+                <translation>the download failed</translation>
+            </message>
+            <message>
+                <source>格式不支持</source>
+                <translation>the format is not supported</translation>
+            </message>
+            <message>
+                <source>数据损坏，解不开</source>
+                <translation>the data is corrupted and cannot be decoded</translation>
+            </message>
+            <message>
+                <source>图片太大，一页放不下</source>
+                <translation>the image is too large to fit on a page</translation>
+            </message>
+            <message>
+                <source>排不进这份 PDF</source>
+                <translation>it cannot be placed into this PDF</translation>
+            </message>
+            <message>
+                <source>页面里的图太多，超出了单次上限</source>
+                <translation>the page has too many images (over the limit for one run)</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::DocumentCompareDialog</name>
@@ -6917,6 +6957,10 @@ Notes: %1</translation></message>
             <message>
                 <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）</source>
                 <translation>The scanner returned an unsupported image format (only BMP, JPEG and PNG are supported)</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
             </message>
             <message>
                 <source> DPI</source>
@@ -7299,5 +7343,9 @@ Notes: %1</translation></message>
                 <source> 建议：%1</source>
                 <translation>Suggestion: %1</translation>
             </message>
-    </context>
+                <message>
+                <source> 建议：%1</source>
+                <translation>Suggestion: %1</translation>
+            </message>
+</context>
 </TS>
