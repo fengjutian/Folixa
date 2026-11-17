@@ -69,7 +69,7 @@
 | A9 | 夜间 / 护眼 / 高对比配色 | ✓ | 已具备 | 1.10.0 | 夜间 / 护眼 / 高对比四套配色，`app::theme::ReadingScheme` 统一管理、QSettings 持久化，Ribbon 有切换入口；`ReadingSchemeTests` 兜底 |
 | A10 | 图层（OCG）开关 | ✓ | 对齐 | 2.x | OCG 图层面板：列出全部图层（名称 / 默认可见 / 顺序），逐个开关并写回文档，页面级 OCMD 覆盖也显示（哪些页面单独改了某个图层的可见性）；**图层名不是 PDF 名字 token**，映射由领域层处理，界面不自己拼键名；`OptionalContentTests` |
 | A11 | 3D / 多媒体 / 作品集 | ± | 对齐 | — | 3D / 多媒体注解与作品集都已实现：写 `/3D`、`/Screen` 注解与 Filespec（`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`，`RichMedia3dTests` 26 条），作品集能读能写（`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`）；**只写对结构，不渲染 3D、不解码音视频**，界面文案如实说明，不许承诺「可以旋转模型」 |
-| A12 | 复杂 CJK 排版与超大字符集 | ✓ | 对齐 | 2.0.0 | 兼容语料回归 |
+|  A12 | 复杂 CJK 排版与超大字符集 | ✓ | 对齐 | 2.0.0 | **现在有可复跑的兼容语料回归**（`scripts/gen-cjk-corpus.py` 生成 8 份复杂 CJK 夹具，`scripts/verify-cjk-corpus.ps1` 逐份断言能打开 / 页数正确 / 能抽出文字 / 关键锚点命中 / 渲染不崩，已接进 `scripts/ci.ps1`）；语料覆盖生僻字与扩展区汉字、CJK 标点、全角字符、基字 + 变音符组合、中英混排、竖排、长段落、单页 3000 字；**竖排是按字摆放模拟的，不是真正的竖排书写模式（WMode 1）**；组合字符只断言「基字 + 变音符」的序列，不断言整形与顺序 |
 | A13 | 循环放映 | ✓ | 已具备 | — | 放映到最后一页时绕回第一页；循环开关做成**无界面依赖的纯函数状态机**（`app::nextPresentationPage`），关掉循环就逐字保持原来的「到头就停」；`PresentationLoopTests` 9 条；**不做定时自动翻页**，只影响手动翻页到头时的行为 |
 
 ### B. 导航与检索（9 项）
@@ -164,11 +164,11 @@
 | H4 | 导出纯文本（按阅读顺序） | ✓ | 已具备 | 1.2.0 | 与抽取结果一致 |
 | H5 | PDF → Word / Excel / PPT | ✓ | 对齐 | 1.9.0 | PDF → Word（DOCX）/ RTF / 纯文本已实现并有界面入口（`doc::exportPageTo`，DOCX 是 zip 打包的真 .docx），`OfficeExportTests` 11 条；**只导一页文本层，不含图片、表格与样式**，Excel / PPT 仍未做 |
 | H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 23 条），有界面入口；**用标准 14 字体时中文会变成 `?`**，界面如实提示并提供「选择字体文件」入口；扫描仪 / 剪贴板 / 网页仍无 |
-| H7 | PDF/A 转换 | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**没有合规校验器**（Ghostscript 只能转、不能验，转完的档是不是真的合规要另找工具验） |
-| H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**没有体积下降与渲染一致断言** |
+|  H7 | PDF/A 转换 | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**现在有 PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**但预检不是合规认证** —— 认证要 veraPDF（Java 依赖），本仓库不引入新依赖，所以界面只说「预检发现 N 个问题」；`PdfACheckerTests` 34 条 |
+|  H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`，带自检负例）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的 |
 | H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 剪贴板文字转 PDF（`doc::clipboardTextToPdf`）与网页转 PDF（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`）都有界面入口（`convert.fromClipboard` / `convert.fromWeb`）；**剪贴板只做纯文本排版，图片与富文本不转换**；**网页不执行 JavaScript、不渲染 CSS、不带图片**，只支持 UTF-8 / UTF-16（GBK 明确报错），抓取超时 15 秒；`ConversionInputsTests` 26 条 |
 | H10 | 表单数据文件转 PDF | ✓ | 已具备 | — | FDF / XFDF / XML 三种表单数据文件套进模板 PDF（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过；`ConversionInputsTests` 26 条 |
-| H11 | 发送到 OneNote | ✓ | 对齐 | — | 把当前页面渲染成图片并送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**；**只送图片，不送可搜索的文字层**；`OneNoteExporterTests` 24 条 |
+|  H11 | 发送到 OneNote | ✓ | 对齐 | — | 把当前文档每一页渲染成图片并送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**送出的页面带可搜索的文字层**（按 OneNote 页面 XML 写 `one:Text` run，**文字层写坏时降级为只送图片**而不是整个发送失败，并说明降级了几页）；**先渲染全部页再逐页写入**：渲染失败一页都不写，写入中途失败明确告诉用户已经写进几页，不假装全失败也不声称自动删除；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**，**本机没有 OneNote，COM 写入路径没有真机验证**；`OneNoteExporterTests` 31 条 |
 
 ### I. OCR 与扫描（5 项）
 
@@ -178,7 +178,7 @@
 | I2 | 隐藏文本层回写 | ✓ | 对齐 | 1.3.0 | 隐藏文本层回写已实现并有界面入口：把识别文字以渲染模式 3（`3 Tr`）加在页面内容流末尾，可搜索可复制且不改变外观（`pdf::writeInvisibleTextLayer`，`InvisibleTextLayerTests` 16 条）；**同一页重写是「替换」不是「叠加」**（写出的层带 `%AIPDF-OCR-LAYER-BEGIN/END` 标记，写前先摘掉旧层）——不替换的话两层叠在同一坐标，PDFium 只保留一层，第二遍的文字取不到而函数仍返回成功 |
 | I3 | 界面语言切换与缺包检测 | ✓ | 对齐 | 2.0.0 | 界面语言可切换（中 / English / 跟随系统），选择持久化到 QSettings；**语言包缺失或解析失败时明确报错、不再静默劣化**（`LanguageManager::apply` 失败即返回 false 并给出原因，界面弹提示；旧实现会谎报「已切换为 English」而界面一个字没变，本轮已修并做了负例对照）；**没有「安装引导」** —— 语言包是构建期打进 Qt 资源的，用户侧装不了；`I18nTests` 20 条 |
 | I4 | 版面分析与阅读顺序 | ✓ | 已具备 | 0.13.0 | OCR 结果走同一分块器，行框齐全 |
-| I5 | 扫描仪输入（WIA） | ✓ | 对齐 | — | WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon 两个「从扫描仪」入口（`scan.fromScanner` / `convert.fromScanner`）已启用）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**：枚举路径已实跑验证、**取帧路径只做了实现与编译验证，没有真机跑过**；图像只支持 BMP 与 JPEG，其余格式明确报错；`ImageToPdfTests` 18 条 |
+|  I5 | 扫描仪输入（WIA） | ✓ | 对齐 | — | WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon 两个「从扫描仪」入口（`scan.fromScanner` / `convert.fromScanner`）已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序 + 传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 9 条）；**图像支持 BMP / JPEG / PNG**（PNG 用自研解码器，不依赖 Qt 图像插件；TIFF 明确不支持）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**：枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 28 条 |
 
 ### J. 国际化与无障碍（7 项）
 
@@ -190,7 +190,7 @@
 | J4 | 朗读（逐词高亮） | ✓ | **已具备** | 1.10.0 | 走 Windows 系统语音合成（PowerShell + System.Speech）逐词朗读，页面上逐词高亮；`SpeechTextTests` 15 条 + `SpeechEngineTests` 10 条；**没有音色 / 语速可调，逐词合成长文较慢，系统无语音时优雅降级** |
 | J5 | 读取标签结构生成阅读顺序 | ✓ | 对齐 | 1.10.0 | 除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`）：支持 `/K` 三种形态、`/Parent` 反查、防环，能读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，并有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规 |
 | J6 | PDF/UA 合规检查 | ✓ | 对齐 | — | PDF/UA **合规检查器**已实现：给出「通过 / 警告 / 不通过」三档结论与逐条修复建议（`pdf::checkPdfUa`，`PdfUaCheckerTests` 19 条）；**只做检查与修复建议，不能一键生成合规文件**，界面文案如实 |
-| J7 | 自动打标签到表单域 | ✓ | 对齐 | — | 每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**已有标签树按「替换」语义处理**（树里的 `/Form` 元素会被摘掉换成新的）；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 9 条 |
+|  J7 | 自动打标签到表单域 | ✓ | 对齐 | — | 每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**没有用读屏软件实测**，只做结构层回读校验；`FormAutoTagTests` 14 条 |
 
 ### K. 性能与兼容（6 项）
 
@@ -213,7 +213,7 @@
 | L4 | **引用逐字离线核验** | — | 已具备（超越） | — | 已有负例守卫 |
 | L5 | 数据策略、上传预览、审计 | ± | 已具备（超越） | 0.12.0 | 本地模式零外发 |
 | L6 | 自然语言编辑（命令化、可预演、可撤销） | — | **超越** | 0.14.0 → 2.0.0 | diff 预演 + 撤销链 |
-| L7 | 文档比较（结构差异 + 引用定位） | ✓ | 对齐 | 2.0.0 | 文档比较已实现：按文字块逐块比对，列出新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位（`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用）；**只比文字层，不做像素 / 版面比对**——纯图形改动看不出来；整页挪位会报成「删页 + 加页」；`DocumentComparerTests` 14 条 |
+|  L7 | 文档比较（结构差异 + 引用定位） | ✓ | 对齐 | 2.0.0 | 文档比较已实现，**两层结果并排给**：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ **可选的像素级视觉比对**（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关：渲染成位图逐像素比，列出差异比例与差异区域，**纯图形改动也能被检出**）；**默认关闭**（渲染慢）；**尺寸不同的页只比共同区域**（不缩放归一化 —— 缩放会造出大面积假差异）；**不做跨文档自动对齐，也不做版面结构分析**（页码按位置配对，中间插页会让配对整体后移）；`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用；`DocumentComparerTests` 20 条 |
 | L8 | 本地模型离线问答 | — | 对齐 | 2.x | 本地离线问答：不联网、不配 Provider，用本地索引检索 + 抽取式回答，每条回答都带可核对的引用；检索不到时明确说「没找到」并列出最接近的片段，**不编答案**；有界面入口（`ai::OfflineQa`，`OfflineQaTests`） |
 
 ## 3. 汇总与达标线

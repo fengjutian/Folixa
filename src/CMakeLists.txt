@@ -59,6 +59,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/RibbonBar.cpp
     app/LastWaveWriter.cpp
     app/LastWaveWriter.h
+    app/PdfAPreflightPanel.cpp
+    app/PdfAPreflightPanel.h
     app/OneNoteExporter.cpp
     app/OneNoteExporter.h
     app/PresentationLoop.cpp

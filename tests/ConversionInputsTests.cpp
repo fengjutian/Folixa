@@ -242,6 +242,80 @@ QByteArray buildTestFont() {
     return out;
 }
 
+// ============================================================ 造 PNG =====
+
+// 为什么自己造 PNG 而不是用 QImageWriter 写一张：
+// 部署包不一定带 Qt 的 PNG 图像插件（scripts/package.ps1 只保证 gif/ico/jpeg/svg），
+// 夹具要是靠插件才造得出来，CI 上就会随机红。
+//
+// 抄自 tests/ImageToPdfTests.cpp 的同一套构造，两处各留一份是刻意的：
+// 共享一份测试辅助代码就得再开一个头文件，收益不抵「多一个要维护的文件」。
+
+// PNG 块的 CRC-32（按位版，与解码器里的查表版写法不同：两边独立实现，
+// 测试才有资格发现解码器把 CRC 算错了）。
+quint32 testCrc32(const QByteArray& data) {
+    quint32 crc = 0xFFFFFFFFu;
+    for (char ch : data) {
+        crc ^= static_cast<quint8>(ch);
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc & 1u) != 0u ? (0xEDB88320u ^ (crc >> 1)) : (crc >> 1);
+        }
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
+void appendBE32(QByteArray& out, quint32 value) {
+    out.append(static_cast<char>((value >> 24) & 0xFF));
+    out.append(static_cast<char>((value >> 16) & 0xFF));
+    out.append(static_cast<char>((value >> 8) & 0xFF));
+    out.append(static_cast<char>(value & 0xFF));
+}
+
+void appendPngChunk(QByteArray& png, const char* type, const QByteArray& data) {
+    appendBE32(png, static_cast<quint32>(data.size()));
+    const QByteArray typed = QByteArray(type, 4) + data;
+    png.append(typed);
+    appendBE32(png, testCrc32(typed));
+}
+
+// 造一张 RGB 的 PNG（真 PNG，不是假头）。
+//
+// pixelsTopDown 是自上而下、每像素 3 字节 RGB 的原始像素。
+// qCompress 的输出前面 4 字节是长度头，后面那段才是标准 zlib 流（带 0x78 头与
+// adler32），正好是 PNG 要的。
+QByteArray makePng(int width, int height, const QByteArray& pixelsTopDown) {
+    QByteArray rawRows;
+    for (int row = 0; row < height; ++row) {
+        rawRows.append(static_cast<char>(0));  // 过滤器 0（None）
+        rawRows.append(pixelsTopDown.mid(row * width * 3, width * 3));
+    }
+    QByteArray png;
+    png.append("\x89PNG\r\n\x1a\n", 8);
+    QByteArray ihdr;
+    appendBE32(ihdr, static_cast<quint32>(width));
+    appendBE32(ihdr, static_cast<quint32>(height));
+    ihdr.append(static_cast<char>(8));  // 位深
+    ihdr.append(static_cast<char>(2));  // 颜色类型：真彩 RGB
+    ihdr.append(static_cast<char>(0));  // 压缩方法
+    ihdr.append(static_cast<char>(0));  // 过滤方法
+    ihdr.append(static_cast<char>(0));  // 隔行
+    appendPngChunk(png, "IHDR", ihdr);
+    appendPngChunk(png, "IDAT", qCompress(rawRows).mid(4));
+    appendPngChunk(png, "IEND", QByteArray());
+    return png;
+}
+
+// 一张纯色图。
+QByteArray makeSolidPng(int width, int height, char red, char green, char blue) {
+    QByteArray pixels;
+    for (int index = 0; index < width * height; ++index) {
+        pixels.append(red);
+        pixels.append(green);
+        pixels.append(blue);
+    }
+    return makePng(width, height, pixels);
+}
+
 // ============================================================ 读回验证 =====
 
 // 去掉所有空白，便于比较「抽出来的文字」与「源文字」。
@@ -284,6 +358,46 @@ PdfProbe probeWithPdfium(const QByteArray& bytes) {
         probe.pageTexts.append(text->plainText());
     }
     return probe;
+}
+
+// 数一页里的图片对象。
+//
+// 为什么用 PDFium 数：数对象才能证明「图真的在 PDF 里」，
+// 只看转换返回 true 证明不了任何事。
+int countImageObjects(const aipdf::pdf::PdfPage& page) {
+    const QRectF area(0.0, 0.0, page.widthPoints(), page.heightPoints());
+    int count = 0;
+    for (const aipdf::pdf::PageObjectInfo& info : page.objectsInRect(area)) {
+        if (info.type == aipdf::pdf::PageObjectType::Image) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+// 渲染出来的图里有没有指定颜色的像素。
+//
+// 这是「别的阅读器看得见」的证据：图在文件里但画不出来，跟没有图一样。
+bool hasPixelOfColor(const QImage& image, int red, int green, int blue) {
+    if (image.isNull()) {
+        return false;
+    }
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.red() > red && pixel.green() < green && pixel.blue() < blue) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// 假取字节回调：按地址返回预置的字节，取不到就返回空。
+aipdf::doc::ImageFetcher makeImageFetcher(const QHash<QString, QByteArray>& table) {
+    return [table](const QUrl& url) -> QByteArray {
+        return table.value(url.toString());
+    };
 }
 
 // 读测试夹具（scripts/generate-test-pdfs.py 生成的固定装置）。
@@ -334,6 +448,15 @@ private slots:
     void htmlWithOnlyScriptIsRejected();
     void relativeLinksAreResolvedAgainstBaseUrl();
     void brokenHtmlStillYieldsText();
+
+    // -------------------------------------------------------- 网页图片 ----
+    void webImagesAreCollectedFromHtml();
+    void webImageIsEmbeddedIntoPdf();
+    void webImageDownloadFailureIsReported();
+    void webImageBrokenBytesAreReported();
+    void webImageUnsupportedFormatIsReported();
+    void webWithoutImageFetcherKeepsOldBehavior();
+    void webImageFetcherRejectsNonHttpUrl();
 
     // -------------------------------------------------------- 表单解析 ----
     void fdfValuesAreParsed();
@@ -574,6 +697,174 @@ void ConversionInputsTests::brokenHtmlStillYieldsText() {
     const HtmlBody body = aipdf::doc::extractHtmlBody(html, QUrl());
     QVERIFY(body.text.contains(QStringLiteral("Unclosed")));
     QVERIFY(body.text.contains(QStringLiteral("bold")));
+}
+
+// ============================================================ 网页图片 ====
+
+void ConversionInputsTests::webImagesAreCollectedFromHtml() {
+    // 正例：正文里的 <img> 被收集出来：绝对地址、去重、按出现顺序。
+    const QString html =
+        QStringLiteral("<html><body><article>"
+                       "<p>First paragraph.</p>"
+                       "<img src=\"/first.png\">"
+                       "<p>Second paragraph.</p>"
+                       "<img src=\"https://cdn.example.com/second.png\">"
+                       "<p>Third paragraph.</p>"
+                       "<img src=\"/first.png\">"          // 重复的只留第一次
+                       "<img srcset=\"/small.png 1x, /big.png 2x\">"  // 只取 src，不取 srcset
+                       "</article></body></html>");
+    const HtmlBody body =
+        aipdf::doc::extractHtmlBody(html, QUrl(QStringLiteral("https://example.com/dir/page.html")));
+    QCOMPARE(body.images.size(), 2);
+    QCOMPARE(body.images.at(0).url, QStringLiteral("https://example.com/first.png"));
+    QCOMPARE(body.images.at(1).url, QStringLiteral("https://cdn.example.com/second.png"));
+    // 位置要落在正文里（用来把图插到正文对应位置附近）。
+    QVERIFY(body.images.at(0).textOffset >= 0);
+    QVERIFY(body.images.at(1).textOffset > body.images.at(0).textOffset);
+}
+
+void ConversionInputsTests::webImageIsEmbeddedIntoPdf() {
+    // 正例：注入假的取字节回调 → PDF 里真的有图。
+    QHash<QString, QByteArray> table;
+    table.insert(QStringLiteral("https://example.com/pic.png"), makeSolidPng(40, 40, 255, 0, 0));
+    const QString html =
+        QStringLiteral("<html><body><article><p>Before the picture.</p>"
+                       "<img src=\"/pic.png\"><p>After the picture.</p></article></body></html>");
+    const ConversionResult result =
+        aipdf::doc::htmlToPdf(html, QUrl(QStringLiteral("https://example.com/dir/page.html")),
+                              UniversalConverterOptions(), makeImageFetcher(table));
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    QCOMPARE(result.imageOutcome.found, 1);
+    QCOMPARE(result.imageOutcome.embedded, 1);
+    QVERIFY(result.imageOutcome.issues.isEmpty());
+    // 正文与图片各占一页：文字在前后，图插在中间。
+    QCOMPARE(result.pageCount, 3);
+    // PDF 里确实有一个图像对象（不能只看「转换成功」）。
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 1);
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("web.pdf"));
+    QVERIFY(opened.document.isValid());
+    QCOMPARE(opened.document.pageCount(), 3);
+
+    const std::optional<aipdf::pdf::PdfPage> imagePage = opened.document.page(1);
+    QVERIFY(imagePage.has_value());
+    QCOMPARE(countImageObjects(*imagePage), 1);
+    // 渲染出来真的有那片红色（图在文件里但画不出来，跟没有图一样）。
+    const QImage rendered = imagePage->render(1.0);
+    QVERIFY(!rendered.isNull());
+    QVERIFY2(hasPixelOfColor(rendered, 200, 60, 60), "图片没有渲染出来");
+
+    // 其余正文照常在 PDF 里。
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    const QString extracted = squeezeWhitespace(probe.allText());
+    QVERIFY(extracted.contains(QStringLiteral("Beforethepicture")));
+    QVERIFY(extracted.contains(QStringLiteral("Afterthepicture")));
+}
+
+void ConversionInputsTests::webImageDownloadFailureIsReported() {
+    // 负例的关键：一张图下载失败**不能**让整篇转换失败。
+    const QString html =
+        QStringLiteral("<html><body><article><p>Before the picture.</p>"
+                       "<img src=\"/pic.png\"><p>After the picture.</p></article></body></html>");
+    const ConversionResult result =
+        aipdf::doc::htmlToPdf(html, QUrl(QStringLiteral("https://example.com/dir/page.html")),
+                              UniversalConverterOptions(), makeImageFetcher({}));
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    QCOMPARE(result.imageOutcome.found, 1);
+    QCOMPARE(result.imageOutcome.embedded, 0);
+    QCOMPARE(result.imageOutcome.issues.size(), 1);
+    QCOMPARE(result.imageOutcome.issues.at(0).url, QStringLiteral("https://example.com/pic.png"));
+    QCOMPARE(result.imageOutcome.issues.at(0).kind,
+             aipdf::doc::HtmlImageIssueKind::DownloadFailed);
+    // 其余内容照常出 PDF（没有图，也不该多出空白页）。
+    QCOMPARE(result.pageCount, 1);
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    const QString extracted = squeezeWhitespace(probe.allText());
+    QVERIFY(extracted.contains(QStringLiteral("Beforethepicture")));
+    QVERIFY(extracted.contains(QStringLiteral("Afterthepicture")));
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 0);
+}
+
+void ConversionInputsTests::webImageBrokenBytesAreReported() {
+    // 负例：图拿到了但是坏的 —— 同样不能中断整篇转换，原因要写清楚。
+    QHash<QString, QByteArray> table;
+    table.insert(QStringLiteral("https://example.com/pic.png"),
+                 QByteArrayLiteral("\x89PNG\r\n\x1a\n") + QByteArrayLiteral("broken bytes"));
+    const QString html =
+        QStringLiteral("<html><body><article><p>Before the picture.</p>"
+                       "<img src=\"/pic.png\"></article></body></html>");
+    const ConversionResult result =
+        aipdf::doc::htmlToPdf(html, QUrl(QStringLiteral("https://example.com/dir/page.html")),
+                              UniversalConverterOptions(), makeImageFetcher(table));
+    QVERIFY(result.ok);
+    QCOMPARE(result.imageOutcome.embedded, 0);
+    QCOMPARE(result.imageOutcome.issues.size(), 1);
+    QCOMPARE(result.imageOutcome.issues.at(0).url, QStringLiteral("https://example.com/pic.png"));
+    QCOMPARE(result.imageOutcome.issues.at(0).kind,
+             aipdf::doc::HtmlImageIssueKind::DecodeFailed);
+    // 技术细节（ASCII）也要有，方便排查。
+    QVERIFY(!result.imageOutcome.issues.at(0).detail.isEmpty());
+    // 正文照常出 PDF。
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    QVERIFY(squeezeWhitespace(probe.allText()).contains(QStringLiteral("Beforethepicture")));
+}
+
+void ConversionInputsTests::webImageUnsupportedFormatIsReported() {
+    // 负例：完全认不出来的格式（这里用 GIF 头）—— 原因要与「数据坏了」分开。
+    QHash<QString, QByteArray> table;
+    table.insert(QStringLiteral("https://example.com/pic.gif"),
+                 QByteArrayLiteral("GIF89a-not-really-an-image"));
+    const QString html =
+        QStringLiteral("<html><body><article><p>Before the picture.</p>"
+                       "<img src=\"/pic.gif\"></article></body></html>");
+    const ConversionResult result =
+        aipdf::doc::htmlToPdf(html, QUrl(QStringLiteral("https://example.com/dir/page.html")),
+                              UniversalConverterOptions(), makeImageFetcher(table));
+    QVERIFY(result.ok);
+    QCOMPARE(result.imageOutcome.embedded, 0);
+    QCOMPARE(result.imageOutcome.issues.size(), 1);
+    QCOMPARE(result.imageOutcome.issues.at(0).url, QStringLiteral("https://example.com/pic.gif"));
+    QCOMPARE(result.imageOutcome.issues.at(0).kind,
+             aipdf::doc::HtmlImageIssueKind::UnsupportedFormat);
+}
+
+void ConversionInputsTests::webWithoutImageFetcherKeepsOldBehavior() {
+    // 没有注入取字节回调 = 这次不下载图片：行为与从前一致，不报错也不带图。
+    const QString html =
+        QStringLiteral("<html><body><article><p>Before the picture.</p>"
+                       "<img src=\"/pic.png\"><p>After the picture.</p></article></body></html>");
+    const ConversionResult result =
+        aipdf::doc::htmlToPdf(html, QUrl(QStringLiteral("https://example.com/dir/page.html")));
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    // 明确说明「这次没有下载图片」。
+    QVERIFY(!result.imageOutcome.attempted);
+    QCOMPARE(result.imageOutcome.embedded, 0);
+    QCOMPARE(result.imageOutcome.found, 1);
+    QVERIFY(result.imageOutcome.issues.isEmpty());
+    // 没有图片，也没有多出空白页。
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 0);
+    QCOMPARE(result.pageCount, 1);
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("web.pdf"));
+    QVERIFY(opened.document.isValid());
+    const std::optional<aipdf::pdf::PdfPage> firstPage = opened.document.page(0);
+    QVERIFY(firstPage.has_value());
+    QCOMPARE(countImageObjects(*firstPage), 0);
+}
+
+void ConversionInputsTests::webImageFetcherRejectsNonHttpUrl() {
+    // 负例：只支持 http / https —— 别的协议直接取不到（回调返回空字节），
+    // 不能让 doc 层拿着一个乱七八糟的地址去下载。
+    const aipdf::doc::ImageFetcher fetcher = aipdf::app::webImageFetcher(1000);
+    QVERIFY(fetcher(QUrl(QStringLiteral("ftp://example.com/pic.png"))).isEmpty());
+    QVERIFY(fetcher(QUrl()).isEmpty());
 }
 
 // ============================================================ 表单解析 =====

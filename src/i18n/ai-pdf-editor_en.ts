@@ -2710,6 +2710,26 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
                 <source>把整篇文档的每一页送进本机 OneNote</source>
                 <translation>Send every page of the document to the OneNote app on this computer</translation>
             </message>
+            <message>
+                <source>文档本来就有标签树，这次是合并进去的，保留了 %1 个既有元素。</source>
+                <translation>The document already had a tag tree; this run merged into it and kept %1 existing element(s).</translation>
+            </message>
+            <message>
+                <source>保留下来的元素类型：%1</source>
+                <translation>Preserved element types: %1</translation>
+            </message>
+            <message>
+                <source>这份文档本来没有标签树，这次新建了一棵。</source>
+                <translation>This document had no tag tree; a new one was created.</translation>
+            </message>
+            <message>
+                <source>PDF/A-2b 预检</source>
+                <translation>PDF/A-2b Preflight</translation>
+            </message>
+            <message>
+                <source>逐项检查离 PDF/A-2b 还差什么（预检，不是合规认证）</source>
+                <translation>Check item by item what is still missing for PDF/A-2b (preflight, not certification)</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -6906,6 +6926,10 @@ Notes: %1</translation></message>
                 <source> DPI</source>
                 <translation>DPI</translation>
             </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
+            </message>
 </context>
     <context>
         <name>aipdf::app::PresentationLoop</name>
@@ -7049,4 +7073,231 @@ Notes: %1</translation></message>
                 <translation>The XML of this page is broken; only the image was sent.</translation>
             </message>
 </context>
+    <context>
+        <name>aipdf::app::PdfAPreflightPanel</name>
+            <message>
+                <source>文档是空的</source>
+                <translation>The document is empty.</translation>
+            </message>
+            <message>
+                <source>不是 PDF 文件</source>
+                <translation>This file is not a PDF.</translation>
+            </message>
+            <message>
+                <source>本次构建没有启用 qpdf</source>
+                <translation>This build was made without qpdf.</translation>
+            </message>
+            <message>
+                <source>文档读不出来</source>
+                <translation>The document could not be read.</translation>
+            </message>
+            <message>
+                <source>文件头版本符合要求</source>
+                <translation>The file header version is acceptable.</translation>
+            </message>
+            <message>
+                <source>文件头版本不是 %PDF-1.7</source>
+                <translation>The file header is not %PDF-1.7.</translation>
+            </message>
+            <message>
+                <source>trailer 里有 /ID</source>
+                <translation>The trailer has an /ID.</translation>
+            </message>
+            <message>
+                <source>trailer 里缺 /ID</source>
+                <translation>The trailer is missing /ID.</translation>
+            </message>
+            <message>
+                <source>文档没有加密</source>
+                <translation>The document is not encrypted.</translation>
+            </message>
+            <message>
+                <source>文档被加密了</source>
+                <translation>The document is encrypted.</translation>
+            </message>
+            <message>
+                <source>缺少 XMP 元数据</source>
+                <translation>XMP metadata is missing.</translation>
+            </message>
+            <message>
+                <source>XMP 元数据的类型不对</source>
+                <translation>The XMP metadata stream has the wrong subtype.</translation>
+            </message>
+            <message>
+                <source>XMP 里没有声明 PDF/A</source>
+                <translation>The XMP metadata does not declare PDF/A.</translation>
+            </message>
+            <message>
+                <source>XMP 声明的 PDF/A 部分不对</source>
+                <translation>The XMP metadata declares the wrong PDF/A part.</translation>
+            </message>
+            <message>
+                <source>XMP 声明的一致级别不对</source>
+                <translation>The XMP metadata declares the wrong conformance level.</translation>
+            </message>
+            <message>
+                <source>XMP 声明正确</source>
+                <translation>The XMP metadata declaration is correct.</translation>
+            </message>
+            <message>
+                <source>缺少输出意图（OutputIntent）</source>
+                <translation>The output intent (OutputIntent) is missing.</translation>
+            </message>
+            <message>
+                <source>输出意图的类型不对</source>
+                <translation>The output intent has the wrong subtype.</translation>
+            </message>
+            <message>
+                <source>输出意图里没有嵌入 ICC 配置文件</source>
+                <translation>The output intent has no embedded ICC profile.</translation>
+            </message>
+            <message>
+                <source>嵌入的 ICC 配置文件不合要求</source>
+                <translation>The embedded ICC profile does not meet the requirements.</translation>
+            </message>
+            <message>
+                <source>输出意图符合要求</source>
+                <translation>The output intent is acceptable.</translation>
+            </message>
+            <message>
+                <source>字体全部内嵌</source>
+                <translation>All fonts are embedded.</translation>
+            </message>
+            <message>
+                <source>有字体没有内嵌</source>
+                <translation>Some fonts are not embedded.</translation>
+            </message>
+            <message>
+                <source>没有用 LZW 压缩</source>
+                <translation>No LZW compression is used.</translation>
+            </message>
+            <message>
+                <source>用了 LZW 压缩</source>
+                <translation>LZW compression is used.</translation>
+            </message>
+            <message>
+                <source>没有外部文件引用</source>
+                <translation>There are no external file references.</translation>
+            </message>
+            <message>
+                <source>有外部文件引用</source>
+                <translation>There are external file references.</translation>
+            </message>
+            <message>
+                <source>没有 JavaScript 动作</source>
+                <translation>There are no JavaScript actions.</translation>
+            </message>
+            <message>
+                <source>有 JavaScript 动作</source>
+                <translation>There are JavaScript actions.</translation>
+            </message>
+            <message>
+                <source>色彩空间符合要求</source>
+                <translation>The colour spaces are acceptable.</translation>
+            </message>
+            <message>
+                <source>用了不能用的色彩空间</source>
+                <translation>A colour space that PDF/A does not allow is in use.</translation>
+            </message>
+            <message>
+                <source>没有透明对象</source>
+                <translation>There is no transparency.</translation>
+            </message>
+            <message>
+                <source>透明对象符合要求</source>
+                <translation>The transparency is acceptable.</translation>
+            </message>
+            <message>
+                <source>有透明对象但没有输出意图</source>
+                <translation>Transparency is used without an output intent.</translation>
+            </message>
+            <message>
+                <source>有透明对象但页面缺透明组</source>
+                <translation>Transparency is used without a page transparency group.</translation>
+            </message>
+            <message>
+                <source>软掩码的 /TR 不是 /Identity</source>
+                <translation>A soft mask /TR is not /Identity.</translation>
+            </message>
+            <message>
+                <source>注解符合要求</source>
+                <translation>The annotations are acceptable.</translation>
+            </message>
+            <message>
+                <source>用了 PDF/A 禁止的注解</source>
+                <translation>An annotation type that PDF/A forbids is in use.</translation>
+            </message>
+            <message>
+                <source>注解缺外观流</source>
+                <translation>An annotation is missing its appearance stream.</translation>
+            </message>
+            <message>
+                <source>注解的标志位不对</source>
+                <translation>An annotation has unsuitable flags.</translation>
+            </message>
+            <message>
+                <source>不通过</source>
+                <translation>Failed</translation>
+            </message>
+            <message>
+                <source>警告</source>
+                <translation>Warnings</translation>
+            </message>
+            <message>
+                <source>通过</source>
+                <translation>Passed</translation>
+            </message>
+            <message>
+                <source>码</source>
+                <translation>Code</translation>
+            </message>
+            <message>
+                <source>条款</source>
+                <translation>Clause</translation>
+            </message>
+            <message>
+                <source>标题</source>
+                <translation>Title</translation>
+            </message>
+            <message>
+                <source>说明</source>
+                <translation>Details</translation>
+            </message>
+            <message>
+                <source>建议</source>
+                <translation>Suggestion</translation>
+            </message>
+            <message>
+                <source>PDF/A-2b 预检</source>
+                <translation>PDF/A-2b Preflight</translation>
+            </message>
+            <message>
+                <source>预检结论</source>
+                <translation>Preflight conclusion</translation>
+            </message>
+            <message>
+                <source>预检能力说明</source>
+                <translation>What this preflight covers</translation>
+            </message>
+            <message>
+                <source>预检结论明细</source>
+                <translation>Preflight findings</translation>
+            </message>
+            <message>
+                <source>PDF/A-2b 预检发现 %1 个问题（通过 %2 项、警告 %3 项、不通过 %4 项）。</source>
+                <translation>The PDF/A-2b preflight found %1 issue(s) (%2 passed, %3 warnings, %4 failed).</translation>
+            </message>
+            <message>
+                <source>文件自己声明的是 PDF/A-%1%2。</source>
+                <translation>The file declares itself as PDF/A-%1%2.</translation>
+            </message>
+            <message>
+                <source>这是预检，不是合规认证：它只检查文件结构里能读出来的那些要求。</source>
+                <translation>This is a preflight, not a conformance certification: it only checks the requirements that can be read from the file structure.</translation>
+            </message>
+            <message>
+                <source> 建议：%1</source>
+                <translation>Suggestion: %1</translation>
+            </message>
+    </context>
 </TS>

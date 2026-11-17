@@ -24,6 +24,7 @@
 #include <QVBoxLayout>
 #include <QVector>
 
+#include <memory>
 #include <utility>
 
 #include "doc/ConversionInputs.h"
@@ -269,6 +270,27 @@ bool systemClipboardHasImage() {
     return mime != nullptr && mime->hasImage();
 }
 
+// 一张图没带进来的原因（给用户看的中文）。
+//
+// 为什么在 app 层拼：doc 层没有翻译上下文，给用户看的中文句子一律在这边拼。
+QString imageIssueReasonText(const aipdf::doc::HtmlImageIssue& issue) {
+    switch (issue.kind) {
+    case aipdf::doc::HtmlImageIssueKind::DownloadFailed:
+        return i18n::tr("aipdf::app::ConversionInputs", "下载失败");
+    case aipdf::doc::HtmlImageIssueKind::UnsupportedFormat:
+        return i18n::tr("aipdf::app::ConversionInputs", "格式不支持");
+    case aipdf::doc::HtmlImageIssueKind::DecodeFailed:
+        return i18n::tr("aipdf::app::ConversionInputs", "数据损坏，解不开");
+    case aipdf::doc::HtmlImageIssueKind::TooLarge:
+        return i18n::tr("aipdf::app::ConversionInputs", "图片太大，一页放不下");
+    case aipdf::doc::HtmlImageIssueKind::LayoutFailed:
+        return i18n::tr("aipdf::app::ConversionInputs", "排不进这份 PDF");
+    case aipdf::doc::HtmlImageIssueKind::LimitReached:
+        return i18n::tr("aipdf::app::ConversionInputs", "页面里的图太多，超出了单次上限");
+    }
+    return issue.detail;
+}
+
 // 剪贴板 → PDF 的结果。
 //
 // 对话框与「一键转换」两个入口共用这一份：写两遍的话，
@@ -383,6 +405,60 @@ WebFetchResult fetchWebPage(const QUrl& url, int timeoutMs) {
     }
     result.ok = true;
     return result;
+}
+
+// 取网页里图片的字节。
+//
+// 为什么放在 app 层：网络是副作用，领域层不碰；单测里要能塞假图片，
+// 就得让「取字节」这件事可以被替换。
+doc::ImageFetcher webImageFetcher(int timeoutMs) {
+    // 网络管理器整个批次共用一个：每张图都新建一个管理器会白建一堆连接池。
+    auto manager = std::make_shared<QNetworkAccessManager>();
+    return [manager, timeoutMs](const QUrl& url) -> QByteArray {
+        if (url.isEmpty() || !url.isValid()) {
+            return QByteArray();
+        }
+        const QString scheme = url.scheme().toLower();
+        if (scheme != QLatin1String("http") && scheme != QLatin1String("https")) {
+            return QByteArray();
+        }
+        QNetworkRequest request(url);
+        request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AiPdfEditor/"));
+        // 只跟随安全方向的跳转：https 跳到 http 不跟。
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                             QNetworkRequest::NoLessSafeRedirectPolicy);
+        QNetworkReply* reply = manager->get(request);
+
+        QEventLoop loop;
+        QTimer timer;
+        timer.setSingleShot(true);
+        bool timedOut = false;
+        QObject::connect(&timer, &QTimer::timeout, &loop, [&loop, &timedOut] {
+            timedOut = true;
+            loop.quit();
+        });
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        timer.start(timeoutMs);
+        loop.exec();
+
+        if (timedOut) {
+            reply->abort();
+            reply->deleteLater();
+            return QByteArray();
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            reply->deleteLater();
+            return QByteArray();
+        }
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (statusCode != 200) {
+            reply->deleteLater();
+            return QByteArray();
+        }
+        const QByteArray bytes = reply->readAll();
+        reply->deleteLater();
+        return bytes;
+    };
 }
 
 // ============================================================ 对话框 =====
@@ -662,7 +738,9 @@ bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
     QString usedFont;
     const doc::UniversalConverterOptions options =
         buildTextOptions(fetched.html, fontPath(), &usedFont);
-    const doc::ConversionResult result = doc::htmlToPdf(fetched.html, base, options);
+    // 连图片一起带进去：网页正文里的图是内容的一部分，丢了就是缺内容。
+    const doc::ConversionResult result =
+        doc::htmlToPdf(fetched.html, base, options, webImageFetcher());
     if (!result.ok) {
         // 给用户看的中文由 app 层拼（doc 层没有翻译上下文）。
         outcome->error =
@@ -681,6 +759,25 @@ bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
         sanitizeFileName(result.title.isEmpty() ? host : result.title) + QStringLiteral(".pdf");
     if (!usedFont.isEmpty()) {
         outcome->detailLines.append(i18n::tr("aipdf::app::ConversionInputs", "已嵌入系统字体 %1 来显示中文。").arg(usedFont));
+    }
+    // 这次带图的结果：带了几张、哪几张没带进来（逐条带原因）。
+    const doc::HtmlImageOutcome& images = result.imageOutcome;
+    if (images.attempted) {
+        if (images.embedded > 0) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "这次带了 %1 张图片。").arg(images.embedded));
+        } else if (images.found == 0) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "这次没有带图片（网页里没有图片）。"));
+        } else {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "这次没有带图片。"));
+        }
+        for (const doc::HtmlImageIssue& issue : images.issues) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "图片没带进来：%1（%2）")
+                    .arg(issue.url, imageIssueReasonText(issue)));
+        }
     }
     return true;
 }

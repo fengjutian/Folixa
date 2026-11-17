@@ -47,6 +47,8 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/pdf/ContentStream.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/FormData.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/FormData.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/ImageToPdf.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/ImageToPdf.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/Xfdf.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/Xfdf.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/Annotation.cpp

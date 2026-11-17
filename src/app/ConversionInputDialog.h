@@ -38,6 +38,15 @@ struct WebFetchResult {
 // 同步抓一个网页。timeoutMs 毫秒还没回来就放弃。
 WebFetchResult fetchWebPage(const QUrl& url, int timeoutMs = 15000);
 
+// 取网页里图片的字节（给 doc 层当回调用）。
+//
+// 参照 fetchWebPage 的做法：同样的超时、同样的跳转策略（https 不跳 http）、
+// 同样的 User-Agent。图片是二进制，没有编码问题 —— 网页正文的编码由
+// fetchWebPage 管（那里对 GBK 这类编码是明确报错的）。
+//
+// 取不到就返回空字节：doc 层会把这一张记成「下载失败」，不影响整篇转换。
+doc::ImageFetcher webImageFetcher(int timeoutMs = 15000);
+
 // ---------------------------------------------------------- 转换结果 ----
 
 // 一次转换的结果（界面层交给上层：Ribbon handler、主窗口）。

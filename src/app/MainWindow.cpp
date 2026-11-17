@@ -1508,6 +1508,13 @@ void MainWindow::buildUi() {
                      ":/icons/protect.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->pdfUaCheck(); }
     }, true, "convert.pdfUa");
+    // PDF/A-2b 预检：**只做预检**，逐项说「离合规还差什么」；
+    // 不出「已通过 PDF/A 校验」这种结论（认证要 veraPDF，本仓库不引入）。
+    addRibbonCommand(convertCheckGroup, "PDF/A-2b 预检",
+                     "逐项检查离 PDF/A-2b 还差什么（预检，不是合规认证）",
+                     ":/icons/protect.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->pdfAPreflight(); }
+    }, true, "convert.pdfAPreflight");
     // XFA 字段：只做静态字段提取，不执行脚本。
     addRibbonCommand(convertCheckGroup, "XFA 字段", "列出 XFA 表单字段并导出成 CSV",
                      ":/icons/form.svg", [this] {

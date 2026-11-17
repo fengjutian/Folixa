@@ -3,6 +3,7 @@
 #include "i18n/Translate.h"
 
 #include <QDialogButtonBox>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QTreeWidgetItem>

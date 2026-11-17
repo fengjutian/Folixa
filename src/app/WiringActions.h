@@ -92,6 +92,8 @@ public:
     void offlineQa();
     // P：PDF/UA 合规检查（只检查，不生成合规文件）。
     void pdfUaCheck();
+    // PDF/A-2b **预检**（只给逐条结论，不出合规认证结论）。
+    void pdfAPreflight();
     // Q：静态 XFA 表单字段。
     void xfaFields();
     // R：插入 3D 模型 / 多媒体注解（只写结构，不渲染）。

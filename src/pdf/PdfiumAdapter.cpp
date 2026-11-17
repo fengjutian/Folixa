@@ -2673,6 +2673,9 @@ void PdfDocument::syncBytes(const QByteArray& bytes) {
     // 再按路径读就会读到旧内容。
     impl_->reader = DocumentReader::fromBytes(bytes);
     impl_->access.m_FileLen = static_cast<unsigned long>(bytes.size());
+    // 内容换了，XFA 的判定是按字节扫出来的，缓存一起作废。
+    impl_->xfaChecked = false;
+    impl_->xfaPresent = false;
 }
 
 bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
@@ -2697,6 +2700,9 @@ bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
     // which hold copies of PdfDocument, immediately see the reloaded handle as well.
     std::swap(impl_->reader, replacement->reader);
     std::swap(impl_->access, replacement->access);
+    // 内容换了，XFA 的判定缓存一起作废。
+    impl_->xfaChecked = false;
+    impl_->xfaPresent = false;
     std::swap(impl_->handle, replacement->handle);
     std::swap(impl_->form, replacement->form);
     std::swap(impl_->latinEditingFont, replacement->latinEditingFont);

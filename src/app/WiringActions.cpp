@@ -30,6 +30,7 @@
 #include "app/LastWavePanels.h"
 #include "app/OcrController.h"
 #include "app/PageTextLines.h"
+#include "app/PdfAPreflightPanel.h"
 #include "app/PdfView.h"
 #include "app/PrintToolsDialog.h"
 #include "doc/ActionWizard.h"
@@ -48,6 +49,7 @@
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/FormAutoTag.h"
 #include "pdf/PdfSecurity.h"
+#include "pdf/PdfAChecker.h"
 #include "pdf/PdfUaChecker.h"
 #include "pdf/PortfolioWriter.h"
 #include "pdf/PreflightChecker.h"
@@ -872,6 +874,30 @@ void WiringActions::pdfUaCheck() {
     }
     const pdf::PdfUaReport report = pdf::checkPdfUa(bytes, &error);
     PdfUaReportDialog dialog(parentWidget_);
+    dialog.setReport(report);
+    dialog.exec();
+}
+
+void WiringActions::pdfAPreflight() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "PDF/A-2b 预检");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    // 预检，不是认证：报告里只有逐条的结构性结论，
+    // 界面文案也只说「预检发现 N 个问题」，不说「已通过 PDF/A 校验」。
+    //
+    // 为什么失败时也照样弹对话框：报告里有一条「本次构建没有启用 qpdf」之类的结论，
+    // 那正是用户要看到的原因，弹框反而比一句「失败」有用。
+    const pdf::PdfAPreflightReport report = pdf::checkPdfAPreflight(bytes, &error);
+    PdfAPreflightDialog dialog(parentWidget_);
     dialog.setReport(report);
     dialog.exec();
 }

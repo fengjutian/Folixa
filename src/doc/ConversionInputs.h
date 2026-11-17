@@ -161,8 +161,11 @@ struct HtmlBody {
     QStringList links;
     // 正文里的图片：绝对地址，去重后按出现顺序。
     //
-    // 只有 <img src> 算数：srcset 是一组候选（按屏幕宽度挑），
-    // 本程序不渲染 CSS，也就无从判断该挑哪一张。
+    // 边界（与从前一致，没有变）：网页里的 **JavaScript 不执行、CSS 不渲染**。
+    // 因此只认标签里的 <img src>：
+    //   * srcset 是一组候选（按屏幕宽度挑），不渲染 CSS 就无从判断该挑哪一张；
+    //   * CSS 里的 background-image 不算；
+    //   * 脚本动态插进来的 <img> 不算（脚本根本不执行）。
     QVector<HtmlImageRef> images;
 };
 

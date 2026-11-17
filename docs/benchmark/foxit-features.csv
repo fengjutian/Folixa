@@ -14,7 +14,7 @@ tab,group,command,status,capability,note
 文件,共享与恢复,恢复,aligned,—,恢复日志可重放未保存命令
 文件,共享与恢复,本地备份,aligned,—,保存时留下 .folixa.bak
 文件,导出与工具,导出,aligned,H3,导出页面图片与纯文本
-文件,导出与工具,PDF优化,partial,H8,调 Ghostscript 压缩；依赖本机安装 gs，无体积断言
+文件,导出与工具,PDF优化,partial,H8,Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的；**没有 PDF/A 合规认证**
 文件,导出与工具,索引,aligned,—,本地分块索引与检索
 文件,导出与工具,动作向导,aligned,D9,动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**当前文档上真正落地的是「打开文件 / 加水印（只支持页面正中）/ 加页码（右下角、从 1 起）/ 结束」**，其余步骤如实报「动作向导还没有接这一步」，不假装成功；每步失败显示领域层给的中文原因。**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard`，`ActionWizardTests` 31 条）
 文件,导出与工具,皮肤,aligned,—,主题切换：浅色/夜间/护眼/高对比，Ribbon 有入口；`ReadingSchemeTests` 兜底
@@ -36,7 +36,7 @@ tab,group,command,status,capability,note
 主页,注释,高亮,aligned,C1,文本选区高亮
 主页,页面,旋转页面,aligned,D1,写页面 /Rotate，可撤销
 主页,页面,插入页面,aligned,D1,当前页后插入空白页；也可从别的文件插入页面
-主页,扫描,从扫描仪,partial,I5,扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**取帧路径只做了实现与编译验证，没有真机跑过**；图像只支持 BMP 与 JPEG，其余格式明确报错
+主页,扫描,从扫描仪,partial,I5,扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序、传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 9 条）；**图像支持 BMP / JPEG / PNG**（PNG 用自研解码器，不依赖 Qt 图像插件，TIFF 明确不支持）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 28 条
 主页,扫描,快速识别,aligned,I1,Tesseract 或 Windows OCR
 主页,扫描,优化扫描的PDF,partial,I1,只有图像预处理；没有完整去噪/纠偏
 主页,表单,填写&签名,aligned,F1,表单填写 + 证书签名（随包 pyHanko）
@@ -50,8 +50,8 @@ tab,group,command,status,capability,note
 主页,商业,订阅,na,—,无订阅
 主页,AI,翻译助手,aligned,L2,翻译选区/当前页
 转换,输入,文件转换,aligned,H6,文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 23 条），Office / HTML 另走本机 LibreOffice；扫描仪 / 剪贴板 / 网页仍无
-转换,输入,从扫描仪,partial,I5,与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**只支持 WIA**、**本机无扫描仪故取帧路径未做真机验证**；图像只支持 BMP 与 JPEG
-转换,输入,从剪贴板,partial,H9,剪贴板文字转 PDF 已实现（`doc::clipboardTextToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；**只做纯文本排版：剪贴板里的图片与富文本不转换**；中文靠嵌入整份系统字体（不子集化，体积大）
+转换,输入,从扫描仪,partial,I5,与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG**；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 28 条 + `ScannerCaptureTests` 9 条
+转换,输入,从剪贴板,partial,H9,剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；**剪贴板里有富文本时按富文本排版**（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片仍不转换**（明确提示，不静默忽略）；纯文本路径靠嵌入整份系统字体（不子集化，体积大）；`ConversionInputsTests` 34 条
 转换,输入,从网页,partial,H9,网页转 PDF 已实现：抓取 → 抽正文 → 排版（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）；**不执行 JavaScript、不渲染 CSS、不带图片**；只支持 UTF-8 / UTF-16，GBK 明确报错；抓取超时 15 秒
 转换,输入,从CAJ,na,—,地区性格式
 转换,输入,表单,aligned,H10,表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过
@@ -156,7 +156,7 @@ tab,group,command,status,capability,note
 视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 24 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
 视图,朗读,朗读,partial,J4,逐词朗读并逐词高亮；有专项单测；依赖系统语音合成，无音色/语速可调，长文逐词合成较慢
-视图,比较,比较,partial,L7,文档比较已实现：按文字块逐块比对，列出新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位（`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用）；**只比文字层，不做像素 / 版面比对**——纯图形改动看不出来；整页挪位会报成「删页 + 加页」
+视图,比较,比较,aligned,L7,文档比较已实现，两层结果并排给：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ **可选的像素级视觉比对**（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关）：渲染成位图逐像素比，列出差异比例与差异区域，**纯图形改动也能被检出**；**默认关闭**（渲染慢）；**尺寸不同的页只比共同区域**（不缩放归一化，缩放会造出大面积假差异）；**不做跨文档自动对齐、不做版面结构分析**，页码按位置配对（中间插页会让配对整体后移）；`DocumentComparerTests` 20 条
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
 表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页
@@ -207,7 +207,7 @@ tab,group,command,status,capability,note
 电子签章,服务,签署设置,na,—,平台功能
 电子签章,签署,完成签署,na,—,平台功能
 共享,发送,邮件,aligned,K1,调用默认邮件客户端，并复制 PDF 路径供添加附件
-共享,发送,OneNote,partial,H11,发送到 OneNote 已实现：把当前页面渲染成图片 → 送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**；**只送图片，不送可搜索的文字层**；`OneNoteExporterTests` 24 条
+共享,发送,OneNote,partial,H11,发送到 OneNote 已实现：把文档每一页渲染成图片 → 送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**送出的页面带可搜索的文字层**（按 OneNote 页面 XML 写 `one:Text` run，**文字层写坏时降级为只送图片**而不是整个发送失败，并在结果里说明降级了多少页）；**先渲染全部页再逐页写入**，渲染失败一页都不写；写入中途失败明确告诉用户已经写进几页，不假装全失败也不声称自动删除；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**，**本机没有 OneNote，COM 写入路径没有真机验证**，OneNote 里能不能搜到文字也未实测；`OneNoteExporterTests` 31 条
 共享,协作,共享协作,aligned,K1,复制规范化的本地 file URL
 共享,协作,PDF协作,aligned,C7,导出 XFDF 批注供协作者交换
 共享,审阅,发送进行共享审阅,aligned,C7,导出 XFDF 审阅文件
@@ -220,7 +220,7 @@ tab,group,command,status,capability,note
 共享,企业,iManage 10,excluded,—,同上
 共享,企业,eDOCS DM,excluded,—,同上
 辅助工具,标签,自动添加标签到文档中,partial,J5,标签树能写（`pdf::writeTaggedStructure`），但**只到行粒度**：按文本行推结构元素，不是语义级的自动打标签；`TagTreeWriterTests` 18 条
-辅助工具,标签,自动添加标签到表单域,partial,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**已有标签树按「替换」语义处理**（树里的 `/Form` 元素会被摘掉换成新的）；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 9 条
+辅助工具,标签,自动添加标签到表单域,partial,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 14 条
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
 辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导
