@@ -1,4 +1,5 @@
 ﻿#include "pdf/PdfiumAdapter.h"
+#include "pdf/DocumentOpen.h"
 #include <QImage>
 #include <QPainter>
 #include <QPolygonF>
@@ -59,7 +60,9 @@ public:
 };
 
 struct DocumentImpl {
-    QByteArray fileData;
+    // 文档字节的来源：按路径打开时文件留在磁盘上，PDFium 按需读块；
+    // 从内存字节打开时整份字节由调用方持有（QByteArray 隐式共享）。
+    std::shared_ptr<DocumentReader> reader;
     QString path;
     // 重新打开文档时要用（isolatedCopy），PDFium 不提供查询口令的接口。
     QString password;
@@ -71,6 +74,9 @@ struct DocumentImpl {
     QHash<QString, FPDF_FONT> editingFonts;
     // 表单填充环境：懒创建，关闭文档前必须先退出。
     FPDF_FORMHANDLE form = nullptr;
+    // XFA 标记的判定结果：算一次就记住，别每次调用都重扫文件。
+    mutable bool xfaChecked = false;
+    mutable bool xfaPresent = false;
 
     ~DocumentImpl() {
         if (handle != nullptr) {
@@ -103,15 +109,15 @@ struct DocumentImpl {
                          unsigned char* buffer,
                          unsigned long size) {
         auto* self = static_cast<DocumentImpl*>(param);
-        if (self == nullptr || buffer == nullptr) {
+        if (self == nullptr || buffer == nullptr || !self->reader) {
             return 0;
         }
-        if (static_cast<qint64>(position) + static_cast<qint64>(size) >
-            static_cast<qint64>(self->fileData.size())) {
-            return 0;
-        }
-        memcpy(buffer, self->fileData.constData() + position, size);
-        return 1;
+        // 越界判断交给 DocumentReader：按路径打开的文档内存里没有整份字节，
+        // 这里已经没有可以比对的长度了。
+        const bool ok = self->reader->read(static_cast<qint64>(position),
+                                          reinterpret_cast<char*>(buffer),
+                                          static_cast<qint64>(size));
+        return ok ? 1 : 0;
     }
 };
 
@@ -134,6 +140,20 @@ struct PageImpl {
 }  // namespace detail
 
 namespace {
+
+// 复制一个文档来源，给另一个线程的独立句柄用。
+std::shared_ptr<detail::DocumentReader> cloneReader(
+    const std::shared_ptr<detail::DocumentReader>& source) {
+    if (!source) {
+        return nullptr;
+    }
+    if (source->kind() == detail::DocumentSourceKind::MemoryBytes) {
+        // 共享同一块缓冲：QByteArray 隐式共享，不复制数据。
+        return detail::DocumentReader::fromBytes(source->bytes());
+    }
+    // 按路径打开的文档：另开一个文件句柄读同一个文件，同样不占内存。
+    return detail::DocumentReader::openPath(source->filePath());
+}
 
 std::once_flag g_initializeFlag;
 
@@ -1459,13 +1479,31 @@ bool PdfDocument::setFormFieldProperties(int pageIndex, const QString& oldName,
     return changed;
 }
 
-bool PdfDocument::hasXfaForm() const {
-    if (!impl_ || impl_->fileData.isEmpty()) {
+qint64 PdfDocument::bytesReadFromDisk() const {
+    if (!impl_ || !impl_->reader) {
+        return 0;
+    }
+    return impl_->reader->bytesReadFromDisk();
+}
+
+bool PdfDocument::holdsWholeFileInMemory() const {
+    if (!impl_ || !impl_->reader) {
         return false;
     }
-    const detail::PdfiumGuard guard;
-    // 直接扫原始字节：XFA 是 AcroForm 里的 /XFA 键，PDFium 不给我们读它的接口。
-    return impl_->fileData.contains("/XFA");
+    return impl_->reader->holdsWholeFileInMemory();
+}
+
+bool PdfDocument::hasXfaForm() const {
+    if (!impl_ || !impl_->reader) {
+        return false;
+    }
+    if (!impl_->xfaChecked) {
+        // 直接扫原始字节：XFA 是 AcroForm 里的 /XFA 键，PDFium 不给我们读它的接口。
+        // 按路径打开的文档内存里没有整份字节，扫描器会分块读文件，不把文件读进内存。
+        impl_->xfaPresent = documentContainsMarker(*impl_->reader, QByteArrayLiteral("/XFA"));
+        impl_->xfaChecked = true;
+    }
+    return impl_->xfaPresent;
 }
 
 bool PdfDocument::appendDocumentPages(const PdfDocument& source) {
@@ -2631,7 +2669,9 @@ void PdfDocument::syncBytes(const QByteArray& bytes) {
     if (impl_ == nullptr) {
         return;
     }
-    impl_->fileData = bytes;
+    // 换成内存字节来源：文档的内容已经与磁盘上的文件不同（改过了），
+    // 再按路径读就会读到旧内容。
+    impl_->reader = DocumentReader::fromBytes(bytes);
     impl_->access.m_FileLen = static_cast<unsigned long>(bytes.size());
 }
 
@@ -2640,10 +2680,10 @@ bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
     initializePdfium();
     const detail::PdfiumGuard guard;
     auto replacement = std::make_shared<detail::DocumentImpl>();
-    replacement->fileData = bytes;
+    replacement->reader = DocumentReader::fromBytes(bytes);
     replacement->path = impl_->path;
     replacement->password = impl_->password;
-    replacement->access.m_FileLen = static_cast<unsigned long>(replacement->fileData.size());
+    replacement->access.m_FileLen = static_cast<unsigned long>(bytes.size());
     replacement->access.m_GetBlock = &detail::DocumentImpl::readBlock;
     replacement->access.m_Param = replacement.get();
     const QByteArray password = replacement->password.toUtf8();
@@ -2655,7 +2695,7 @@ bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
     }
     // Preserve the shared implementation object so AnnotationController and PageOperations,
     // which hold copies of PdfDocument, immediately see the reloaded handle as well.
-    std::swap(impl_->fileData, replacement->fileData);
+    std::swap(impl_->reader, replacement->reader);
     std::swap(impl_->access, replacement->access);
     std::swap(impl_->handle, replacement->handle);
     std::swap(impl_->form, replacement->form);
@@ -2698,24 +2738,22 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
         return result;
     }
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
+    // 按路径打开：文件留在磁盘上，PDFium 按需读块。
+    // 整份 readAll 进内存的旧做法让 1 GB 文件带来 1 GB 常驻内存，
+    // 内存占用直接与文件大小同量级——这里必须避免。
+    QString openError;
+    auto reader = DocumentReader::openPath(filePath, &openError);
+    if (!reader) {
         result.errorMessage =
-            i18n::tr("aipdf::pdf::PdfiumAdapter", "无法读取文件：%1").arg(file.errorString());
-        return result;
-    }
-    const QByteArray data = file.readAll();
-    file.close();
-    if (data.size() > kMaxPdfFileSizeBytes) {
-        result.errorMessage = i18n::tr("aipdf::pdf::PdfiumAdapter", "文件过大，拒绝加载");
+            i18n::tr("aipdf::pdf::PdfiumAdapter", "无法读取文件：%1").arg(openError);
         return result;
     }
 
     auto impl = std::make_shared<detail::DocumentImpl>();
-    impl->fileData = data;
+    impl->reader = reader;
     impl->path = filePath;
     impl->password = password;
-    impl->access.m_FileLen = static_cast<unsigned long>(data.size());
+    impl->access.m_FileLen = static_cast<unsigned long>(reader->size());
     impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
     impl->access.m_Param = impl.get();
 
@@ -2730,6 +2768,7 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
         const unsigned long error = FPDF_GetLastError();
         result.errorMessage = describePdfiumError(error);
         result.passwordRequired = (error == FPDF_ERR_PASSWORD);
+        result.bytesRead = reader->bytesReadFromDisk();
         return result;
     }
 
@@ -2748,12 +2787,14 @@ PdfOpenResult openDocument(const QString& filePath, const QString& password) {
                                                  "文档的页面无法加载（文件可能已损坏）")
                                       : i18n::tr("aipdf::pdf::PdfiumAdapter",
                                                  "文档里没有任何页面（文件可能已损坏）");
+            result.bytesRead = reader->bytesReadFromDisk();
             return result;
         }
         FPDF_ClosePage(probe);
     }
 
     result.document = PdfDocument(impl);
+    result.bytesRead = reader->bytesReadFromDisk();
     return result;
 }
 
@@ -2773,7 +2814,7 @@ PdfOpenResult openDocumentFromBytes(const QByteArray& data,
     }
 
     auto impl = std::make_shared<detail::DocumentImpl>();
-    impl->fileData = data;
+    impl->reader = DocumentReader::fromBytes(data);
     impl->path = filePath;
     impl->password = password;
     impl->access.m_FileLen = static_cast<unsigned long>(data.size());
@@ -2805,12 +2846,16 @@ PdfDocument PdfDocument::isolatedCopy() const {
 
     initializePdfium();
 
-    // 新建独立的实现：文件字节用 QByteArray 隐式共享，不复制内存。
+    // 新建独立的实现：内存字节用 QByteArray 隐式共享，不复制内存；
+    // 按路径打开的文档另开一个文件句柄，同样不复制数据。
     auto impl = std::make_shared<detail::DocumentImpl>();
-    impl->fileData = impl_->fileData;
+    impl->reader = cloneReader(impl_->reader);
+    if (!impl->reader) {
+        return PdfDocument();
+    }
     impl->path = impl_->path;
     impl->password = impl_->password;
-    impl->access.m_FileLen = static_cast<unsigned long>(impl->fileData.size());
+    impl->access.m_FileLen = static_cast<unsigned long>(impl->reader->size());
     impl->access.m_GetBlock = &detail::DocumentImpl::readBlock;
     impl->access.m_Param = impl.get();
 

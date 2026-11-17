@@ -11,6 +11,11 @@
 //   * 结构树里的 /Parent 成环 → 不能爆栈、不能死循环；
 //   * 重跑一次 → 结构树里的 /Form 元素数量不能翻倍；
 //   * 垃圾字节 → 必须失败并说清楚中文原因。
+//
+// 合并语义（文档本来就有标签树时）：
+//   * 树里原有的其它结构元素（/H1、/P、/Span）与阅读顺序必须**原样保留**；
+//   * 树里旧的 /Form 元素必须被**替换**掉，不能变成两份；
+//   * 结果里要说清是「新建」还是「合并」，以及保留了多少既有元素。
 
 #include "pdf/FormAutoTag.h"
 
@@ -160,6 +165,73 @@ QByteArray cyclicParentPdf() {
     return buildPdf(objects);
 }
 
+// 一份**已经有标签树**的 PDF：
+//   * 标签树里有章节标题（/H1）、段落（/P）、行内元素（/Span）——用户自己打的标签；
+//   * 页面上有一个表单域（AcroForm 字段 + widget 注解）。
+//
+// 打标签不能把上面这些既有元素弄丢：那是用户已经排好的阅读顺序。
+QByteArray taggedPdfWithExistingTree() {
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append({1, "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> "
+                       "/StructTreeRoot 4 0 R /MarkInfo << /Marked true >> >>"});
+    objects.append({2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"});
+    objects.append({3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [6 0 R] "
+                       "/StructParents 0 /Resources << >> >>"});
+    objects.append({4, "<< /Type /StructTreeRoot /K [5 0 R] /ParentTree << /Nums [0 []] >> >>"});
+    objects.append({5, "<< /Type /StructElem /S /Document /P 4 0 R /K [9 0 R 10 0 R] >>"});
+    objects.append({6, "<< /Type /Annot /Subtype /Widget /FT /Tx /T (customerName) "
+                       "/TU <FEFF5BA2623759D3540D> /Rect [72 700 272 720] /F 4 >>"});
+    objects.append({9, "<< /Type /StructElem /S /H1 /T (Chapter One) /P 5 0 R /Pg 3 0 R "
+                       "/K [11 0 R] >>"});
+    objects.append({10, "<< /Type /StructElem /S /P /P 5 0 R /Pg 3 0 R /K [12 0 R] >>"});
+    objects.append({11, "<< /Type /StructElem /S /Span /P 9 0 R /Pg 3 0 R >>"});
+    objects.append({12, "<< /Type /StructElem /S /Span /P 10 0 R /Pg 3 0 R >>"});
+    return buildPdf(objects);
+}
+
+// 一份「标签树里已经有旧的 /Form 元素」的 PDF：
+// 上一轮（或别的工具）给这个域打过标签——结构树里留着一个 /Form 元素，
+// widget 上还挂着 /StructParent，ParentTree 里也指着那个旧元素。
+//
+// 重新打标签必须是**替换**（树里只剩一个 /Form 元素），不能变成两份。
+QByteArray taggedPdfWithStaleFormElement() {
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append({1, "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> "
+                       "/StructTreeRoot 4 0 R /MarkInfo << /Marked true >> >>"});
+    objects.append({2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"});
+    objects.append({3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [6 0 R] "
+                       "/StructParents 0 /Resources << >> >>"});
+    objects.append({4, "<< /Type /StructTreeRoot /K [5 0 R] /ParentTree << /Nums [0 [13 0 R]] >> >>"});
+    objects.append({5, "<< /Type /StructElem /S /Document /P 4 0 R /K [9 0 R 13 0 R] >>"});
+    objects.append({6, "<< /Type /Annot /Subtype /Widget /FT /Tx /T (customerName) "
+                       "/TU <FEFF5BA2623759D3540D> /Rect [72 700 272 720] /F 4 /StructParent 0 >>"});
+    objects.append({9, "<< /Type /StructElem /S /H1 /T (Chapter One) /P 5 0 R /Pg 3 0 R >>"});
+    objects.append({13, "<< /Type /StructElem /S /Form /T (customerName) /Alt (stale alt) "
+                        "/P 5 0 R /Pg 3 0 R /K [6 0 R] >>"});
+    return buildPdf(objects);
+}
+
+// 一份「文档元素埋在章节下面」的 PDF：
+// 标签树是 根 → /Sect → [/Document, /H1]，文档元素不在根的下一层。
+//
+// 合并时必须认出这个**已有的**文档元素：另建一个就会让同一份文件出现两棵文档分支。
+QByteArray taggedPdfWithNestedDocumentElement() {
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append({1, "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> "
+                       "/StructTreeRoot 4 0 R /MarkInfo << /Marked true >> >>"});
+    objects.append({2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"});
+    objects.append({3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [6 0 R] "
+                       "/StructParents 0 /Resources << >> >>"});
+    objects.append({4, "<< /Type /StructTreeRoot /K [9 0 R] /ParentTree << /Nums [0 []] >> >>"});
+    objects.append({6, "<< /Type /Annot /Subtype /Widget /FT /Tx /T (customerName) "
+                       "/TU <FEFF5BA2623759D3540D> /Rect [72 700 272 720] /F 4 >>"});
+    objects.append({9, "<< /Type /StructElem /S /Sect /P 4 0 R /Pg 3 0 R /K [10 0 R 11 0 R] >>"});
+    objects.append({10, "<< /Type /StructElem /S /Document /P 9 0 R /K [12 0 R] >>"});
+    objects.append({11, "<< /Type /StructElem /S /H1 /T (Chapter One) /P 9 0 R /Pg 3 0 R >>"});
+    objects.append({12, "<< /Type /StructElem /S /P /P 10 0 R /Pg 3 0 R >>"});
+    return buildPdf(objects);
+}
+
 // 在一份 PDF 上建一个文本域。
 QByteArray addField(const QByteArray& pdf, const QString& name, const QString& toolTip, double y) {
     FormFieldInsert field;
@@ -207,6 +279,44 @@ QVector<int> widgetStructParents(const QByteArray& bytes, QString* error) {
     }
     return result;
 }
+
+// 读回 ParentTree 里某个键对应的数组，报告每个条目的结构标签（/S）。
+//
+// 为什么需要它：结构元素挂对了还不够——widget 的 /StructParent 指向的那个下标
+// 必须在 ParentTree 里真的落到这个结构元素上，否则读屏软件顺着下标找不到人。
+QVector<QString> parentTreeTags(const QByteArray& bytes, int key, QString* error) {
+    QVector<QString> tags;
+    try {
+        QPDF pdf;
+        pdf.processMemoryFile("form-auto-tag-parenttree.pdf", bytes.constData(),
+                              static_cast<size_t>(bytes.size()));
+        const QPDFObjectHandle root = pdf.getRoot().getKey("/StructTreeRoot");
+        const QPDFObjectHandle nums = root.getKey("/ParentTree").getKey("/Nums");
+        if (!nums.isArray()) {
+            if (error) *error = QStringLiteral("ParentTree 里没有 /Nums");
+            return tags;
+        }
+        const std::vector<QPDFObjectHandle> items = nums.getArrayAsVector();
+        for (size_t i = 0; i + 1 < items.size(); i += 2) {
+            if (!items.at(i).isInteger()) continue;
+            if (static_cast<int>(items.at(i).getIntValue()) != key) continue;
+            const QPDFObjectHandle value = items.at(i + 1);
+            if (!value.isArray()) continue;
+            for (const QPDFObjectHandle& entry : value.getArrayAsVector()) {
+                if (!entry.isDictionary()) {
+                    tags.append(QStringLiteral("(null)"));
+                    continue;
+                }
+                const QPDFObjectHandle tag = entry.getKey("/S");
+                tags.append(tag.isName() ? QString::fromLatin1(tag.getName().c_str() + 1)
+                                         : QStringLiteral("(none)"));
+            }
+        }
+    } catch (const std::exception& exception) {
+        if (error) *error = QString::fromUtf8(exception.what());
+    }
+    return tags;
+}
 #endif
 
 }  // namespace
@@ -224,6 +334,11 @@ private slots:
     void survivesCyclicParentChain();
     void rerunDoesNotDuplicateFormElements();
     void failsOnInvalidInput();
+    void createsTagTreeWhenDocumentHasNone();
+    void mergesIntoExistingTagTreeKeepingOtherElements();
+    void replacesStaleFormElementInExistingTagTree();
+    void readBackReadsPreservedAndNewElements();
+    void mergesIntoNestedDocumentElement();
 };
 
 // 每个表单域都要在结构树里落一个 /Form 元素，/T 是字段名。
@@ -405,6 +520,171 @@ void FormAutoTagTests::failsOnInvalidInput() {
     const FormAutoTagResult empty = autoTagFormFields(QByteArray());
     QVERIFY(!empty.ok);
     QVERIFY(!empty.error.isEmpty());
+}
+
+// 文档本来没有标签树 → 新建一棵（不是合并）。
+void FormAutoTagTests::createsTagTreeWhenDocumentHasNone() {
+    REQUIRE_QPDF();
+    QByteArray pdf = minimalPdf();
+    pdf = addField(pdf, QStringLiteral("customerName"), QStringLiteral("客户姓名"), 700.0);
+    QVERIFY(!pdf.isEmpty());
+
+    const FormAutoTagResult result = autoTagFormFields(pdf);
+    QVERIFY2(result.ok, qPrintable(result.error));
+    // 新建：没有可保留的既有元素。
+    QVERIFY(!result.mergedIntoExistingTree);
+    QCOMPARE(result.preservedElementCount, 0);
+    QVERIFY(result.preservedTags.isEmpty());
+    QCOMPARE(result.taggedFieldCount, 1);
+
+    const StructTreeReport report = readStructTree(result.bytes);
+    QVERIFY2(report.error.isEmpty(), qPrintable(report.error));
+    QVERIFY(report.hasStructTree);
+    QCOMPARE(formElements(report).size(), 1);
+}
+
+// 文档已经有标签树 → 合并：既有的 /H1、/P、/Span 一个都不能丢，阅读顺序不变，
+// 新的 /Form 挂进**已有的**文档元素（不是另起一棵树）。
+void FormAutoTagTests::mergesIntoExistingTagTreeKeepingOtherElements() {
+    REQUIRE_QPDF();
+    const FormAutoTagResult result = autoTagFormFields(taggedPdfWithExistingTree());
+    QVERIFY2(result.ok, qPrintable(result.error));
+
+    // 这次是合并，不是新建。
+    QVERIFY(result.mergedIntoExistingTree);
+    // 保留下来的既有元素：文档元素 + /H1 + /P + 两个 /Span。
+    QCOMPARE(result.preservedElementCount, 5);
+
+    QHash<QString, int> byTag;
+    for (const aipdf::pdf::FormTagPreservedTag& item : result.preservedTags) {
+        byTag.insert(item.tag, item.count);
+    }
+    QCOMPARE(byTag.value(QStringLiteral("Document")), 1);
+    QCOMPARE(byTag.value(QStringLiteral("H1")), 1);
+    QCOMPARE(byTag.value(QStringLiteral("P")), 1);
+    QCOMPARE(byTag.value(QStringLiteral("Span")), 2);
+
+    const StructTreeReport report = readStructTree(result.bytes);
+    QVERIFY2(report.error.isEmpty(), qPrintable(report.error));
+    QVERIFY(report.hasStructTree);
+
+    // 既有元素的顺序不变：文档元素 → /H1 → /Span → /P → /Span。
+    QStringList preservedOrder;
+    for (int i = 0; i < 5 && i < report.elements.size(); ++i) {
+        preservedOrder.append(report.elements.at(i).tag);
+    }
+    QCOMPARE(preservedOrder,
+             QStringList({QStringLiteral("Document"), QStringLiteral("H1"), QStringLiteral("Span"),
+                          QStringLiteral("P"), QStringLiteral("Span")}));
+
+    // 新的 /Form 元素挂在**已有的**文档元素下面。
+    const QVector<StructElement> forms = formElements(report);
+    QCOMPARE(forms.size(), 1);
+    QCOMPARE(forms.first().parentIndex, 0);
+}
+
+// 树里旧的 /Form 元素 → 被替换掉，不是叠加成两份。
+void FormAutoTagTests::replacesStaleFormElementInExistingTagTree() {
+    REQUIRE_QPDF();
+    const FormAutoTagResult result = autoTagFormFields(taggedPdfWithStaleFormElement());
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QVERIFY(result.mergedIntoExistingTree);
+    // 旧的 /Form 不算「保留下来的」：只有文档元素与 /H1。
+    QCOMPARE(result.preservedElementCount, 2);
+
+    const StructTreeReport report = readStructTree(result.bytes);
+    QVERIFY2(report.error.isEmpty(), qPrintable(report.error));
+    // 不是叠加：结构树里只有一个 /Form 元素。
+    const QVector<StructElement> forms = formElements(report);
+    QCOMPARE(forms.size(), 1);
+    // 而且是新的那个：替代文本是新写的，旧的替代文本不该还在。
+    QCOMPARE(forms.first().alt, QString::fromUtf8("客户姓名"));
+    for (const StructElement& element : report.elements) {
+        QVERIFY(element.alt != QStringLiteral("stale alt"));
+    }
+    // 既有元素还在。
+    QStringList tags;
+    for (const StructElement& element : report.elements) tags.append(element.tag);
+    QVERIFY(tags.contains(QStringLiteral("H1")));
+}
+
+// 读回校验：既有的元素与新的 /Form 元素都能从结构树里读出来，
+// 而且 widget 的 /StructParent 顺着 ParentTree 真能落到那个 /Form 元素上。
+void FormAutoTagTests::readBackReadsPreservedAndNewElements() {
+    REQUIRE_QPDF();
+    const FormAutoTagResult result = autoTagFormFields(taggedPdfWithExistingTree());
+    QVERIFY2(result.ok, qPrintable(result.error));
+
+    const StructTreeReport report = readStructTree(result.bytes);
+    QVERIFY2(report.error.isEmpty(), qPrintable(report.error));
+    QVERIFY(report.hasStructTree);
+
+    int headings = 0;
+    int paragraphs = 0;
+    int spans = 0;
+    for (const StructElement& element : report.elements) {
+        if (element.tag == QLatin1String("H1")) ++headings;
+        else if (element.tag == QLatin1String("P")) ++paragraphs;
+        else if (element.tag == QLatin1String("Span")) ++spans;
+    }
+    QCOMPARE(headings, 1);
+    QCOMPARE(paragraphs, 1);
+    QCOMPARE(spans, 2);
+
+    // 新的 /Form 元素：标题是字段名，替代文本是提示文字。
+    const QVector<StructElement> forms = formElements(report);
+    QCOMPARE(forms.size(), 1);
+    QCOMPARE(forms.first().title, QStringLiteral("customerName"));
+    QCOMPARE(forms.first().alt, QString::fromUtf8("客户姓名"));
+
+#ifdef AIPDF_WITH_QPDF
+    // widget 的 /StructParent 指向的下标，在 ParentTree 里就是这个 /Form 元素。
+    QString error;
+    const QVector<int> parents = widgetStructParents(result.bytes, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(parents.size(), 1);
+    QVERIFY(parents.first() >= 0);
+    const QVector<QString> treeTags = parentTreeTags(result.bytes, parents.first(), &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(treeTags.size(), 1);
+    QCOMPARE(treeTags.first(), QStringLiteral("Form"));
+#endif
+}
+
+// 文档元素埋在章节下面 → 合并时认出这个已有的文档元素，不另起一棵树。
+void FormAutoTagTests::mergesIntoNestedDocumentElement() {
+    REQUIRE_QPDF();
+    const FormAutoTagResult result = autoTagFormFields(taggedPdfWithNestedDocumentElement());
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QVERIFY(result.mergedIntoExistingTree);
+    // 既有元素：/Sect、/Document、/P、/H1。
+    QCOMPARE(result.preservedElementCount, 4);
+
+    const StructTreeReport report = readStructTree(result.bytes);
+    QVERIFY2(report.error.isEmpty(), qPrintable(report.error));
+
+    int documents = 0;
+    int documentIndex = -1;
+    QStringList tags;
+    for (int i = 0; i < report.elements.size(); ++i) {
+        const StructElement& element = report.elements.at(i);
+        tags.append(element.tag);
+        if (element.tag == QLatin1String("Document")) {
+            ++documents;
+            documentIndex = i;
+        }
+    }
+    // 只有一个文档元素：没有另起一棵文档分支。
+    QCOMPARE(documents, 1);
+    // 既有的元素都还在。
+    QVERIFY(tags.contains(QStringLiteral("Sect")));
+    QVERIFY(tags.contains(QStringLiteral("H1")));
+    QVERIFY(tags.contains(QStringLiteral("P")));
+
+    // 新的 /Form 挂在这个已有的文档元素下面。
+    const QVector<StructElement> forms = formElements(report);
+    QCOMPARE(forms.size(), 1);
+    QCOMPARE(forms.first().parentIndex, documentIndex);
 }
 
 QTEST_GUILESS_MAIN(FormAutoTagTests)

@@ -24,6 +24,8 @@ public:
     // createPageWithImage 的脚本
     OneNoteErrorKind createKind = OneNoteErrorKind::None;
     QString createDetail;
+    // 第几次调用开始失败（0 = 一直成功）。
+    int failFromCall = 0;
 
     // 记录下来的调用
     int findCalls = 0;
@@ -31,6 +33,8 @@ public:
     QString sectionIdUsed;
     QStringList createdTitles;
     QVector<QByteArray> createdImages;
+    // 每一页送过去的文字块（空 = 这一页只送了图片）。
+    QVector<QVector<OneNoteTextBlock>> createdTextBlocks;
 
     bool findTargetSection(OneNoteTarget* target, OneNoteErrorKind* errorKind,
                            QString* detail) override {
@@ -48,17 +52,25 @@ public:
 
     bool createPageWithImage(const QString& sectionId, const QString& pageTitle,
                              const QByteArray& imageFile, OneNoteImageFormat format,
-                             const QSizeF& displaySizePoints, OneNoteErrorKind* errorKind,
+                             const QSizeF& displaySizePoints,
+                             const QVector<OneNoteTextBlock>& textBlocks,
+                             OneNotePageWriteReport* report, OneNoteErrorKind* errorKind,
                              QString* detail) override {
         ++createCalls;
         sectionIdUsed = sectionId;
-        if (createKind != OneNoteErrorKind::None) {
-            *errorKind = createKind;
-            *detail = createDetail;
+        const bool scheduledFail = failFromCall > 0 && createCalls >= failFromCall;
+        if (scheduledFail || createKind != OneNoteErrorKind::None) {
+            *errorKind = createKind != OneNoteErrorKind::None ? createKind
+                                                              : OneNoteErrorKind::ExportFailed;
+            *detail = createDetail.isEmpty() ? QStringLiteral("写页失败") : createDetail;
             return false;
         }
         createdTitles.append(pageTitle);
         createdImages.append(imageFile);
+        createdTextBlocks.append(textBlocks);
+        if (report != nullptr) {
+            report->textLayerIncluded = !textBlocks.isEmpty();
+        }
         return true;
     }
 };
@@ -101,11 +113,18 @@ private slots:
     void encodeJpegFlattensAlphaChannel();
     void pageXmlCarriesImageTitleAndId();
     void pageXmlStaysWellFormedWithCdataEnd();
+    void pageXmlCarriesTextLayerRuns();
+    void textRunXmlEscapesMarkup();
+    void textRunXmlSkipsBlankBlocks();
     void exportFailsWhenOneNoteNotInstalled();
     void exportReportsComUnavailable();
     void exportReportsWriteFailure();
     void exportFailsWhenNothingPlanned();
-    void exportFailsWhenRendererReturnsEmptyImage();
+    void exportDoesNotTouchBackendWhenRenderingFails();
+    void exportReportsHowManyPagesWereWritten();
+    void exportWritesTextLayerToBackend();
+    void exportDegradesToImageOnlyWhenTextLayerIsBroken();
+    void exportWithoutTextProviderSaysNoTextLayer();
     void exportSendsEveryPlannedPage();
     void successMessageExplainsWhatWasSent();
     void defaultExporterOnlyProbesRegistry();
@@ -257,6 +276,62 @@ void OneNoteExporterTests::pageXmlStaysWellFormedWithCdataEnd() {
     QVERIFY2(!reader.hasError(), qPrintable(reader.errorString()));
 }
 
+void OneNoteExporterTests::pageXmlCarriesTextLayerRuns() {
+    // 正例：页面 XML 里要有一整条文字层，OneNote 里才能搜到这页的文字。
+    const QByteArray imageFile =
+        encodeOneNoteImageBytes(makeTestImage(), OneNoteImageFormat::Png, 144);
+    QVERIFY(!imageFile.isEmpty());
+
+    QVector<OneNoteTextBlock> blocks;
+    blocks.append(OneNoteTextBlock{QStringLiteral("第一行文字")});
+    blocks.append(OneNoteTextBlock{QStringLiteral("Second line")});
+
+    const QString xml = buildOneNotePageXml(QStringLiteral("{PAGE-ID}"), QStringLiteral("第 1 页"),
+                                             imageFile, OneNoteImageFormat::Png, QSizeF(300, 400),
+                                             blocks);
+    QVERIFY(xml.contains(QStringLiteral("<one:Text>")));
+    QVERIFY(xml.contains(QStringLiteral("<one:r>")));
+    QVERIFY(xml.contains(QStringLiteral("<one:t>")));
+    QVERIFY(xml.contains(QStringLiteral("第一行文字")));
+    QVERIFY(xml.contains(QStringLiteral("Second line")));
+    // 结构：图片那个 one:OE 后面，同一个 one:OEChildren 里还跟着装文字的 one:OE。
+    QVERIFY(xml.contains(
+        QStringLiteral("</one:Image></one:OE><one:OE alignment=\"left\"><one:Text>")));
+
+    QXmlStreamReader reader(xml);
+    while (!reader.atEnd()) {
+        reader.readNext();
+    }
+    QVERIFY2(!reader.hasError(), qPrintable(reader.errorString()));
+}
+
+void OneNoteExporterTests::textRunXmlEscapesMarkup() {
+    // 负例：文字里有 XML 元字符 —— 必须转义，否则整页 XML 坏掉。
+    QVector<OneNoteTextBlock> blocks;
+    blocks.append(OneNoteTextBlock{QStringLiteral("a<b>&\"c\"")});
+    const QString xml = buildOneNoteTextRunsXml(blocks);
+    QVERIFY(xml.contains(QStringLiteral("&lt;")));
+    QVERIFY(xml.contains(QStringLiteral("&amp;")));
+    QVERIFY(xml.contains(QStringLiteral("&quot;")));
+
+    const int start = xml.indexOf(QStringLiteral("<one:t>"));
+    const int end = xml.indexOf(QStringLiteral("</one:t>"));
+    QVERIFY(start >= 0);
+    QVERIFY(end > start);
+    const QString inner = xml.mid(start + 7, end - start - 7);
+    // one:t 里面不能有没转义的元字符。
+    QVERIFY(!inner.contains(QLatin1Char('<')));
+    QVERIFY(!inner.contains(QLatin1Char('>')));
+}
+
+void OneNoteExporterTests::textRunXmlSkipsBlankBlocks() {
+    // 负例：没有文字就没有 one:Text（空壳的 one:Text 只是噪音）。
+    QVector<OneNoteTextBlock> blocks;
+    blocks.append(OneNoteTextBlock{QStringLiteral("   ")});
+    QVERIFY(buildOneNoteTextRunsXml(blocks).isEmpty());
+    QVERIFY(buildOneNoteTextRunsXml(QVector<OneNoteTextBlock>()).isEmpty());
+}
+
 // ------------------------------------------------------------------
 // 三条失败路径 + 成功路径
 // ------------------------------------------------------------------
@@ -354,7 +429,7 @@ void OneNoteExporterTests::exportFailsWhenNothingPlanned() {
     QCOMPARE(fake->findCalls, 0);
 }
 
-void OneNoteExporterTests::exportFailsWhenRendererReturnsEmptyImage() {
+void OneNoteExporterTests::exportDoesNotTouchBackendWhenRenderingFails() {
     auto backend = std::make_unique<FakeBackend>();
     FakeBackend* fake = backend.get();
     OneNoteExporter exporter(installedEnvironment(), std::move(backend));
@@ -372,11 +447,116 @@ void OneNoteExporterTests::exportFailsWhenRendererReturnsEmptyImage() {
     QVERIFY(!result.ok);
     QCOMPARE(result.errorKind, OneNoteErrorKind::ExportFailed);
     QVERIFY(result.message.contains(QStringLiteral("第 2 页")));
-    // 第 1 页已经送出去了：这既要在消息里讲清楚，
-    // 也不能假装「一页都没送」。
-    QCOMPARE(fake->createCalls, 1);
-    QCOMPARE(result.createdPageTitles.size(), 1);
-    QVERIFY(result.message.contains(QStringLiteral("已送出 1 页")));
+    // 渲染阶段失败 → 一页都不写：假后端一次都没被调用，
+    // 用户的笔记本里不会留下半截残页。
+    QCOMPARE(fake->createCalls, 0);
+    QCOMPARE(fake->findCalls, 0);
+    QCOMPARE(result.createdPageTitles.size(), 0);
+    // 也不能说「已经写进去几页」—— 一页都没写。
+    QVERIFY(!result.message.contains(QStringLiteral("已经写进")));
+}
+
+void OneNoteExporterTests::exportReportsHowManyPagesWereWritten() {
+    auto backend = std::make_unique<FakeBackend>();
+    // 负例：写到第 2 页失败 —— 前 1 页已经进用户的笔记本了。
+    backend->failFromCall = 2;
+    backend->createDetail = QStringLiteral("把页面写入 OneNote 失败（0x80042001）");
+    FakeBackend* fake = backend.get();
+    OneNoteExporter exporter(installedEnvironment(), std::move(backend));
+
+    auto renderer = [](int, int) { return makeTestImage(); };
+    OneNoteExportOptions options;
+    options.pageNumbers = QVector<int>({1, 2, 3});
+    const OneNoteExportPlan plan = buildOneNoteExportPlan(QStringLiteral("报告.pdf"), 3, options);
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer);
+
+    QVERIFY(!result.ok);
+    QCOMPARE(result.errorKind, OneNoteErrorKind::ExportFailed);
+    QCOMPARE(fake->createCalls, 2);
+    // 如实说清已经写进去几页，不假装全失败。
+    QCOMPARE(result.createdPageCount(), 1);
+    QVERIFY(result.message.contains(QStringLiteral("已经写进 OneNote 1 页")));
+    // 也不能声称会自动删除（本程序没有删页的能力）。
+    QVERIFY(!result.message.contains(QStringLiteral("删除")));
+}
+
+void OneNoteExporterTests::exportWritesTextLayerToBackend() {
+    auto backend = std::make_unique<FakeBackend>();
+    FakeBackend* fake = backend.get();
+    OneNoteExporter exporter(installedEnvironment(), std::move(backend));
+
+    auto renderer = [](int, int) { return makeTestImage(); };
+    OneNotePageTextProvider provider = [](int pageIndex) {
+        QVector<OneNoteTextBlock> blocks;
+        blocks.append(OneNoteTextBlock{QStringLiteral("第 %1 页的可搜索文字").arg(pageIndex + 1)});
+        return blocks;
+    };
+
+    OneNoteExportOptions options;
+    options.pageNumbers = QVector<int>({1, 2});
+    const OneNoteExportPlan plan = buildOneNoteExportPlan(QStringLiteral("报告.pdf"), 2, options);
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer, provider);
+
+    QVERIFY(result.ok);
+    QCOMPARE(result.createdPageCount(), 2);
+    QVERIFY(result.textLayerWritten);
+    QVERIFY(!result.degradedToImageOnly);
+    QCOMPARE(result.degradedPageCount, 0);
+    // 后端每一页都拿到了文字块。
+    QCOMPARE(fake->createdTextBlocks.size(), 2);
+    QCOMPARE(fake->createdTextBlocks.at(0).size(), 1);
+    QCOMPARE(fake->createdTextBlocks.at(0).at(0).text, QStringLiteral("第 1 页的可搜索文字"));
+    QCOMPARE(fake->createdTextBlocks.at(1).at(0).text, QStringLiteral("第 2 页的可搜索文字"));
+}
+
+void OneNoteExporterTests::exportDegradesToImageOnlyWhenTextLayerIsBroken() {
+    auto backend = std::make_unique<FakeBackend>();
+    FakeBackend* fake = backend.get();
+    OneNoteExporter exporter(installedEnvironment(), std::move(backend));
+
+    auto renderer = [](int, int) { return makeTestImage(); };
+    // 负例：文字里有 XML 1.0 不允许的控制字符 → 文字层写坏。
+    OneNotePageTextProvider provider = [](int) {
+        QVector<OneNoteTextBlock> blocks;
+        blocks.append(OneNoteTextBlock{QStringLiteral("坏文字") + QChar(0x01)});
+        return blocks;
+    };
+
+    OneNoteExportOptions options;
+    options.pageNumbers = QVector<int>({1});
+    const OneNoteExportPlan plan = buildOneNoteExportPlan(QStringLiteral("报告.pdf"), 1, options);
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer, provider);
+
+    // 宁可少功能，不要功能全废：这一页照样送进去了，只是没有文字层。
+    QVERIFY(result.ok);
+    QCOMPARE(result.createdPageCount(), 1);
+    QVERIFY(result.degradedToImageOnly);
+    QCOMPARE(result.degradedPageCount, 1);
+    QVERIFY(!result.textLayerDetail.isEmpty());
+    // 后端拿到的是**空的**文字块：这一页只送图片。
+    QCOMPARE(fake->createdTextBlocks.size(), 1);
+    QVERIFY(fake->createdTextBlocks.at(0).isEmpty());
+    QVERIFY(result.message.contains(QStringLiteral("只送图片")));
+}
+
+void OneNoteExporterTests::exportWithoutTextProviderSaysNoTextLayer() {
+    auto backend = std::make_unique<FakeBackend>();
+    FakeBackend* fake = backend.get();
+    OneNoteExporter exporter(installedEnvironment(), std::move(backend));
+
+    auto renderer = [](int, int) { return makeTestImage(); };
+    OneNoteExportOptions options;
+    options.pageNumbers = QVector<int>({1});
+    const OneNoteExportPlan plan = buildOneNoteExportPlan(QStringLiteral("报告.pdf"), 1, options);
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer);
+
+    QVERIFY(result.ok);
+    QVERIFY(!result.textLayerWritten);
+    QVERIFY(!result.degradedToImageOnly);
+    QCOMPARE(fake->createdTextBlocks.size(), 1);
+    QVERIFY(fake->createdTextBlocks.at(0).isEmpty());
+    // 结果里要说明白：这次 OneNote 里搜不到文字。
+    QVERIFY(result.message.contains(QStringLiteral("没有文字层")));
 }
 
 void OneNoteExporterTests::exportSendsEveryPlannedPage() {

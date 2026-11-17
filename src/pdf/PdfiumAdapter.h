@@ -201,7 +201,8 @@ private:
 //
 // 注意：PDFium 的 FPDF_DOCUMENT 句柄只能在创建它的线程里使用，
 // 不能跨线程共享。本类因此提供 isolatedCopy()：在调用线程里新建一份
-// 独立句柄（文件字节用 QByteArray 隐式共享，不复制内存），
+// 独立句柄（内存字节用 QByteArray 隐式共享，不复制内存；
+// 按路径打开的文档则另开一个文件句柄，同样不复制数据），
 // 供渲染线程之类的其它线程各自持有。
 // 一个可填写的表单字段（AcroForm 的 Widget）。
 struct FormField {
@@ -244,6 +245,30 @@ public:
     bool isValid() const;
     int pageCount() const;
     QString filePath() const;
+
+    // 累计从磁盘读了多少字节（交给 PDFium 的那部分数据）。
+    //
+    // 这是「有没有把整份文件读进内存」的直接证据：按路径打开大文件时，
+    // 这个数应当远小于文件大小；整份 readAll 进内存的旧做法走的是内存字节，
+    // 这个数是 0。
+    qint64 bytesReadFromDisk() const;
+    // 文档是否把整份文件留在了内存里。
+    //
+    // 按路径打开的是 false（文件在磁盘上，内存里只有按需读的块）；
+    // 只有「从内存字节打开」才是 true。
+    bool holdsWholeFileInMemory() const;
+
+    // 累计从磁盘读了多少字节（交给 PDFium 的那部分数据）。
+    //
+    // 这是「有没有把整份文件读进内存」的直接证据：按路径打开大文件时，
+    // 这个数应当远小于文件大小；整份 readAll 进内存的旧做法走的是内存字节，
+    // 这个数是 0。
+    qint64 bytesReadFromDisk() const;
+    // 文档是否把整份文件留在了内存里。
+    //
+    // 按路径打开的是 false（文件在磁盘上，内存里只有按需读的块）；
+    // 只有「从内存字节打开」才是 true。
+    bool holdsWholeFileInMemory() const;
     // 读取 PDF 标准安全处理器权限位；未加密文档全部允许。
     DocumentPermissions permissions() const;
 
@@ -281,6 +306,9 @@ public:
     // 注意：副本是从**源字节**重新解析出来的，所以内存里改过的东西
     // （批注、页面结构）在副本里看不到。要让副本跟上最新状态，
     // 先 serialize() 再 syncBytes()。
+    //
+    // 按路径打开的文档，副本会另开一个文件句柄重新读同一个文件：
+    // 好处是仍然不占内存，代价是文件在这期间被换掉的话副本看到的是新内容。
     PdfDocument isolatedCopy() const;
 
     // ---------------------------------------------------------- 页面结构 ----
@@ -347,6 +375,10 @@ struct PdfOpenResult {
     PdfDocument document;
     QString errorMessage;
     bool passwordRequired = false;
+    // 本次打开实际从磁盘读了多少字节。
+    //
+    // 打开失败时也有值：这时它能证明「没有先把整份文件读进内存再解析」。
+    qint64 bytesRead = 0;
 };
 
 // 打开 PDF。filePath 不存在、格式损坏或密码错误时返回失败结果，不抛异常。
@@ -369,8 +401,8 @@ bool annotationTypeFromPdfium(int subtype, AnnotationType* out);
 // 文件大小上限从 256 MiB 提到 2 GiB：评分卡 K4 要求「1 GB 级文件可开可翻」，
 // 256 MiB 会把这类文档直接挡在门外（打开时给出「文件过大」）。
 //
-// 代价要说清楚：打开走的是 `file.readAll()`，整份文档会进内存，
-// 内存占用与文件大小同量级——这是「能开大文件」的必然代价。
+// 内存代价已经消掉了：打开按**路径**进行，文件留在磁盘上，
+// PDFium 按需读块，内存占用不再与文件大小同量级（见 pdf/DocumentOpen.h）。
 // 真正防住渲染爆炸的是下面两个像素上限，它们与文件大小无关，不会被这次放宽带松。
 inline constexpr qint64 kMaxPdfFileSizeBytes = 2LL * 1024 * 1024 * 1024;
 inline constexpr int kMaxRenderPixelDimension = 8192;

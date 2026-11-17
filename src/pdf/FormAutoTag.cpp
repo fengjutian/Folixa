@@ -65,6 +65,53 @@ QVector<QPDFObjectHandle> kidList(const QPDFObjectHandle& kids) {
     return result;
 }
 
+// 数一数结构树里既有的结构元素（按标签统计）。
+//
+// 为什么不把 /Form 算进来：/Form 元素正是这次要替换掉的，
+// 算进去的话「保留了多少」就变成了「替换了多少」，口径会骗人。
+//
+// 为什么从树根开始数：文档元素本身也是既有结构元素，它同样被保留下来了。
+void collectPreservedTags(const QPDFObjectHandle& parent, int depth, QSet<int>* visited,
+                          QMap<QString, int>* counts) {
+    if (!parent.isDictionary() || depth > kMaxTreeDepth) return;
+    if (parent.isIndirect()) {
+        const int id = parent.getObjectID();
+        if (visited->contains(id)) return;
+        visited->insert(id);
+    }
+    for (const QPDFObjectHandle& kid : kidList(parent.getKey("/K"))) {
+        if (!kid.isDictionary()) continue;
+        const QString tag = nameValue(kid, "/S");
+        if (tag == "Form") continue;  // 这一类被替换掉，不算保留
+        (*counts)[tag] += 1;
+        collectPreservedTags(kid, depth + 1, visited, counts);
+    }
+}
+
+// 在整棵树里找文档元素（/S /Document）。
+//
+// 为什么不能只看根的下一层：有的文件（某些 Word 导出、Acrobat 的输出）
+// 把文档元素放在章节元素下面。只看根的下一层就会漏掉它，然后另建一个——
+// 同一份文件里出现两棵文档分支，读屏软件按哪棵走都不对。
+bool findDocumentElement(const QPDFObjectHandle& parent, int depth, QSet<int>* visited,
+                         QPDFObjectHandle* found) {
+    if (!parent.isDictionary() || depth > kMaxTreeDepth) return false;
+    if (parent.isIndirect()) {
+        const int id = parent.getObjectID();
+        if (visited->contains(id)) return false;
+        visited->insert(id);
+    }
+    for (const QPDFObjectHandle& kid : kidList(parent.getKey("/K"))) {
+        if (!kid.isDictionary()) continue;
+        if (nameValue(kid, "/S") == "Document") {
+            *found = kid;
+            return true;
+        }
+        if (findDocumentElement(kid, depth + 1, visited, found)) return true;
+    }
+    return false;
+}
+
 // 一个表单域（AcroForm 里的一个终端字段）。
 struct FormFieldInfo {
     QString name;                       // 字段名（/T，含继承）
@@ -474,8 +521,16 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
             }
         }
 
-        // ---- 2. 准备标签树 ----
-        QPDFObjectHandle root = catalog.getKey("/StructTreeRoot");
+        // ---- 2. 准备标签树（合并语义）----
+        //
+        // 文档本来就有标签树 → 合并：树里原有的其它结构元素（/P、/H1、/Span 等）
+        // 与既有阅读顺序原样保留，只把与表单域相关的 /Form 元素换成新的。
+        // 文档本来没有标签树 → 新建一棵（老行为）。
+        const QPDFObjectHandle existingRoot = catalog.getKey("/StructTreeRoot");
+        const bool hadExistingTree = existingRoot.isDictionary();
+        result.mergedIntoExistingTree = hadExistingTree;
+
+        QPDFObjectHandle root = existingRoot;
         if (!root.isDictionary()) {
             root = QPDFObjectHandle::newDictionary();
             root.replaceKey("/Type", QPDFObjectHandle::newName("/StructTreeRoot"));
@@ -535,15 +590,17 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
         }
 
         // Document 元素：表单域的结构元素挂在它下面。
+        // 整棵树里找（不只看根的下一层）：有的文件把文档元素放在章节下面，
+        // 漏掉它就会在同一份文件里造出两棵文档分支。
         QPDFObjectHandle documentElement;
-        for (const QPDFObjectHandle& kid : kidList(root.getKey("/K"))) {
-            if (!kid.isDictionary()) continue;
-            if (nameValue(kid, "/S") == "Document") {
-                documentElement = kid;
-                break;
-            }
+        {
+            QSet<int> findVisited;
+            QPDFObjectHandle found;
+            if (findDocumentElement(root, 0, &findVisited, &found)) documentElement = found;
         }
+        bool createdDocumentElement = false;
         if (!documentElement.isDictionary()) {
+            createdDocumentElement = true;
             documentElement = QPDFObjectHandle::newDictionary();
             documentElement.replaceKey("/Type", QPDFObjectHandle::newName("/StructElem"));
             documentElement.replaceKey("/S", QPDFObjectHandle::newName("/Document"));
@@ -743,6 +800,29 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
             }
             for (const QPDFObjectHandle& ref : formRefs) docKids.push_back(ref);
             documentElement.replaceKey("/K", QPDFObjectHandle::newArray(docKids));
+        }
+
+        // 合并完成之后**再数一遍**既有结构元素，报给调用方的是最终那棵树里的实数。
+        //
+        // 为什么不在合并前就把数字报出去：那样等于让实现自己给自己背书——
+        // 就算真把树重建了，它也照样报「保留了 N 个」。合并后数，
+        // 实现做错了数字会跟着错，测试当场就能看出来。
+        if (hadExistingTree) {
+            QMap<QString, int> preservedCounts;
+            QSet<int> countVisited;
+            collectPreservedTags(root, 0, &countVisited, &preservedCounts);
+            if (createdDocumentElement) {
+                // 新建的文档元素不是「既有元素」，不算进去。
+                const auto document = preservedCounts.find(QStringLiteral("Document"));
+                if (document != preservedCounts.constEnd() && document.value() > 0) {
+                    preservedCounts[QStringLiteral("Document")] = document.value() - 1;
+                }
+            }
+            for (auto it = preservedCounts.constBegin(); it != preservedCounts.constEnd(); ++it) {
+                if (it.value() <= 0) continue;
+                result.preservedTags.append({it.key(), it.value()});
+                result.preservedElementCount += it.value();
+            }
         }
 
         // 文档是「带标签」的：读屏软件据此决定要不要走结构树。

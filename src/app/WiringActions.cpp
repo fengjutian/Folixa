@@ -29,6 +29,7 @@
 #include "app/LastWaveBridge.h"
 #include "app/LastWavePanels.h"
 #include "app/OcrController.h"
+#include "app/PageTextLines.h"
 #include "app/PdfView.h"
 #include "app/PrintToolsDialog.h"
 #include "doc/ActionWizard.h"
@@ -1411,8 +1412,26 @@ void WiringActions::sendToOneNote() {
         const int targetWidth = qMax(64, qRound(pointsWide * dpi / 72.0));
         return view->renderThumbnail(pageIndex, targetWidth);
     };
+    // 页 → 文字：把这一页的文本层也送过去，OneNote 里才搜得到这页的文字。
+    //
+    // 为什么按 page.pageIndex 找而不是直接下标取：documentTextPages() 会跳过
+    // 没有文字的页，返回的数组下标跟页号对不上。
+    const QVector<pdf::TextPage> textPages = view->documentTextPages();
+    const OneNotePageTextProvider textProvider = [textPages](int pageIndex) {
+        QVector<OneNoteTextBlock> blocks;
+        for (const pdf::TextPage& page : textPages) {
+            if (page.pageIndex != pageIndex) {
+                continue;
+            }
+            for (const UserSpaceLine& line : userSpaceTextLines(page)) {
+                blocks.append(OneNoteTextBlock{line.text});
+            }
+            break;
+        }
+        return blocks;
+    };
     OneNoteExporter exporter;
-    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer);
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer, textProvider);
     if (!result.ok) {
         // 失败原因已经按种类分好了（没装 / COM 起不来 / 写页失败），不笼统说「发送失败」。
         QMessageBox::warning(parentWidget_, title, result.message);

@@ -21,6 +21,8 @@
 #include <QDir>
 #include <QFile>
 #include <QGuiApplication>
+#include <QImage>
+#include <QMimeData>
 #include <QString>
 #include <QStringList>
 #include <QTest>
@@ -318,6 +320,12 @@ private slots:
     void emptyClipboardTextIsRejected();
     void whitespaceOnlyClipboardTextIsRejected();
     void clipboardChineseSurvivesWithEmbeddedFont();
+    void clipboardTextReportsPlainTextSource();
+    void clipboardHtmlProducesReadablePdf();
+    void clipboardHtmlReportsRichTextSource();
+    void clipboardHtmlLayoutDiffersFromPlainText();
+    void clipboardHtmlWithoutBodyIsRejected();
+    void clipboardHtmlWithOnlyStyleIsRejected();
 
     // ------------------------------------------------------------ 网页 ----
     void htmlBodyDropsScriptStyleAndNavigation();
@@ -347,7 +355,9 @@ private slots:
     void dialogRejectsEmptyUrl();
     void dialogRejectsNonHttpUrl();
     void dialogClipboardModeUsesClipboard();
+    void dialogPrefersClipboardHtmlOverText();
     void dialogRejectsUnreadableTemplateFile();
+    void dialogRejectsImageOnlyClipboard();
 };
 
 // ============================================================ 剪贴板 =====
@@ -406,6 +416,76 @@ void ConversionInputsTests::clipboardChineseSurvivesWithEmbeddedFont() {
     QCOMPARE(squeezeWhitespace(probe.allText()), QStringLiteral("A中B"));
 }
 
+void ConversionInputsTests::clipboardTextReportsPlainTextSource() {
+    // 结果里要能看出这次走的是纯文本这一路。
+    const ConversionResult result = aipdf::doc::clipboardTextToPdf(QStringLiteral("plain text"));
+    QVERIFY(result.ok);
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::PlainText);
+}
+
+void ConversionInputsTests::clipboardHtmlProducesReadablePdf() {
+    // 正例：剪贴板里的富文本排出来是一份能读回来的 PDF。
+    const QString html = QStringLiteral(
+        "<html><body><h1>Rich Title</h1><p>First paragraph</p></body></html>");
+    const ConversionResult result = aipdf::doc::clipboardHtmlToPdf(html);
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    QCOMPARE(result.pageCount, 1);
+
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    const QString extracted = squeezeWhitespace(probe.allText());
+    QVERIFY(extracted.contains(QStringLiteral("RichTitle")));
+    QVERIFY(extracted.contains(QStringLiteral("Firstparagraph")));
+}
+
+void ConversionInputsTests::clipboardHtmlReportsRichTextSource() {
+    // 结果里要能看出这次走的是富文本这一路。
+    const ConversionResult result = aipdf::doc::clipboardHtmlToPdf(
+        QStringLiteral("<html><body><p>Rich body</p></body></html>"));
+    QVERIFY(result.ok);
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::RichText);
+}
+
+void ConversionInputsTests::clipboardHtmlLayoutDiffersFromPlainText() {
+    // 正例：富文本与纯文本两条路排出来的东西必须不一样（用户要能看出排版差别）。
+    const QString html = QStringLiteral(
+        "<html><body><p>First paragraph</p>"
+        "<a href=\"https://example.com/rich\">Link</a></body></html>");
+    const ConversionResult rich = aipdf::doc::clipboardHtmlToPdf(html);
+    const ConversionResult plain =
+        aipdf::doc::clipboardTextToPdf(QStringLiteral("First paragraph\nLink"));
+    QVERIFY(rich.ok);
+    QVERIFY(plain.ok);
+    QVERIFY(rich.bytes != plain.bytes);
+
+    const QString richText = squeezeWhitespace(probeWithPdfium(rich.bytes).allText());
+    const QString plainText = squeezeWhitespace(probeWithPdfium(plain.bytes).allText());
+    QVERIFY(richText != plainText);
+    // 差别来自富文本路径保住的页面结构（这里是把正文里的链接也排了进去）。
+    QVERIFY(richText.contains(QStringLiteral("https://example.com/rich")));
+    QVERIFY(!plainText.contains(QStringLiteral("https://example.com/rich")));
+}
+
+void ConversionInputsTests::clipboardHtmlWithoutBodyIsRejected() {
+    // 负例：HTML 里没有正文 —— 必须明确失败，不能出一份空白 PDF。
+    const ConversionResult result = aipdf::doc::clipboardHtmlToPdf(
+        QStringLiteral("<html><head><style>p{color:red}</style></head><body></body></html>"));
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoHtmlBody);
+    QVERIFY(!result.error.isEmpty());
+}
+
+void ConversionInputsTests::clipboardHtmlWithOnlyStyleIsRejected() {
+    // 负例：整段都是脚本与样式 —— 同样必须明确失败。
+    const ConversionResult result = aipdf::doc::clipboardHtmlToPdf(
+        QStringLiteral("<html><body><script>var x = 1;</script><style>a{}</style></body></html>"));
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoHtmlBody);
+}
+
 // ============================================================ 网页 =====
 
 void ConversionInputsTests::htmlBodyDropsScriptStyleAndNavigation() {
@@ -462,7 +542,9 @@ void ConversionInputsTests::htmlWithoutBodyTextIsRejected() {
         QUrl());
     QVERIFY(!result.ok);
     QVERIFY(result.bytes.isEmpty());
-    QVERIFY(result.error.contains(QStringLiteral("正文")));
+    // 失败原因用结构化的种类表示（给用户看的中文句子由 app 层拼）。
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoHtmlBody);
+    QVERIFY(!result.error.isEmpty());
 }
 
 void ConversionInputsTests::htmlWithOnlyScriptIsRejected() {
@@ -472,7 +554,8 @@ void ConversionInputsTests::htmlWithOnlyScriptIsRejected() {
         QUrl());
     QVERIFY(!result.ok);
     QVERIFY(result.bytes.isEmpty());
-    QVERIFY(result.error.contains(QStringLiteral("正文")));
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoHtmlBody);
+    QVERIFY(!result.error.isEmpty());
 }
 
 void ConversionInputsTests::relativeLinksAreResolvedAgainstBaseUrl() {
@@ -719,6 +802,72 @@ void ConversionInputsTests::dialogClipboardModeUsesClipboard() {
     const PdfProbe probe = probeWithPdfium(outcome.bytes);
     QVERIFY(probe.opened);
     QVERIFY(squeezeWhitespace(probe.allText()).contains(QStringLiteral("Clipboardroundtrip")));
+}
+
+void ConversionInputsTests::dialogPrefersClipboardHtmlOverText() {
+    // 正例：剪贴板里有富文本时按富文本排版，结果里也要说明用的是哪一路。
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Clipboard);
+    dialog.setClipboardHtml(QStringLiteral(
+        "<html><body><p>Rich body</p>"
+        "<a href=\"https://example.com/rich\">Link</a></body></html>"));
+
+    aipdf::app::ConversionInputOutcome outcome;
+    QVERIFY(dialog.convert(&outcome));
+    QVERIFY(outcome.ok);
+    QCOMPARE(outcome.sourceKind, aipdf::doc::ConversionSourceKind::RichText);
+
+    bool mentionedRichText = false;
+    for (const QString& line : outcome.detailLines) {
+        if (line.contains(QStringLiteral("富文本"))) {
+            mentionedRichText = true;
+        }
+    }
+    QVERIFY(mentionedRichText);
+
+    const PdfProbe probe = probeWithPdfium(outcome.bytes);
+    QVERIFY(probe.opened);
+    QVERIFY(squeezeWhitespace(probe.allText()).contains(QStringLiteral("https://example.com/rich")));
+}
+
+void ConversionInputsTests::dialogRejectsImageOnlyClipboard() {
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) {
+        QSKIP("本机没有剪贴板");
+    }
+    const QString savedText = clipboard->text();
+    const QImage savedImage = clipboard->image();
+
+    QImage image(8, 8, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    clipboard->setImage(image);
+    if (!clipboard->mimeData()->hasImage()) {
+        // 剪贴板被别的进程占着：先放回去再跳过。
+        if (!savedImage.isNull()) {
+            clipboard->setImage(savedImage);
+        } else {
+            clipboard->setText(savedText);
+        }
+        QSKIP("系统剪贴板当前不可用（可能被别的进程占用）");
+    }
+
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Clipboard);
+    aipdf::app::ConversionInputOutcome outcome;
+    dialog.convert(&outcome);
+    const bool converted = outcome.ok;
+    const QString error = outcome.error;
+
+    // 还原剪贴板：测试不该把用户剪贴板里的东西弄丢。
+    if (!savedImage.isNull()) {
+        clipboard->setImage(savedImage);
+    } else {
+        clipboard->setText(savedText);
+    }
+
+    // 负例：剪贴板里只有图片 —— 明确说「不支持」，不能笼统报「没内容」。
+    QVERIFY(!converted);
+    QVERIFY(error.contains(QStringLiteral("图片")));
 }
 
 void ConversionInputsTests::dialogRejectsUnreadableTemplateFile() {

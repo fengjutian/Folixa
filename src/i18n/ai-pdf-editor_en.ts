@@ -6588,7 +6588,27 @@ Notes: %1</translation></message>
                 <source>文档</source>
                 <translation>Document</translation>
             </message>
-    </context>
+                <message>
+                <source>剪贴板里的富文本没有正文（去掉标签和样式之后就没东西了），没法生成 PDF。</source>
+                <translation>The rich text in the clipboard has no body text (nothing is left after tags and styles are removed), so no PDF can be created.</translation>
+            </message>
+            <message>
+                <source>剪贴板里只有图片，本程序还不支持把图片转成 PDF（只支持文字和富文本）。</source>
+                <translation>The clipboard contains only an image; this program cannot turn images into PDF yet (only text and rich text are supported).</translation>
+            </message>
+            <message>
+                <source>这次按富文本排版（保留了标题、段落和列表结构）。</source>
+                <translation>Laid out as rich text this time (headings, paragraphs and list structure are preserved).</translation>
+            </message>
+            <message>
+                <source>这次按纯文本排版。</source>
+                <translation>Laid out as plain text this time.</translation>
+            </message>
+            <message>
+                <source>这个网页里没有正文（脚本、样式和导航都去掉之后就没东西了）。</source>
+                <translation>This web page has no body text (nothing is left after scripts, styles and navigation are removed).</translation>
+            </message>
+</context>
     <context>
         <name>aipdf::app::DocumentCompareDialog</name>
             <message>
@@ -6703,7 +6723,71 @@ Notes: %1</translation></message>
                 <source>比较完成：共 %1 处差异（新增 %2 处、删除 %3 处、修改 %4 处、新增页 %5 页、删除页 %6 页），整体相似度 %7%。</source>
                 <translation>Comparison complete: %1 differences in total (%2 inserted, %3 deleted, %4 modified, %5 pages added, %6 pages removed); overall similarity %7.</translation>
             </message>
-    </context>
+                <message>
+                <source>同时比较图形（渲染成位图逐像素比，较慢）</source>
+                <translation>Also compare graphics (render to bitmaps and compare pixel by pixel; slower)</translation>
+            </message>
+            <message>
+                <source>文字差异</source>
+                <translation>Text differences</translation>
+            </message>
+            <message>
+                <source>视觉差异（图形）</source>
+                <translation>Visual differences (graphics)</translation>
+            </message>
+            <message>
+                <source>差异比例</source>
+                <translation>Difference ratio</translation>
+            </message>
+            <message>
+                <source>差异区域</source>
+                <translation>Difference area</translation>
+            </message>
+            <message>
+                <source>说明</source>
+                <translation>Details</translation>
+            </message>
+            <message>
+                <source>x %1..%2, y %3..%4</source>
+                <translation>x %1..%2, y %3..%4</translation>
+            </message>
+            <message>
+                <source>图形有变化</source>
+                <translation>Graphics changed</translation>
+            </message>
+            <message>
+                <source>没有图形差异</source>
+                <translation>No graphics differences</translation>
+            </message>
+            <message>
+                <source>无法比对：%1</source>
+                <translation>Cannot compare: %1</translation>
+            </message>
+            <message>
+                <source>（两页尺寸不同，只比了共同区域）</source>
+                <translation>(the two pages differ in size; only the common area was compared)</translation>
+            </message>
+            <message>
+                <source>视觉差异：%1 页（平均差异比例 %2%，最大 %3%）。</source>
+                <translation>Visual differences: %1 page(s) (average difference ratio %2%, maximum %3%).</translation>
+            </message>
+            <message>
+                <source>视觉差异：没有发现图形改动。</source>
+                <translation>Visual differences: no graphics changes found.</translation>
+            </message>
+            <message>
+                <source>有 %1 页无法比对（渲染失败）。</source>
+                <translation>%1 page(s) could not be compared (rendering failed).</translation>
+            </message>
+            <message>
+                <source>像素比对失败：%1</source>
+                <translation>Pixel comparison failed: %1</translation>
+            </message>
+            <message>
+                <source>像素比对说明：%1</source>
+                <translation>Pixel comparison note: %1</translation>
+            </message>
+</context>
     <context>
         <name>aipdf::app::ScannerCapture</name>
             <message>
@@ -6801,6 +6885,18 @@ Notes: %1</translation></message>
             <message>
                 <source> DPI</source>
                 <translation>DPI</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
+            </message>
+            <message>
+                <source> DPI</source>
+                <translation>DPI</translation>
+            </message>
+            <message>
+                <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）</source>
+                <translation>The scanner returned an unsupported image format (only BMP, JPEG and PNG are supported)</translation>
             </message>
             <message>
                 <source> DPI</source>
@@ -6927,6 +7023,30 @@ Notes: %1</translation></message>
                 <message>
                 <source>（已送出 %1 页）</source>
                 <translation>(%1 page(s) were already sent)</translation>
+            </message>
+            <message>
+                <source>（已经写进 OneNote %1 页，剩下的没有写进去）</source>
+                <translation>(%1 page(s) were written into OneNote; the remaining pages were not written)</translation>
+            </message>
+            <message>
+                <source>第 %1 页的文字层写坏了（文字里有非法控制字符），这一页只送图片</source>
+                <translation>The text layer of page %1 is broken (the text contains illegal control characters); only the image was sent for this page</translation>
+            </message>
+            <message>
+                <source>取第 %1 页的文字时出错</source>
+                <translation>The text of page %1 could not be read</translation>
+            </message>
+            <message>
+                <source>（这次没有文字层，在 OneNote 里搜不到文字）</source>
+                <translation>(There is no text layer this time, so the text cannot be searched for in OneNote)</translation>
+            </message>
+            <message>
+                <source>（%1 页的文字层写不进去，已经只送图片）</source>
+                <translation>(The text layer could not be written for %1 page(s); only the images were sent)</translation>
+            </message>
+            <message>
+                <source>这一页的 XML 写坏了，已经只送图片。</source>
+                <translation>The XML of this page is broken; only the image was sent.</translation>
             </message>
 </context>
 </TS>

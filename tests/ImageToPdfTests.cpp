@@ -316,6 +316,7 @@ private slots:
     void decodesPngWithRowFilters();
     void pngBecomesReadablePdf();
     void brokenPngFails();
+    void tiffIsExplicitlyUnsupported();
     void multiPageKeepsOrder();
     void emptyInputFails();
     void garbageBytesFail();
@@ -698,6 +699,20 @@ void ImageToPdfTests::brokenPngFails() {
     QCOMPARE(bad.failedIndex, 0);
     QVERIFY(bad.detail.contains(QStringLiteral("PNG")));
 }
+void ImageToPdfTests::tiffIsExplicitlyUnsupported() {
+    // 负例：TIFF 明确不支持，而且必须**点名 TIFF**——
+    // 只写「格式不支持」等于让用户自己猜是设备设置的问题还是程序的问题。
+    const QByteArray tiff = QByteArray::fromHex("49492A0000000000");
+    QCOMPARE(detectImageFormat(tiff), ImageFormat::Unknown);
+    QCOMPARE(describeImageFormat(tiff), QStringLiteral("TIFF"));
+
+    const ImageToPdfResult result = imagesToPdf({tiff});
+    QCOMPARE(result.error, ImageToPdfError::UnsupportedFormat);
+    QCOMPARE(result.failedIndex, 0);
+    QVERIFY(result.pdf.isEmpty());
+    QVERIFY2(result.detail.contains(QStringLiteral("TIFF")), qPrintable(result.detail));
+}
+
 void ImageToPdfTests::multiPageKeepsOrder() {
     // 三张宽度不同的图：页序必须按给的顺序，一页一张。
     QVector<QByteArray> images;

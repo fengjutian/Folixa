@@ -261,6 +261,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/NamedDestination.h
     pdf/PageLabels.cpp
     pdf/PageLabels.h
+    pdf/PdfAChecker.cpp
+    pdf/PdfAChecker.h
     pdf/FormAutoTag.cpp
     pdf/FormAutoTag.h
     pdf/ImageToPdf.cpp
