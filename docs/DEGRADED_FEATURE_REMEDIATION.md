@@ -5,7 +5,8 @@
 > 本文是**审计与候选 backlog**，不是排期表，也不是与版本文档平行的第三份真相源。
 >
 > - 落地状态看 [VERSION_AUDIT.md](VERSION_AUDIT.md) 的历次重算 —— 第七次已把本文成立的那部分收了进去；
->   逐条欠什么看 [欠账清单](benchmark/scorecard-debt.csv)（评分卡 R4 第②类缺口）。
+>   逐条欠什么看 [欠账清单](benchmark/scorecard-debt.csv)（评分卡 R4 第②类缺口）；
+>   **要改哪些功能、按什么顺序**看 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md)（分三梯队，数字全部现算）。
 > - 能力矩阵以 [foxit-features.csv](benchmark/foxit-features.csv) 为**唯一数据源**，
 >   [FOXIT_FEATURE_MATRIX.md](FOXIT_FEATURE_MATRIX.md) 由 `scripts/build-foxit-matrix.py` 生成。
 > - **第 7 节不能直接当排期用**：「4–6 个版本」没有落到 1.x / 2.0.0 的任何里程碑，

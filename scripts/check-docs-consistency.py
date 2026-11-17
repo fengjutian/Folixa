@@ -162,6 +162,35 @@ if os.path.exists(DEBT_CSV):
 else:
     problems.append("欠账清单不存在：docs/benchmark/scorecard-debt.csv")
 
+# ---- 要修改的功能列表（docs/FEATURE_MODIFICATION_BACKLOG.md）----
+BACKLOG = os.path.join(ROOT, "docs", "FEATURE_MODIFICATION_BACKLOG.md")
+if os.path.exists(BACKLOG):
+    backlog = io.open(BACKLOG, "r", encoding="utf-8-sig").read()
+    m_total = re.search(r"命令矩阵共 \*\*(\d+)\*\* 条：aligned \*\*(\d+)\*\*、partial \*\*(\d+)\*\*", backlog)
+    if not m_total:
+        problems.append("待改清单：开头那句总数行找不到")
+    else:
+        if int(m_total.group(1)) != total:
+            problems.append("待改清单：命令总数 %s，实际 %d" % (m_total.group(1), total))
+        if int(m_total.group(2)) != aligned:
+            problems.append("待改清单：aligned %s，实际 %d" % (m_total.group(2), aligned))
+        if int(m_total.group(3)) != counter.get("partial", 0):
+            problems.append("待改清单：partial %s，实际 %d" % (m_total.group(3), counter.get("partial", 0)))
+    m_debt_head = re.search(r"## 第一梯队：欠账 (\d+) 项", backlog)
+    if not m_debt_head:
+        problems.append("待改清单：第一梯队标题找不到")
+    elif int(m_debt_head.group(1)) != debt_count:
+        problems.append("待改清单：第一梯队 %s 项，欠账清单实际 %d 条" % (m_debt_head.group(1), debt_count))
+    m_partial_head = re.search(r"## 第二梯队：矩阵 partial (\d+) 项", backlog)
+    if not m_partial_head:
+        problems.append("待改清单：第二梯队标题找不到")
+    elif int(m_partial_head.group(1)) != counter.get("partial", 0):
+        problems.append("待改清单：第二梯队 %s 条，矩阵 partial 实际 %d 条"
+                        % (m_partial_head.group(1), counter.get("partial", 0)))
+    print("待改清单：欠账 %d 项 / partial %d 条" % (debt_count, counter.get("partial", 0)))
+else:
+    problems.append("待改清单不存在：docs/FEATURE_MODIFICATION_BACKLOG.md")
+
 print()
 if problems:
     print("!! 一致性检查未通过：")

@@ -22,6 +22,7 @@ enum class ConversionSourceKind {
     Unknown,    // 不是「文本类输入 → PDF」
     PlainText,  // 纯文本
     RichText,   // 富文本（HTML）
+    Images,     // 图片（剪贴板里的图片，一图一页）
 };
 
 // 失败的具体原因（结构化）。
@@ -34,6 +35,13 @@ enum class ConversionErrorKind {
     NoContent,    // 输入里没有内容可转
     NoHtmlBody,   // HTML 里没有正文
     LayoutFailed, // 排版本身失败（编码、字体等）
+    // 图片格式不支持（TIFF / GIF / WebP 等）。
+    //
+    // 为什么单列一个：界面要跟用户说清「是没这个格式」还是「图坏了」，
+    // 前者要他去改来源，后者要他重截一次。
+    UnsupportedImageFormat,
+    // 图片解不开（数据坏了 / 被截断）。
+    ImageDecodeFailed,
 };
 
 // ============================================================ 网页图片 ====
@@ -89,6 +97,51 @@ struct HtmlImageRef {
     int textOffset = -1;
 };
 
+// ============================================================ 剪贴板图片 ====
+
+// 一张剪贴板图片没带进 PDF 的原因（结构化）。
+//
+// 为什么不并进 HtmlImageIssueKind：网页那套里有「下载失败」（图在远端才有
+// 这个原因），剪贴板这路的图就在本地字节里，永远不会下载失败；
+// 混在一个枚举里，界面就会给剪贴板图片拼出「下载失败」这种看不懂的话。
+enum class ClipboardImageIssueKind {
+    EmptyData,          // 字节是空的（剪贴板没给出内容）
+    UnsupportedFormat,  // 格式不支持（TIFF / GIF / WebP 等）
+    DecodeFailed,       // 解不开（数据坏了 / 被截断）
+    TooLarge,           // 像素太大，一页放不下
+    LimitReached,       // 这次带的图太多，超出单次上限
+    LayoutFailed,       // 排不进这份 PDF（合成失败）
+};
+
+// 一张没带进来的剪贴板图片。
+struct ClipboardImageIssue {
+    // 第几张（0 基，与传入的数组顺序一致）。
+    int index = -1;
+    // 原因（结构化）。
+    ClipboardImageIssueKind kind = ClipboardImageIssueKind::EmptyData;
+    // 认出来的格式（ASCII：PNG / TIFF / BMP / JPEG / GIF / WebP / unknown）。
+    //
+    // 为什么单独给一个字段：提示只写「格式不支持」等于让用户自己猜；
+    // 点名「TIFF」，他立刻知道是设备设置的问题还是程序的问题。
+    QString format;
+    // 技术细节（ASCII）：到底哪儿不对。
+    QString detail;
+};
+
+// 这次带图的结果。
+//
+// 为什么不塞进 HtmlImageOutcome：那一套的语义是「网页正文里的图」，
+// 里面有「下载失败」这类只在远端取图时才会有的原因；
+// 剪贴板图片是本地字节，语义不同，混在一起界面就没法拼出人话。
+struct ClipboardImageOutcome {
+    // 这次一共带了几张图。
+    int found = 0;
+    // 成功写进 PDF 的张数。
+    int embedded = 0;
+    // 没带进来的图（逐条带原因，不静默忽略）。
+    QVector<ClipboardImageIssue> issues;
+};
+
 // ============================================================ 转换结果 =====
 //
 // 三个输入（剪贴板 / 网页 / 表单文件）里，前两个都是「文本 → PDF」，
@@ -115,6 +168,11 @@ struct ConversionResult {
     ConversionSourceKind sourceKind = ConversionSourceKind::Unknown;
     // 这次带图的结果（网页转换时才有内容）。
     HtmlImageOutcome imageOutcome;
+    // 这次带图的结果（剪贴板图片转换时才有内容）。
+    //
+    // 为什么与 imageOutcome 分开：两者失败的原因集合不一样，
+    // 网页那套不该被图片那套污染（界面拼话时按各自的枚举来）。
+    ClipboardImageOutcome clipboardImageOutcome;
 };
 
 // ---------------------------------------------------------- 剪贴板 ----
@@ -139,13 +197,30 @@ ConversionResult clipboardTextToPdf(
 // 只取纯文本会把标题层级、段落结构、列表全丢掉，出来的 PDF 是一坨。
 // 剪贴板里有 HTML 时应当优先按 HTML 排版（调用方负责这个优先级）。
 //
-// 剪贴板里的**图片不支持**：本程序没有把图片排成 PDF 的能力
-// （doc/UniversalConverter 只做文本类文件），硬做只能出一张没有文字层的图，
-// 与其给一个半成品，不如明确说「图片不支持」。
+// HTML 里的图片（<img> / data: 内联图）**仍然不支持**：这一路只排正文，
+// 去了标签只剩文字。**剪贴板里的图片走另一个入口**（clipboardImageToPdf）——
+// 那是从剪贴板直接拿到的图片字节，与网页里的图片不是一回事。
 //
 // HTML 里没有正文（整段是脚本、样式、导航）时**直接失败**，不生成空白 PDF。
 ConversionResult clipboardHtmlToPdf(
     const QString& html,
+    const QString& title = QString(),
+    const UniversalConverterOptions& options = UniversalConverterOptions());
+
+// 把剪贴板里的**图片**排成一份 PDF（一图一页，页序 = 传入顺序）。
+//
+// 为什么单独一个入口而不是并进 clipboardHtmlToPdf：剪贴板里可能**同时**有
+// 富文本和图片，这两样排出来的 PDF 完全不一样（一边有文字层，一边是图），
+// 该用哪一边是**产品决定**（界面层定），领域层不猜，只把两条路都备好。
+//
+// 图片格式只支持 JPEG / BMP / PNG：这三样仓库里已经有解码器（含自研的 PNG
+// 解码器），TIFF / GIF / WebP 没有 —— 明确报「格式不支持」并点名格式，
+// **不静默忽略**。
+//
+// 一张都没排进去时**直接失败**（errorKind 给出原因），不生成空白 PDF；
+// 排进去一部分则算成功，没排进去的逐张记进 result.clipboardImageOutcome.issues。
+ConversionResult clipboardImageToPdf(
+    const QVector<QByteArray>& imageBytes,
     const QString& title = QString(),
     const UniversalConverterOptions& options = UniversalConverterOptions());
 
