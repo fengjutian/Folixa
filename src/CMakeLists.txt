@@ -59,6 +59,16 @@ qt_add_executable(AiPdfEditor WIN32
     app/RibbonBar.cpp
     app/LastWaveWriter.cpp
     app/LastWaveWriter.h
+    app/OneNoteExporter.cpp
+    app/OneNoteExporter.h
+    app/PresentationLoop.cpp
+    app/PresentationLoop.h
+    app/ScannerCapture.cpp
+    app/ScannerCapture.h
+    app/ConversionInputDialog.cpp
+    app/ConversionInputDialog.h
+    app/DocumentCompareDialog.cpp
+    app/DocumentCompareDialog.h
     app/LastWavePanels.cpp
     app/LastWavePanels.h
     app/LastWaveBridge.cpp
@@ -213,6 +223,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ExportFormats.h
     doc/ZipWriter.cpp
     doc/ZipWriter.h
+    doc/ConversionInputs.cpp
+    doc/ConversionInputs.h
     doc/FontFlattening.cpp
     doc/FontFlattening.h
     doc/OfdExport.cpp
@@ -249,6 +261,12 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/NamedDestination.h
     pdf/PageLabels.cpp
     pdf/PageLabels.h
+    pdf/FormAutoTag.cpp
+    pdf/FormAutoTag.h
+    pdf/ImageToPdf.cpp
+    pdf/ImageToPdf.h
+    pdf/DocumentComparer.cpp
+    pdf/DocumentComparer.h
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
@@ -388,6 +406,10 @@ target_link_libraries(AiPdfEditor PRIVATE
 # 验签的证书链解析走 crypt32，证书 SHA-1 指纹走 bcrypt。
 if (WIN32)
     target_link_libraries(AiPdfEditor PRIVATE advapi32 crypt32 bcrypt)
+    # OneNote 导出走 COM 晚绑定（CoCreateInstance + IDispatch）。
+    # Qt6::Core 的接口库目前已经带了这两个，但显式写出来更稳：
+    # Qt 哪天改成动态库、接口库不再传递它们时，链接不会莫名其妙地断。
+    target_link_libraries(AiPdfEditor PRIVATE ole32 oleaut32)
 endif()
 
 target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

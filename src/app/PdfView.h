@@ -42,6 +42,7 @@ class AnnotationController;
 class IndexController;
 class DocumentQaController;
 class PageTransform;
+class PresentationWindow;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -122,6 +123,12 @@ public slots:
 
     // 放映：全屏一页一张，方向键翻页。
     void startPresentation();
+
+    // 放映是否循环：放映到最后一页时绕回第一页。
+    //
+    // 循环是**放映的选项**，不是文档的属性，所以只存在内存里，不随文件保存。
+    void setPresentationLoop(bool enabled);
+    bool presentationLoop() const { return presentationLoop_; }
 
     // 批注交换：XFDF 导入导出。
     void exportAnnotationsXfdf();
@@ -583,6 +590,11 @@ private:
     bool fitToPage_ = false;
     // 文档有没有未保存的改动。
     bool modified_ = false;
+    // 放映是否循环（只存在内存里）。
+    bool presentationLoop_ = false;
+    // 正在放映的窗口：放映期间改循环开关要能立刻作用到它身上。
+    // 关掉之后由 destroyed 信号清空，不能留野指针。
+    PresentationWindow* presentationWindow_ = nullptr;
     // 保存时的加密设置（v1.6.0）。encryptionEnabled_ 为假时按明文保存。
     pdf::PdfEncryptionOptions encryptionOptions_;
     bool encryptionEnabled_ = false;

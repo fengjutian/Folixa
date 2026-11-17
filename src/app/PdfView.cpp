@@ -3325,7 +3325,8 @@ void PdfView::batchProcessDialog() {
 
     auto* steps = new QListWidget(&dialog);
     steps->setObjectName(QStringLiteral("batch.steps"));
-    const QStringList stepNames{tr("清理隐藏信息"), tr("移除嵌入文件"), tr("什么也不做（只出报告）")};
+    const QStringList stepNames{tr("清理隐藏信息"), tr("移除嵌入文件"), tr("加密（AES-256）"),
+                               tr("什么也不做（只出报告）")};
     for (const QString& name : stepNames) {
         QListWidgetItem* item = new QListWidgetItem(name, steps);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
@@ -3356,6 +3357,28 @@ void PdfView::batchProcessDialog() {
             QMessageBox::information(&dialog, tr("批处理"), tr("这个目录里没有 PDF。"));
             return;
         }
+        // 加密步要先收密码：密码用「加密与权限」对话框收，与单文档加密同一套语义，
+        // 不能两处各写一套规则。取消就整批不做——悄悄跳过加密那一步，
+        // 用户会以为文件已经加密过了。
+        bool wantsEncrypt = false;
+        for (int index = 0; index < steps->count(); ++index) {
+            const QListWidgetItem* item = steps->item(index);
+            if (item->checkState() == Qt::Checked && item->text() == stepNames.at(2)) {
+                wantsEncrypt = true;
+            }
+        }
+        pdf::PdfEncryptionOptions encryptOptions;
+        if (wantsEncrypt) {
+            EncryptionDialog encryptDialog(doc::defaultEncryptOptions(QString()), true, &dialog);
+            if (encryptDialog.exec() != QDialog::Accepted || !encryptDialog.encryptionEnabled()) {
+                return;
+            }
+            encryptOptions = encryptDialog.options();
+            if (encryptOptions.userPassword.isEmpty()) {
+                QMessageBox::warning(&dialog, tr("批处理"), tr("打开密码不能为空。"));
+                return;
+            }
+        }
         QVector<doc::BatchStep> batchSteps;
         for (int index = 0; index < steps->count(); ++index) {
             const QListWidgetItem* item = steps->item(index);
@@ -3371,6 +3394,10 @@ void PdfView::batchProcessDialog() {
                 batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
                     return pdf::removeEmbeddedFiles(in, err);
                 }});
+            } else if (title == stepNames.at(2)) {
+                // 加密步走 doc 层：加密完会做一次「用密码重新打开」的自检，
+                // 打不开就不产出文件，不会给出一堆谁也读不了的 PDF。
+                batchSteps.append(doc::makeEncryptStep(title, encryptOptions));
             } else {
                 // 「什么也不做」：原样返回，报告里照样有它的字节数。
                 batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString*) {
@@ -5457,7 +5484,20 @@ void PdfView::startPresentation() {
     }
     // 窗口自己持有一份文档句柄；关掉就随 WA_DeleteOnClose 一起释放。
     auto* presentation = new PresentationWindow(document_, window());
+    // 循环是放映的选项：带着当前的循环设置开窗。
+    presentation->setLoop(presentationLoop_);
+    // 记下窗口指针：放映期间改循环开关要能立刻作用到正在放的窗口上。
+    presentationWindow_ = presentation;
+    connect(presentation, &QObject::destroyed, this, [this]() { presentationWindow_ = nullptr; });
     presentation->start();
+}
+
+void PdfView::setPresentationLoop(bool enabled) {
+    presentationLoop_ = enabled;
+    // 正在放映的话立刻生效，不用等到下一次放映。
+    if (presentationWindow_ != nullptr) {
+        presentationWindow_->setLoop(enabled);
+    }
 }
 
 void PdfView::navigateBack() {

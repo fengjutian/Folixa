@@ -18,6 +18,9 @@ class AiPanel;
 class AiToolService;
 class OcrController;
 class PdfView;
+// 转换结果（定义在 app/ConversionInputDialog.h）。
+// 这里只前置声明：WiringActions.h 不需要知道结果的细节。
+struct ConversionInputOutcome;
 
 // 第二批接线（E/F/G/H）的动作集合。
 //
@@ -100,6 +103,29 @@ public:
     // U：发票打印。
     void invoicePrint();
 
+    // ------------------------------------ 第四批接线（补齐缺口）----
+    //
+    // 这一批是把「看得见但点不动」的占位按钮换成真入口。
+    // 每个 handler 只做编排，判定一律在领域层。
+    // 从剪贴板新建 PDF（剪贴板里的文字 -> 一份新 PDF）。
+    void convertFromClipboard();
+    // 从网页新建 PDF（抓正文 -> 排版 -> 一份新 PDF）。
+    void convertFromWeb();
+    // 从表单数据文件新建 PDF（模板 PDF + 数据文件 -> 填好的 PDF）。
+    void convertFromFormFile();
+    // 从扫描仪新建 PDF（WIA 取帧 -> 多页 PDF）。
+    void scanFromScanner();
+    // 文档比较（两份 PDF 比出差异）。
+    void compareDocuments();
+    // 批量加密（给一个目录里的 PDF 批量加打开密码）。
+    void batchEncrypt();
+    // 放映是否循环（切换；正在放映的话立刻生效）。
+    void togglePresentationLoop();
+    // 给 PDF 里的表单域写标签树与替代文本。
+    void autoTagFormFields();
+    // 把当前页面送进本机 OneNote。
+    void sendToOneNote();
+
 signals:
     // 连续批注模式的开关状态变了。
     void continuousAnnotationModeChanged(bool enabled);
@@ -107,6 +133,8 @@ signals:
     void message(const QString& text);
 
 private:
+    // 把转换出来的 PDF 存盘并打开（转换输入三件套共用）。
+    void saveConvertedPdf(const QString& title, const ConversionInputOutcome& outcome);
     // 当前文档视图；没有打开文档时返回 nullptr。
     PdfView* currentView() const;
     // 取当前视图；没有文档时给用户一句话并返回 nullptr。

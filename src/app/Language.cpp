@@ -1,5 +1,7 @@
 #include "app/Language.h"
 
+#include "i18n/Translate.h"
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QLocale>
@@ -268,6 +270,36 @@ QString LanguageManager::catalogPath(const QString& code) {
 }
 
 bool LanguageManager::apply(const QString& code) {
+    lastError_.clear();
+
+    // 先把新翻译准备好，**成功之后**再把旧的换下去 ——
+    // 中途失败时如果先把旧的卸了，就会留下「旧的没了、新的也没上」的半截状态，
+    // 界面会一半中文一半旧语言。
+    const QString path = catalogPath(code);
+    TsTranslator* translator = nullptr;
+    if (!path.isEmpty()) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            // 语言包没装进资源里。**不能静默当成功** ——
+            // 静默成功的代价是用户以为界面已经换成英文，其实还是中文。
+            lastError_ = i18n::tr("aipdf::app::Language",
+                                  "没有找到 %1 的语言包（%2），界面仍然是中文。")
+                             .arg(code, path);
+            return false;
+        }
+        auto* candidate = new TsTranslator(this);
+        QString error;
+        if (!candidate->loadTs(&file, &error) || candidate->messageCount() == 0) {
+            delete candidate;
+            lastError_ = error.isEmpty()
+                ? i18n::tr("aipdf::app::Language",
+                           "%1 的语言包是空的或解析失败，界面仍然是中文。").arg(code)
+                : error;
+            return false;
+        }
+        translator = candidate;
+    }
+
     if (translator_ != nullptr) {
         if (QCoreApplication::instance() != nullptr) {
             QCoreApplication::removeTranslator(translator_);
@@ -275,24 +307,16 @@ bool LanguageManager::apply(const QString& code) {
         delete translator_;
         translator_ = nullptr;
     }
-
-    const QString path = catalogPath(code);
-    if (!path.isEmpty()) {
-        QFile file(path);
-        if (file.open(QIODevice::ReadOnly)) {
-            auto* translator = new TsTranslator(this);
-            QString error;
-            if (translator->loadTs(&file, &error) && translator->messageCount() > 0 &&
-                QCoreApplication::instance() != nullptr) {
-                QCoreApplication::installTranslator(translator);
-                translator_ = translator;
-            } else {
-                delete translator;
-            }
+    if (translator != nullptr) {
+        if (QCoreApplication::instance() != nullptr) {
+            QCoreApplication::installTranslator(translator);
+            translator_ = translator;
+        } else {
+            delete translator;
         }
     }
 
-    const bool changed = code_ != code;
+    bool changed = code_ != code;
     code_ = code;
     if (changed) {
         emit languageChanged(code_);

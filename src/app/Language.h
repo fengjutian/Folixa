@@ -98,6 +98,19 @@ public:
     // 目录在资源里的路径（"zh_CN" 这类源语言没有目录，返回空）。
     static QString catalogPath(const QString& code);
 
+    // 装上某个语言的翻译。
+    //
+    // **返回 false 表示没装上**：语言包不在资源里、或者解析失败。
+    // 这时**不能**把界面语言改掉、也不发 languageChanged ——
+    // 否则界面会「看起来切了语言」但其实一个字都没变。
+    bool apply(const QString& code);
+
+    // 上一次 apply() 失败的原因（成功时为空）。
+    //
+    // 界面用它提示「语言包没装 / 加载失败」，**不许静默劣化**：
+    // 静默失败的代价是用户以为界面已经换成英文，其实还是中文。
+    QString lastError() const { return lastError_; }
+
 signals:
     // 语言已切换并已装好翻译；各窗口据此就地重译。
     void languageChanged(const QString& code);
@@ -105,12 +118,12 @@ signals:
 private:
     LanguageManager();
 
-    bool apply(const QString& code);
     void persist() const;
 
     QString preference_ = QStringLiteral("system");
     QString code_;
     TsTranslator* translator_ = nullptr;
+    QString lastError_;
 };
 
 }  // namespace aipdf::i18n

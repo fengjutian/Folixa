@@ -967,6 +967,18 @@ void MainWindow::buildUi() {
                      ":/icons/search.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->writeInvisibleTextLayer(); }
     }, true, "ocr.invisibleTextLayer");
+    // 扫描：接 WIA 取帧。没有扫描仪时对话框会如实说明原因，不假装成功。
+    auto* scanGroup = ribbonBar_->addGroup(homeTab, tr("扫描"));
+    addRibbonCommand(scanGroup, "从扫描仪", "用扫描仪取图并生成多页 PDF",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->scanFromScanner(); }
+    }, true, "scan.fromScanner");
+    // 放映：循环开关只影响手动翻页到头时的行为，不做定时自动翻页。
+    auto* presentGroup = ribbonBar_->addGroup(homeTab, tr("放映"));
+    addRibbonCommand(presentGroup, "循环放映", "放映到最后一页时自动回到第一页",
+                     ":/icons/book.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->togglePresentationLoop(); }
+    }, true, "present.loop");
 
     const int commentTab = ribbonBar_->addTab(tr("注释"));
     auto addToolCommand = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
@@ -1258,6 +1270,12 @@ void MainWindow::buildUi() {
                      [this] {
         if (auto* view = currentView()) { view->showDocumentStatisticsDialog(); }
     }, true, "view.wordCount");
+    // 比较：两份 PDF 比出差异（只比文字层，不做像素比对）。
+    auto* compareGroup = ribbonBar_->addGroup(viewTab, tr("比较"));
+    addRibbonCommand(compareGroup, "比较", "比较两份 PDF 的文字差异",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->compareDocuments(); }
+    }, true, "view.compareDocuments");
     auto* speechGroup = ribbonBar_->addGroup(viewTab, tr("朗读"));
     addRibbonCommand(speechGroup, "朗读", "逐词朗读当前页，并在页面上高亮正在读的那个词",
                      ":/icons/book.svg", [this] {
@@ -1284,6 +1302,12 @@ void MainWindow::buildUi() {
                      ":/icons/protect.svg", [this] {
         if (auto* view = currentView()) view->redactionModeDialog();
     }, true, "ribbonRedactionModes");
+    // 批量加密：给一个目录里的 PDF 逐个加打开密码，语义与单文档加密完全一致。
+    auto* protectDocumentGroup = ribbonBar_->addGroup(protectTab, tr("文档"));
+    addRibbonCommand(protectDocumentGroup, "批量加密", "给一个目录里的 PDF 批量加打开密码",
+                     ":/icons/protect.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->batchEncrypt(); }
+    }, true, "protect.batchEncrypt");
 
     const int aiTab = ribbonBar_->addTab(tr("AI 助手"));
     auto* aiGroup = ribbonBar_->addGroup(aiTab, tr("对话"));
@@ -1402,7 +1426,7 @@ void MainWindow::buildUi() {
         }
     };
     const int convertTab = ribbonBar_->addTab(tr("转换"));
-    auto* convertInputGroup = ribbonBar_->addGroup(convertTab, tr("转为 PDF"));
+    auto* convertInputGroup = ribbonBar_->addGroup(convertTab, tr("输入"));
     addRibbonCommand(convertInputGroup, "Office 转 PDF",
                      "使用 LibreOffice 把 Word、Excel 或 PowerPoint 转为 PDF",
                      ":/icons/convert.svg", [this] {
@@ -1413,6 +1437,23 @@ void MainWindow::buildUi() {
                      ":/icons/convert.svg", [this] {
         convertDocument(ConversionKind::HtmlToPdf);
     }, true, "convert.htmlToPdf");
+    // 剪贴板 / 网页 / 表单文件 / 扫描仪：四个「别的来源转成 PDF」的入口。
+    addRibbonCommand(convertInputGroup, "从剪贴板", "把剪贴板里的文字变成一份新 PDF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->convertFromClipboard(); }
+    }, true, "convert.fromClipboard");
+    addRibbonCommand(convertInputGroup, "从网页", "抓取网页正文并排版成 PDF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->convertFromWeb(); }
+    }, true, "convert.fromWeb");
+    addRibbonCommand(convertInputGroup, "表单", "用模板 PDF 加表单数据文件生成 PDF",
+                     ":/icons/form.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->convertFromFormFile(); }
+    }, true, "convert.fromFormFile");
+    addRibbonCommand(convertInputGroup, "从扫描仪", "用扫描仪取图并生成多页 PDF",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->scanFromScanner(); }
+    }, true, "convert.fromScanner");
     auto* convertOutputGroup = ribbonBar_->addGroup(convertTab, tr("归档与优化"));
     addRibbonCommand(convertOutputGroup, "PDF/A-2b", "使用 Ghostscript 生成 PDF/A-2b 归档副本",
                      ":/icons/protect.svg", [this] {
@@ -1477,11 +1518,6 @@ void MainWindow::buildUi() {
                      ":/icons/pages.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->ocgLayers(); }
     }, true, "convert.layers");
-    auto* convertUnavailableGroup = ribbonBar_->addGroup(convertTab, tr("更多转换"));
-    for (const char* command : {"从扫描仪", "从网页"}) {
-        addRibbonCommand(convertUnavailableGroup, command, "将在后续版本中提供",
-                         placeholderIcon(tr(command)), [] {}, false);
-    }
     const int contentEditTab = ribbonBar_->addTab(tr("编辑"));
     auto addEditTool = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
                                                  const char* tip, const QString& icon,
@@ -1803,8 +1839,10 @@ void MainWindow::buildUi() {
     auto* shareSendGroup = ribbonBar_->addGroup(shareTab, tr("发送"));
     addRibbonCommand(shareSendGroup, "邮件", "用默认邮件客户端发送当前 PDF",
                      ":/icons/send.svg", [this] { shareByEmail(); }, true, "share.email");
-    addRibbonCommand(shareSendGroup, "OneNote", "需要安装并配置 OneNote 桌面集成",
-                     ":/icons/note.svg", [] {}, false, "share.oneNote");
+    addRibbonCommand(shareSendGroup, "OneNote", "把整篇文档的每一页送进本机 OneNote",
+                     ":/icons/note.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->sendToOneNote(); }
+    }, true, "share.oneNote");
 
     auto* shareCollaborationGroup = ribbonBar_->addGroup(shareTab, tr("协作"));
     addRibbonCommand(shareCollaborationGroup, "共享协作", "复制当前 PDF 的文件链接",
@@ -1847,9 +1885,12 @@ void MainWindow::buildUi() {
     addRibbonCommand(accessibilityTagGroup, "自动添加文档标签",
                      "需要完整的 PDF 标签树写入支持", ":/icons/protect.svg",
                      [] {}, false, "accessibility.autoTagDocument");
+    // 自动给表单域写标签树 + 替代文本（替换原来的禁用占位）。
     addRibbonCommand(accessibilityTagGroup, "自动添加表单域标签",
-                     "需要完整的 PDF 标签树写入支持", ":/icons/form.svg",
-                     [] {}, false, "accessibility.autoTagForms");
+                     "给表单域写标签树与替代文本，让读屏软件能念出来", ":/icons/form.svg",
+                     [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->autoTagFormFields(); }
+    }, true, "accessibility.autoTagForms");
 
     auto* accessibilityCheckGroup = ribbonBar_->addGroup(accessibilityTab, tr("检查"));
     addRibbonCommand(accessibilityCheckGroup, "完整检查",
@@ -5550,6 +5591,12 @@ void MainWindow::openPdfFile(const QString& filePath) {
 
 void MainWindow::applyLanguage(const QString& preference) {
     if (!i18n::LanguageManager::instance().setPreference(preference)) {
+        // 切不过去要说明原因：静默失败会让用户以为界面已经换成英文，
+        // 实际一个字都没变（评分卡 I3 的验收写的正是「不许静默劣化」）。
+        const QString reason = i18n::LanguageManager::instance().lastError();
+        if (!reason.isEmpty()) {
+            QMessageBox::warning(this, tr("切换界面语言"), reason);
+        }
         return;
     }
     // 重译由 languageChanged 信号驱动（本窗口与各面板各自登记），

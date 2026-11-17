@@ -65,6 +65,7 @@ private slots:
     void switchToEnglishTranslates();
     void switchBackToChineseUsesSource();
     void unknownPreferenceIsRejected();
+    void missingCatalogIsReported();
     void preferenceIsPersisted();
     void environmentOverrideWinsWithoutPersisting();
     void textBindingsRetranslate();
@@ -237,6 +238,22 @@ void I18nTests::unknownPreferenceIsRejected() {
     // 不认识的值不改状态，界面保持原样。
     QCOMPARE(LanguageManager::instance().code(), QStringLiteral("en"));
     QCOMPARE(LanguageManager::instance().preference(), QStringLiteral("en"));
+    QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
+}
+
+void I18nTests::missingCatalogIsReported() {
+    // 先把当前语言定住（英文），后面要确认失败之后它没被改掉。
+    QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("en")));
+    const QString before = LanguageManager::instance().code();
+
+    // "zz_ZZ" 这个语言包在资源里根本不存在：apply() 必须失败并说清原因。
+    QVERIFY(!LanguageManager::instance().apply(QStringLiteral("zz_ZZ")));
+    // 不许静默劣化：失败必须留下原因。
+    QVERIFY(!LanguageManager::instance().lastError().isEmpty());
+    // 也不许谎报「已切换」：界面语言必须保持原样。
+    QCOMPARE(LanguageManager::instance().code(), before);
+
+    // 切回中文收尾，别影响后面的用例。
     QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
 }
 

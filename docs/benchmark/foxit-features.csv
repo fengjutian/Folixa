@@ -36,13 +36,13 @@ tab,group,command,status,capability,note
 主页,注释,高亮,aligned,C1,文本选区高亮
 主页,页面,旋转页面,aligned,D1,写页面 /Rotate，可撤销
 主页,页面,插入页面,aligned,D1,当前页后插入空白页；也可从别的文件插入页面
-主页,扫描,从扫描仪,missing,H6,需要 WIA/TWAIN 接入
+主页,扫描,从扫描仪,partial,I5,扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**取帧路径只做了实现与编译验证，没有真机跑过**；图像只支持 BMP 与 JPEG，其余格式明确报错
 主页,扫描,快速识别,aligned,I1,Tesseract 或 Windows OCR
 主页,扫描,优化扫描的PDF,partial,I1,只有图像预处理；没有完整去噪/纠偏
 主页,表单,填写&签名,aligned,F1,表单填写 + 证书签名（随包 pyHanko）
 主页,放映,从头开始,aligned,A5,F5 全屏逐页
 主页,放映,从当前页开始,aligned,A5,从当前页进入放映
-主页,放映,循环放映,missing,A5,没有循环播放选项
+主页,放映,循环放映,aligned,A13,循环放映已实现：放映到最后一页时绕回第一页（`app::nextPresentationPage` 纯函数状态机+ `PresentationWindow::setLoop`，Ribbon「循环放映」（`present.loop`）入口已启用）；**关掉循环就逐字保持原来的「到头就停」**；**只影响手动翻页到头时的行为，不做定时自动翻页**；循环状态由 `PdfView` 持有，放映中改了立刻生效；`PresentationLoopTests` 9 条
 主页,放映,页面过渡,aligned,—,翻页过渡已实现：淡入淡出 / 左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；Ribbon「翻页过渡」入口已启用；`app::ViewModes::pageTransitionFrame`，`ViewModesTests` 22 条
 主页,放映,手机遥控,na,—,需要移动端
 主页,商业,激活,na,—,无账号体系
@@ -50,11 +50,11 @@ tab,group,command,status,capability,note
 主页,商业,订阅,na,—,无订阅
 主页,AI,翻译助手,aligned,L2,翻译选区/当前页
 转换,输入,文件转换,aligned,H6,文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 23 条），Office / HTML 另走本机 LibreOffice；扫描仪 / 剪贴板 / 网页仍无
-转换,输入,从扫描仪,missing,H6,同上
-转换,输入,从剪贴板,missing,—,没有剪贴板转 PDF
-转换,输入,从网页,missing,—,没有网页抓取
+转换,输入,从扫描仪,partial,I5,与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**只支持 WIA**、**本机无扫描仪故取帧路径未做真机验证**；图像只支持 BMP 与 JPEG
+转换,输入,从剪贴板,partial,H9,剪贴板文字转 PDF 已实现（`doc::clipboardTextToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；**只做纯文本排版：剪贴板里的图片与富文本不转换**；中文靠嵌入整份系统字体（不子集化，体积大）
+转换,输入,从网页,partial,H9,网页转 PDF 已实现：抓取 → 抽正文 → 排版（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）；**不执行 JavaScript、不渲染 CSS、不带图片**；只支持 UTF-8 / UTF-16，GBK 明确报错；抓取超时 15 秒
 转换,输入,从CAJ,na,—,地区性格式
-转换,输入,表单,missing,—,没有表单文件转换
+转换,输入,表单,aligned,H10,表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过
 转换,打包,PDF文件包,aligned,—,PDF 文件包（Portfolio）：添加文件、填包标题/作者、创建 `.pdf` 包、打开已有包、列出并取出条目；`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`
 转换,打包,制作活页夹,aligned,—,活页夹与 PDF 文件包同一套实现（PDF Portfolio）；同上单测兜底
 转换,组装,合并文件,aligned,D2,一次可多选多份合并，跨文件书签按层级搬运并加来源名前缀，内部跳转改指合并后页号；有专项单测（`DocumentMergerTests` 13 条）
@@ -156,7 +156,7 @@ tab,group,command,status,capability,note
 视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 24 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
 视图,朗读,朗读,partial,J4,逐词朗读并逐词高亮；有专项单测；依赖系统语音合成，无音色/语速可调，长文逐词合成较慢
-视图,比较,比较,missing,L7,计划 2.0
+视图,比较,比较,partial,L7,文档比较已实现：按文字块逐块比对，列出新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位（`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用）；**只比文字层，不做像素 / 版面比对**——纯图形改动看不出来；整页挪位会报成「删页 + 加页」
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
 表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页
@@ -185,7 +185,7 @@ tab,group,command,status,capability,note
 保护,隐私,隐藏数据,partial,G3,「清理隐藏信息」会连嵌入文件本体一起清掉（removeEmbeddedFiles + sanitizeHiddenData 组合入口，清文件流与 /FileAttachment 引用点，EmbeddedFileTests 12 条）；其他隐藏向量仍未全覆盖
 保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；PDF 解析仍在主进程
 保护,文档,限制访问,partial,G1,AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建
-保护,文档,批量加密,missing,G1,没有批量
+保护,文档,批量加密,aligned,G9,批量加密已实现：选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件
 保护,设置,设置,partial,—,有「保护」标签页与「加密与权限」入口（AES-256 加密 + 权限位，`EncryptionDialog`）；**权限位随保存写入，没有独立的权限管理面板**（不能事后单独改权限而不重新加密）
 保护,企业,敏感度,na,—,企业敏感度标签
 保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
@@ -207,7 +207,7 @@ tab,group,command,status,capability,note
 电子签章,服务,签署设置,na,—,平台功能
 电子签章,签署,完成签署,na,—,平台功能
 共享,发送,邮件,aligned,K1,调用默认邮件客户端，并复制 PDF 路径供添加附件
-共享,发送,OneNote,missing,—,没有 OneNote
+共享,发送,OneNote,partial,H11,发送到 OneNote 已实现：把当前页面渲染成图片 → 送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**；**只送图片，不送可搜索的文字层**；`OneNoteExporterTests` 24 条
 共享,协作,共享协作,aligned,K1,复制规范化的本地 file URL
 共享,协作,PDF协作,aligned,C7,导出 XFDF 批注供协作者交换
 共享,审阅,发送进行共享审阅,aligned,C7,导出 XFDF 审阅文件
@@ -220,7 +220,7 @@ tab,group,command,status,capability,note
 共享,企业,iManage 10,excluded,—,同上
 共享,企业,eDOCS DM,excluded,—,同上
 辅助工具,标签,自动添加标签到文档中,partial,J5,标签树能写（`pdf::writeTaggedStructure`），但**只到行粒度**：按文本行推结构元素，不是语义级的自动打标签；`TagTreeWriterTests` 18 条
-辅助工具,标签,自动添加标签到表单域,missing,J5,同上
+辅助工具,标签,自动添加标签到表单域,partial,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**已有标签树按「替换」语义处理**（树里的 `/Form` 元素会被摘掉换成新的）；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 9 条
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
 辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导

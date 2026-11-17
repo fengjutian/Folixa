@@ -29,6 +29,8 @@ constexpr auto kKeyDurationMs = "durationMs";
 constexpr auto kKeyError = "error";
 constexpr auto kKeyInputBytes = "inputBytes";
 constexpr auto kKeyOutputBytes = "outputBytes";
+constexpr auto kKeySteps = "steps";
+constexpr auto kKeyStepName = "name";
 
 constexpr int kFormatVersion = 1;
 
@@ -240,6 +242,12 @@ BatchReport runBatch(const QStringList& inputPaths,
                 item.error = QStringLiteral("步骤「%1」失败：%2").arg(step.name, stepError);
                 break;
             }
+            // 每一步的进出字节数都记下来：报告要能回答「是哪一步让文件变大的」。
+            BatchStepBytes stepBytes;
+            stepBytes.name = step.name;
+            stepBytes.inputBytes = current.size();
+            stepBytes.outputBytes = produced.size();
+            item.stepBytes.append(stepBytes);
             current = produced;
         }
 
@@ -298,6 +306,76 @@ BatchReport runBatch(const QStringList& inputPaths,
     return report;
 }
 
+pdf::PdfEncryptionOptions defaultEncryptOptions(const QString& userPassword) {
+    // 权限位用 pdf::PdfPermissions 的默认值：与「加密与权限」对话框一致，
+    // 这里不另发明一套权限语义。
+    pdf::PdfEncryptionOptions options;
+    options.userPassword = userPassword;
+    return options;
+}
+
+BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptions& options) {
+    BatchStep step;
+    step.name = stepName;
+    step.transform = [options](const QByteArray& input, QString* error) -> QByteArray {
+        if (input.isEmpty()) {
+            if (error != nullptr) {
+                *error = QStringLiteral("没有可加密的内容");
+            }
+            return {};
+        }
+        if (options.userPassword.isEmpty()) {
+            // 空密码的文件任何人都能直接打开，那不叫加密。
+            // 这里明确失败，不产出「看起来加密了、其实没设防」的文件。
+            if (error != nullptr) {
+                *error = QStringLiteral("加密步骤需要设置打开密码：没有密码的文件谁都能直接打开");
+            }
+            return {};
+        }
+#ifdef AIPDF_WITH_QPDF
+        QString encryptError;
+        const QByteArray encrypted = pdf::encryptPdf(input, options, &encryptError);
+        if (encrypted.isEmpty()) {
+            if (error != nullptr) {
+                *error = encryptError.isEmpty() ? QStringLiteral("加密失败") : encryptError;
+            }
+            return {};
+        }
+
+        // 读回自检 1：必须能用打开密码重新打开，且确实是 AES-256（R6）。
+        int revision = 0;
+        int permissionBits = 0;
+        QString inspectError;
+        if (!pdf::inspectEncryption(encrypted, options.userPassword, &revision, &permissionBits,
+                                    &inspectError)
+            || revision < 6) {
+            if (error != nullptr) {
+                *error = QStringLiteral("加密自检失败：写出的文件不能用打开密码打开，或不是 AES-256 加密");
+            }
+            return {};
+        }
+
+        // 读回自检 2：打开密码非空时，文件必须真的「要密码」——
+        // 错密码能打开，就等于没加密。
+        QString wrongPasswordError;
+        if (pdf::inspectEncryption(encrypted, options.userPassword + QStringLiteral("-不对的密码"),
+                                   nullptr, nullptr, &wrongPasswordError)) {
+            if (error != nullptr) {
+                *error = QStringLiteral("加密自检失败：写出的文件用错误的密码也能打开");
+            }
+            return {};
+        }
+        return encrypted;
+#else
+        if (error != nullptr) {
+            *error = QStringLiteral("本次构建没有启用 qpdf，无法加密");
+        }
+        return {};
+#endif
+    };
+    return step;
+}
+
 QByteArray BatchReport::toJson() const {
     QJsonArray itemArray;
     for (const BatchItemResult& item : items) {
@@ -310,6 +388,17 @@ QByteArray BatchReport::toJson() const {
         object.insert(QString::fromLatin1(kKeyError), item.error);
         object.insert(QString::fromLatin1(kKeyInputBytes), static_cast<double>(item.inputBytes));
         object.insert(QString::fromLatin1(kKeyOutputBytes), static_cast<double>(item.outputBytes));
+        QJsonArray stepArray;
+        for (const BatchStepBytes& stepBytes : item.stepBytes) {
+            QJsonObject stepObject;
+            stepObject.insert(QString::fromLatin1(kKeyStepName), stepBytes.name);
+            stepObject.insert(QString::fromLatin1(kKeyInputBytes),
+                              static_cast<double>(stepBytes.inputBytes));
+            stepObject.insert(QString::fromLatin1(kKeyOutputBytes),
+                              static_cast<double>(stepBytes.outputBytes));
+            stepArray.append(stepObject);
+        }
+        object.insert(QString::fromLatin1(kKeySteps), stepArray);
         itemArray.append(object);
     }
 
@@ -391,6 +480,40 @@ bool BatchReport::fromJson(const QByteArray& json, BatchReport* report, QString*
         }
         if (!readIntField(itemObject, QString::fromLatin1(kKeyOutputBytes), &item.outputBytes, error)) {
             return false;
+        }
+        // 「steps」是可选的：旧版本的报告没有这一节，读回来时留空即可。
+        // 但只要写了，就必须写对——字段缺失或类型不对都要报错，
+        // 不能把一份坏掉的步骤明细当成「没有步骤」蒙混过去。
+        if (itemObject.contains(QString::fromLatin1(kKeySteps))) {
+            const QJsonValue stepsValue = itemObject.value(QString::fromLatin1(kKeySteps));
+            if (!stepsValue.isArray()) {
+                setError(error, QStringLiteral("JSON 字段类型不对（应为数组）：steps"));
+                return false;
+            }
+            const QJsonArray stepArray = stepsValue.toArray();
+            for (int stepIndex = 0; stepIndex < stepArray.size(); ++stepIndex) {
+                const QJsonValue stepValue = stepArray.at(stepIndex);
+                if (!stepValue.isObject()) {
+                    setError(error, QStringLiteral("JSON 步骤类型不对（应为对象）：第 %1 步")
+                                       .arg(stepIndex + 1));
+                    return false;
+                }
+                const QJsonObject stepObject = stepValue.toObject();
+                BatchStepBytes stepBytes;
+                if (!readStringField(stepObject, QString::fromLatin1(kKeyStepName),
+                                     &stepBytes.name, error)) {
+                    return false;
+                }
+                if (!readIntField(stepObject, QString::fromLatin1(kKeyInputBytes),
+                                  &stepBytes.inputBytes, error)) {
+                    return false;
+                }
+                if (!readIntField(stepObject, QString::fromLatin1(kKeyOutputBytes),
+                                  &stepBytes.outputBytes, error)) {
+                    return false;
+                }
+                item.stepBytes.append(stepBytes);
+            }
         }
         parsed.items.append(item);
     }

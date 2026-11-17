@@ -17,7 +17,12 @@
 #include "app/AiToolService.h"
 #include "app/AiToolsDialog.h"
 #include "app/AnnotationToolboxDialog.h"
+#include "app/ConversionInputDialog.h"
 #include "app/ConversionReports.h"
+#include "app/DocumentCompareDialog.h"
+#include "app/OneNoteExporter.h"
+#include "app/EncryptionDialog.h"
+#include "app/ScannerCapture.h"
 #include "app/ConversionExports.h"
 #include "app/ConversionToolsDialog.h"
 #include "app/DocumentOutput.h"
@@ -27,6 +32,7 @@
 #include "app/PdfView.h"
 #include "app/PrintToolsDialog.h"
 #include "doc/ActionWizard.h"
+#include "doc/BatchProcessor.h"
 #include "doc/FontFlattening.h"
 #include "doc/OfdExport.h"
 #include "doc/OfficeExport.h"
@@ -39,12 +45,15 @@
 #include "pdf/OcrSuspicion.h"
 #include "pdf/OptionalContent.h"
 #include "pdf/PdfiumAdapter.h"
+#include "pdf/FormAutoTag.h"
+#include "pdf/PdfSecurity.h"
 #include "pdf/PdfUaChecker.h"
 #include "pdf/PortfolioWriter.h"
 #include "pdf/PreflightChecker.h"
 #include "pdf/RichMedia3d.h"
 #include "pdf/XfaSupport.h"
 
+#include <QApplication>
 #include <QFont>
 #include <QFontMetrics>
 #include <QPainter>
@@ -1146,6 +1155,270 @@ void WiringActions::invoicePrint() {
         notify(i18n::tr("aipdf::app::MainWindow", "已导出：%1").arg(path));
     });
     dialog.exec();
+}
+
+
+// ------------------------------------------------ 第四批接线（补齐缺口）----
+
+// 把转换出来的 PDF 存盘并打开。
+//
+// 为什么统一走「存盘再打开」而不是直接塞进新标签页：转换出来的结果没有来源文件，
+// 用户得能拿到一份真实文件（发给别人、接着编辑）。直接开而不落盘，
+// 用户就没法把它存回去。
+void WiringActions::saveConvertedPdf(const QString& title,
+                                     const ConversionInputOutcome& outcome) {
+    const QString suggested = outcome.suggestedFileName.isEmpty()
+                                  ? QStringLiteral("document.pdf")
+                                  : outcome.suggestedFileName;
+    const QString path = QFileDialog::getSaveFileName(
+        parentWidget_, title, suggested,
+        i18n::tr("aipdf::app::MainWindow", "PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QString error;
+    if (!writeFile(path, outcome.bytes, &error)) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    // 警告与逐条说明用信息框 / 状态栏交代：转换成功但有损时不能一声不吭。
+    if (!outcome.warning.isEmpty()) {
+        QMessageBox::information(parentWidget_, title, outcome.warning);
+    }
+    for (const QString& line : outcome.detailLines) {
+        notify(line);
+    }
+    notify(i18n::tr("aipdf::app::MainWindow", "已保存：%1").arg(path));
+    if (openDocumentHandler_) {
+        openDocumentHandler_(path);
+    }
+}
+
+void WiringActions::convertFromClipboard() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "从剪贴板新建 PDF");
+    const ConversionInputOutcome outcome = convertClipboardToPdf();
+    if (!outcome.ok) {
+        QMessageBox::warning(parentWidget_, title,
+                             outcome.error.isEmpty()
+                                 ? i18n::tr("aipdf::app::MainWindow", "没能从剪贴板生成 PDF。")
+                                 : outcome.error);
+        return;
+    }
+    saveConvertedPdf(title, outcome);
+}
+
+void WiringActions::convertFromWeb() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "从网页新建 PDF");
+    const ConversionInputOutcome outcome = convertWebToPdf(parentWidget_);
+    if (!outcome.ok) {
+        // 对话框里已经说过原因（状态区），这里只在有明确原因时再弹一次。
+        if (!outcome.error.isEmpty()) {
+            QMessageBox::warning(parentWidget_, title, outcome.error);
+        }
+        return;
+    }
+    saveConvertedPdf(title, outcome);
+}
+
+void WiringActions::convertFromFormFile() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "从表单文件新建 PDF");
+    const ConversionInputOutcome outcome = convertFormFileToPdf(parentWidget_);
+    if (!outcome.ok) {
+        if (!outcome.error.isEmpty()) {
+            QMessageBox::warning(parentWidget_, title, outcome.error);
+        }
+        return;
+    }
+    saveConvertedPdf(title, outcome);
+}
+
+void WiringActions::scanFromScanner() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "从扫描仪新建 PDF");
+    ScannerCaptureDialog dialog(parentWidget_);
+    if (dialog.exec() != QDialog::Accepted) {
+        // 关掉的原因要说清楚：「没装扫描仪」和「用户自己取消」是两回事。
+        const ScanErrorKind reason = dialog.cancelReason();
+        if (reason != ScanErrorKind::None && reason != ScanErrorKind::UserCancelled) {
+            QMessageBox::information(parentWidget_, title, scanErrorMessage(reason));
+        }
+        return;
+    }
+    const QByteArray bytes = dialog.pdfBytes();
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "没有扫到任何页面。"));
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        parentWidget_, title, QStringLiteral("scan.pdf"),
+        i18n::tr("aipdf::app::MainWindow", "PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QString error;
+    if (!writeFile(path, bytes, &error)) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    notify(i18n::tr("aipdf::app::MainWindow", "扫描完成：%1 页，已保存：%2")
+               .arg(dialog.pageCount()).arg(path));
+    if (openDocumentHandler_) {
+        openDocumentHandler_(path);
+    }
+}
+
+void WiringActions::compareDocuments() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "文档比较");
+    DocumentCompareDialog dialog(parentWidget_);
+    // 当前打开的文档就是比较的一边时，把它预填进去：用户少点一次文件选择。
+    PdfView* view = currentView();
+    if (view != nullptr) {
+        const QString current = view->filePath();
+        if (!current.isEmpty()) {
+            dialog.setFiles(current, QString());
+        }
+    }
+    dialog.exec();
+}
+
+void WiringActions::batchEncrypt() {
+    const QString title = i18n::tr("aipdf::app::MainWindow", "批量加密");
+    const QString directory = QFileDialog::getExistingDirectory(
+        parentWidget_, i18n::tr("aipdf::app::MainWindow", "选择要批量加密的目录"));
+    if (directory.isEmpty()) {
+        return;
+    }
+    QDir source(directory);
+    const QStringList files =
+        source.entryList(QStringList{QStringLiteral("*.pdf")}, QDir::Files, QDir::Name);
+    if (files.isEmpty()) {
+        QMessageBox::information(parentWidget_, title,
+                                 i18n::tr("aipdf::app::MainWindow", "这个目录里没有 PDF。"));
+        return;
+    }
+    // 密码用现成的「加密与权限」对话框收：单文档加密与批量加密必须是同一套语义，
+    // 两处各写一套密码规则迟早会对不上。
+    EncryptionDialog dialog(doc::defaultEncryptOptions(QString()), true, parentWidget_);
+    if (dialog.exec() != QDialog::Accepted || !dialog.encryptionEnabled()) {
+        return;
+    }
+    const pdf::PdfEncryptionOptions options = dialog.options();
+    if (options.userPassword.isEmpty()) {
+        // 空密码意味着谁都能直接打开，那不叫加密。批处理那一步也会失败，
+        // 这里先说清楚，免得用户以为加密过了。
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "打开密码不能为空。"));
+        return;
+    }
+    const QString outputDirectory = QFileDialog::getExistingDirectory(
+        parentWidget_, i18n::tr("aipdf::app::MainWindow", "选择加密后的输出目录"));
+    if (outputDirectory.isEmpty()) {
+        return;
+    }
+    QStringList inputPaths;
+    for (const QString& name : files) {
+        inputPaths.append(source.filePath(name));
+    }
+    QVector<doc::BatchStep> steps;
+    steps.append(doc::makeEncryptStep(i18n::tr("aipdf::app::MainWindow", "加密"), options));
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const doc::BatchReport report = doc::runBatch(inputPaths, QStringList(), steps, true,
+                                                  outputDirectory);
+    QApplication::restoreOverrideCursor();
+    // 批量结果只给一行汇总：每个文件为什么失败，报告 JSON 里逐条写着。
+    if (report.failedCount > 0) {
+        QMessageBox::warning(
+            parentWidget_, title,
+            i18n::tr("aipdf::app::MainWindow", "批量加密完成：成功 %1，失败 %2。失败原因见输出目录里的报告。")
+                .arg(report.succeededCount).arg(report.failedCount));
+    } else {
+        notify(i18n::tr("aipdf::app::MainWindow", "批量加密完成：成功 %1，失败 %2。")
+                   .arg(report.succeededCount).arg(report.failedCount));
+    }
+}
+
+
+// ------------------------------------------------ 第四批接线（第二批）----
+
+void WiringActions::togglePresentationLoop() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const bool enabled = !view->presentationLoop();
+    view->setPresentationLoop(enabled);
+    notify(enabled ? i18n::tr("aipdf::app::MainWindow", "循环放映已打开：放映到最后一页会回到第一页。")
+                    : i18n::tr("aipdf::app::MainWindow", "循环放映已关闭：放映到最后一页会停住。"));
+}
+
+void WiringActions::autoTagFormFields() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "自动添加表单域标签");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    const pdf::FormAutoTagResult result = pdf::autoTagFormFields(bytes);
+    if (!result.ok) {
+        QMessageBox::warning(parentWidget_, title, result.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    // 填不上的域逐条说明：没有替代文本就说没有，不替用户编一句。
+    QStringList lines;
+    lines.append(i18n::tr("aipdf::app::MainWindow", "已给 %1 个表单域加上标签。")
+                     .arg(result.taggedFieldCount));
+    for (const pdf::FormTagIssue& issue : result.issues) {
+        lines.append(QStringLiteral("- ") + issue.fieldName + QStringLiteral("：") + issue.reason);
+    }
+    QMessageBox::information(parentWidget_, title, lines.join(QLatin1Char('\n')));
+}
+
+
+void WiringActions::sendToOneNote() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "发送到 OneNote");
+    const QString documentTitle = view->filePath().isEmpty()
+                                     ? i18n::tr("aipdf::app::MainWindow", "当前文档")
+                                     : QFileInfo(view->filePath()).completeBaseName();
+    // 送什么：整篇当前文档，每页一张图（页码留空 = 全部页，由计划去归一化）。
+    OneNoteExportOptions options;
+    options.documentTitle = documentTitle;
+    const OneNoteExportPlan plan = buildOneNoteExportPlan(documentTitle, view->pageCount(),
+                                                          options);
+    if (plan.pageNumbers.isEmpty()) {
+        QMessageBox::information(parentWidget_, title,
+                                 i18n::tr("aipdf::app::MainWindow", "这份文档没有可送出的页面。"));
+        return;
+    }
+    // 页 → 图：交给渲染层，OneNote 那边只管「送」和「说清送了什么」。
+    const OneNotePageRenderer renderer = [view](int pageIndex, int dpi) {
+        const pdf::MediaBox box = view->pageContentBox(pageIndex);
+        const double pointsWide = box.width() > 0.0 ? box.width() : 612.0;
+        const int targetWidth = qMax(64, qRound(pointsWide * dpi / 72.0));
+        return view->renderThumbnail(pageIndex, targetWidth);
+    };
+    OneNoteExporter exporter;
+    const OneNoteExportResult result = exporter.exportToOneNote(plan, renderer);
+    if (!result.ok) {
+        // 失败原因已经按种类分好了（没装 / COM 起不来 / 写页失败），不笼统说「发送失败」。
+        QMessageBox::warning(parentWidget_, title, result.message);
+        return;
+    }
+    QMessageBox::information(parentWidget_, title, result.message);
 }
 
 }  // namespace aipdf::app

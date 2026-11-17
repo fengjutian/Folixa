@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pdf/PdfSecurity.h"
+
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
@@ -29,6 +31,16 @@ struct BatchStep {
     BatchTransform transform;
 };
 
+// 一步的字节数（进与出）。
+struct BatchStepBytes {
+    // 步骤名，与批处理步骤里的名字一致。
+    QString name;
+    // 这一步收到的字节数。
+    qint64 inputBytes = 0;
+    // 这一步产出的字节数。
+    qint64 outputBytes = 0;
+};
+
 // 单个文件的结果。
 struct BatchItemResult {
     // 输入路径。
@@ -48,6 +60,14 @@ struct BatchItemResult {
     // 输出字节数：变换产出的字节数。
     // 不落盘（只跑变换）时也照记，否则这种模式下报告里全是 0，看不出任何东西。
     qint64 outputBytes = 0;
+    // 每一步的字节数，顺序与批处理步骤一致。
+    //
+    // 为什么要有它：只看「输入/输出字节数」看不出是哪一步把文件撑大的——
+    // 加密一步就能让体积翻好几倍。把每一步的进出字节数都记下来，
+    // 报告才真的能回答「这一步让文件大了多少」。
+    //
+    // 只记跑成功的步骤：失败的那一步由 error 说清是哪一步、为什么失败。
+    QVector<BatchStepBytes> stepBytes;
 };
 
 // 整批的结果。
@@ -98,5 +118,28 @@ BatchReport runBatch(const QStringList& inputPaths,
                      const QVector<BatchStep>& steps,
                      bool continueOnError = true,
                      const QString& outputDirectory = QString());
+
+// 批处理里的「加密」步骤：AES-256 + 权限位。
+//
+// 为什么放在 doc 层：批处理的每一步都是「字节 → 字节」的变换，
+// 加密正好是这个形状。放在这里，界面、脚本、测试用的是同一份实现，
+// 不会出现「界面能加密、脚本不能」两套语义。
+//
+// 权限位沿用 pdf::PdfPermissions 的默认值（允许阅读、打印、无障碍提取；
+// 不允许改写、复制正文、组装页面），与「加密与权限」对话框一致——
+// 这里不另发明一套权限语义。
+//
+// 打开密码必须非空：空密码意味着谁都能直接打开，权限位只是君子协定，
+// 那不叫「加密」。空密码会在这一步明确失败（中文原因写进报告）。
+//
+// 加密完会做一次读回自检：必须能用打开密码重新打开、且确实是 AES-256；
+// 打开密码非空时，错密码必须打不开。自检不过就不产出文件。
+//
+// 单个文件失败不影响整批：失败原因由 runBatch 记进该文件的条目里。
+BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptions& options);
+
+// 「加密」步骤用的默认设置：权限位沿用 pdf::PdfPermissions 的默认值，
+// 与「加密与权限」对话框的默认值相同，调用方只需要给一个打开密码。
+pdf::PdfEncryptionOptions defaultEncryptOptions(const QString& userPassword);
 
 }  // namespace aipdf::doc

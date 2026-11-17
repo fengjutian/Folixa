@@ -30,6 +30,13 @@ public:
     int lastShownPage() const { return page_ + (pageCount_ > 0 ? 1 : 0); }
     int pageCount() const { return pageCount_; }
 
+    // 循环放映：翻过最后一页后回到第一页（往前翻过第一页则回到最后一页）。
+    //
+    // 默认关闭——关着时行为与从前逐字一致（到头就停住），
+    // 验收脚本 scripts/verify-presentation.ps1 依赖这个行为。
+    void setLoop(bool enabled);
+    bool loop() const { return loop_; }
+
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
@@ -42,11 +49,18 @@ private:
     void renderCurrent();
     // 切换语言后重译窗口标题。
     void retranslateUi();
+    // 窗口标题：循环打开时带「（循环）」，让人一眼看出放映不会停。
+    //
+    // 名字不叫 windowTitle：QWidget 已经有同名成员函数，
+    // 换个名字免得把基类那个「当前窗口标题」盖住。
+    QString presentationTitle() const;
 
     pdf::PdfDocument document_;
     int pageCount_ = 0;
     int page_ = 0;
     QImage image_;
+    // 循环放映。默认关闭，保持「到头就停」的老行为。
+    bool loop_ = false;
     // 一次设定、长期显示的窗口标题：切换语言时就地重译。
     i18n::TextBindings texts_;
 };

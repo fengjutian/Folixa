@@ -2,6 +2,7 @@
 
 #include "app/DocumentOutput.h"
 #include "app/Language.h"
+#include "app/PresentationLoop.h"
 #include "app/ViewFit.h"
 #include "i18n/Translate.h"
 #include <QDateTime>
@@ -35,7 +36,7 @@ void trace(const QString& message) {
 
 PresentationWindow::PresentationWindow(pdf::PdfDocument document, QWidget* parent)
     : QWidget(parent), document_(std::move(document)) {
-    texts_.bind([this] { setWindowTitle(tr("放映")); });
+    texts_.bind([this] { setWindowTitle(presentationTitle()); });
     setWindowFlag(Qt::Window, true);
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_DeleteOnClose, true);
@@ -60,6 +61,20 @@ void PresentationWindow::retranslateUi() {
     texts_.retranslate();
 }
 
+QString PresentationWindow::presentationTitle() const {
+    // 循环打开时标题要让人看得出来：否则用户以为放映停在最后一页了，
+    // 还以为程序没反应。关着时沿用窗口自己的那条「放映」。
+    if (loop_) return presentationLoopTitle();
+    return tr("放映");
+}
+
+void PresentationWindow::setLoop(bool enabled) {
+    if (loop_ == enabled) return;
+    loop_ = enabled;
+    // 标题里的「（循环）」要跟着变。
+    retranslateUi();
+}
+
 void PresentationWindow::start() {
     trace(QStringLiteral("presentation open pages=%1").arg(pageCount_));
     showFullScreen();
@@ -69,8 +84,10 @@ void PresentationWindow::start() {
 }
 
 void PresentationWindow::step(int delta) {
-    const int next = page_ + delta;
-    if (next < 0 || next >= pageCount_) {
+    // 翻页规则放在纯函数里：关掉循环时「到头就停」的行为与从前逐字一致，
+    // 打开循环时越界绕回另一头。
+    const int next = nextPresentationPage(page_, pageCount_, delta, loop_);
+    if (next == page_) {
         return;  // 到头就停住，不环绕
     }
     page_ = next;
