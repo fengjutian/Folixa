@@ -1241,6 +1241,171 @@ ConversionResult clipboardHtmlToPdf(const QString& html, const QString& title,
     return result;
 }
 
+namespace {
+
+// 单次转换最多带多少张剪贴板图片。
+//
+// 为什么设上限：剪贴板理论上能塞很多张图，一次全解会拖很久，
+// 而且最后拿到的 PDF 大得没意义。超出的不排，但会逐条记进结果里。
+constexpr int kMaxClipboardImages = 50;
+
+// 一张都没排进去时，失败原因按哪一类报。
+//
+// 为什么按这个优先级：用户能改的通常是「格式」与「数据」，
+// 先把这两类点出来，用户才知道该换个来源还是重截一次。
+ConversionErrorKind clipboardImageFailureKind(const QVector<ClipboardImageIssue>& issues) {
+    bool hasEmpty = false;
+    bool hasDecode = false;
+    bool hasUnsupported = false;
+    for (const ClipboardImageIssue& issue : issues) {
+        switch (issue.kind) {
+        case ClipboardImageIssueKind::UnsupportedFormat:
+            hasUnsupported = true;
+            break;
+        case ClipboardImageIssueKind::DecodeFailed:
+            hasDecode = true;
+            break;
+        case ClipboardImageIssueKind::EmptyData:
+            hasEmpty = true;
+            break;
+        default:
+            break;
+        }
+    }
+    if (hasUnsupported) {
+        return ConversionErrorKind::UnsupportedImageFormat;
+    }
+    if (hasDecode) {
+        return ConversionErrorKind::ImageDecodeFailed;
+    }
+    if (hasEmpty) {
+        return ConversionErrorKind::NoContent;
+    }
+    return ConversionErrorKind::LayoutFailed;
+}
+
+}  // namespace
+
+// 把剪贴板里的图片排成一份 PDF（一图一页，页序 = 传入顺序）。
+//
+// 图像本身交给 pdf 层解（decodeImage / detectImageFormat），
+// 页面用**文档的纸张**排（图等比缩放到页边距以内）——
+// 与同一份文件里「网页带图」那条路一致：同一份 PDF 里所有页都是同一种纸，
+// 用户在对话框里选的纸张才不会对图片这半边失效。
+//
+// 为什么不用 pdf::imagesToPdf 直接出字节：那份的页面尺寸是按 DPI 从像素
+// 推出来的，跟调用方选的纸张无关（那是扫描仪那路的语义：纸多大就扫多大）。
+// 解码仍然全部走 pdf 层，不重写第二套。
+ConversionResult clipboardImageToPdf(const QVector<QByteArray>& imageBytes, const QString& title,
+                                     const UniversalConverterOptions& options) {
+    ConversionResult result;
+    result.sourceKind = ConversionSourceKind::Images;
+    result.title = title.trimmed();
+    result.clipboardImageOutcome.found = imageBytes.size();
+
+    if (imageBytes.isEmpty()) {
+        // 一张都没有：直接失败，不生成空白 PDF（空白 PDF 会让人以为转换成功了）。
+        result.errorKind = ConversionErrorKind::NoContent;
+        result.error = QStringLiteral("clipboard has no image data");
+        return result;
+    }
+
+    const QSizeF pageSize = pageSizeInPoints(options.pageSize, options.orientation);
+    const QByteArray mediaBox = "[0 0 " + formatPoints(pageSize.width()) + " " +
+                                formatPoints(pageSize.height()) + "]";
+
+    QVector<DocumentPiece> pieces;
+    for (int index = 0; index < imageBytes.size(); ++index) {
+        if (pieces.size() >= kMaxClipboardImages) {
+            // 图太多：后面的不排了，但逐条记下来（不静默丢弃）。
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::LimitReached;
+            issue.detail = QStringLiteral("too many images in one conversion");
+            result.clipboardImageOutcome.issues.append(issue);
+            continue;
+        }
+        const QByteArray& bytes = imageBytes.at(index);
+        if (bytes.isEmpty()) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::EmptyData;
+            issue.detail = QStringLiteral("image bytes are empty");
+            result.clipboardImageOutcome.issues.append(issue);
+            continue;
+        }
+        // 格式先自己认一遍：认不出来是「格式不支持」，认出来了但解不开才是
+        // 「数据坏了」——这两种要分开报，前者多半是来源设置的问题。
+        if (pdf::detectImageFormat(bytes) == pdf::ImageFormat::Unknown) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::UnsupportedFormat;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = QStringLiteral("unsupported image format: %1").arg(issue.format);
+            result.clipboardImageOutcome.issues.append(issue);
+            continue;
+        }
+        pdf::DecodedImage decoded;
+        QString detail;
+        if (!pdf::decodeImage(bytes, &decoded, &detail)) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::DecodeFailed;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = detail;
+            result.clipboardImageOutcome.issues.append(issue);
+            continue;
+        }
+        ImagePageData page;
+        if (!buildImagePage(decoded, pageSize, options.marginPt, &page, &detail)) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::TooLarge;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = detail;
+            result.clipboardImageOutcome.issues.append(issue);
+            continue;
+        }
+        DocumentPiece piece;
+        piece.isImage = true;
+        piece.image = page;
+        pieces.append(piece);
+        ++result.clipboardImageOutcome.embedded;
+    }
+
+    if (pieces.isEmpty()) {
+        // 一张都没成：整次转换失败。逐张原因仍然留在 issues 里，
+        // 界面要能说出「是哪张、什么格式、为什么」。
+        result.errorKind = clipboardImageFailureKind(result.clipboardImageOutcome.issues);
+        result.error = QStringLiteral("no clipboard image could be embedded");
+        return result;
+    }
+
+    QByteArray composed;
+    int composedPages = 0;
+    QString composeError;
+    if (!composeDocument(pieces, mediaBox, &composed, &composedPages, &composeError)) {
+        // 合成失败：图一张都没进去，逐张记成「排不进这份 PDF」。
+        result.errorKind = ConversionErrorKind::LayoutFailed;
+        result.error = composeError;
+        result.clipboardImageOutcome.embedded = 0;
+        result.clipboardImageOutcome.issues.clear();
+        for (int index = 0; index < imageBytes.size(); ++index) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::LayoutFailed;
+            issue.detail = composeError;
+            result.clipboardImageOutcome.issues.append(issue);
+        }
+        return result;
+    }
+
+    result.ok = true;
+    result.bytes = composed;
+    result.pageCount = composedPages;
+    return result;
+}
+
 // ============================================================ 网页 =====
 
 HtmlBody extractHtmlBody(const QString& html, const QUrl& baseUrl) {

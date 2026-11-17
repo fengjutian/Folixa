@@ -22,12 +22,24 @@ void setError(QString* error, const QString& message) {
     }
 }
 
-// 页面级对齐最多算多少个格子（页数 × 页数）。
+// 页面相似度矩阵最多算多少个格子（页数 × 页数）。
 //
-// 对齐是 O(n×m) 的动态规划：两份各 500 页就是 25 万个格子，
+// 为什么要有上限：矩阵是 O(n×m) 的，两份各 500 页就是 25 万个格子，
 // 再多就会让「比较」变成一件要等很久的事。超限时退化成按下标配对，
 // 多出来的页照报「新增/删除」，只是配对不再那么聪明。
 constexpr qint64 kMaxPageAlignmentCells = 200000;
+
+// 默认的页数上限：页数超过它就不做序列对齐。
+//
+// 为什么按页数再卡一道：格子数那关挡的是「两份都很长」，
+// 按页数卡更直观，界面上也能把「这份文档太长，没做对齐」直接说清楚。
+constexpr int kDefaultMaxAlignmentPages = 400;
+
+// 一页最多取多少个词元参与相似度计算。
+//
+// 为什么截断：一页的文字可以上万字，词元集合跟着涨；
+// 相似度矩阵是页数×页数，每多一个词元就多一次哈希查找。
+constexpr int kMaxTokensPerPage = 128;
 
 // 单页最多取多少个块参与比较（见 DocumentCompareOptions::maxBlocksPerPage）。
 //
@@ -140,18 +152,12 @@ quint64 hashText(const QString& text) {
     return hash;
 }
 
-// 一页的「指纹」：这一页所有块文本的哈希集合。
-QSet<quint64> signatureOf(const QVector<TextBlock>& blocks) {
-    QSet<quint64> signature;
-    signature.reserve(blocks.size());
-    for (const TextBlock& block : blocks) {
-        signature.insert(hashText(normalizedForCompare(block.text)));
-    }
-    return signature;
-}
-
 // 两个指纹的 Jaccard 相似度（共同 / 并集）。
-double jaccard(const QSet<quint64>& left, const QSet<quint64>& right) {
+//
+// 为什么做成模板：页级相似度要同时算「块文本哈希集合」与「词元集合」的重合度，
+// 两者都是 QSet，只是元素类型不同。
+template <typename T>
+double jaccard(const QSet<T>& left, const QSet<T>& right) {
     if (left.isEmpty() && right.isEmpty()) {
         // 两页都没有文字：内容一样（都可能是扫描件），不能因为空集就说成毫不相干。
         return 1.0;
@@ -160,7 +166,7 @@ double jaccard(const QSet<quint64>& left, const QSet<quint64>& right) {
         return 0.0;
     }
     int common = 0;
-    for (quint64 value : left) {
+    for (const T& value : left) {
         if (right.contains(value)) {
             ++common;
         }
@@ -221,6 +227,219 @@ QVector<SequencePair> alignBySimilarity(const QVector<QVector<double>>& similari
     }
     std::reverse(pairs.begin(), pairs.end());
     return pairs;
+}
+
+// ------------------------------------------------------------ 页面指纹与对齐 ----
+
+// 一页的指纹：判断「这两页是不是同一页」的全部依据。
+//
+// 为什么指纹里要同时放块数与字符数：光看块文本的哈希集合，
+// 「一页只有一个块」与「一页有两个一样的块」会算出同一个指纹。
+struct PageFingerprint {
+    // 归一化后的页文本（块按阅读顺序拼接，空白压成单空格）。
+    QString normalizedText;
+    // 页里出现过的块文本哈希（算块级重合度用）。
+    QSet<quint64> blockHashes;
+    // 页里出现过的词元（算词级重合度用）。
+    QSet<QString> tokens;
+    // 块数与字符数（字符数 = 各块归一化之后的长度之和）。
+    int blockCount = 0;
+    int characterCount = 0;
+    // 内容哈希：排序后的块哈希 + 块数 + 字符数。
+    //
+    // 为什么先排序再算：指纹必须与块在页上的先后顺序无关，
+    // 否则同一页仅仅换了排版顺序，就会被当成「整页被替换」。
+    quint64 contentHash = 0;
+};
+
+// 把文本切成词元：小写化后按非字母数字切开。
+//
+// 为什么按词切而不是按字切：中文按字切的话，两页中文的常用字都一样，
+// 重合度会虚高到「看起来是同一页」。按词切至少能分清「条款」和「金额」。
+QSet<QString> tokenizeForPage(const QString& text) {
+    QSet<QString> tokens;
+    QString current;
+    current.reserve(32);
+    const auto flush = [&]() {
+        if (!current.isEmpty()) {
+            tokens.insert(current);
+            current.clear();
+        }
+    };
+    for (const QChar character : text) {
+        if (tokens.size() >= kMaxTokensPerPage) {
+            break;
+        }
+        if (character.isLetterOrNumber()) {
+            current.append(character.toLower());
+        } else {
+            flush();
+        }
+    }
+    flush();
+    return tokens;
+}
+
+// 给一页算指纹。
+//
+// 为什么指纹要稳定：同一页在两份文档里内容相同就必须算出同一个指纹，
+// 否则「这一页没动」会被报成「这一页被替换了」。
+PageFingerprint fingerprintOfPage(const QVector<TextBlock>& blocks) {
+    PageFingerprint fingerprint;
+    fingerprint.blockCount = blocks.size();
+
+    QStringList normalizedBlocks;
+    normalizedBlocks.reserve(blocks.size());
+    for (const TextBlock& block : blocks) {
+        const QString normalized = normalizedForCompare(block.text);
+        normalizedBlocks.append(normalized);
+        fingerprint.characterCount += normalized.size();
+        fingerprint.blockHashes.insert(hashText(normalized));
+    }
+    fingerprint.normalizedText = normalizedBlocks.join(QLatin1Char(' '));
+    fingerprint.tokens = tokenizeForPage(fingerprint.normalizedText);
+
+    // 内容哈希：排序后的块哈希 + 块数 + 字符数。
+    QVector<quint64> sortedHashes = fingerprint.blockHashes.values();
+    std::sort(sortedHashes.begin(), sortedHashes.end());
+    quint64 hash = 1469598103934665603ULL;
+    const auto mix = [&hash](quint64 value) {
+        hash ^= value;
+        hash *= 1099511628211ULL;
+    };
+    for (quint64 value : sortedHashes) {
+        mix(value);
+    }
+    mix(static_cast<quint64>(fingerprint.blockCount));
+    mix(static_cast<quint64>(fingerprint.characterCount));
+    fingerprint.contentHash = hash;
+    return fingerprint;
+}
+
+// 两页的相似度（0..1）。
+//
+// 为什么是「块级重合」与「词级重合」各占一半：
+//   - 块级重合（同一页里有多少块一个字不差）是最硬的证据；
+//   - 词级重合能认出「一页只有一个块、那个块改了几个字」的情况，
+//     这时块级重合是 0，只看块会把明明是同一页的判成「整页替换」；
+//   - 各占一半是为了不让任何一边单独做主：只看词级会把两页样板文字
+//     当成同一页，只看块级又会漏掉单块页的改字。
+double pageSimilarity(const PageFingerprint& left, const PageFingerprint& right) {
+    const double blockOverlap = jaccard(left.blockHashes, right.blockHashes);
+    const double tokenOverlap = jaccard(left.tokens, right.tokens);
+    return 0.5 * blockOverlap + 0.5 * tokenOverlap;
+}
+
+// 一次页对齐的结果。
+struct PageAlignment {
+    // 配上的页对（oldIndex / newIndex / 相似度）。
+    //
+    // 这里只放「配上了哪些页」：采不采用这套配对由调用方比过按位置的口径再定，
+    // 结果字段（alignmentApplied / alignmentMode / alignmentNote）也由调用方填。
+    QVector<SequencePair> pairs;
+};
+
+// 跨文档的页序列对齐：先按指纹精确配对，再按相似度配剩下的页。
+//
+// 为什么分两步：
+//   - 指纹相同的页直接配上，而且**不看先后顺序** —— 这样「把第 2 页挪到最后」
+//     也能配上。只用保序的动态规划（LCS/NW）在这种情况下最多配上一半，
+//     挪走的那一页会被说成「删了一页又加了一页」。
+//   - 剩下的页再按相似度从高到低贪心配，让「改过几个字的同一页」也能配上。
+//
+// 为什么相似度要设门槛：毫不相干的两页配成一对，
+// 用户看到的是「这两页被互相改过」，比「一页删了一页」更难懂。
+PageAlignment alignPageSequences(const QVector<PageFingerprint>& oldFingerprints,
+                                  const QVector<PageFingerprint>& newFingerprints,
+                                  double pageThreshold) {
+    PageAlignment alignment;
+    const int oldCount = oldFingerprints.size();
+    const int newCount = newFingerprints.size();
+    if (oldCount == 0 || newCount == 0) {
+        return alignment;
+    }
+
+    // 相似度矩阵：页对页一次算完，后面的配对都从这里取值。
+    QVector<QVector<double>> similarity(oldCount, QVector<double>(newCount, 0.0));
+    for (int oldIndex = 0; oldIndex < oldCount; ++oldIndex) {
+        for (int newIndex = 0; newIndex < newCount; ++newIndex) {
+            similarity[oldIndex][newIndex] =
+                pageSimilarity(oldFingerprints.at(oldIndex), newFingerprints.at(newIndex));
+        }
+    }
+
+    QVector<bool> oldUsed(oldCount, false);
+    QVector<bool> newUsed(newCount, false);
+
+    // 第一步：指纹完全相同的页配上（不看成对顺序，所以支持页移动）。
+    //
+    // 为什么同一个指纹按「第 k 份配第 k 份」而不是随便挑：
+    // 文档里可能有几页长得一模一样，随机挑会让重复页的配对飘忽不定。
+    QHash<quint64, QVector<int>> newByHash;
+    for (int newIndex = 0; newIndex < newCount; ++newIndex) {
+        newByHash[newFingerprints.at(newIndex).contentHash].append(newIndex);
+    }
+    QHash<quint64, int> usedByHash;
+    for (int oldIndex = 0; oldIndex < oldCount; ++oldIndex) {
+        const quint64 hash = oldFingerprints.at(oldIndex).contentHash;
+        const QVector<int> candidates = newByHash.value(hash);
+        const int used = usedByHash.value(hash, 0);
+        if (used >= candidates.size()) {
+            continue;
+        }
+        usedByHash.insert(hash, used + 1);
+        oldUsed[oldIndex] = true;
+        newUsed[candidates.at(used)] = true;
+        alignment.pairs.append({oldIndex, candidates.at(used), 1.0});
+    }
+
+    // 第二步：剩下的页按相似度从高到低配（只配相似度够得着的）。
+    struct Candidate {
+        int oldIndex = -1;
+        int newIndex = -1;
+        double similarity = 0.0;
+    };
+    QVector<Candidate> candidates;
+    for (int oldIndex = 0; oldIndex < oldCount; ++oldIndex) {
+        if (oldUsed.at(oldIndex)) {
+            continue;
+        }
+        for (int newIndex = 0; newIndex < newCount; ++newIndex) {
+            if (newUsed.at(newIndex)) {
+                continue;
+            }
+            const double score = similarity.at(oldIndex).at(newIndex);
+            if (score >= pageThreshold) {
+                candidates.append({oldIndex, newIndex, score});
+            }
+        }
+    }
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& left, const Candidate& right) {
+                  // 同分时按页码定序：同样的输入必须给出同样的配对。
+                  if (left.similarity != right.similarity) {
+                      return left.similarity > right.similarity;
+                  }
+                  if (left.oldIndex != right.oldIndex) {
+                      return left.oldIndex < right.oldIndex;
+                  }
+                  return left.newIndex < right.newIndex;
+              });
+    for (const Candidate& candidate : candidates) {
+        if (oldUsed.at(candidate.oldIndex) || newUsed.at(candidate.newIndex)) {
+            continue;
+        }
+        oldUsed[candidate.oldIndex] = true;
+        newUsed[candidate.newIndex] = true;
+        alignment.pairs.append({candidate.oldIndex, candidate.newIndex, candidate.similarity});
+    }
+
+    // 页对按原文页码排序：后面的差异排序与像素比对都按这个顺序走。
+    std::sort(alignment.pairs.begin(), alignment.pairs.end(),
+              [](const SequencePair& left, const SequencePair& right) {
+                  return left.oldIndex < right.oldIndex;
+              });
+    return alignment;
 }
 
 // 把一页的字符聚成文字块。
@@ -922,41 +1141,95 @@ bool compareDocuments(const QByteArray& oldBytes,
         return false;
     }
 
-    // 页面级对齐。
-    QVector<SequencePair> pagePairs;
+    // 每页的指纹：按内容对齐与按位置配对都用它算相似度。
+    QVector<PageFingerprint> oldFingerprints;
+    QVector<PageFingerprint> newFingerprints;
+    oldFingerprints.reserve(oldPages.size());
+    newFingerprints.reserve(newPages.size());
+    for (const QVector<TextBlock>& page : oldPages) {
+        oldFingerprints.append(fingerprintOfPage(page));
+    }
+    for (const QVector<TextBlock>& page : newPages) {
+        newFingerprints.append(fingerprintOfPage(page));
+    }
+
+    // 按位置配对（第 i 页对第 i 页）作为基线。
+    //
+    // 为什么一定要留着这条基线：它是「不做对齐时一定会有的口径」，
+    // 对齐要比它更好才值得用 —— 对齐不比它好就说明它没起作用，
+    // 这时说「用了自动对齐」是在骗人。
+    QVector<SequencePair> positionPairs;
+    for (int index = 0; index < qMin(oldPages.size(), newPages.size()); ++index) {
+        positionPairs.append({index, index,
+                              pageSimilarity(oldFingerprints.at(index),
+                                             newFingerprints.at(index))});
+    }
+
+    // 页面级对齐：默认按内容对齐（页指纹 + 序列对齐）。
+    QVector<SequencePair> pagePairs = positionPairs;
+    bool alignmentApplied = false;
+    QString alignmentNote;
+
+    const int maxAlignmentPages = options.maxAlignmentPages > 0
+                                      ? options.maxAlignmentPages
+                                      : kDefaultMaxAlignmentPages;
     const qint64 cells = static_cast<qint64>(oldPages.size())
         * static_cast<qint64>(newPages.size());
-    if (cells > kMaxPageAlignmentCells) {
-        // 规模太大：按下标配对，剩下的页照报新增/删除。
-        const int common = qMin(oldPages.size(), newPages.size());
-        for (int index = 0; index < common; ++index) {
-            pagePairs.append({index, index, 0.0});
-        }
-    } else {
-        QVector<QSet<quint64>> oldSignatures;
-        QVector<QSet<quint64>> newSignatures;
-        oldSignatures.reserve(oldPages.size());
-        newSignatures.reserve(newPages.size());
-        for (const QVector<TextBlock>& page : oldPages) {
-            oldSignatures.append(signatureOf(page));
-        }
-        for (const QVector<TextBlock>& page : newPages) {
-            newSignatures.append(signatureOf(page));
-        }
+    const bool limitExceeded = oldPages.size() > maxAlignmentPages
+        || newPages.size() > maxAlignmentPages || cells > kMaxPageAlignmentCells;
 
-        QVector<QVector<double>> pageSimilarity(oldPages.size(),
-                                                QVector<double>(newPages.size(), 0.0));
-        for (int oldIndex = 0; oldIndex < oldPages.size(); ++oldIndex) {
-            for (int newIndex = 0; newIndex < newPages.size(); ++newIndex) {
-                pageSimilarity[oldIndex][newIndex] =
-                    jaccard(oldSignatures.at(oldIndex), newSignatures.at(newIndex));
+    if (!options.autoAlign) {
+        alignmentNote = QStringLiteral("sequence alignment disabled by option");
+    } else if (limitExceeded) {
+        alignmentNote = QStringLiteral(
+            "page count exceeds alignment limit (old=%1 new=%2 limit=%3); "
+            "fell back to position pairing")
+            .arg(oldPages.size())
+            .arg(newPages.size())
+            .arg(maxAlignmentPages);
+    } else {
+        const PageAlignment alignment = alignPageSequences(oldFingerprints, newFingerprints,
+                                                           options.pageThreshold);
+        int alignedCount = 0;
+        double alignedSum = 0.0;
+        for (const SequencePair& pair : alignment.pairs) {
+            if (pair.similarity >= options.pageThreshold) {
+                ++alignedCount;
+                alignedSum += pair.similarity;
             }
         }
-        pagePairs = alignBySimilarity(pageSimilarity);
+        int positionCount = 0;
+        double positionSum = 0.0;
+        for (const SequencePair& pair : positionPairs) {
+            if (pair.similarity >= options.pageThreshold) {
+                ++positionCount;
+                positionSum += pair.similarity;
+            }
+        }
+        const bool better = alignedCount > positionCount
+            || (alignedCount == positionCount && alignedSum > positionSum + 1e-9);
+        if (better) {
+            pagePairs = alignment.pairs;
+            alignmentApplied = true;
+            alignmentNote =
+                QStringLiteral("sequence alignment applied (%1 page pairs)").arg(alignedCount);
+        } else {
+            alignmentNote = QStringLiteral(
+                "sequence alignment did not improve on position pairing; "
+                "using position pairing");
+        }
     }
+
+    result->alignmentApplied = alignmentApplied;
+    result->alignmentMode = alignmentApplied ? QStringLiteral("sequence")
+                                              : QStringLiteral("position");
+    result->alignmentNote = alignmentNote;
 
     QVector<bool> oldPageMatched(oldPages.size(), false);
     QVector<bool> newPageMatched(newPages.size(), false);
+    // 一边独有的页码：按对齐结果算出来的，界面点「跳到那一页」用得上。
+    QVector<int> oldOnly;
+    QVector<int> newOnly;
 
     for (const SequencePair& pair : pagePairs) {
         oldPageMatched[pair.oldIndex] = true;
@@ -973,6 +1246,7 @@ bool compareDocuments(const QByteArray& oldBytes,
             removed.similarity = pair.similarity;
             result->differences.append(removed);
             ++result->removedPageCount;
+            oldOnly.append(pair.oldIndex);
 
             CompareDifference added;
             added.kind = DiffKind::PageAdded;
@@ -982,10 +1256,12 @@ bool compareDocuments(const QByteArray& oldBytes,
             added.similarity = pair.similarity;
             result->differences.append(added);
             ++result->addedPageCount;
+            newOnly.append(pair.newIndex);
             continue;
         }
 
         ++result->comparedPageCount;
+        ++result->alignedPairCount;
         compareBlocksOfPage(oldPages.at(pair.oldIndex),
                             newPages.at(pair.newIndex),
                             pair.oldIndex,
@@ -1006,6 +1282,7 @@ bool compareDocuments(const QByteArray& oldBytes,
         removed.oldText = pageSnippet(oldPages.at(oldIndex));
         result->differences.append(removed);
         ++result->removedPageCount;
+        oldOnly.append(oldIndex);
     }
     for (int newIndex = 0; newIndex < newPages.size(); ++newIndex) {
         if (newPageMatched.at(newIndex)) {
@@ -1018,7 +1295,15 @@ bool compareDocuments(const QByteArray& oldBytes,
         added.newText = pageSnippet(newPages.at(newIndex));
         result->differences.append(added);
         ++result->addedPageCount;
+        newOnly.append(newIndex);
     }
+
+    // 一边独有的页：口径与 addedPageCount / removedPageCount 一致，
+    // 都是「按对齐结果算出来的」，不是「按页码位置算出来的」。
+    result->oldOnlyPageIndices = oldOnly;
+    result->newOnlyPageIndices = newOnly;
+    result->oldOnlyPageCount = oldOnly.size();
+    result->newOnlyPageCount = newOnly.size();
 
     // 像素级比对：按上面的页配对逐页渲染、逐像素比。
     // 放在文字层之后：它要用刚算出来的配对关系。

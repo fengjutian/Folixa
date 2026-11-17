@@ -243,6 +243,12 @@ private slots:
     void graphicsChangedButTextUnchangedShowsOnlyVisualDifference();
     void differentPageSizesAreComparedOnCommonArea();
     void compareDialogShowsVisualDifferencesSeparately();
+    void insertedPageKeepsLaterPagesAligned();
+    void deletedPageKeepsLaterPagesAligned();
+    void movedPageIsMatchedByFingerprint();
+    void completelyDifferentDocumentsFallBackToPositionPairing();
+    void alignmentFallsBackWhenPageLimitExceeded();
+    void alignmentCanBeDisabledByOption();
 };
 
 void DocumentComparerTests::init() {
@@ -765,6 +771,204 @@ void DocumentComparerTests::compareDialogShowsVisualDifferencesSeparately() {
              qPrintable(visualTable->item(0, 1)->text()));
     QVERIFY2(visualTable->item(0, 0)->text().contains(QString::fromUtf8("1")),
              qPrintable(visualTable->item(0, 0)->text()));
+}
+
+// 中间插一页：插进去之后的页仍然要配对正确，不能整体后移。
+//
+// 这条是这次要闭的欠账的核心：「中间插页会让配对整体后移」。
+// 按页码位置配对的话，第 2 页会跟插进来的页配成一对，
+// 后面每一页都被报成「被改过」，结果等于没用。
+void DocumentComparerTests::insertedPageKeepsLaterPagesAligned() {
+    const QByteArray oldBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+    const QByteArray newBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Delta inserted appendix")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, DocumentCompareOptions(), &result,
+                                          &error),
+             qPrintable(error));
+    QVERIFY(result.succeeded);
+
+    // 对齐必须真的用上了。
+    QVERIFY(result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("sequence"));
+    QVERIFY(!result.alignmentNote.isEmpty());
+
+    // 三页原页都配上了，插进来的那一页是新文独有的。
+    QCOMPARE(result.alignedPairCount, 3);
+    QCOMPARE(result.comparedPageCount, 3);
+    QCOMPARE(result.newOnlyPageCount, 1);
+    QCOMPARE(result.newOnlyPageIndices.size(), 1);
+    QCOMPARE(result.newOnlyPageIndices.at(0), 1);
+    QCOMPARE(result.oldOnlyPageCount, 0);
+    QVERIFY(result.oldOnlyPageIndices.isEmpty());
+
+    // 页数口径按对齐结果算：多一页就是多一页。
+    QCOMPARE(result.addedPageCount, 1);
+    QCOMPARE(result.removedPageCount, 0);
+
+    // 插页之后的页一个字都没动：不能报成「被改过」。
+    QCOMPARE(result.modifiedBlockCount, 0);
+    QCOMPARE(result.insertedBlockCount, 0);
+    QCOMPARE(result.deletedBlockCount, 0);
+    QCOMPARE(result.differences.size(), 1);
+    QCOMPARE(result.differences.at(0).kind, DiffKind::PageAdded);
+    QCOMPARE(result.differences.at(0).newPageIndex, 1);
+    QVERIFY2(result.differences.at(0).newText.contains(QStringLiteral("Delta inserted appendix")),
+             qPrintable(result.differences.at(0).newText));
+}
+
+// 中间删一页：后面的页同样要配对正确。
+void DocumentComparerTests::deletedPageKeepsLaterPagesAligned() {
+    const QByteArray oldBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+    const QByteArray newBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Gamma chapter three")}});
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, DocumentCompareOptions(), &result,
+                                          &error),
+             qPrintable(error));
+
+    QVERIFY(result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("sequence"));
+    QCOMPARE(result.alignedPairCount, 2);
+    QCOMPARE(result.comparedPageCount, 2);
+
+    // 被删掉的那一页是原文独有的。
+    QCOMPARE(result.oldOnlyPageCount, 1);
+    QCOMPARE(result.oldOnlyPageIndices.size(), 1);
+    QCOMPARE(result.oldOnlyPageIndices.at(0), 1);
+    QCOMPARE(result.newOnlyPageCount, 0);
+    QVERIFY(result.newOnlyPageIndices.isEmpty());
+
+    QCOMPARE(result.removedPageCount, 1);
+    QCOMPARE(result.addedPageCount, 0);
+    QCOMPARE(result.differences.size(), 1);
+    QCOMPARE(result.differences.at(0).kind, DiffKind::PageRemoved);
+    QCOMPARE(result.differences.at(0).oldPageIndex, 1);
+}
+
+// 页移动：把第 2 页挪到最后，这一页仍然是「同一页」。
+//
+// 这条只能靠「不看顺序的指纹配对」兜住：保序的动态规划（LCS/NW）
+// 在页被挪动时最多配上一半，挪走的那页会被说成「删了一页又加了一页」。
+void DocumentComparerTests::movedPageIsMatchedByFingerprint() {
+    const QByteArray oldBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+    const QByteArray newBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Gamma chapter three")},
+                                          {QStringLiteral("Beta chapter two")}});
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, DocumentCompareOptions(), &result,
+                                          &error),
+             qPrintable(error));
+
+    QVERIFY(result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("sequence"));
+    QCOMPARE(result.alignedPairCount, 3);
+    QCOMPARE(result.comparedPageCount, 3);
+
+    // 页只是换了位置：没有页被加，也没有页被删。
+    QCOMPARE(result.addedPageCount, 0);
+    QCOMPARE(result.removedPageCount, 0);
+    QVERIFY(result.differences.isEmpty());
+}
+
+// 对照样本：两份完全不同的文档不能硬凑成「互相改过」。
+//
+// 对齐不比按位置配对更好时必须退回按位置，并在 alignmentNote 里说明。
+void DocumentComparerTests::completelyDifferentDocumentsFallBackToPositionPairing() {
+    const QByteArray oldBytes =
+        buildPdf({{QStringLiteral("Supplier invoice total 4800 euro")},
+                  {QStringLiteral("Delivery note warehouse receipt")}});
+    const QByteArray newBytes =
+        buildPdf({{QStringLiteral("Landlord lease agreement rent")},
+                  {QStringLiteral("Tenant notice renewal premises")}});
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, DocumentCompareOptions(), &result,
+                                          &error),
+             qPrintable(error));
+
+    // 没有硬凑：退回按位置配对，并写明为什么。
+    QVERIFY(!result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("position"));
+    QVERIFY2(!result.alignmentNote.isEmpty(), "退回按位置配对必须写明原因");
+    QCOMPARE(result.alignedPairCount, 0);
+
+    // 两份文档的词完全不相干：每一页都算「一边独有」。
+    QCOMPARE(result.addedPageCount, 2);
+    QCOMPARE(result.removedPageCount, 2);
+    QCOMPARE(result.oldOnlyPageCount, 2);
+    QCOMPARE(result.newOnlyPageCount, 2);
+}
+
+// 页数超过上限：退回按位置配对，并写明是哪个上限挡住了。
+void DocumentComparerTests::alignmentFallsBackWhenPageLimitExceeded() {
+    const QByteArray oldBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+    const QByteArray newBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Delta inserted appendix")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+
+    DocumentCompareOptions options;
+    options.maxAlignmentPages = 2;  // 故意把上限压到比页数小
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, options, &result, &error),
+             qPrintable(error));
+
+    QVERIFY(!result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("position"));
+    QVERIFY2(result.alignmentNote.contains(QStringLiteral("limit")),
+             qPrintable(result.alignmentNote));
+}
+
+// 关掉自动对齐：就是「第 i 页对第 i 页」的旧行为。
+//
+// 这条同时是负例对照的基准：插页样本在关掉对齐之后，
+// 插页之后的页会全部配错（多报两页新增、一页删除）。
+void DocumentComparerTests::alignmentCanBeDisabledByOption() {
+    const QByteArray oldBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+    const QByteArray newBytes = buildPdf({{QStringLiteral("Alpha chapter one")},
+                                          {QStringLiteral("Delta inserted appendix")},
+                                          {QStringLiteral("Beta chapter two")},
+                                          {QStringLiteral("Gamma chapter three")}});
+
+    DocumentCompareOptions options;
+    options.autoAlign = false;
+
+    DocumentCompareResult result;
+    QString error;
+    QVERIFY2(aipdf::pdf::compareDocuments(oldBytes, newBytes, options, &result, &error),
+             qPrintable(error));
+
+    QVERIFY(!result.alignmentApplied);
+    QCOMPARE(result.alignmentMode, QStringLiteral("position"));
+    QVERIFY2(result.alignmentNote.contains(QStringLiteral("disabled")),
+             qPrintable(result.alignmentNote));
+
+    // 旧行为的具体后果：按位置配对之后插页之后的页全错位。
+    QCOMPARE(result.comparedPageCount, 1);
+    QCOMPARE(result.addedPageCount, 3);
+    QCOMPARE(result.removedPageCount, 2);
 }
 
 QTEST_MAIN(DocumentComparerTests)

@@ -393,6 +393,26 @@ bool hasPixelOfColor(const QImage& image, int red, int green, int blue) {
     return false;
 }
 
+// 渲染出来的图里有没有接近指定颜色的像素（各通道留一点余量）。
+//
+// 为什么不用 hasPixelOfColor：那条只认红色（给网页那张图用的），
+// 页序那条用例要认三种颜色，得有个认「任意颜色」的。
+bool hasColorNear(const QImage& image, int red, int green, int blue, int tolerance = 60) {
+    if (image.isNull()) {
+        return false;
+    }
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (qAbs(pixel.red() - red) <= tolerance && qAbs(pixel.green() - green) <= tolerance &&
+                qAbs(pixel.blue() - blue) <= tolerance) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // 假取字节回调：按地址返回预置的字节，取不到就返回空。
 aipdf::doc::ImageFetcher makeImageFetcher(const QHash<QString, QByteArray>& table) {
     return [table](const QUrl& url) -> QByteArray {
@@ -440,6 +460,17 @@ private slots:
     void clipboardHtmlLayoutDiffersFromPlainText();
     void clipboardHtmlWithoutBodyIsRejected();
     void clipboardHtmlWithOnlyStyleIsRejected();
+
+    // ------------------------------------------------------ 剪贴板图片 ----
+    void clipboardImageProducesReadablePdf();
+    void clipboardImagesKeepPageOrder();
+    void clipboardImageWithoutDataIsRejected();
+    void clipboardImageWithEmptyBytesIsReported();
+    void clipboardImageWithBrokenBytesIsRejected();
+    void clipboardImageWithUnsupportedFormatIsRejected();
+    void clipboardImagePartialSuccessReportsFailedOnes();
+    void clipboardImageLimitIsReported();
+    void clipboardHtmlDoesNotEmbedImages();
 
     // ------------------------------------------------------------ 网页 ----
     void htmlBodyDropsScriptStyleAndNavigation();
@@ -607,6 +638,186 @@ void ConversionInputsTests::clipboardHtmlWithOnlyStyleIsRejected() {
     QVERIFY(!result.ok);
     QVERIFY(result.bytes.isEmpty());
     QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoHtmlBody);
+}
+
+// ============================================================ 剪贴板图片 ====
+
+void ConversionInputsTests::clipboardImageProducesReadablePdf() {
+    // 正例：剪贴板里一张 PNG → 一页 PDF，图真的在里面（PDFium 看得见）。
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(
+        QVector<QByteArray>{makeSolidPng(120, 120, 255, 0, 0)});
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    QCOMPARE(result.pageCount, 1);
+    // 结果里要能看出这次走的是图片这一路。
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::Images);
+    // 「这次带了图」的结构化字段。
+    QCOMPARE(result.clipboardImageOutcome.found, 1);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 1);
+    QVERIFY(result.clipboardImageOutcome.issues.isEmpty());
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("clipboard.pdf"));
+    QVERIFY(opened.document.isValid());
+    QCOMPARE(opened.document.pageCount(), 1);
+    const std::optional<aipdf::pdf::PdfPage> page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(countImageObjects(*page), 1);
+    // 渲染出来真的有那片红色（图在文件里但画不出来，跟没有图一样）。
+    const QImage rendered = page->render(1.0);
+    QVERIFY(!rendered.isNull());
+    QVERIFY2(hasColorNear(rendered, 255, 0, 0), "剪贴板图片没有渲染出来");
+}
+
+void ConversionInputsTests::clipboardImagesKeepPageOrder() {
+    // 正例：三张图 → 三页，页序与传入顺序一致（靠颜色认页）。
+    QVector<QByteArray> images;
+    images.append(makeSolidPng(120, 120, 255, 0, 0));
+    images.append(makeSolidPng(120, 120, 0, 255, 0));
+    images.append(makeSolidPng(120, 120, 0, 0, 255));
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(images);
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 3);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 3);
+    QVERIFY(result.clipboardImageOutcome.issues.isEmpty());
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("clipboard.pdf"));
+    QVERIFY(opened.document.isValid());
+    QCOMPARE(opened.document.pageCount(), 3);
+    const QVector<QColor> expected = {QColor(255, 0, 0), QColor(0, 255, 0), QColor(0, 0, 255)};
+    for (int index = 0; index < expected.size(); ++index) {
+        const std::optional<aipdf::pdf::PdfPage> page = opened.document.page(index);
+        QVERIFY(page.has_value());
+        QCOMPARE(countImageObjects(*page), 1);
+        const QImage rendered = page->render(1.0);
+        QVERIFY(!rendered.isNull());
+        const QColor color = expected.at(index);
+        QVERIFY2(hasColorNear(rendered, color.red(), color.green(), color.blue()),
+                 qPrintable(QStringLiteral("第 %1 页的颜色不对").arg(index + 1)));
+    }
+}
+
+void ConversionInputsTests::clipboardImageWithoutDataIsRejected() {
+    // 负例：剪贴板里一张图都没有 —— 直接失败，不生成空白 PDF。
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(QVector<QByteArray>());
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoContent);
+    QVERIFY(!result.error.isEmpty());
+}
+
+void ConversionInputsTests::clipboardImageWithEmptyBytesIsReported() {
+    // 负例：有图片「条目」但字节是空的 —— 逐条报出来，不静默跳过。
+    const ConversionResult result =
+        aipdf::doc::clipboardImageToPdf(QVector<QByteArray>{QByteArray()});
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::NoContent);
+    QCOMPARE(result.clipboardImageOutcome.found, 1);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 0);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    QCOMPARE(result.clipboardImageOutcome.issues.at(0).kind,
+             aipdf::doc::ClipboardImageIssueKind::EmptyData);
+}
+
+void ConversionInputsTests::clipboardImageWithBrokenBytesIsRejected() {
+    // 负例：字节是 PNG 头但后面全是垃圾 —— 解不开，明确失败，不崩。
+    const QByteArray broken =
+        QByteArrayLiteral("\x89PNG\r\n\x1a\n") + QByteArrayLiteral("broken bytes");
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(QVector<QByteArray>{broken});
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::ImageDecodeFailed);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 0);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    const aipdf::doc::ClipboardImageIssue& issue = result.clipboardImageOutcome.issues.at(0);
+    QCOMPARE(issue.kind, aipdf::doc::ClipboardImageIssueKind::DecodeFailed);
+    QCOMPARE(issue.index, 0);
+    // 格式认得出来（是 PNG），但数据坏了 —— 这两件事要分开报。
+    QCOMPARE(issue.format, QStringLiteral("PNG"));
+    QVERIFY(!issue.detail.isEmpty());
+}
+
+void ConversionInputsTests::clipboardImageWithUnsupportedFormatIsRejected() {
+    // 负例：TIFF / GIF / WebP 明确不支持 —— 要点名格式，不能只写「转换失败」。
+    struct Sample {
+        QByteArray bytes;
+        QString format;
+    };
+    const QVector<Sample> samples = {
+        {QByteArrayLiteral("II\x2a\x00") + QByteArrayLiteral("not-really-a-tiff"),
+         QStringLiteral("TIFF")},
+        {QByteArrayLiteral("GIF89a") + QByteArrayLiteral("not-really-an-image"),
+         QStringLiteral("GIF")},
+        {QByteArrayLiteral("RIFF") + QByteArray(4, '\0') +
+             QByteArrayLiteral("WEBPVP8 not-really-an-image"),
+         QStringLiteral("WebP")},
+    };
+    for (const Sample& sample : samples) {
+        const ConversionResult result =
+            aipdf::doc::clipboardImageToPdf(QVector<QByteArray>{sample.bytes});
+        QVERIFY2(!result.ok, sample.format.toUtf8().constData());
+        QVERIFY(result.bytes.isEmpty());
+        QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::UnsupportedImageFormat);
+        QCOMPARE(result.clipboardImageOutcome.embedded, 0);
+        QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+        const aipdf::doc::ClipboardImageIssue& issue = result.clipboardImageOutcome.issues.at(0);
+        QCOMPARE(issue.kind, aipdf::doc::ClipboardImageIssueKind::UnsupportedFormat);
+        QCOMPARE(issue.format, sample.format);
+    }
+}
+
+void ConversionInputsTests::clipboardImagePartialSuccessReportsFailedOnes() {
+    // 一张好的 + 一张不认的：好的要排进去，不认的要逐条报出来（不静默忽略）。
+    QVector<QByteArray> images;
+    images.append(makeSolidPng(120, 120, 255, 0, 0));
+    images.append(QByteArrayLiteral("GIF89a") + QByteArrayLiteral("not-really-an-image"));
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(images);
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    QCOMPARE(result.pageCount, 1);
+    QCOMPARE(result.clipboardImageOutcome.found, 2);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 1);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    const aipdf::doc::ClipboardImageIssue& issue = result.clipboardImageOutcome.issues.at(0);
+    QCOMPARE(issue.kind, aipdf::doc::ClipboardImageIssueKind::UnsupportedFormat);
+    QCOMPARE(issue.format, QStringLiteral("GIF"));
+    QCOMPARE(issue.index, 1);
+    // PDF 里只有一张图（坏的那张没有变成空白页）。
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 1);
+}
+
+void ConversionInputsTests::clipboardImageLimitIsReported() {
+    // 一次带的图太多：超出的不排，但要逐条记下来（不能静默丢弃）。
+    QVector<QByteArray> images;
+    for (int index = 0; index < 51; ++index) {
+        images.append(makeSolidPng(8, 8, 255, 0, 0));
+    }
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(images);
+    QVERIFY(result.ok);
+    QCOMPARE(result.clipboardImageOutcome.found, 51);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 50);
+    QCOMPARE(result.pageCount, 50);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    QCOMPARE(result.clipboardImageOutcome.issues.at(0).kind,
+             aipdf::doc::ClipboardImageIssueKind::LimitReached);
+    QCOMPARE(result.clipboardImageOutcome.issues.at(0).index, 50);
+}
+
+void ConversionInputsTests::clipboardHtmlDoesNotEmbedImages() {
+    // 边界：HTML 里的图（data: 内联图）仍然不排 —— 那一路只排正文。
+    // 剪贴板里的图片走另一个入口（clipboardImageToPdf）。
+    const QString html = QStringLiteral(
+        "<html><body><p>Text body</p>"
+        "<img src=\"data:image/png;base64,iVBORw0KGgo=\"></body></html>");
+    const ConversionResult result = aipdf::doc::clipboardHtmlToPdf(html);
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 1);
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 0);
+    // 网页那套的带图结果不因为这次是剪贴板而变样。
+    QVERIFY(!result.imageOutcome.attempted);
+    QCOMPARE(result.clipboardImageOutcome.found, 0);
 }
 
 // ============================================================ 网页 =====

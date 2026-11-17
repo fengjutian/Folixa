@@ -58,6 +58,19 @@ struct DocumentCompareOptions {
     // 单页最多比较多少个块：对齐用的是 O(n×m) 的动态规划，
     // 不设上限的话，一页塞满文字的畸形文档能把内存吃光。
     int maxBlocksPerPage = 400;
+    // 是否做跨文档自动对齐（页指纹 + 序列对齐）。
+    //
+    // 默认开：按页号位置配对在「中间插一页」时会整体后移，
+    // 后面每一页都被报成「被改过」，这样的结果等于没用。
+    // 关掉它就退回「第 i 页对第 i 页」，结果里的 alignmentMode 会写成 "position"。
+    bool autoAlign = true;
+    // 超过这个页数就不做序列对齐，退回按位置配对。
+    //
+    // 为什么要有上限：对齐要算 O(页数×页数) 的相似度矩阵，
+    // 几千页的文档会让「比较」看起来像卡死了。
+    // 退回按位置时 alignmentNote 里会写明原因。
+    int maxAlignmentPages = 400;
+
     // 是否做像素级（渲染位图）比对。
     //
     // 默认关：把每一页画成位图再逐像素比，比抽文字慢一个数量级。
@@ -167,6 +180,28 @@ struct DocumentCompareResult {
     double overallSimilarity = 1.0;
     // 差异明细，按页码、再按块序号排列。
     QVector<CompareDifference> differences;
+
+    // ------------------------------------------------------ 跨文档自动对齐 ----
+    //
+    // 下面这些字段说明「这次比较是按页码位置配的页，还是按内容对齐配的页」。
+    // 领域层只给结构化字段，界面上的文案由 app 层拼。
+
+    // 这次是不是真的用了序列对齐。false = 退回按页码位置配对了。
+    bool alignmentApplied = false;
+    // 用的哪种配对口径："position"（按页码位置）/ "sequence"（序列对齐）。
+    QString alignmentMode = QStringLiteral("position");
+    // 配成的「同一页」页对数（不管是用了哪种口径）。
+    int alignedPairCount = 0;
+    // 一边独有的页数：原文独有的 / 新文独有的。
+    // 与 removedPageCount / addedPageCount 同口径（都按对齐结果算）。
+    int oldOnlyPageCount = 0;
+    int newOnlyPageCount = 0;
+    // 一边独有的页码（0 基），方便界面点「跳到那一页」。
+    QVector<int> oldOnlyPageIndices;
+    QVector<int> newOnlyPageIndices;
+    // 技术备注（ASCII），例如
+    // "page count exceeds alignment limit; fell back to position pairing"。
+    QString alignmentNote;
 
     // ---------------------------------------------------------- 视觉差异 ----
     //
