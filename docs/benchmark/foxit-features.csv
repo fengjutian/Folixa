@@ -28,7 +28,7 @@ tab,group,command,status,capability,note
 主页,导航,书签,aligned,B3,浏览跳转 + 新建/改名/删除 + 排序与层级编辑；有专项单测
 主页,显示,缩放,aligned,A6,25%–400% + 适应宽度/页面
 主页,显示,页面适合,aligned,A6,适合宽度与适合页面
-主页,显示,重排,excluded,A8,重排质量不可用，由朗读与 AI 摘要替代
+主页,显示,重排,partial,A8,整篇重排已实现：Ribbon「按新页宽重排」入口已启用（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
 主页,显示,旋转视图,aligned,A7,只转视图，不改页面
 主页,内容,编辑文本,aligned,E1,就地编辑 + 文字属性，可写盘
 主页,内容,编辑对象,aligned,E2,对象选择/拖拽/旋转/缩放/删除，可撤销
@@ -43,7 +43,7 @@ tab,group,command,status,capability,note
 主页,放映,从头开始,aligned,A5,F5 全屏逐页
 主页,放映,从当前页开始,aligned,A5,从当前页进入放映
 主页,放映,循环放映,missing,A5,没有循环播放选项
-主页,放映,页面过渡,missing,—,没有过渡动画
+主页,放映,页面过渡,aligned,—,翻页过渡已实现：淡入淡出 / 左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；Ribbon「翻页过渡」入口已启用；`app::ViewModes::pageTransitionFrame`，`ViewModesTests` 22 条
 主页,放映,手机遥控,na,—,需要移动端
 主页,商业,激活,na,—,无账号体系
 主页,商业,立即购买,na,—,无订阅
@@ -68,7 +68,7 @@ tab,group,command,status,capability,note
 转换,输出,到其它格式,partial,—,导出对话框提供 HTML / 图像化PDF / DXF / OFD / DOCX / RTF 六种，各格式另有降级（见对应行）；**不是任意格式**
 转换,输出,到PDF,aligned,H6,任意文件 → PDF：除本机 LibreOffice 外，自建转换覆盖 txt / md / csv / json / html，**不需要装任何外部引擎**；**用标准 14 字体时中文会变成 `?`**，界面如实提示替换了多少字符并提供「选择字体文件」入口；`UniversalConverterTests` 23 条
 转换,输出,到OFD,partial,—,导出 OFD；**只支持文本对象**，不含图形与图片；`doc::exportPageToOfd`，`OfdExportTests`
-转换,输出,OFD批量转换,missing,—,同上
+转换,输出,OFD批量转换,aligned,—,OFD 批量转换已实现：调用本机已安装的 OFD 转换器批量转为 PDF，Ribbon「OFD 批量转换」（`documentManagement.ofdConvert`）入口已启用；**依赖本机装 OFD 转换器**，没装会如实报错
 转换,OCR,识别文本,aligned,I1,识别结果进本地索引，可检索可问答；未回写 PDF 隐藏文本层
 转换,OCR,快速识别,aligned,I1,与 OCR 同一引擎
 转换,OCR,疑似错误,aligned,—,OCR 疑似错误：列出疑似错字（页码 / 识别到的字 / 建议的字 / 理由 / 上下文），**只提示不改原文**；`pdf::findSuspiciousCharacters`，`OcrSuspicionTests`
@@ -76,14 +76,14 @@ tab,group,command,status,capability,note
 转换,印前,PDF转曲,partial,E5,PDF 转曲：**是视觉等价的整页栅格化，不是矢量轮廓化**（文字变成像素，不再可选可搜）；界面文案刻意不含「矢量」「轮廓」并有负例守卫；`doc::flattenFontsToOutlines`，`FontFlatteningTests`
 编辑,内容,编辑文本,aligned,E1,行级重写 + 就地编辑，可写盘
 编辑,内容,编辑对象,aligned,E3,选择/移动/旋转/缩放/删除，可撤销
-编辑,内容,链接&合并文本,missing,E4,没有文本块链接与合并
+编辑,内容,链接&合并文本,partial,E4,选区内文字合并并自动换行已实现：Ribbon「链接并合并文本」（`edit.inlineReflow` → `reflowSelectionDialog(false)`）入口已启用；**不做跨文本块的链接合并**
 编辑,文本工具,拼写检查,partial,—,内置 3066 词 + 94 组常见拼错 + 启发式规则；有专项单测；词表远小于完整词典，会漏判，不查中文
 编辑,文本工具,搜索&替换,aligned,B5,查找与替换都能走通；批量替换复用同一对话框
 编辑,文本工具,批量替换,aligned,—,规则表按顺序依次生效，支持区分大小写/全字/正则；有专项单测
 编辑,插入,添加文本,aligned,C4,FreeText 文本框
 编辑,插入,添加图像,aligned,C7,图片图章/图片注释
 编辑,插入,添加形状,aligned,C5,矩形/椭圆/线/箭头/多边形/云线
-编辑,内容,流式编辑,excluded,A8,依赖重排，不做
+编辑,内容,流式编辑,partial,A8,选区宽度内的段落重排已实现：Ribbon「流式编辑」（`edit.paragraphReflow` → `reflowSelectionDialog(true)`）入口已启用；**只重排当前选区，不做全文流式改写**
 编辑,插入,添加文章框,aligned,—,多行正文框可插入并落盘
 编辑,链接,添加链接,aligned,E4,网址链接与页内跳转都能写盘
 编辑,链接,网络链接,aligned,E4,可加外链，并能自动识别文本中的网页链接
@@ -186,7 +186,7 @@ tab,group,command,status,capability,note
 保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；PDF 解析仍在主进程
 保护,文档,限制访问,partial,G1,AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建
 保护,文档,批量加密,missing,G1,没有批量
-保护,设置,设置,missing,—,没有保护设置面板
+保护,设置,设置,partial,—,有「保护」标签页与「加密与权限」入口（AES-256 加密 + 权限位，`EncryptionDialog`）；**权限位随保存写入，没有独立的权限管理面板**（不能事后单独改权限而不重新加密）
 保护,企业,敏感度,na,—,企业敏感度标签
 保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
 保护,签名,签名&认证,partial,G5,PKCS#12 证书签名走随包 pyHanko
@@ -258,7 +258,7 @@ tab,group,command,status,capability,note
 帮助,帮助,发表想法,na,—,反馈平台
 帮助,帮助,在线教程,na,—,在线内容
 帮助,帮助,插件管理,excluded,—,不引入插件 SDK
-帮助,帮助,设置默认PDF阅读器,missing,—,没有系统关联设置
+帮助,帮助,设置默认PDF阅读器,aligned,—,已实现：Windows 上打开系统设置页，让用户把 Folixa 设为 .pdf 的默认应用（`help.defaultPdfReader`）入口已启用；**程序不直接改注册表**
 帮助,帮助,插件商店,excluded,—,同上
 帮助,关于,关于,aligned,—,版本与项目信息对话框
 帮助,商业,立即购买,na,—,无订阅
