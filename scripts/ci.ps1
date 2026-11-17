@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AI PDF Editor 的完整验证流水线（本地与 CI 共用同一入口）。
 
