@@ -496,10 +496,29 @@ ConversionResult clipboardTextToPdf(const QString& text, const QString& title,
                                     const UniversalConverterOptions& options) {
     ConversionResult result;
     if (text.trimmed().isEmpty()) {
+        result.errorKind = ConversionErrorKind::NoContent;
         result.error = QStringLiteral("剪贴板里没有文本，没法生成 PDF。");
         return result;
     }
-    return textToPdf(buildPlainText(title, text), title, options);
+    result = textToPdf(buildPlainText(title, text), title, options);
+    result.sourceKind = ConversionSourceKind::PlainText;
+    return result;
+}
+
+ConversionResult clipboardHtmlToPdf(const QString& html, const QString& title,
+                                    const UniversalConverterOptions& options) {
+    const HtmlBody body = extractHtmlBody(html);
+    if (body.text.trimmed().isEmpty()) {
+        ConversionResult result;
+        result.errorKind = ConversionErrorKind::NoHtmlBody;
+        // 领域层只给技术细节：给用户看的中文句子由 app 层按 errorKind 拼。
+        result.error = QStringLiteral("clipboard html has no body text");
+        return result;
+    }
+    // 标题用调用方给的：剪贴板里的 <title> 是来源文档的标题，不是这一份的标题。
+    ConversionResult result = htmlBodyToPdf(body, title, options);
+    result.sourceKind = ConversionSourceKind::RichText;
+    return result;
 }
 
 // ============================================================ 网页 =====
@@ -539,17 +558,21 @@ HtmlBody extractHtmlBody(const QString& html, const QUrl& baseUrl) {
     return body;
 }
 
-ConversionResult htmlToPdf(const QString& html, const QUrl& baseUrl,
-                           const UniversalConverterOptions& options) {
-    const HtmlBody body = extractHtmlBody(html, baseUrl);
+// 把抽好的正文排成 PDF（网页与剪贴板富文本共用这一份）。
+//
+// title 是**生效的标题**：网页传自己的 <title>，剪贴板传调用方给的标题
+// （剪贴板里的 <title> 是来源文档的标题，不是这一份的）。
+ConversionResult htmlBodyToPdf(const HtmlBody& body, const QString& title,
+                               const UniversalConverterOptions& options) {
     if (body.text.trimmed().isEmpty()) {
         ConversionResult result;
-        result.error = QStringLiteral("这个网页里没有正文（脚本、样式和导航都去掉之后就没东西了）。");
+        result.errorKind = ConversionErrorKind::NoHtmlBody;
+        result.error = QStringLiteral("html has no body text");
         return result;
     }
 
     // 正文里的链接一并排进去：PDF 是纯文本的，链接不写出来就丢了。
-    QString text = buildPlainText(body.title, body.text);
+    QString text = buildPlainText(title, body.text);
     if (!body.links.isEmpty()) {
         text += QStringLiteral("\n\n") + QStringLiteral("页面里的链接：");
         int shown = 0;
@@ -564,7 +587,17 @@ ConversionResult htmlToPdf(const QString& html, const QUrl& baseUrl,
             text += QStringLiteral("\n…还有 %1 个链接没列出来。").arg(body.links.size() - shown);
         }
     }
-    return textToPdf(text, body.title, options);
+    ConversionResult result = textToPdf(text, title, options);
+    if (!result.ok) {
+        result.errorKind = ConversionErrorKind::LayoutFailed;
+    }
+    return result;
+}
+
+ConversionResult htmlToPdf(const QString& html, const QUrl& baseUrl,
+                           const UniversalConverterOptions& options) {
+    const HtmlBody body = extractHtmlBody(html, baseUrl);
+    return htmlBodyToPdf(body, body.title, options);
 }
 
 // ============================================================ 表单文件 ====

@@ -127,6 +127,10 @@ struct VisualPageDifference {
     // 两页渲染出来的尺寸是否不同（不同 → 只比了左上角对齐的共同区域）。
     bool sizeMismatch = false;
     // 差异区域在原文 / 新文里的包围盒（PDF user space，左下原点）。
+    //
+    // 注意 QRectF 的 top/bottom 在这里是「谁的 y 小谁叫 top」：
+    // top() 是较小的那个 y（PDF 的**下**沿），bottom() 是较大的那个 y。
+    // 与 TextBlock::bounds 同一约定，同一套高亮代码两边都能用。
     QRectF oldBounds;
     QRectF newBounds;
 };

@@ -10,6 +10,30 @@
 
 namespace aipdf::doc {
 
+// ============================================================ 输入来源 =====
+
+// 这次排版用的是哪一路输入。
+//
+// 为什么用枚举而不是 bool：界面要跟用户说清「这次用的是纯文本还是富文本」，
+// 而「不是文本类输入」（表单套模板那种）是第三种状态，bool 表达不了。
+enum class ConversionSourceKind {
+    Unknown,    // 不是「文本类输入 → PDF」
+    PlainText,  // 纯文本
+    RichText,   // 富文本（HTML）
+};
+
+// 失败的具体原因（结构化）。
+//
+// 为什么领域层不直接给中文句子：doc 层没有翻译上下文，给用户看的中文句子
+// 一律由 app 层按这个枚举拼（那边才有 i18n::tr）。
+// error 里仍然留一句说明，是给直接调用 doc 层的场合兜底用的。
+enum class ConversionErrorKind {
+    None,
+    NoContent,    // 输入里没有内容可转
+    NoHtmlBody,   // HTML 里没有正文
+    LayoutFailed, // 排版本身失败（编码、字体等）
+};
+
 // ============================================================ 转换结果 =====
 //
 // 三个输入（剪贴板 / 网页 / 表单文件）里，前两个都是「文本 → PDF」，
@@ -30,6 +54,10 @@ struct ConversionResult {
     int pageCount = 0;
     // 被替换成替代字形的字符数（中文等标准 14 字体显示不了的字符）。
     int replacedCharacterCount = 0;
+    // 失败的具体原因（结构化）。界面层按它拼人话。
+    ConversionErrorKind errorKind = ConversionErrorKind::None;
+    // 这次排版用的是哪一路输入（剪贴板转换时才有意义）。
+    ConversionSourceKind sourceKind = ConversionSourceKind::Unknown;
 };
 
 // ---------------------------------------------------------- 剪贴板 ----
@@ -45,6 +73,22 @@ struct ConversionResult {
 // 在仓库里只有一张表（doc/UniversalConverter），再开一张必然和它漂移。
 ConversionResult clipboardTextToPdf(
     const QString& text,
+    const QString& title = QString(),
+    const UniversalConverterOptions& options = UniversalConverterOptions());
+
+// 把剪贴板里的**富文本**（HTML）排成一份 PDF。
+//
+// 为什么要有这一条：剪贴板里从 Word / 网页复制过来的内容带 HTML，
+// 只取纯文本会把标题层级、段落结构、列表全丢掉，出来的 PDF 是一坨。
+// 剪贴板里有 HTML 时应当优先按 HTML 排版（调用方负责这个优先级）。
+//
+// 剪贴板里的**图片不支持**：本程序没有把图片排成 PDF 的能力
+// （doc/UniversalConverter 只做文本类文件），硬做只能出一张没有文字层的图，
+// 与其给一个半成品，不如明确说「图片不支持」。
+//
+// HTML 里没有正文（整段是脚本、样式、导航）时**直接失败**，不生成空白 PDF。
+ConversionResult clipboardHtmlToPdf(
+    const QString& html,
     const QString& title = QString(),
     const UniversalConverterOptions& options = UniversalConverterOptions());
 
@@ -68,6 +112,13 @@ struct HtmlBody {
 //
 // baseUrl 用来把正文里的相对链接解析成绝对地址；为空时按链接原样保留。
 HtmlBody extractHtmlBody(const QString& html, const QUrl& baseUrl = QUrl());
+
+// 把抽好的正文排成 PDF（网页与剪贴板富文本共用这一份）。
+//
+// title 是**生效的标题**：网页传自己的 <title>，剪贴板传调用方给的标题
+// （剪贴板里的 <title> 是来源文档的标题，不是这一份的）。
+ConversionResult htmlBodyToPdf(const HtmlBody& body, const QString& title,
+                               const UniversalConverterOptions& options = UniversalConverterOptions());
 
 // 把 HTML 正文转成 PDF。
 //

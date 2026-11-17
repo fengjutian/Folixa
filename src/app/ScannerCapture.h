@@ -7,6 +7,8 @@
 #include <QString>
 #include <QVector>
 
+#include <memory>
+
 class QComboBox;
 class QLabel;
 class QPushButton;
@@ -58,6 +60,41 @@ struct ScannerCaptureOptions {
     int maxPages = 0;
 };
 
+// 取帧的结果状态。
+//
+// 为什么用状态而不是几个 bool：帧源要区分「取完了」「出错了」「用户放弃了」，
+// 这三件事在应用层对应三种完全不同的失败原因；混成 bool 就一定会漏掉其中一种。
+enum class ScanFrameStatus {
+    Ok,                // 取到了
+    NoMoreFrames,      // 正常取完了（没有更多页）
+    NoDevice,          // 设备不存在
+    EnumerationFailed, // 采集后端本身起不来（WIA 服务没开 / COM 出错）
+    Failed,            // 取帧失败（被占用、卡纸、驱动报错）
+    Cancelled,         // 用户中途取消
+};
+
+// 帧源：把「从设备取帧」抽象成一个可注入的接口。
+//
+// 为什么要有这个接口：取帧这条链（取帧 → 排页序 → 拼多页 PDF）以前只有 WIA 一条实现，
+// 在没有扫描仪的机器上完全没被验证过——测试根本走不到「取到帧之后」的那几步。
+// 抽象出接口后，测试可以注入一个假源把整条链跑通；
+// 真机路径（WIA 那一支）仍然只能靠真机器验，这条边界不会被一句「测过了」盖住。
+class ScanFrameSource {
+public:
+    virtual ~ScanFrameSource() = default;
+
+    // 枚举本机的图像设备。出错时返回空列表，并把原因写进 errorKind / detail。
+    virtual QVector<ScannerDevice> enumerateDevices(ScanErrorKind* errorKind, QString* detail) = 0;
+
+    // 打开设备、准备取帧。
+    virtual ScanFrameStatus openDevice(const ScannerDevice& device,
+                                       const ScannerCaptureOptions& options,
+                                       QString* detail) = 0;
+
+    // 取下一帧。取完了返回 NoMoreFrames。
+    virtual ScanFrameStatus nextFrame(QByteArray* frame, QString* detail) = 0;
+};
+
 // 一次扫描的结果。
 struct ScanOutcome {
     bool ok = false;
@@ -81,6 +118,11 @@ struct ScanOutcome {
 class ScannerCapture {
 public:
     ScannerCapture();
+    // 注入一个帧源（**不持有所有权**：它必须活得比 ScannerCapture 久）。
+    //
+    // 为什么留这个口子：默认构造的行为一点没变（仍然走 WIA），
+    // 测试注入假源，才能在没有扫描仪的机器上验证「取帧 → 拼 PDF」整条链。
+    explicit ScannerCapture(ScanFrameSource* source);
     ~ScannerCapture();
 
     // 枚举本机的图像设备。
@@ -108,6 +150,11 @@ private:
         QString detail;
     };
     DeviceQuery queryDevices();
+
+    // 默认的 WIA 源（默认构造时创建）。
+    std::unique_ptr<ScanFrameSource> ownedSource_;
+    // 实际使用的帧源：注入时指向外部对象，否则指向 ownedSource_。
+    ScanFrameSource* source_ = nullptr;
 };
 
 // 扫描对话框：选设备、选分辨率、扫描，拿到一份多页 PDF。

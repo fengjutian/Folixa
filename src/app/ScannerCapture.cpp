@@ -42,7 +42,7 @@ QString scanErrorMessage(ScanErrorKind kind, const QString& detail) {
         break;
     case ScanErrorKind::UnsupportedImage:
         base = i18n::tr("aipdf::app::ScannerCapture",
-                        "扫描仪返回的图像格式不受支持（本程序只支持 BMP 与 JPEG）");
+                        "扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）");
         break;
     case ScanErrorKind::PdfFailed:
         base = i18n::tr("aipdf::app::ScannerCapture", "扫描结果转成 PDF 失败");
@@ -795,54 +795,191 @@ ComDispatch createDeviceManager(QString* detail) {
 
 #endif  // Q_OS_WIN
 
+// WIA 帧源：默认实现。
+//
+// 为什么把 WIA 的活儿单独拎成一个类：取帧要开 COM、连设备、传数据，
+// 这些在**没有扫描仪的机器上也必须能编译、能跑**（只能报「没找到设备」），
+// 所以它不碰任何界面控件；而且它可以被一个假源替换掉（测试用），
+// 于是「取帧 → 排页序 → 拼 PDF」这条链在没有扫描仪的机器上也能被验证。
+//
+// 注意：这里的 WIA 行为与原来的 ScannerCapture::capture 完全一致，
+// 只是把「一次取完」改成「先攒着，再一帧一帧交」。
+class WiaScanFrameSource final : public ScanFrameSource {
+public:
+    QVector<ScannerDevice> enumerateDevices(ScanErrorKind* errorKind, QString* detail) override {
+        QVector<ScannerDevice> devices;
+        *errorKind = ScanErrorKind::None;
+        *detail = QString();
+#ifdef Q_OS_WIN
+        ComDispatch manager = createDeviceManager(detail);
+        if (manager.isNull()) {
+            *errorKind = ScanErrorKind::EnumerationFailed;
+            return devices;
+        }
+        ComDispatch infos = getPropertyObject(manager.get(), "DeviceInfos");
+        if (infos.isNull()) {
+            *errorKind = ScanErrorKind::EnumerationFailed;
+            *detail = QStringLiteral("DeviceManager has no DeviceInfos");
+            return devices;
+        }
+        const int total = collectionCount(infos.get());
+        for (int i = 1; i <= total; ++i) {
+            ComDispatch info = collectionItem(infos.get(), i);
+            if (info.isNull()) {
+                continue;
+            }
+            ScannerDevice device;
+            device.deviceId = readDeviceId(info.get());
+            device.name = readNamedProperty(info.get(), "Name");
+            device.deviceType = readIntProperty(info.get(), "Type");
+            if (device.deviceId.isEmpty() && device.name.isEmpty()) {
+                continue;
+            }
+            devices.append(device);
+        }
+        if (devices.isEmpty()) {
+            *errorKind = ScanErrorKind::NoDevice;
+            *detail = QStringLiteral("DeviceManager reported %1 device(s)").arg(total);
+        }
+#else
+        *errorKind = ScanErrorKind::EnumerationFailed;
+        *detail = QStringLiteral("WIA is only available on Windows");
+#endif
+        return devices;
+    }
+
+    ScanFrameStatus openDevice(const ScannerDevice& device, const ScannerCaptureOptions& options,
+                               QString* detail) override {
+        frames_.clear();
+        cursor_ = 0;
+#ifdef Q_OS_WIN
+        ComDispatch manager = createDeviceManager(detail);
+        if (manager.isNull()) {
+            return ScanFrameStatus::EnumerationFailed;
+        }
+        ComDispatch infos = getPropertyObject(manager.get(), "DeviceInfos");
+        if (infos.isNull()) {
+            *detail = QStringLiteral("DeviceManager has no DeviceInfos");
+            return ScanFrameStatus::EnumerationFailed;
+        }
+        const int total = collectionCount(infos.get());
+        ComDispatch info;
+        for (int i = 1; i <= total && info.isNull(); ++i) {
+            ComDispatch candidate = collectionItem(infos.get(), i);
+            if (candidate.isNull()) {
+                continue;
+            }
+            if (readDeviceId(candidate.get()) == device.deviceId) {
+                info = std::move(candidate);
+            }
+        }
+        if (info.isNull()) {
+            *detail = QStringLiteral("device id not found: %1").arg(device.deviceId);
+            return ScanFrameStatus::NoDevice;
+        }
+
+        ComArgs noArgs;
+        VARIANT connected{};
+        VariantInit(&connected);
+        if (FAILED(invokeDispatch(info.get(), "Connect", noArgs, &connected)) ||
+            connected.vt != VT_DISPATCH || connected.pdispVal == nullptr) {
+            *detail = QStringLiteral("could not connect to the device");
+            VariantClear(&connected);
+            return ScanFrameStatus::Failed;
+        }
+        ComDispatch deviceObject = takeDispatch(connected);
+        VariantClear(&connected);
+
+        ComDispatch items = getPropertyObject(deviceObject.get(), "Items");
+        if (items.isNull()) {
+            *detail = QStringLiteral("device has no Items collection");
+            return ScanFrameStatus::Failed;
+        }
+        const int count = collectionCount(items.get());
+        for (int i = 1; i <= count; ++i) {
+            if (options.maxPages > 0 && frames_.size() >= options.maxPages) {
+                break;
+            }
+            ComDispatch item = collectionItem(items.get(), i);
+            if (item.isNull()) {
+                continue;
+            }
+            applyResolution(item.get(), options.dpi);
+            collectImages(item.get(), &frames_, options.maxPages, 0, detail);
+        }
+        if (frames_.isEmpty()) {
+            if (detail->isEmpty()) {
+                *detail = QStringLiteral("no image returned by the device");
+            }
+            return ScanFrameStatus::Failed;
+        }
+        return ScanFrameStatus::Ok;
+#else
+        *detail = QStringLiteral("WIA is only available on Windows");
+        return ScanFrameStatus::EnumerationFailed;
+#endif
+    }
+
+    ScanFrameStatus nextFrame(QByteArray* frame, QString* detail) override {
+        Q_UNUSED(detail)
+        if (cursor_ >= frames_.size()) {
+            return ScanFrameStatus::NoMoreFrames;
+        }
+        *frame = frames_.at(cursor_);
+        ++cursor_;
+        return ScanFrameStatus::Ok;
+    }
+
+private:
+    // 已经取回来的帧（按页序）。
+    //
+    // 为什么一次取完再一帧一帧交：WIA 的传输是「推」式的——Transfer 一次给一张图，
+    // 自动进纸器的下一页要再调一次 Transfer。要把它变成「拉」式的接口，
+    // 就得在源这一侧先攒着。
+    QVector<QByteArray> frames_;
+    int cursor_ = 0;
+};
+
+// 帧源的状态 → 用户能看懂的原因。
+ScanErrorKind mapFrameStatus(ScanFrameStatus status) {
+    switch (status) {
+    case ScanFrameStatus::NoDevice:
+        return ScanErrorKind::NoDevice;
+    case ScanFrameStatus::EnumerationFailed:
+        return ScanErrorKind::EnumerationFailed;
+    case ScanFrameStatus::Cancelled:
+        return ScanErrorKind::UserCancelled;
+    case ScanFrameStatus::Ok:
+    case ScanFrameStatus::NoMoreFrames:
+    case ScanFrameStatus::Failed:
+    default:
+        return ScanErrorKind::TransferFailed;
+    }
+}
+
 // ============================================================== 后端 ========
 
-ScannerCapture::ScannerCapture() = default;
+ScannerCapture::ScannerCapture()
+    : ownedSource_(std::make_unique<WiaScanFrameSource>()), source_(ownedSource_.get()) {}
+
+ScannerCapture::ScannerCapture(ScanFrameSource* source) : source_(source) {
+    // 注进来一个空指针就当没注：默认行为仍然是 WIA，
+    // 调用方不必为「要不要用假源」写两套代码。
+    if (source_ == nullptr) {
+        ownedSource_ = std::make_unique<WiaScanFrameSource>();
+        source_ = ownedSource_.get();
+    }
+}
 
 ScannerCapture::~ScannerCapture() = default;
 
 ScannerCapture::DeviceQuery ScannerCapture::queryDevices() {
     DeviceQuery query;
     QString detail;
-#ifdef Q_OS_WIN
-    ComDispatch manager = createDeviceManager(&detail);
-    if (manager.isNull()) {
-        query.errorKind = ScanErrorKind::EnumerationFailed;
-        query.detail = detail;
-        return query;
-    }
-    ComDispatch infos = getPropertyObject(manager.get(), "DeviceInfos");
-    if (infos.isNull()) {
-        query.errorKind = ScanErrorKind::EnumerationFailed;
-        query.detail = QStringLiteral("DeviceManager has no DeviceInfos");
-        return query;
-    }
-    const int total = collectionCount(infos.get());
-    for (int i = 1; i <= total; ++i) {
-        ComDispatch info = collectionItem(infos.get(), i);
-        if (info.isNull()) {
-            continue;
-        }
-        ScannerDevice device;
-        device.deviceId = readDeviceId(info.get());
-        device.name = readNamedProperty(info.get(), "Name");
-        device.deviceType = readIntProperty(info.get(), "Type");
-        if (device.deviceId.isEmpty() && device.name.isEmpty()) {
-            continue;
-        }
-        query.devices.append(device);
-    }
-    if (query.devices.isEmpty()) {
-        query.errorKind = ScanErrorKind::NoDevice;
-        query.detail = QStringLiteral("DeviceManager reported %1 device(s)").arg(total);
-        return query;
-    }
-    return query;
-#else
-    query.errorKind = ScanErrorKind::EnumerationFailed;
+    query.errorKind = ScanErrorKind::None;
+    query.devices = source_->enumerateDevices(&query.errorKind, &detail);
     query.detail = detail;
     return query;
-#endif
 }
 
 QVector<ScannerDevice> ScannerCapture::listDevices(QString* error) {
@@ -857,73 +994,52 @@ ScanOutcome ScannerCapture::capture(const ScannerDevice& device,
                                     const ScannerCaptureOptions& options) {
     ScanOutcome outcome;
     outcome.ok = false;
-#ifdef Q_OS_WIN
     QString detail;
-    ComDispatch manager = createDeviceManager(&detail);
-    if (manager.isNull()) {
-        outcome.errorKind = ScanErrorKind::EnumerationFailed;
+
+    const ScanFrameStatus opened = source_->openDevice(device, options, &detail);
+    if (opened != ScanFrameStatus::Ok) {
+        outcome.errorKind = mapFrameStatus(opened);
         outcome.errorDetail = detail;
-        outcome.errorMessage = scanErrorMessage(outcome.errorKind, detail);
-        return outcome;
-    }
-    ComDispatch infos = getPropertyObject(manager.get(), "DeviceInfos");
-    if (infos.isNull()) {
-        outcome.errorKind = ScanErrorKind::EnumerationFailed;
-        outcome.errorDetail = QStringLiteral("DeviceManager has no DeviceInfos");
-        outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
-        return outcome;
-    }
-    const int total = collectionCount(infos.get());
-    ComDispatch info;
-    for (int i = 1; i <= total && info.isNull(); ++i) {
-        ComDispatch candidate = collectionItem(infos.get(), i);
-        if (candidate.isNull()) {
-            continue;
-        }
-        if (readDeviceId(candidate.get()) == device.deviceId) {
-            info = std::move(candidate);
-        }
-    }
-    if (info.isNull()) {
-        outcome.errorKind = ScanErrorKind::NoDevice;
-        outcome.errorDetail = QStringLiteral("device id not found: %1").arg(device.deviceId);
         outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
         return outcome;
     }
 
-    ComArgs noArgs;
-    VARIANT connected{};
-    VariantInit(&connected);
-    if (FAILED(invokeDispatch(info.get(), "Connect", noArgs, &connected)) ||
-        connected.vt != VT_DISPATCH || connected.pdispVal == nullptr) {
-        outcome.errorKind = ScanErrorKind::TransferFailed;
-        outcome.errorDetail = QStringLiteral("could not connect to the device");
-        outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
-        VariantClear(&connected);
-        return outcome;
-    }
-    ComDispatch deviceObject = takeDispatch(connected);
-    VariantClear(&connected);
-
-    ComDispatch items = getPropertyObject(deviceObject.get(), "Items");
-    if (items.isNull()) {
-        outcome.errorKind = ScanErrorKind::TransferFailed;
-        outcome.errorDetail = QStringLiteral("device has no Items collection");
-        outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
-        return outcome;
-    }
-    const int count = collectionCount(items.get());
-    for (int i = 1; i <= count; ++i) {
+    while (true) {
+        QByteArray frame;
+        const ScanFrameStatus status = source_->nextFrame(&frame, &detail);
+        if (status == ScanFrameStatus::NoMoreFrames) {
+            break;
+        }
+        if (status != ScanFrameStatus::Ok) {
+            outcome.errorKind = mapFrameStatus(status);
+            outcome.errorDetail = detail;
+            outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
+            outcome.frames.clear();
+            return outcome;
+        }
+        if (frame.isEmpty()) {
+            outcome.errorKind = ScanErrorKind::TransferFailed;
+            outcome.errorDetail = QStringLiteral("the device returned an empty frame");
+            outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
+            outcome.frames.clear();
+            return outcome;
+        }
+        // 帧格式不支持要在**取帧这一层**就报出来：拖到拼 PDF 时才发现，
+        // 用户看到的是「转 PDF 失败」，根本不知道是扫描仪给的格式不对。
+        if (pdf::detectImageFormat(frame) == pdf::ImageFormat::Unknown) {
+            outcome.errorKind = ScanErrorKind::UnsupportedImage;
+            outcome.errorDetail =
+                QStringLiteral("unsupported image format: %1").arg(pdf::describeImageFormat(frame));
+            outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
+            outcome.frames.clear();
+            return outcome;
+        }
+        outcome.frames.append(frame);
         if (options.maxPages > 0 && outcome.frames.size() >= options.maxPages) {
             break;
         }
-        ComDispatch item = collectionItem(items.get(), i);
-        if (item.isNull()) {
-            continue;
-        }
-        applyResolution(item.get(), options.dpi);
-        collectImages(item.get(), &outcome.frames, options.maxPages, 0, &detail);
     }
+
     if (outcome.frames.isEmpty()) {
         outcome.errorKind = ScanErrorKind::TransferFailed;
         outcome.errorDetail =
@@ -935,12 +1051,6 @@ ScanOutcome ScannerCapture::capture(const ScannerDevice& device,
     outcome.ok = true;
     outcome.errorKind = ScanErrorKind::None;
     return outcome;
-#else
-    outcome.errorKind = ScanErrorKind::EnumerationFailed;
-    outcome.errorDetail = QStringLiteral("WIA is only available on Windows");
-    outcome.errorMessage = scanErrorMessage(outcome.errorKind, outcome.errorDetail);
-    return outcome;
-#endif
 }
 
 ScanOutcome ScannerCapture::scanToPdf(const ScannerCaptureOptions& options, QByteArray* pdfOut) {

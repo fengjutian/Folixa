@@ -6,6 +6,8 @@
 #include <QStringList>
 #include <QUrl>
 
+#include "doc/ConversionInputs.h"
+
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -53,6 +55,11 @@ struct ConversionInputOutcome {
     QStringList detailLines;
     // 生成的页数。
     int pageCount = 0;
+    // 这次排版用的是哪一路输入（剪贴板转换时才有意义）。
+    //
+    // 为什么把 doc 层的枚举搬上来：界面要跟用户说清「这次用的是纯文本还是
+    // 富文本」，这个判断在领域层做，结论得原样传到界面。
+    doc::ConversionSourceKind sourceKind = doc::ConversionSourceKind::Unknown;
 };
 
 // ---------------------------------------------------------- 对话框 ----
@@ -80,6 +87,14 @@ public:
     // 剪贴板文本（只读预览；没设置过就读系统剪贴板）。
     void setClipboardText(const QString& text);
     QString clipboardText() const;
+
+    // 剪贴板里的富文本（HTML）。设置了就优先按富文本排版；
+    // 没设置时看系统剪贴板（剪贴板里带 HTML 就用 HTML）。
+    //
+    // 为什么要有这一对：剪贴板里从 Word / 网页复制过来的内容带 HTML，
+    // 只取纯文本会把标题、段落、列表结构全丢掉。
+    void setClipboardHtml(const QString& html);
+    QString clipboardHtml() const;
 
     // 网页地址。
     void setUrlText(const QString& text);
@@ -116,6 +131,8 @@ private:
     Mode mode_ = Mode::Clipboard;
     QStackedWidget* stack_ = nullptr;
     QPlainTextEdit* clipboardView_ = nullptr;
+    // 显式设置的剪贴板富文本（为空时看系统剪贴板）。
+    QString clipboardHtml_;
     QLineEdit* urlEdit_ = nullptr;
     QLineEdit* templateEdit_ = nullptr;
     QLineEdit* dataEdit_ = nullptr;

@@ -287,11 +287,12 @@ bool DocumentCompareDialog::runComparison() {
                            .arg(visual.reason);
             } else {
                 if (!visual.oldBounds.isEmpty()) {
+                    // y 区间按小→大打印：QRectF 的 top() 是较小的那个 y。
                     area = i18n::tr("aipdf::app::DocumentCompareDialog", "x %1..%2, y %3..%4")
                                .arg(QString::number(visual.oldBounds.left(), 'f', 1))
                                .arg(QString::number(visual.oldBounds.right(), 'f', 1))
-                               .arg(QString::number(visual.oldBounds.bottom(), 'f', 1))
-                               .arg(QString::number(visual.oldBounds.top(), 'f', 1));
+                               .arg(QString::number(visual.oldBounds.top(), 'f', 1))
+                               .arg(QString::number(visual.oldBounds.bottom(), 'f', 1));
                 }
                 note = visual.differenceRatio > 0.0
                            ? i18n::tr("aipdf::app::DocumentCompareDialog", "图形有变化")
@@ -414,6 +415,11 @@ void DocumentCompareDialog::updateSummary() {
             text += QStringLiteral(" ");
             text += i18n::tr("aipdf::app::DocumentCompareDialog", "有 %1 页无法比对（渲染失败）。")
                         .arg(lastResult_.pixelIncomparablePageCount);
+        }
+        if (!lastResult_.pixelNote.isEmpty()) {
+            text += QStringLiteral(" ");
+            text += i18n::tr("aipdf::app::DocumentCompareDialog", "像素比对说明：%1")
+                        .arg(lastResult_.pixelNote);
         }
         if (!lastResult_.pixelError.isEmpty()) {
             text += QStringLiteral(" ");

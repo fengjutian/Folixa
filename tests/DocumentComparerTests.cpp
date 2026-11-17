@@ -621,14 +621,16 @@ void DocumentComparerTests::graphicsOnlyChangeIsDetectedByPixelComparison() {
 
     // 差异区域要落在那个矩形上（用户空间：x 100..300，y 100..250）。
     // 留两点的余量：边缘可能有抗锯齿。
+    // 注意 QRectF 在这个坐标里的 top() 是较小的那个 y（PDF 的下沿），
+    // 与 TextBlock::bounds 同一约定。
     QVERIFY2(visual.oldBounds.left() >= 98.0 && visual.oldBounds.left() <= 102.0,
              qPrintable(QString::number(visual.oldBounds.left())));
     QVERIFY2(visual.oldBounds.right() >= 298.0 && visual.oldBounds.right() <= 302.0,
              qPrintable(QString::number(visual.oldBounds.right())));
-    QVERIFY2(visual.oldBounds.bottom() >= 98.0 && visual.oldBounds.bottom() <= 102.0,
-             qPrintable(QString::number(visual.oldBounds.bottom())));
-    QVERIFY2(visual.oldBounds.top() >= 248.0 && visual.oldBounds.top() <= 252.0,
+    QVERIFY2(visual.oldBounds.top() >= 98.0 && visual.oldBounds.top() <= 102.0,
              qPrintable(QString::number(visual.oldBounds.top())));
+    QVERIFY2(visual.oldBounds.bottom() >= 248.0 && visual.oldBounds.bottom() <= 252.0,
+             qPrintable(QString::number(visual.oldBounds.bottom())));
 }
 
 // 两份完全相同：像素层面也必须没有差异。

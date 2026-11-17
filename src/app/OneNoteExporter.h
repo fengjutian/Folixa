@@ -122,13 +122,36 @@ QByteArray encodeOneNoteImageBytes(const QImage& image, OneNoteImageFormat forma
 // 图片在 OneNote 页面上应该占多大（单位：点，1/72 英寸）。
 QSizeF oneNoteImageDisplaySizePoints(const QImage& image, int dpi);
 
+// 页面上的一段文字（OneNote 文字层里的一个文字 run）。
+struct OneNoteTextBlock {
+    QString text;
+};
+
+// 一页的文字块 → OneNote 文字 run 的 XML（纯函数：单测直接断言结构与转义）。
+//
+// 结构照官方的一页结构来：one:Text → one:r → one:t，整段挂在
+// one:Outline → one:OEChildren → one:OE 底下（图片那个 one:OE 的旁边）。
+// 一个文字块一个 one:r，OneNote 里就能按 run 搜索到这段文字。
+//
+// 没有可写的文字块时返回空串（调用方据此不写 one:Text）。
+//
+// 转义只做 XML 元字符（& < > "）。**不删**控制字符：
+// 控制字符在 XML 1.0 里本来就非法，留着会让整页 XML 坏掉——
+// 那是上层该认出来的「文字层写坏了」，该降级成只送图片，
+// 而不是偷偷改用户的内容。
+QString buildOneNoteTextRunsXml(const QVector<OneNoteTextBlock>& blocks);
+
 // 生成写进 OneNote 的页面 XML（纯函数：单测直接断言里面的 base64 与命名空间）。
 //
 // 结构照微软官方 UpdatePageContent 示例来：one:Page → one:Title / one:Outline，
 // 图片挂在 one:Outline → one:OEChildren → one:OE → one:Image → one:Data。
+//
+// textBlocks 非空时，同一个 one:OEChildren 里再挂一个装文字的 one:OE
+// （one:OE → one:Text → one:r → one:t）：这就是 OneNote 里能搜到文字的来源。
 QString buildOneNotePageXml(const QString& pageId, const QString& pageTitle,
                              const QByteArray& imageFile, OneNoteImageFormat format,
-                             const QSizeF& displaySizePoints);
+                             const QSizeF& displaySizePoints,
+                             const QVector<OneNoteTextBlock>& textBlocks = QVector<OneNoteTextBlock>());
 
 // 失败原因的中文说明。
 //
@@ -150,6 +173,19 @@ struct OneNoteTarget {
     QString sectionId;     // 分区 ID（建页要用）
 };
 
+// 写一页的结果（后端回报给上层）。
+//
+// 为什么要有这个回报：文字层写坏时要**降级成「只送图片」**而不是整页送不进去，
+// 上层得知道降级发生过、也得说得清降级了几页。
+struct OneNotePageWriteReport {
+    // 这一页有没有带上文字层（OneNote 里能不能搜到）。
+    bool textLayerIncluded = false;
+    // 是不是因为文字层写坏而降级成了「只送图片」。
+    bool degradedToImageOnly = false;
+    // 降级的技术细节。
+    QString textLayerDetail;
+};
+
 // OneNote 后端：真正去碰 COM 的那一层。
 //
 // 为什么抽成接口：COM 调用会把 OneNote 进程拉起来，还会往用户的笔记本里写页面，
@@ -163,10 +199,15 @@ public:
     virtual bool findTargetSection(OneNoteTarget* target, OneNoteErrorKind* errorKind,
                                    QString* detail) = 0;
 
-    // 在目标分区里新建一页，把图片写进去。
+    // 在目标分区里新建一页，把图片（与可选的文字层）写进去。
+    //
+    // textBlocks 非空时这一页还要带上文字层；带不上时后端要**只送图片**
+    // 并在 report 里说明降级了 —— 不能因为文字写不进去就让整页送不进去。
     virtual bool createPageWithImage(const QString& sectionId, const QString& pageTitle,
                                      const QByteArray& imageFile, OneNoteImageFormat format,
-                                     const QSizeF& displaySizePoints, OneNoteErrorKind* errorKind,
+                                     const QSizeF& displaySizePoints,
+                                     const QVector<OneNoteTextBlock>& textBlocks,
+                                     OneNotePageWriteReport* report, OneNoteErrorKind* errorKind,
                                      QString* detail) = 0;
 };
 
@@ -188,6 +229,14 @@ struct OneNoteExportResult {
     QString sectionName;
     // 送出去的每一页的标题。
     QStringList createdPageTitles;
+    // 至少有一页带上了可搜索的文字层。
+    bool textLayerWritten = false;
+    // 有页因为文字层写坏而降级成了「只送图片」。
+    bool degradedToImageOnly = false;
+    // 降级了几页。
+    int degradedPageCount = 0;
+    // 文字层不可用的技术细节。
+    QString textLayerDetail;
 
     int createdPageCount() const { return createdPageTitles.size(); }
 };
@@ -197,6 +246,14 @@ struct OneNoteExportResult {
 // 为什么要回调而不是直接收 PDF 文档：这个类只管「送」，
 // 「怎么把 PDF 页变成图」是渲染层的事，两者分开才测得了。
 using OneNotePageRenderer = std::function<QImage(int pageIndex, int dpi)>;
+
+// 取页文字的方式：给 0 基页号，返回该页的文字块（空 = 这一页没有文字）。
+//
+// 为什么用回调而不是让导出器自己开 PDF：导出器只管「送」，
+// 「怎么从 PDF 里抽文字」是渲染层的事（还要碰 PDFium），两者分开才测得了。
+//
+// 回调抛异常时按「文字层写坏」处理：这一页降级成只送图片，整个发送不失败。
+using OneNotePageTextProvider = std::function<QVector<OneNoteTextBlock>(int pageIndex)>;
 
 // 把 PDF 页面送到 OneNote。
 class OneNoteExporter {
@@ -211,8 +268,13 @@ public:
     // 按计划把页面送到 OneNote。
     //
     // renderer 负责把 PDF 页渲染成图；这个类只负责「送」和「说清楚送了什么」。
+    //
+    // textProvider 是可选的：给了就把这一页的文字一起送进去（OneNote 里能搜到），
+    // 没给就只有图片。文字层写坏时**降级成只送图片**，不会让整次发送失败。
     OneNoteExportResult exportToOneNote(const OneNoteExportPlan& plan,
-                                         const OneNotePageRenderer& renderer);
+                                         const OneNotePageRenderer& renderer,
+                                         const OneNotePageTextProvider& textProvider =
+                                             OneNotePageTextProvider());
 
     const OneNoteEnvironment& environment() const { return environment_; }
 

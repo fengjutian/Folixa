@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -235,29 +236,77 @@ QString sanitizeFileName(const QString& name) {
     return cleaned;
 }
 
-// 剪贴板文本 → PDF 的结果。
+// 剪贴板转换失败时给用户看的中文。
+//
+// 为什么在 app 层拼：doc 层没有翻译上下文，给用户看的中文句子一律在这边拼。
+QString clipboardErrorText(const doc::ConversionResult& result) {
+    switch (result.errorKind) {
+    case doc::ConversionErrorKind::NoContent:
+        return i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有文本，没法生成 PDF。");
+    case doc::ConversionErrorKind::NoHtmlBody:
+        return i18n::tr("aipdf::app::ConversionInputs",
+                        "剪贴板里的富文本没有正文（去掉标签和样式之后就没东西了），没法生成 PDF。");
+    case doc::ConversionErrorKind::LayoutFailed:
+    case doc::ConversionErrorKind::None:
+        break;
+    }
+    return result.error;
+}
+
+// 系统剪贴板里有没有图片。
+//
+// 为什么单独问一句：剪贴板里只有图片时，本程序**转不了**
+// （没有把图片排成 PDF 的能力），得说清楚是「不支持」而不是「没内容」。
+bool systemClipboardHasImage() {
+    if (QGuiApplication::instance() == nullptr) {
+        return false;
+    }
+    const QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) {
+        return false;
+    }
+    const QMimeData* mime = clipboard->mimeData();
+    return mime != nullptr && mime->hasImage();
+}
+
+// 剪贴板 → PDF 的结果。
 //
 // 对话框与「一键转换」两个入口共用这一份：写两遍的话，
 // 两边的失败原因迟早会说得不一样。
-bool buildClipboardOutcome(const QString& body, const QString& fontPath,
+//
+// html 非空时走**富文本**排版：剪贴板里从 Word / 网页复制过来的内容带 HTML，
+// 只取纯文本会把标题、段落、列表结构全丢掉。
+bool buildClipboardOutcome(const QString& text, const QString& html, const QString& fontPath,
                            ConversionInputOutcome* outcome) {
-    if (body.trimmed().isEmpty()) {
+    const bool rich = !html.trimmed().isEmpty();
+    if (!rich && text.trimmed().isEmpty()) {
         outcome->error = i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有文本，没法生成 PDF。");
         return false;
     }
     QString usedFont;
+    // 要不要嵌中文字体，看的是**排出来的正文**里有没有非拉丁字符：
+    // 富文本的源码里有中文，不代表正文里有。
+    const QString body = rich ? doc::extractHtmlBody(html).text : text;
     const doc::UniversalConverterOptions options =
         buildTextOptions(body, fontPath, &usedFont);
-    const doc::ConversionResult result = doc::clipboardTextToPdf(body, QString(), options);
+    const doc::ConversionResult result =
+        rich ? doc::clipboardHtmlToPdf(html, QString(), options)
+             : doc::clipboardTextToPdf(text, QString(), options);
     if (!result.ok) {
-        outcome->error = result.error;
+        outcome->error = clipboardErrorText(result);
         return false;
     }
     outcome->ok = true;
     outcome->bytes = result.bytes;
     outcome->warning = result.warning;
     outcome->pageCount = result.pageCount;
+    outcome->sourceKind = result.sourceKind;
     outcome->suggestedFileName = i18n::tr("aipdf::app::ConversionInputs", "剪贴板.pdf");
+    // 明说这次走的是哪一路：排版结果不一样，用户得能在结果里看出来。
+    outcome->detailLines.append(
+        rich ? i18n::tr("aipdf::app::ConversionInputs",
+                        "这次按富文本排版（保留了标题、段落和列表结构）。")
+             : i18n::tr("aipdf::app::ConversionInputs", "这次按纯文本排版。"));
     if (!usedFont.isEmpty()) {
         outcome->detailLines.append(i18n::tr("aipdf::app::ConversionInputs", "已嵌入系统字体 %1 来显示中文。").arg(usedFont));
     }
@@ -505,6 +554,29 @@ QString ConversionInputDialog::clipboardText() const {
     return clipboard != nullptr ? clipboard->text() : QString();
 }
 
+void ConversionInputDialog::setClipboardHtml(const QString& value) {
+    clipboardHtml_ = value;
+}
+
+QString ConversionInputDialog::clipboardHtml() const {
+    if (!clipboardHtml_.trimmed().isEmpty()) {
+        return clipboardHtml_;
+    }
+    // 没显式设置：看系统剪贴板里有没有 HTML（Word / 网页复制过来的都有）。
+    if (QGuiApplication::instance() == nullptr) {
+        return QString();
+    }
+    const QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) {
+        return QString();
+    }
+    const QMimeData* mime = clipboard->mimeData();
+    if (mime == nullptr || !mime->hasHtml()) {
+        return QString();
+    }
+    return mime->html();
+}
+
 void ConversionInputDialog::setUrlText(const QString& value) {
     urlEdit_->setText(value);
 }
@@ -561,7 +633,15 @@ bool ConversionInputDialog::convert(ConversionInputOutcome* outcome) {
 }
 
 bool ConversionInputDialog::convertClipboard(ConversionInputOutcome* outcome) {
-    return buildClipboardOutcome(clipboardText(), fontPath(), outcome);
+    const QString html = clipboardHtml();
+    const QString text = clipboardText();
+    // 负例：剪贴板里只有图片 —— 明确说不支持，别让人以为「没内容」。
+    if (html.trimmed().isEmpty() && text.trimmed().isEmpty() && systemClipboardHasImage()) {
+        outcome->error = i18n::tr("aipdf::app::ConversionInputs",
+                                   "剪贴板里只有图片，本程序还不支持把图片转成 PDF（只支持文字和富文本）。");
+        return false;
+    }
+    return buildClipboardOutcome(text, html, fontPath(), outcome);
 }
 
 bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
@@ -584,7 +664,12 @@ bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
         buildTextOptions(fetched.html, fontPath(), &usedFont);
     const doc::ConversionResult result = doc::htmlToPdf(fetched.html, base, options);
     if (!result.ok) {
-        outcome->error = result.error;
+        // 给用户看的中文由 app 层拼（doc 层没有翻译上下文）。
+        outcome->error =
+            result.errorKind == doc::ConversionErrorKind::NoHtmlBody
+                ? i18n::tr("aipdf::app::ConversionInputs",
+                           "这个网页里没有正文（脚本、样式和导航都去掉之后就没东西了）。")
+                : result.error;
         return false;
     }
     outcome->ok = true;
@@ -694,8 +779,16 @@ ConversionInputOutcome convertClipboardToPdf() {
         return outcome;
     }
     const QClipboard* clipboard = QGuiApplication::clipboard();
+    const QMimeData* mime = clipboard != nullptr ? clipboard->mimeData() : nullptr;
+    const QString html = (mime != nullptr && mime->hasHtml()) ? mime->html() : QString();
     const QString body = clipboard != nullptr ? clipboard->text() : QString();
-    buildClipboardOutcome(body, QString(), &outcome);
+    // 负例：剪贴板里只有图片 —— 明确说不支持（本程序没有把图片排成 PDF 的能力）。
+    if (html.trimmed().isEmpty() && body.trimmed().isEmpty() && systemClipboardHasImage()) {
+        outcome.error = i18n::tr("aipdf::app::ConversionInputs",
+                                 "剪贴板里只有图片，本程序还不支持把图片转成 PDF（只支持文字和富文本）。");
+        return outcome;
+    }
+    buildClipboardOutcome(body, html, QString(), &outcome);
     return outcome;
 }
 

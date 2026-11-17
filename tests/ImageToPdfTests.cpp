@@ -22,6 +22,7 @@ using aipdf::pdf::ImageToPdfError;
 using aipdf::pdf::ImageToPdfOptions;
 using aipdf::pdf::ImageToPdfResult;
 using aipdf::pdf::decodeImage;
+using aipdf::pdf::describeImageFormat;
 using aipdf::pdf::detectImageFormat;
 using aipdf::pdf::imageToPdf;
 using aipdf::pdf::imagesToPdf;
@@ -170,6 +171,130 @@ QByteArray makeJpeg(int width, int height) {
     return bytes;
 }
 
+// ------------------------------------------------- 造 PNG 用的工具 ----
+//
+// 为什么自己造 PNG 而不是用 QImageWriter 写一张：
+// 部署包不一定带 Qt 的 PNG 图像插件（scripts/package.ps1 只保证 gif/ico/jpeg/svg），
+// 夹具要是靠插件才造得出来，CI 上就会随机红。
+// 像素一律用 PNG 的「原始扫描行」格式：每行前面一个过滤器字节，默认 0（None）。
+
+// PNG 块的 CRC-32。
+//
+// 故意用**按位**版本，与解码器里的查表版本写法不同：
+// 两边独立实现，测试才有资格发现解码器把 CRC 算错了
+// （两边写成一模一样的话，一起错就永远测不出来）。
+quint32 testCrc32(const QByteArray& data) {
+    quint32 crc = 0xFFFFFFFFu;
+    for (char ch : data) {
+        crc ^= static_cast<quint8>(ch);
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc & 1u) != 0u ? (0xEDB88320u ^ (crc >> 1)) : (crc >> 1);
+        }
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
+void appendBE32(QByteArray& out, quint32 value) {
+    out.append(static_cast<char>((value >> 24) & 0xFF));
+    out.append(static_cast<char>((value >> 16) & 0xFF));
+    out.append(static_cast<char>((value >> 8) & 0xFF));
+    out.append(static_cast<char>(value & 0xFF));
+}
+
+void appendPngChunk(QByteArray& png, const char* type, const QByteArray& data) {
+    appendBE32(png, static_cast<quint32>(data.size()));
+    const QByteArray typed = QByteArray(type, 4) + data;
+    png.append(typed);
+    appendBE32(png, testCrc32(typed));
+}
+
+// 造一张 PNG。
+//
+// idatPayload 非空时直接用它当 IDAT 的内容（用来造「压缩流被截断」这类坏图）；
+// 否则把 rawRows 压成 zlib 流。qCompress 的输出前面 4 字节是长度头，
+// 后面那段才是标准 zlib 流（带 0x78 头与 adler32），正好是 PNG 要的。
+QByteArray makePng(int width, int height, int colorType, int bitDepth,
+                   const QByteArray& rawRows, const QByteArray& palette = QByteArray(),
+                   const QByteArray& transparency = QByteArray(),
+                   const QByteArray& idatPayload = QByteArray()) {
+    QByteArray png;
+    png.append("\x89PNG\r\n\x1a\n", 8);
+    QByteArray ihdr;
+    appendBE32(ihdr, static_cast<quint32>(width));
+    appendBE32(ihdr, static_cast<quint32>(height));
+    ihdr.append(static_cast<char>(bitDepth));
+    ihdr.append(static_cast<char>(colorType));
+    ihdr.append(static_cast<char>(0));  // compression method
+    ihdr.append(static_cast<char>(0));  // filter method
+    ihdr.append(static_cast<char>(0));  // interlace
+    appendPngChunk(png, "IHDR", ihdr);
+    if (!palette.isEmpty()) {
+        appendPngChunk(png, "PLTE", palette);
+    }
+    if (!transparency.isEmpty()) {
+        appendPngChunk(png, "tRNS", transparency);
+    }
+    const QByteArray zlib =
+        idatPayload.isEmpty() ? qCompress(rawRows).mid(4) : idatPayload;
+    appendPngChunk(png, "IDAT", zlib);
+    appendPngChunk(png, "IEND", QByteArray());
+    return png;
+}
+
+// 一行「过滤器 0（None）」的原始扫描行。
+QByteArray pngRow(const QByteArray& pixels) {
+    QByteArray row;
+    row.append(static_cast<char>(0));
+    row.append(pixels);
+    return row;
+}
+
+// 测试侧的 Paeth 预测器（与解码器里的那份各写各的，免得一起错）。
+int testPaeth(int a, int b, int c) {
+    const int p = a + b - c;
+    const int pa = qAbs(p - a);
+    const int pb = qAbs(p - b);
+    const int pc = qAbs(p - c);
+    if (pa <= pb && pa <= pc) return a;
+    if (pb <= pc) return b;
+    return c;
+}
+
+// 给一行原始像素套上过滤器，返回「过滤器字节 + 过滤后的数据」。
+//
+// 为什么测试要自己算过滤器：反滤波是最容易写错的一段，
+// 测试得能精确地喂进去「用某种过滤器编码过的行」。
+QByteArray pngFilteredRow(int filterType, const QByteArray& pixels, const QByteArray& previous,
+                           int bytesPerPixel) {
+    QByteArray out;
+    out.append(static_cast<char>(filterType));
+    for (int i = 0; i < pixels.size(); ++i) {
+        const int x = static_cast<quint8>(pixels.at(i));
+        const int a = i >= bytesPerPixel ? static_cast<quint8>(pixels.at(i - bytesPerPixel)) : 0;
+        const int b = previous.isEmpty() ? 0 : static_cast<quint8>(previous.at(i));
+        const int c =
+            (previous.isEmpty() || i < bytesPerPixel) ? 0 : static_cast<quint8>(previous.at(i - bytesPerPixel));
+        int value = x;
+        switch (filterType) {
+        case 1:
+            value = x - a;
+            break;
+        case 2:
+            value = x - b;
+            break;
+        case 3:
+            value = x - ((a + b) / 2);
+            break;
+        case 4:
+            value = x - testPaeth(a, b, c);
+            break;
+        default:
+            break;
+        }
+        out.append(static_cast<char>(static_cast<quint8>(value)));
+    }
+    return out;
+}
 }  // namespace
 
 class ImageToPdfTests final : public QObject {
@@ -182,6 +307,15 @@ private slots:
     void decodesPalettedBmp();
     void bmpBecomesReadablePdf();
     void jpegBecomesReadablePdf();
+    void detectsPngFormat();
+    void decodesGrayscalePng();
+    void decodesRgbPng();
+    void decodesRgbaPng();
+    void decodesPalettedPng();
+    void decodes16BitPng();
+    void decodesPngWithRowFilters();
+    void pngBecomesReadablePdf();
+    void brokenPngFails();
     void multiPageKeepsOrder();
     void emptyInputFails();
     void garbageBytesFail();
@@ -324,6 +458,246 @@ void ImageToPdfTests::jpegBecomesReadablePdf() {
     QCOMPARE(rendered.height(), 12);
 }
 
+// ------------------------------------------------------------- PNG 解码 ----
+
+void ImageToPdfTests::detectsPngFormat() {
+    const QByteArray png = makePng(2, 1, 0, 8, pngRow(QByteArray::fromHex("1020")));
+    QCOMPARE(detectImageFormat(png), ImageFormat::Png);
+    QCOMPARE(describeImageFormat(png), QStringLiteral("PNG"));
+
+    // 负例：签名坏掉的字节不能被当成 PNG（否则会拿一段垃圾去解）。
+    QByteArray brokenSignature = png;
+    brokenSignature[1] = 'X';
+    QCOMPARE(detectImageFormat(brokenSignature), ImageFormat::Unknown);
+    QCOMPARE(detectImageFormat(QByteArray()), ImageFormat::Unknown);
+}
+
+void ImageToPdfTests::decodesGrayscalePng() {
+    // 2×2 灰度：每行两个样本。
+    QByteArray rows = pngRow(QByteArray::fromHex("0A14"));
+    rows.append(pngRow(QByteArray::fromHex("C8FF")));
+    const QByteArray png = makePng(2, 2, 0, 8, rows);
+    QCOMPARE(detectImageFormat(png), ImageFormat::Png);
+
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(png, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.width, 2);
+    QCOMPARE(decoded.height, 2);
+    QCOMPARE(decoded.rgb.size(), 12);
+    // 灰度要三通道重复：错了就会变成「只有红通道」。
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(0x0A));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0x0A));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0x0A));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(3)), static_cast<quint8>(0x14));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(4)), static_cast<quint8>(0x14));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(5)), static_cast<quint8>(0x14));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(6)), static_cast<quint8>(0xC8));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(7)), static_cast<quint8>(0xC8));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(8)), static_cast<quint8>(0xC8));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(9)), static_cast<quint8>(0xFF));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(11)), static_cast<quint8>(0xFF));
+}
+
+void ImageToPdfTests::decodesRgbPng() {
+    // 2×1 RGB：红、蓝。
+    QByteArray rows = pngRow(QByteArray::fromHex("FF00000000FF"));
+    const QByteArray png = makePng(2, 1, 2, 8, rows);
+
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(png, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.width, 2);
+    QCOMPARE(decoded.height, 1);
+    QCOMPARE(decoded.rgb.size(), 6);
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(3)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(4)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(5)), static_cast<quint8>(255));
+}
+
+void ImageToPdfTests::decodesRgbaPng() {
+    // 2×1 RGBA：不透明的红 + 全透明的蓝。
+    QByteArray rows = pngRow(QByteArray::fromHex("FF0000FF0000FF00"));
+    const QByteArray png = makePng(2, 1, 6, 8, rows);
+
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(png, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.rgb.size(), 6);
+    // 不透明的像素：颜色必须原样保留。
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0));
+    // 全透明的像素：合成到白底上（PDF 页面本来就是白纸；
+    // 直接丢 alpha 会把这里变成黑色）。
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(3)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(4)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(5)), static_cast<quint8>(255));
+}
+
+void ImageToPdfTests::decodesPalettedPng() {
+    // 调色板：0 = 红、1 = 绿、2 = 蓝；tRNS 让 1 号（绿）全透明。
+    const QByteArray palette = QByteArray::fromHex("FF000000FF000000FF");
+    const QByteArray transparency = QByteArray::fromHex("FF00FF");
+    const QByteArray rows = pngRow(QByteArray::fromHex("000102"));
+    const QByteArray png = makePng(3, 1, 3, 8, rows, palette, transparency);
+
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(png, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.width, 3);
+    QCOMPARE(decoded.height, 1);
+    QCOMPARE(decoded.rgb.size(), 9);
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0));
+    // 透明的绿 → 白底
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(3)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(4)), static_cast<quint8>(255));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(5)), static_cast<quint8>(255));
+    // 蓝
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(6)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(7)), static_cast<quint8>(0));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(8)), static_cast<quint8>(255));
+}
+
+void ImageToPdfTests::decodes16BitPng() {
+    // 16 位灰度：0x1234 → 0x12，0xFFFF → 0xFF（取高字节）。
+    QByteArray rows = pngRow(QByteArray::fromHex("1234FFFF"));
+    const QByteArray gray = makePng(2, 1, 0, 16, rows);
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(gray, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.rgb.size(), 6);
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(0x12));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0x12));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0x12));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(5)), static_cast<quint8>(0xFF));
+
+    // 16 位 RGB：0x1234 / 0xABCD / 0x00FF → 0x12 / 0xAB / 0x00。
+    QByteArray rgbRows = pngRow(QByteArray::fromHex("1234ABCD00FF"));
+    const QByteArray rgbPng = makePng(1, 1, 2, 16, rgbRows);
+    QVERIFY2(decodeImage(rgbPng, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.rgb.size(), 3);
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(0)), static_cast<quint8>(0x12));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(1)), static_cast<quint8>(0xAB));
+    QCOMPARE(static_cast<quint8>(decoded.rgb.at(2)), static_cast<quint8>(0x00));
+}
+
+void ImageToPdfTests::decodesPngWithRowFilters() {
+    // 5 行，每行用一种不同的行过滤器（0/1/2/3/4）。
+    // 反滤波那段是最容易写错的地方，必须真的把五种都走一遍。
+    constexpr int kWidth = 3;
+    constexpr int kHeight = 5;
+    QByteArray rawRows;
+    QByteArray expected;
+    QByteArray previous;
+    for (int row = 0; row < kHeight; ++row) {
+        QByteArray pixels;
+        for (int x = 0; x < kWidth; ++x) {
+            pixels.append(static_cast<char>((row * 37 + x * 11) & 0xFF));
+            pixels.append(static_cast<char>((row * 53 + x * 7) & 0xFF));
+            pixels.append(static_cast<char>((row * 91 + x * 5) & 0xFF));
+        }
+        expected.append(pixels);
+        rawRows.append(pngFilteredRow(row % 5, pixels, previous, 3));
+        previous = pixels;
+    }
+    const QByteArray png = makePng(kWidth, kHeight, 2, 8, rawRows);
+
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY2(decodeImage(png, &decoded, &detail), qPrintable(detail));
+    QCOMPARE(decoded.width, kWidth);
+    QCOMPARE(decoded.height, kHeight);
+    QCOMPARE(decoded.rgb.size(), kWidth * kHeight * 3);
+    QCOMPARE(decoded.rgb, expected);
+}
+
+void ImageToPdfTests::pngBecomesReadablePdf() {
+    const QByteArray rows = pngRow(QByteArray::fromHex("FF00000000FF"));
+    const QByteArray png = makePng(2, 1, 2, 8, rows);
+
+    ImageToPdfOptions options;
+    options.dpi = 72.0;
+    const ImageToPdfResult result = imageToPdf(png, options);
+    QVERIFY2(result.ok(), qPrintable(result.detail));
+    QCOMPARE(result.pageCount, 1);
+    // PNG 走 /FlateDecode + /DeviceRGB（与 BMP 同一条路）。
+    QVERIFY(result.pdf.contains("/FlateDecode"));
+    QVERIFY(result.pdf.contains("/DeviceRGB"));
+    QVERIFY(!result.pdf.contains("/DCTDecode"));
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.pdf, QStringLiteral("from-png.pdf"));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QCOMPARE(opened.document.pageCount(), 1);
+    const auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->widthPoints(), 2.0);
+    QCOMPARE(page->heightPoints(), 1.0);
+
+    // 渲染出来的颜色必须与原图一致（FlateDecode 是无损的）。
+    const QImage rendered = page->render(1.0);
+    QVERIFY(!rendered.isNull());
+    QCOMPARE(rendered.width(), 2);
+    QCOMPARE(rendered.height(), 1);
+    QCOMPARE(qRed(rendered.pixel(0, 0)), 255);
+    QCOMPARE(qGreen(rendered.pixel(0, 0)), 0);
+    QCOMPARE(qBlue(rendered.pixel(0, 0)), 0);
+    QCOMPARE(qRed(rendered.pixel(1, 0)), 0);
+    QCOMPARE(qGreen(rendered.pixel(1, 0)), 0);
+    QCOMPARE(qBlue(rendered.pixel(1, 0)), 255);
+}
+
+void ImageToPdfTests::brokenPngFails() {
+    const QByteArray rows = pngRow(QByteArray::fromHex("1020"));
+    const QByteArray good = makePng(2, 1, 0, 8, rows);
+
+    // 负例 1：签名坏掉 → 连格式都认不出来（不是「解不开」，是「不是 PNG」）。
+    QByteArray brokenSignature = good;
+    brokenSignature[0] = 'X';
+    QCOMPARE(detectImageFormat(brokenSignature), ImageFormat::Unknown);
+    aipdf::pdf::DecodedImage decoded;
+    QString detail;
+    QVERIFY(!decodeImage(brokenSignature, &decoded, &detail));
+    QVERIFY(!detail.isEmpty());
+
+    // 负例 2：文件被砍掉一截 → 块长度对不上，必须失败而不是崩溃。
+    QByteArray truncated = good;
+    truncated.chop(12);
+    QVERIFY(!decodeImage(truncated, &decoded, &detail));
+    QVERIFY(detail.contains(QStringLiteral("PNG")));
+
+    // 负例 3：IHDR 说宽 0 → 尺寸非法。
+    const QByteArray zeroWidth = makePng(0, 1, 0, 8, rows);
+    QVERIFY(!decodeImage(zeroWidth, &decoded, &detail));
+    QVERIFY(detail.contains(QStringLiteral("PNG")));
+
+    // 负例 4：IHDR 里的字节被改过 → CRC 对不上。
+    QByteArray badCrc = good;
+    badCrc[20] = static_cast<char>(badCrc.at(20) ^ 0xFF);
+    QVERIFY(!decodeImage(badCrc, &decoded, &detail));
+    QVERIFY(detail.contains(QStringLiteral("CRC")));
+
+    // 负例 5：zlib 流本身被截断（块的 CRC 是对的，只是数据少了一半）。
+    const QByteArray zlib = qCompress(rows).mid(4);
+    const QByteArray halfStream = makePng(2, 1, 0, 8, rows, QByteArray(), QByteArray(),
+                                           zlib.left(zlib.size() / 2));
+    QVERIFY(!decodeImage(halfStream, &decoded, &detail));
+    QVERIFY(detail.contains(QStringLiteral("PNG")));
+
+    // 负例 6：走整条链时，坏 PNG 必须报「数据坏了」，不能报「格式不支持」
+    // ——前者多半是文件传坏了，后者是格式根本不对，这两件事要分开。
+    const ImageToPdfResult bad = imagesToPdf({truncated});
+    QCOMPARE(bad.error, ImageToPdfError::DecodeFailed);
+    QVERIFY(bad.pdf.isEmpty());
+    QCOMPARE(bad.failedIndex, 0);
+    QVERIFY(bad.detail.contains(QStringLiteral("PNG")));
+}
 void ImageToPdfTests::multiPageKeepsOrder() {
     // 三张宽度不同的图：页序必须按给的顺序，一页一张。
     QVector<QByteArray> images;
@@ -375,10 +749,12 @@ void ImageToPdfTests::garbageBytesFail() {
     QCOMPARE(result.failedIndex, 0);
     QVERIFY(result.detail.contains(QStringLiteral("unsupported image format")));
 
-    // 负例：PNG 也要点名，不能笼统地说「格式不对」。
+    // 负例：PNG 现在是支持的格式，但这串字节只是一张 PNG 的头（后面的块全没了），
+    // 所以报的是「数据坏了」（DecodeFailed），不是「格式不支持」——
+    // 这两件事要分开：前者多半是文件传坏了，后者是格式根本不对。
     const QByteArray pngHeader = QByteArray::fromHex("89504E470D0A1A0A0000000D49484452");
     const ImageToPdfResult png = imagesToPdf({pngHeader});
-    QCOMPARE(png.error, ImageToPdfError::UnsupportedFormat);
+    QCOMPARE(png.error, ImageToPdfError::DecodeFailed);
     QVERIFY(png.detail.contains(QStringLiteral("PNG")));
 }
 

@@ -58,6 +58,57 @@ QString fillPlaceholders(const QString& pattern, const QStringList& values) {
     return result;
 }
 
+// XML 1.0 不允许出现的控制字符（tab / LF / CR 除外）。
+//
+// 为什么自己扫一遍而不是只靠解析器：不同解析器对控制字符的严格程度不一样，
+// 「这一页写不进去」这种事必须在发出去之前就确定下来。
+bool containsIllegalXmlChar(const QString& text) {
+    for (const QChar ch : text) {
+        const ushort code = ch.unicode();
+        if (code == 0x09 || code == 0x0A || code == 0x0D) {
+            continue;
+        }
+        if (code < 0x20) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 一份 XML 是不是格式良好。
+bool isWellFormedXml(const QString& xml) {
+    QXmlStreamReader reader(xml);
+    while (!reader.atEnd()) {
+        reader.readNext();
+    }
+    return !reader.hasError();
+}
+
+// 一段 one: 片段在命名空间下是不是格式良好。
+bool isWellFormedOneNoteFragment(const QString& fragment) {
+    if (fragment.isEmpty()) {
+        return true;
+    }
+    const QString probe = QStringLiteral("<one:Page xmlns:one=\"") +
+                          QString::fromLatin1(kOneNoteNamespace) + QStringLiteral("\">") +
+                          fragment + QStringLiteral("</one:Page>");
+    return isWellFormedXml(probe);
+}
+
+// 文字层能不能用。
+//
+// 判据是「写出来的 XML 是不是格式良好」：PDF 的文字里可能有 XML 1.0 不允许的
+// 控制字符（U+0000 之类），那种 XML OneNote 会整页拒收。
+// 与其让整页送不进去，不如这一页只送图片（宁可少功能，不要功能全废）。
+bool isUsableOneNoteTextLayer(const QVector<OneNoteTextBlock>& blocks) {
+    for (const OneNoteTextBlock& block : blocks) {
+        if (containsIllegalXmlChar(block.text)) {
+            return false;
+        }
+    }
+    return isWellFormedOneNoteFragment(buildOneNoteTextRunsXml(blocks));
+}
+
 #ifdef Q_OS_WIN
 
 // IID_IDispatch 与 IID_NULL 自己写一份。
@@ -335,10 +386,15 @@ public:
 
     bool createPageWithImage(const QString& sectionId, const QString& pageTitle,
                              const QByteArray& imageFile, OneNoteImageFormat format,
-                             const QSizeF& displaySizePoints, OneNoteErrorKind* errorKind,
+                             const QSizeF& displaySizePoints,
+                             const QVector<OneNoteTextBlock>& textBlocks,
+                             OneNotePageWriteReport* report, OneNoteErrorKind* errorKind,
                              QString* detail) override {
         *errorKind = OneNoteErrorKind::None;
         detail->clear();
+        if (report != nullptr) {
+            *report = OneNotePageWriteReport();
+        }
         if (!ensureApplication(errorKind, detail)) {
             return false;
         }
@@ -352,8 +408,21 @@ public:
             return false;
         }
 
-        const QString xml =
-            buildOneNotePageXml(pageId, pageTitle, imageFile, format, displaySizePoints);
+        QString xml = buildOneNotePageXml(pageId, pageTitle, imageFile, format, displaySizePoints,
+                                          textBlocks);
+        // 最后一道保险：整页 XML 坏了就退回「只送图片」。
+        // 文字层写坏不该让这一页整个送不进去（宁可少功能，不要功能全废）。
+        if (!isWellFormedXml(xml) && !textBlocks.isEmpty()) {
+            xml = buildOneNotePageXml(pageId, pageTitle, imageFile, format, displaySizePoints);
+            if (report != nullptr) {
+                report->degradedToImageOnly = true;
+                report->textLayerDetail = i18n::tr("aipdf::app::OneNoteExporter",
+                                                   "这一页的 XML 写坏了，已经只送图片。");
+            }
+        }
+        if (report != nullptr) {
+            report->textLayerIncluded = !textBlocks.isEmpty() && !report->degradedToImageOnly;
+        }
         hr = callUpdatePageContent(app_, xml);
         if (FAILED(hr)) {
             *errorKind = OneNoteErrorKind::ExportFailed;
@@ -440,7 +509,9 @@ public:
     }
 
     bool createPageWithImage(const QString&, const QString&, const QByteArray&, OneNoteImageFormat,
-                             const QSizeF&, OneNoteErrorKind* errorKind, QString* detail) override {
+                             const QSizeF&, const QVector<OneNoteTextBlock>&,
+                             OneNotePageWriteReport*, OneNoteErrorKind* errorKind,
+                             QString* detail) override {
         *errorKind = OneNoteErrorKind::ComUnavailable;
         *detail = i18n::tr("aipdf::app::OneNoteExporter", "OneNote 桌面版只支持 Windows");
         return false;
@@ -602,9 +673,27 @@ QSizeF oneNoteImageDisplaySizePoints(const QImage& image, int dpi) {
     return QSizeF(image.width() * scale, image.height() * scale);
 }
 
+QString buildOneNoteTextRunsXml(const QVector<OneNoteTextBlock>& blocks) {
+    QString runs;
+    for (const OneNoteTextBlock& block : blocks) {
+        if (block.text.trimmed().isEmpty()) {
+            // 空块不写：OneNote 里一个空 run 只是噪音。
+            continue;
+        }
+        runs += QStringLiteral("<one:r><one:rPr lang=\"zh-CN\" dirty=\"0\"/><one:t>");
+        runs += block.text.toHtmlEscaped();
+        runs += QStringLiteral("</one:t></one:r>");
+    }
+    if (runs.isEmpty()) {
+        return QString();
+    }
+    return QStringLiteral("<one:Text>") + runs + QStringLiteral("</one:Text>");
+}
+
 QString buildOneNotePageXml(const QString& pageId, const QString& pageTitle,
                              const QByteArray& imageFile, OneNoteImageFormat format,
-                             const QSizeF& displaySizePoints) {
+                             const QSizeF& displaySizePoints,
+                             const QVector<OneNoteTextBlock>& textBlocks) {
     const QString formatName =
         format == OneNoteImageFormat::Png ? QStringLiteral("png") : QStringLiteral("jpeg");
     // CDATA 里不能出现 "]]>"，否则整个 XML 直接坏掉。
@@ -637,7 +726,16 @@ QString buildOneNotePageXml(const QString& pageId, const QString& pageTitle,
     xml += formatName;
     xml += QStringLiteral("\"><one:Data>");
     xml += QString::fromLatin1(imageFile.toBase64());
-    xml += QStringLiteral("</one:Data></one:Image></one:OE></one:OEChildren></one:Outline>");
+    xml += QStringLiteral("</one:Data></one:Image></one:OE>");
+    // 文字层：同一个 one:OEChildren 里再挂一个装文字的 one:OE。
+    // OneNote 里能不能搜到这页，看的就是它在不在。
+    const QString textXml = buildOneNoteTextRunsXml(textBlocks);
+    if (!textXml.isEmpty()) {
+        xml += QStringLiteral("<one:OE alignment=\"left\">");
+        xml += textXml;
+        xml += QStringLiteral("</one:OE>");
+    }
+    xml += QStringLiteral("</one:OEChildren></one:Outline>");
     xml += QStringLiteral("</one:Page>");
     return xml;
 }
@@ -706,18 +804,20 @@ OneNoteExporter::OneNoteExporter(const OneNoteEnvironment& environment,
 }
 
 OneNoteExportResult OneNoteExporter::exportToOneNote(const OneNoteExportPlan& plan,
-                                                      const OneNotePageRenderer& renderer) {
+                                                      const OneNotePageRenderer& renderer,
+                                                      const OneNotePageTextProvider& textProvider) {
     OneNoteExportResult result;
 
     // 失败出口统一走这里：消息里要带上失败原因，
-    // 中途失败时还要说明「已经送出去几页」——否则用户不知道 OneNote 里已经有东西了。
+    // 中途失败时还要说明「已经写进去几页」——否则用户不知道 OneNote 里已经有东西了。
     auto fail = [&result](OneNoteErrorKind kind, const QString& detail) {
         result.errorKind = kind;
         result.detail = detail;
         result.message = oneNoteErrorMessage(kind, detail);
         if (!result.createdPageTitles.isEmpty()) {
+            // 只说已经写进去几页：**不说**会自动删——本程序没有删页的能力。
             result.message +=
-                i18n::tr("aipdf::app::OneNoteExporter", "（已送出 %1 页）")
+                i18n::tr("aipdf::app::OneNoteExporter", "（已经写进 OneNote %1 页，剩下的没有写进去）")
                     .arg(result.createdPageTitles.size());
         }
         return result;
@@ -738,16 +838,18 @@ OneNoteExportResult OneNoteExporter::exportToOneNote(const OneNoteExportPlan& pl
                     i18n::tr("aipdf::app::OneNoteExporter", "缺少页面渲染回调"));
     }
 
-    // 3) 找到要把内容送进去的分区。
-    OneNoteTarget target;
-    OneNoteErrorKind errorKind = OneNoteErrorKind::None;
-    QString detail;
-    if (!backend_ || !backend_->findTargetSection(&target, &errorKind, &detail)) {
-        return fail(errorKind == OneNoteErrorKind::None ? OneNoteErrorKind::ExportFailed : errorKind,
-                    detail);
-    }
-
-    // 4) 一页一页地送：每个 PDF 页在 OneNote 里各占一页，标题写清是第几页。
+    // 3) **先把所有要导的页全部渲染成功**，再往 OneNote 里写。
+    //
+    // 为什么不能「渲一页写一页」：渲染到第 3 页失败时，前 2 页已经写进用户的
+    // 笔记本了，剩下的还得用户自己回去删。先渲染完，渲染阶段失败就一页都不写。
+    struct PreparedPage {
+        int pageNumber = 0;
+        QString title;
+        QByteArray imageFile;
+        QSizeF displaySize;
+    };
+    QVector<PreparedPage> prepared;
+    prepared.reserve(plan.pageNumbers.size());
     for (int pageNumber : plan.pageNumbers) {
         const QImage image = renderer(pageNumber - 1, plan.dpi);
         if (image.isNull()) {
@@ -762,19 +864,74 @@ OneNoteExportResult OneNoteExporter::exportToOneNote(const OneNoteExportPlan& pl
                             .arg(pageNumber)
                             .arg(oneNoteImageFormatLabel(plan.format)));
         }
+        PreparedPage page;
+        page.pageNumber = pageNumber;
+        page.title = oneNotePageTitle(plan, pageNumber);
+        page.imageFile = imageFile;
+        page.displaySize = oneNoteImageDisplaySizePoints(image, plan.dpi);
+        prepared.append(page);
+    }
 
-        const QString title = oneNotePageTitle(plan, pageNumber);
-        if (!backend_->createPageWithImage(target.sectionId, title, imageFile, plan.format,
-                                           oneNoteImageDisplaySizePoints(image, plan.dpi),
+    // 4) 找到要把内容送进去的分区。
+    //
+    // 放在渲染之后：渲染失败时连 OneNote 都不该碰（用户的笔记本里不该多出半截东西）。
+    OneNoteTarget target;
+    OneNoteErrorKind errorKind = OneNoteErrorKind::None;
+    QString detail;
+    if (!backend_ || !backend_->findTargetSection(&target, &errorKind, &detail)) {
+        return fail(errorKind == OneNoteErrorKind::None ? OneNoteErrorKind::ExportFailed : errorKind,
+                    detail);
+    }
+
+    // 5) 逐页写入：每个 PDF 页在 OneNote 里各占一页，标题写清是第几页。
+    for (const PreparedPage& page : prepared) {
+        // 这一页的文字层（可选）。写坏就降级成「只送图片」，
+        // 不能因为文字写不进去就让整页送不进去（宁可少功能，不要功能全废）。
+        QVector<OneNoteTextBlock> blocks;
+        bool degraded = false;
+        QString textDetail;
+        if (textProvider) {
+            try {
+                blocks = textProvider(page.pageNumber - 1);
+            } catch (...) {
+                blocks.clear();
+                degraded = true;
+                textDetail = i18n::tr("aipdf::app::OneNoteExporter", "取第 %1 页的文字时出错")
+                                 .arg(page.pageNumber);
+            }
+            if (!degraded && !blocks.isEmpty() && !isUsableOneNoteTextLayer(blocks)) {
+                blocks.clear();
+                degraded = true;
+                textDetail =
+                    i18n::tr("aipdf::app::OneNoteExporter",
+                             "第 %1 页的文字层写坏了（文字里有非法控制字符），这一页只送图片")
+                        .arg(page.pageNumber);
+            }
+        }
+
+        OneNotePageWriteReport report;
+        if (!backend_->createPageWithImage(target.sectionId, page.title, page.imageFile,
+                                           plan.format, page.displaySize, blocks, &report,
                                            &errorKind, &detail)) {
             return fail(errorKind == OneNoteErrorKind::None ? OneNoteErrorKind::ExportFailed
                                                             : errorKind,
                         detail);
         }
-        result.createdPageTitles.append(title);
+        result.createdPageTitles.append(page.title);
+        if (report.textLayerIncluded) {
+            result.textLayerWritten = true;
+        }
+        if (report.degradedToImageOnly || degraded) {
+            result.degradedToImageOnly = true;
+            ++result.degradedPageCount;
+            if (result.textLayerDetail.isEmpty()) {
+                result.textLayerDetail = report.degradedToImageOnly ? report.textLayerDetail
+                                                                   : textDetail;
+            }
+        }
     }
 
-    // 5) 成功：把「导了哪几页、导成什么、送到哪一页」讲清楚。
+    // 6) 成功：把「导了哪几页、导成什么、送到哪一页」讲清楚。
     OneNoteExportPlan effective = plan;
     effective.notebookName = target.notebookName;
     effective.sectionName = target.sectionName;
@@ -782,6 +939,15 @@ OneNoteExportResult OneNoteExporter::exportToOneNote(const OneNoteExportPlan& pl
     result.notebookName = target.notebookName;
     result.sectionName = target.sectionName;
     result.message = oneNoteSuccessMessage(effective, result.createdPageCount());
+    if (!result.textLayerWritten) {
+        result.message +=
+            i18n::tr("aipdf::app::OneNoteExporter", "（这次没有文字层，在 OneNote 里搜不到文字）");
+    }
+    if (result.degradedToImageOnly) {
+        result.message +=
+            i18n::tr("aipdf::app::OneNoteExporter", "（%1 页的文字层写不进去，已经只送图片）")
+                .arg(result.degradedPageCount);
+    }
     return result;
 }
 
