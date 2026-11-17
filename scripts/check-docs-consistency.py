@@ -113,7 +113,7 @@ else:
 audit = io.open(AUDIT, "r", encoding="utf-8-sig").read()
 # 取**最新一轮**的汇总行（第七次优先；更早的是历史记录，不再拿它对账）。
 ma = None
-for round_word in (u"第七次", u"第六次", u"第五次", u"第四次"):
+for round_word in (u"第八次", u"第七次", u"第六次", u"第五次", u"第四次"):
     found = re.search(round_word + u"（本轮）增至 (\d+) / (\d+) 与 (\d+)%（(\d+) / (\d+)）", audit)
     if found:
         ma = found
