@@ -536,6 +536,13 @@
             <source>请解释我选中的内容</source>
             <translation>Please explain the selected text</translation>
         </message>
+    <message><source>&lt;b&gt;本地离线问答：&lt;/b&gt;%1</source><translation>&lt;b&gt;Local offline Q&amp;amp;A:&lt;/b&gt; %1</translation></message>
+    <message><source>先输入一个问题。</source><translation>Type a question first.</translation></message>
+    <message><source>在本地索引里检索并摘出答案（不联网、不调模型）</source><translation>Search the local index and extract the answer (no network, no model)</translation></message>
+    <message><source>当前文档还没有索引：先在「索引」面板里建立索引，再问。</source><translation>The current document has no index yet: build it in the Index panel first, then ask.</translation></message>
+    <message><source>本地离线问答</source><translation>Local offline Q&amp;A</translation></message>
+    <message><source>本地索引里还没有内容：先建立索引，再问。</source><translation>The local index is empty: build the index first, then ask.</translation></message>
+    <message><source>本地离线问答还没有接上：当前文档没有可检索的索引。</source><translation>Local offline Q&amp;A is not connected yet: the current document has no index to search.</translation></message>
 </context>
     <context>
         <name>aipdf::app::AiSettingsDialog</name>
@@ -876,8 +883,7 @@
             <translation>Theme</translation>
         </message>
         <message>
-            <source>浅色</source>
-            <translation>Light</translation>
+            <source>浅色</source><translation>Light</translation>
         </message>
         <message>
             <source>字体…</source>
@@ -2205,6 +2211,345 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>朗读</source>
             <translation>Read aloud</translation>
         </message>
+    <message><source>阅读配色</source><translation>Reading colors</translation></message>
+    <message><source>配色:</source><translation>Colors:</translation></message>
+    <message><source>夜间</source><translation>Night</translation></message>
+    <message><source>护眼</source><translation>Eye care</translation></message>
+    <message><source>高对比</source><translation>High contrast</translation></message>
+    <message><source>阅读配色已切换</source><translation>Reading colors changed</translation></message>
+    <message><source>视图模式</source><translation>View Modes</translation></message>
+    <message><source>标尺单位</source><translation>Ruler Unit</translation></message>
+    <message><source>选择标尺单位</source><translation>Choose the ruler unit</translation></message>
+    <message><source>点</source><translation>Points</translation></message>
+    <message><source>毫米</source><translation>Millimeters</translation></message>
+    <message><source>英寸</source><translation>Inches</translation></message>
+    <message><source>翻页过渡</source><translation>Page Transition</translation></message>
+    <message><source>选择翻页过渡方式</source><translation>Choose the page transition</translation></message>
+    <message><source>淡入淡出</source><translation>Fade</translation></message>
+    <message><source>左滑</source><translation>Slide Left</translation></message>
+    <message><source>右滑</source><translation>Slide Right</translation></message>
+    <message><source>纯文本</source><translation>Plain Text</translation></message>
+    <message><source>%1 KB</source><translation>%1 KB</translation></message>
+    <message><source>%1 MB</source><translation>%1 MB</translation></message>
+    <message><source>%1 字节</source><translation>%1 bytes</translation></message>
+    <message><source>%1 条</source><translation>%1 item(s)</translation></message>
+    <message><source>%1. %2</source><translation>%1. %2</translation></message>
+    <message><source>%1：%2</source><translation>%1: %2</translation></message>
+    <message><source>AI 内容检测</source><translation>AI Content Detection</translation></message>
+    <message><source>AI 工具</source><translation>AI Tools</translation></message>
+    <message><source>AI 总结配图</source><translation>AI Summary Illustrations</translation></message>
+    <message><source>AI 服务还没连上。</source><translation>The AI service is not connected yet.</translation></message>
+    <message><source>AI 生成 PPT</source><translation>AI-Generated PPT</translation></message>
+    <message><source>AI 生成图</source><translation>AI-generated image</translation></message>
+    <message><source>AI 生成图片</source><translation>AI-Generated Image</translation></message>
+    <message><source>CAD 导出：只导路径与可选的文字，不含颜色、线宽与图层；曲线会被打散成折线。</source><translation>CAD export: exports paths and optional text only; colors, line widths and layers are not included; curves are flattened into polylines.</translation></message>
+    <message><source>DXF 文件 (*.dxf)</source><translation>DXF files (*.dxf)</translation></message>
+    <message><source>HTML 导出：只包含文字与基本排版，不含图片与图形；字号由字形高度估算，与原版排版只大致相符。</source><translation>HTML export: text and basic layout only; images and graphics are not included; font sizes are estimated from glyph height, so the layout only roughly matches the original.</translation></message>
+    <message><source>HTML 文件 (*.html)</source><translation>HTML files (*.html)</translation></message>
+    <message><source>Markdown 文件 (*.md)</source><translation>Markdown files (*.md)</translation></message>
+    <message><source>OCR 疑似错误</source><translation>OCR Suspected Errors</translation></message>
+    <message><source>OFD 导出：只导文本对象，不含图片、图形与签章；坐标单位是毫米。</source><translation>OFD export: text objects only; images, graphics and signatures are not included; coordinates are in millimeters.</translation></message>
+    <message><source>OFD 文件 (*.ofd)</source><translation>OFD files (*.ofd)</translation></message>
+    <message><source>PDF 文件包</source><translation>PDF Portfolio</translation></message>
+    <message><source>PDF 转曲</source><translation>Flatten PDF Fonts</translation></message>
+    <message><source>PPT 状态</source><translation>PPT Status</translation></message>
+    <message><source>PPT 预览</source><translation>PPT Preview</translation></message>
+    <message><source>Word 文档</source><translation>Word Document</translation></message>
+    <message><source>Word 文档 (*.docx)</source><translation>Word documents (*.docx)</translation></message>
+    <message><source>上下文</source><translation>Context</translation></message>
+    <message><source>不可送印</source><translation>Not ready to print</translation></message>
+    <message><source>不缩放</source><translation>Do Not Scale</translation></message>
+    <message><source>不要出现什么，可留空</source><translation>What should not appear (optional)</translation></message>
+    <message><source>主题:</source><translation>Topic:</translation></message>
+    <message><source>任务名</source><translation>Job Name</translation></message>
+    <message><source>任务名:</source><translation>Job name:</translation></message>
+    <message><source>份数</source><translation>Copies</translation></message>
+    <message><source>份数:</source><translation>Copies:</translation></message>
+    <message><source>会计计算器</source><translation>Accounting Calculator</translation></message>
+    <message><source>作者</source><translation>Author</translation></message>
+    <message><source>作者:</source><translation>Author:</translation></message>
+    <message><source>你是一位专业的演示文稿作者。只输出 JSON，不要任何解释文字。</source><translation>You are a professional presentation author. Output JSON only, with no explanatory text.</translation></message>
+    <message><source>你是一位文本来源鉴定专家。只输出 JSON，不要任何解释文字。</source><translation>You are an expert in identifying the source of a text. Output JSON only, with no explanatory text.</translation></message>
+    <message><source>例如 100+10%</source><translation>e.g. 100+10%</translation></message>
+    <message><source>例如「偏商务风格」，可留空</source><translation>e.g. &quot;business style&quot; (optional)</translation></message>
+    <message><source>例如「水彩插画」，可留空</source><translation>e.g. &quot;watercolor illustration&quot; (optional)</translation></message>
+    <message><source>例如「面向新手」，可留空</source><translation>e.g. &quot;for beginners&quot; (optional)</translation></message>
+    <message><source>保存文件包</source><translation>Save Portfolio</translation></message>
+    <message><source>保存模板</source><translation>Save Template</translation></message>
+    <message><source>先打开一个文件包。</source><translation>Open a portfolio first.</translation></message>
+    <message><source>先生成一套 PPT。</source><translation>Generate a deck first.</translation></message>
+    <message><source>先生成一张图。</source><translation>Generate an image first.</translation></message>
+    <message><source>先选中一个条目。</source><translation>Select an entry first.</translation></message>
+    <message><source>先选中一个模板。</source><translation>Select a template first.</translation></message>
+    <message><source>共 %1 个打印任务 · %2</source><translation>%1 print job(s) - %2</translation></message>
+    <message><source>共 %1 页。</source><translation>%1 page(s) in total.</translation></message>
+    <message><source>内容来源</source><translation>Content Source</translation></message>
+    <message><source>写不了这个文件：%1</source><translation>Could not write this file: %1</translation></message>
+    <message><source>写入失败：%1</source><translation>Write failed: %1</translation></message>
+    <message><source>分类:</source><translation>Category:</translation></message>
+    <message><source>创建</source><translation>Create</translation></message>
+    <message><source>创建文件包</source><translation>Create Portfolio</translation></message>
+    <message><source>删除失败：模板可能已经不在了。</source><translation>Delete failed: the template may already be gone.</translation></message>
+    <message><source>删除模板</source><translation>Delete Template</translation></message>
+    <message><source>判定：%1 · 置信度 %2% —— %3</source><translation>Verdict: %1 - confidence %2% - %3</translation></message>
+    <message><source>判定：无法判断 —— %1</source><translation>Verdict: cannot be determined - %1</translation></message>
+    <message><source>包内条目</source><translation>Entries</translation></message>
+    <message><source>包标题</source><translation>Portfolio Title</translation></message>
+    <message><source>包里有 %1 个条目。</source><translation>The portfolio contains %1 entry(ies).</translation></message>
+    <message><source>印前检查</source><translation>Preflight Check</translation></message>
+    <message><source>印前检查结论</source><translation>Preflight Verdict</translation></message>
+    <message><source>双面打印</source><translation>Double-sided Printing</translation></message>
+    <message><source>反向提示词</source><translation>Negative Prompt</translation></message>
+    <message><source>反向提示词:</source><translation>Negative prompt:</translation></message>
+    <message><source>发现 %1 处疑似错误。这些只是提示，文档里的文字不会被自动改写。</source><translation>Found %1 suspected error(s). These are only hints; the text in the document is not rewritten automatically.</translation></message>
+    <message><source>取出条目</source><translation>Extract Entry</translation></message>
+    <message><source>取出选中条目</source><translation>Extract Selected Entry</translation></message>
+    <message><source>可以送印</source><translation>Ready to print</translation></message>
+    <message><source>合并成一份打印</source><translation>Combine into one print job</translation></message>
+    <message><source>合并输出路径</source><translation>Combined Output Path</translation></message>
+    <message><source>合并输出路径:</source><translation>Combined output path:</translation></message>
+    <message><source>名字</source><translation>Name</translation></message>
+    <message><source>图像化 PDF：每一页变成一张位图。页面尺寸不变，文字默认不能再选中（勾选保留文字层时可以搜索），图片按 JPEG 嵌入。</source><translation>Image-based PDF: every page becomes a bitmap. The page size is unchanged; text is no longer selectable by default (it stays searchable when the text layer is kept), and images are embedded as JPEG.</translation></message>
+    <message><source>图像服务返回了 %1：%2</source><translation>The image service returned %1: %2</translation></message>
+    <message><source>图片</source><translation>Image</translation></message>
+    <message><source>大小</source><translation>Size</translation></message>
+    <message><source>大纲</source><translation>Outline</translation></message>
+    <message><source>大纲（按大纲生成时用，顶格行是页标题，缩进行是要点）:</source><translation>Outline (used when generating from an outline; unindented lines are page titles, indented lines are points):</translation></message>
+    <message><source>套用</source><translation>Apply</translation></message>
+    <message><source>套用模板</source><translation>Apply Template</translation></message>
+    <message><source>存为 Markdown</source><translation>Save as Markdown</translation></message>
+    <message><source>导出 CAD 文件</source><translation>Export CAD File</translation></message>
+    <message><source>导出 HTML</source><translation>Export HTML</translation></message>
+    <message><source>导出为 %1：只包含文字层，不含图片、表格结构与批注。</source><translation>Export to %1: text layer only; images, table structure and annotations are not included.</translation></message>
+    <message><source>导出到 MS Office</source><translation>Export to MS Office</translation></message>
+    <message><source>导出到 OFD</source><translation>Export to OFD</translation></message>
+    <message><source>导出图像化 PDF</source><translation>Export Image-based PDF</translation></message>
+    <message><source>导出失败。</source><translation>Export failed.</translation></message>
+    <message><source>尺寸</source><translation>Size</translation></message>
+    <message><source>尺寸:</source><translation>Size:</translation></message>
+    <message><source>工具箱</source><translation>Toolbox</translation></message>
+    <message><source>已保存：%1</source><translation>Saved: %1</translation></message>
+    <message><source>已创建文件包：%1</source><translation>Portfolio created: %1</translation></message>
+    <message><source>已取出条目：%1</source><translation>Entry extracted: %1</translation></message>
+    <message><source>已按模板打印：%1。</source><translation>Printed with the template: %1.</translation></message>
+    <message><source>已新建空白文档。</source><translation>A blank document was created.</translation></message>
+    <message><source>已生成 %1 张。</source><translation>%1 image(s) generated.</translation></message>
+    <message><source>幻灯片列表</source><translation>Slide List</translation></message>
+    <message><source>建议的字</source><translation>Suggested Character</translation></message>
+    <message><source>张数</source><translation>Count</translation></message>
+    <message><source>张数:</source><translation>Count:</translation></message>
+    <message><source>彩色打印</source><translation>Color Printing</translation></message>
+    <message><source>待打包 %1 个文件。</source><translation>%1 file(s) to be packaged.</translation></message>
+    <message><source>待打包文件</source><translation>Files to Package</translation></message>
+    <message><source>待打印文件</source><translation>Files to Print</translation></message>
+    <message><source>总页数：%1</source><translation>Total pages: %1</translation></message>
+    <message><source>总页数：未知</source><translation>Total pages: unknown</translation></message>
+    <message><source>打印了 %1 个任务，%2 个失败：
+%3</source><translation>Printed %1 job(s), %2 failed:
+%3</translation></message>
+    <message><source>打印提醒</source><translation>Print Reminders</translation></message>
+    <message><source>打印模板</source><translation>Print Template</translation></message>
+    <message><source>打印模板列表</source><translation>Print Template List</translation></message>
+    <message><source>打印计划</source><translation>Print Plan</translation></message>
+    <message><source>打开文件包</source><translation>Open Portfolio</translation></message>
+    <message><source>批量打印</source><translation>Batch Print</translation></message>
+    <message><source>批量打印完成：%1 个任务。</source><translation>Batch print finished: %1 job(s).</translation></message>
+    <message><source>按主题生成</source><translation>By Topic</translation></message>
+    <message><source>按大纲生成</source><translation>By Outline</translation></message>
+    <message><source>按文档生成</source><translation>By Document</translation></message>
+    <message><source>按模板打印</source><translation>Print with Template</translation></message>
+    <message><source>提示词</source><translation>Prompt</translation></message>
+    <message><source>提示词:</source><translation>Prompt:</translation></message>
+    <message><source>提示词太长，已经截断到 %1 个字符。</source><translation>The prompt is too long and has been truncated to %1 characters.</translation></message>
+    <message><source>提示（知会）</source><translation>Note (informational)</translation></message>
+    <message><source>提醒：%1</source><translation>Reminder: %1</translation></message>
+    <message><source>插入位置（下面的文字就是当前的批注内容）:</source><translation>Insert position (the text below is the current annotation content):</translation></message>
+    <message><source>插入到当前页</source><translation>Insert into Current Page</translation></message>
+    <message><source>放完一个批注后不切回选择工具，可以连着标</source><translation>Stay on the annotation tool after placing one, so you can keep annotating</translation></message>
+    <message><source>整篇</source><translation>Whole Document</translation></message>
+    <message><source>文件包.pdf</source><translation>portfolio.pdf</translation></message>
+    <message><source>文件包状态</source><translation>Portfolio Status</translation></message>
+    <message><source>文档正文</source><translation>Document Text</translation></message>
+    <message><source>文档正文（按文档生成时用）:</source><translation>Document text (used when generating from the document):</translation></message>
+    <message><source>新建失败。</source><translation>Could not create the document.</translation></message>
+    <message><source>新建文档</source><translation>New Document</translation></message>
+    <message><source>方向</source><translation>Orientation</translation></message>
+    <message><source>方向:</source><translation>Orientation:</translation></message>
+    <message><source>最多页数</source><translation>Max Pages</translation></message>
+    <message><source>最多页数:</source><translation>Max pages:</translation></message>
+    <message><source>本次发送：一次提问</source><translation>Sent in this turn: one question</translation></message>
+    <message><source>来源:</source><translation>Source:</translation></message>
+    <message><source>标题</source><translation>Title</translation></message>
+    <message><source>标题:</source><translation>Title:</translation></message>
+    <message><source>检查与打包</source><translation>Check and Package</translation></message>
+    <message><source>检测</source><translation>Detect</translation></message>
+    <message><source>检测判定</source><translation>Detection Verdict</translation></message>
+    <message><source>检测完成。</source><translation>Detection finished.</translation></message>
+    <message><source>检测状态</source><translation>Detection Status</translation></message>
+    <message><source>模型没有返回内容。</source><translation>The model returned no content.</translation></message>
+    <message><source>模型调用失败。</source><translation>The model call failed.</translation></message>
+    <message><source>模板名</source><translation>Template Name</translation></message>
+    <message><source>模板名:</source><translation>Template name:</translation></message>
+    <message><source>横向</source><translation>Landscape</translation></message>
+    <message><source>正在检测…</source><translation>Detecting...</translation></message>
+    <message><source>正在生成…</source><translation>Generating...</translation></message>
+    <message><source>没有发现疑似错误。这些检查只是提示，不会自动改文档里的文字。</source><translation>No suspected errors found. These checks are only hints and never change the text in the document.</translation></message>
+    <message><source>没有可检测的文本。</source><translation>There is no text to inspect.</translation></message>
+    <message><source>没有提示项</source><translation>No info items</translation></message>
+    <message><source>没有警告项</source><translation>No warnings</translation></message>
+    <message><source>没有这个条目。</source><translation>No such entry.</translation></message>
+    <message><source>没有配置 API 密钥，生成不了图片。请先在「AI 服务设置」里配置。</source><translation>No API key is configured, so no image can be generated. Configure one in &quot;AI Service Settings&quot; first.</translation></message>
+    <message><source>没有错误项</source><translation>No errors</translation></message>
+    <message><source>添加文件</source><translation>Add Files</translation></message>
+    <message><source>状态</source><translation>Status</translation></message>
+    <message><source>理由</source><translation>Reason</translation></message>
+    <message><source>生成</source><translation>Generate</translation></message>
+    <message><source>生成状态</source><translation>Generation Status</translation></message>
+    <message><source>生成结果不是一张可显示的图片</source><translation>The generated result is not a displayable image</translation></message>
+    <message><source>生成结果列表</source><translation>Generated Results</translation></message>
+    <message><source>生成结果预览</source><translation>Generated Result Preview</translation></message>
+    <message><source>生成配图计划</source><translation>Generate Illustration Plan</translation></message>
+    <message><source>画什么，写清楚一点</source><translation>What to draw - be specific</translation></message>
+    <message><source>画面要求</source><translation>Visual Requirements</translation></message>
+    <message><source>画面要求:</source><translation>Visual requirements:</translation></message>
+    <message><source>留空表示全部页</source><translation>Leave empty for all pages</translation></message>
+    <message><source>留空表示全部页，例如 1-3,5</source><translation>Leave empty for all pages, e.g. 1-3,5</translation></message>
+    <message><source>疑似错误列表</source><translation>Suspected Error List</translation></message>
+    <message><source>疑似错误状态</source><translation>Suspected Error Status</translation></message>
+    <message><source>码</source><translation>Code</translation></message>
+    <message><source>移除选中</source><translation>Remove Selected</translation></message>
+    <message><source>符号分类</source><translation>Symbol Category</translation></message>
+    <message><source>符号插入位置</source><translation>Symbol Insert Position</translation></message>
+    <message><source>符号面板</source><translation>Symbol Panel</translation></message>
+    <message><source>第 %1 张（%2）</source><translation>No. %1 (%2)</translation></message>
+    <message><source>第 %1 页：%2</source><translation>Page %1: %2</translation></message>
+    <message><source>算式</source><translation>Expression</translation></message>
+    <message><source>算式:</source><translation>Expression:</translation></message>
+    <message><source>纵向</source><translation>Portrait</translation></message>
+    <message><source>纸张</source><translation>Paper</translation></message>
+    <message><source>纸张:</source><translation>Paper:</translation></message>
+    <message><source>结果: %1 = %2</source><translation>Result: %1 = %2</translation></message>
+    <message><source>缩小到可打印</source><translation>Shrink to Printable Size</translation></message>
+    <message><source>缩放方式</source><translation>Scaling</translation></message>
+    <message><source>缩放方式:</source><translation>Scaling:</translation></message>
+    <message><source>缩放比例</source><translation>Scale</translation></message>
+    <message><source>缩放比例（%）:</source><translation>Scale (%):</translation></message>
+    <message><source>自定义宽度</source><translation>Custom Width</translation></message>
+    <message><source>自定义宽度（点）:</source><translation>Custom width (points):</translation></message>
+    <message><source>自定义纸张按下面的宽高建页，方向不生效。</source><translation>Custom paper builds the page from the width and height below; orientation does not apply.</translation></message>
+    <message><source>自定义高度</source><translation>Custom Height</translation></message>
+    <message><source>自定义高度（点）:</source><translation>Custom height (points):</translation></message>
+    <message><source>要总结的正文</source><translation>Text to Summarize</translation></message>
+    <message><source>要总结的正文:</source><translation>Text to summarize:</translation></message>
+    <message><source>要收进包里的文件:</source><translation>Files to put in the portfolio:</translation></message>
+    <message><source>要检测的文本</source><translation>Text to Inspect</translation></message>
+    <message><source>要检测的文本:</source><translation>Text to inspect:</translation></message>
+    <message><source>要点 %1 条，可以逐条生成配图。</source><translation>%1 point(s) found; you can generate an illustration for each one.</translation></message>
+    <message><source>警告（应当处理）</source><translation>Warning (should be handled)</translation></message>
+    <message><source>计算结果</source><translation>Result</translation></message>
+    <message><source>计算错误</source><translation>Calculation Error</translation></message>
+    <message><source>识别到的字</source><translation>Recognized Character</translation></message>
+    <message><source>说明</source><translation>Description</translation></message>
+    <message><source>读不了这个文件：%1</source><translation>Could not read this file: %1</translation></message>
+    <message><source>读不到文档内容。</source><translation>Could not read the document content.</translation></message>
+    <message><source>转曲失败。</source><translation>Flattening failed.</translation></message>
+    <message><source>转曲结果：每一页按设定分辨率栅格化成图片后重新写入 PDF。外观与原文件一致，但文字不能再选中或搜索，文件体积会变大。</source><translation>Flattening result: every page is rasterized to an image at the chosen resolution and written back into a PDF. The appearance matches the original, but text can no longer be selected or searched, and the file gets bigger.</translation></message>
+    <message><source>还没有文件。</source><translation>No file yet.</translation></message>
+    <message><source>还没有生成结果</source><translation>No generated result yet</translation></message>
+    <message><source>这一页没有可导出的文字层。</source><translation>This page has no exportable text layer.</translation></message>
+    <message><source>这次 PPT 讲什么</source><translation>What should this deck cover?</translation></message>
+    <message><source>这次请求被取消了。</source><translation>This request was cancelled.</translation></message>
+    <message><source>连续批注</source><translation>Continuous Annotation</translation></message>
+    <message><source>适应页面</source><translation>Fit to Page</translation></message>
+    <message><source>选择要打印的文件</source><translation>Choose the files to print</translation></message>
+    <message><source>选择要收进包里的文件</source><translation>Choose the files to put in the portfolio</translation></message>
+    <message><source>配图状态</source><translation>Illustration Status</translation></message>
+    <message><source>配图计划</source><translation>Illustration Plan</translation></message>
+    <message><source>配图计划:</source><translation>Illustration plan:</translation></message>
+    <message><source>错误（必须处理）</source><translation>Error (must be handled)</translation></message>
+    <message><source>队列里没有任务。</source><translation>There is no job in the queue.</translation></message>
+    <message><source>附加要求</source><translation>Extra Requirements</translation></message>
+    <message><source>附加要求:</source><translation>Extra requirements:</translation></message>
+    <message><source>页数</source><translation>Pages</translation></message>
+    <message><source>页数:</source><translation>Pages:</translation></message>
+    <message><source>页码</source><translation>Page Number</translation></message>
+    <message><source>页码范围</source><translation>Page Range</translation></message>
+    <message><source>页码范围:</source><translation>Page range:</translation></message>
+    <message><source>页码范围写错了：%1</source><translation>The page range is invalid: %1</translation></message>
+    <message><source>风格</source><translation>Style</translation></message>
+    <message><source>风格:</source><translation>Style:</translation></message>
+    <message><source>新建</source><translation>New</translation></message>
+    <message><source>文生图</source><translation>Text to Image</translation></message>
+    <message><source>总结配图</source><translation>Summary Illustrations</translation></message>
+    <message><source>内容检测</source><translation>Content Detection</translation></message>
+    <message><source>智能朗读</source><translation>Smart Read-Aloud</translation></message>
+    <message><source>计算器</source><translation>Calculator</translation></message>
+    <message><source>新建一份空白文档（可选纸张、方向与页数）</source><translation>Create a blank document (paper size, orientation and page count are optional)</translation></message>
+    <message><source>把多个 PDF 排成一个打印队列</source><translation>Queue several PDF files for printing</translation></message>
+    <message><source>保存与套用打印参数（份数、纸张、缩放、页范围）</source><translation>Save and reuse print settings (copies, paper, scaling, page range)</translation></message>
+    <message><source>用一句提示词生成图片，并插到当前页</source><translation>Generate an image from one prompt and insert it into the current page</translation></message>
+    <message><source>把正文压成要点，再逐条生成配图</source><translation>Condense the text into key points, then illustrate them one by one</translation></message>
+    <message><source>按主题、文档或大纲生成一套 PPT</source><translation>Generate a deck from a topic, the document, or an outline</translation></message>
+    <message><source>判断一段文字是不是 AI 写的</source><translation>Judge whether a piece of text was written by AI</translation></message>
+    <message><source>清洗正文、排成朗读分段并逐段朗读</source><translation>Clean up the text, split it into read-aloud segments and read them one by one</translation></message>
+    <message><source>算一条算式，把结果整理成批注插到当前页</source><translation>Evaluate an expression and insert the result as an annotation on the current page</translation></message>
+    <message><source>按分类挑符号，插到当前光标处</source><translation>Pick a symbol by category and insert it at the cursor</translation></message>
+    <message><source>把文字层导成一个 HTML 文件</source><translation>Export the text layer as one HTML file</translation></message>
+    <message><source>把每一页渲染成位图，写成一份新的 PDF</source><translation>Render every page as a bitmap and write a new PDF</translation></message>
+    <message><source>把文字层导成 OFD 包</source><translation>Export the text layer as an OFD package</translation></message>
+    <message><source>把当前页的文字层导成 Word 文档</source><translation>Export the text layer of the current page as a Word document</translation></message>
+    <message><source>把页面上的矢量路径导成 DXF</source><translation>Export the vector paths on the page as DXF</translation></message>
+    <message><source>把字体转成不再依赖字体的形式（视觉等价的栅格化版本）</source><translation>Turn the fonts into a form that no longer depends on them (a visually equivalent rasterized version)</translation></message>
+    <message><source>检查字体内嵌、图片分辨率、脚本等印前问题</source><translation>Check font embedding, image resolution, scripts and other preflight problems</translation></message>
+    <message><source>把若干 PDF 收进一个活页夹，或打开一个包</source><translation>Collect several PDF files into a portfolio, or open one</translation></message>
+    <message><source>列出 OCR 认错的字（只提示，不自动改）</source><translation>List characters OCR got wrong (hints only, nothing is changed automatically)</translation></message>
+    <message><source>图像化 PDF</source><translation>Image-based PDF</translation></message>
+    <message><source>生成 PPT</source><translation>Generate PPT</translation></message>
+    <message><source>到 OFD</source><translation>Export to OFD</translation></message>
+    <message><source>到 MS Office</source><translation>Export to MS Office</translation></message>
+    <message><source>到 CAD</source><translation>Export to CAD</translation></message>
+    <message><source>AI 面板还没打开。</source><translation>The AI panel is not open yet.</translation></message>
+    <message><source>PDF/UA 合规检查</source><translation>PDF/UA compliance check</translation></message>
+    <message><source>XFA 字段</source><translation>XFA fields</translation></message>
+    <message><source>从文件新建 PDF</source><translation>New PDF from a file</translation></message>
+    <message><source>写入失败，文档没有修改。</source><translation>Writing failed; the document was not changed.</translation></message>
+    <message><source>写入隐藏文字层</source><translation>Write invisible text layer</translation></message>
+    <message><source>写回图层失败，文档没有修改。</source><translation>Writing the layers back failed; the document was not changed.</translation></message>
+    <message><source>动作向导</source><translation>Action wizard</translation></message>
+    <message><source>发票打印</source><translation>Invoice printing</translation></message>
+    <message><source>发票还没填完整。</source><translation>The invoice is not filled in yet.</translation></message>
+    <message><source>图层面板</source><translation>Layer panel</translation></message>
+    <message><source>已写入注解。</source><translation>The annotation was written.</translation></message>
+    <message><source>已写回图层设置。</source><translation>The layer settings were written back.</translation></message>
+    <message><source>已导出：%1</source><translation>Exported: %1</translation></message>
+    <message><source>已送到打印机。</source><translation>Sent to the printer.</translation></message>
+    <message><source>打印机没有接受这次打印。</source><translation>The printer did not accept this print job.</translation></message>
+    <message><source>按新页宽重排</source><translation>Reflow to a new page width</translation></message>
+    <message><source>插入 3D 模型 / 多媒体</source><translation>Insert 3D model / media</translation></message>
+    <message><source>没有可以打开文件的入口。</source><translation>There is no way to open a file here.</translation></message>
+    <message><source>识别控制器不可用。</source><translation>The recognition controller is not available.</translation></message>
+    <message><source>这一步没有文件路径。</source><translation>This step has no file path.</translation></message>
+    <message><source>这个文件是空的：%1</source><translation>This file is empty: %1</translation></message>
+    <message><source>这份文档还没有识别结果：先在页面上点「识别」（OCR），再回来写隐藏文字层。</source><translation>This document has no recognition results yet: run &quot;Recognise&quot; (OCR) on the page first, then come back and write the invisible text layer.</translation></message>
+    <message><source>重排完成：%1 页。</source><translation>Reflow done: %1 page(s).</translation></message>
+    <message><source>把 txt / md / csv / json / html 转成 PDF</source><translation>Convert txt / md / csv / json / html into a PDF</translation></message>
+    <message><source>把整理、加页码、加水印等操作编排成一条流程</source><translation>Sequence existing document operations into one recipe</translation></message>
+    <message><source>填发票要素、预览版式，再打印或导出 PDF</source><translation>Fill in the invoice details, preview the layout, then print or export a PDF</translation></message>
+    <message><source>把识别结果写成不可见文字层（可搜索、可复制）</source><translation>Write the recognition result as an invisible text layer (searchable, copyable)</translation></message>
+    <message><source>段落排版</source><translation>Paragraph formatting</translation></message>
+    <message><source>按对齐、行距与缩进重排选中的段落</source><translation>Re-lay out the selected paragraph with alignment, line spacing and indents</translation></message>
+    <message><source>插入 3D 模型</source><translation>Insert 3D model</translation></message>
+    <message><source>插入一个 3D 模型注解（只写结构，本程序不渲染）</source><translation>Insert a 3D model annotation (structure only; this program does not render it)</translation></message>
+    <message><source>插入多媒体</source><translation>Insert media</translation></message>
+    <message><source>插入一个多媒体注解（只写结构，本程序不播放）</source><translation>Insert a media annotation (structure only; this program does not play it)</translation></message>
+    <message><source>按 PDF/UA 逐项检查并给出修复建议</source><translation>Check item by item against PDF/UA and suggest fixes</translation></message>
+    <message><source>列出 XFA 表单字段并导出成 CSV</source><translation>List the XFA form fields and export them as CSV</translation></message>
+    <message><source>列出文档里的图层，逐个显示或隐藏</source><translation>List the layers of the document and show or hide each one</translation></message>
+    <message><source>按新的页宽把正文重新排一遍（版面会变）</source><translation>Re-lay out the body text at a new page width (the layout changes)</translation></message>
+    <message><source>本地离线问答</source><translation>Local offline Q&amp;A</translation></message>
+    <message><source>在本地索引里检索并摘出答案（不联网、不调模型）</source><translation>Search the local index and extract the answer (no network, no model)</translation></message>
+    <message><source>读取标签树</source><translation>Read tag tree</translation></message>
+    <message><source>读出文档里的标签树（标签、页码、层级、替代文本与语言）</source><translation>Read the tag tree of the document (tags, pages, depth, alternative text and language)</translation></message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -2251,7 +2596,11 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>未打开文档</source>
             <translation>No document open</translation>
         </message>
-    </context>
+    
+    <message><source>点击页面选择箭头指向的位置</source><translation>Click the page to choose where the arrow points</translation></message>
+    <message><source>请在同一个页面上选择箭头指向的位置</source><translation>Choose the arrow target on the same page</translation></message>
+    <message><source>已取消箭头框</source><translation>Callout cancelled</translation></message>
+</context>
     <context>
         <name>aipdf::app::PdfView</name>
         <message>
@@ -3715,8 +4064,7 @@ Write them into the document?</translation>
             <translation>Signature field</translation>
         </message>
         <message>
-            <source>签署人</source>
-            <translation>Signer</translation>
+            <source>签署人</source><translation>Signer</translation>
         </message>
         <message>
             <source>签署时间</source>
@@ -3898,6 +4246,147 @@ Write them into the document?</translation>
             <source>会按「从上到下、从左到右」的顺序给整篇文档写一份标签树。页面外观不变，但读屏软件会按这个顺序念。继续吗？</source>
             <translation>A tag tree will be written for the whole document in "top to bottom, left to right" order. The pages look the same, but a screen reader will read them in that order. Continue?</translation>
         </message>
+    <message><source>页码标签</source><translation>Page labels</translation></message>
+    <message><source>阿拉伯数字 (1, 2, 3)</source><translation>Arabic numerals (1, 2, 3)</translation></message>
+    <message><source>大写罗马 (I, II, III)</source><translation>Uppercase Roman numerals (I, II, III)</translation></message>
+    <message><source>小写罗马 (i, ii, iii)</source><translation>Lowercase Roman numerals (i, ii, iii)</translation></message>
+    <message><source>大写字母 (A, B, C)</source><translation>Uppercase letters (A, B, C)</translation></message>
+    <message><source>小写字母 (a, b, c)</source><translation>Lowercase letters (a, b, c)</translation></message>
+    <message><source>前缀（例如 A-）</source><translation>Prefix (for example A-)</translation></message>
+    <message><source>已写入页码标签</source><translation>Page labels written</translation></message>
+    <message><source>命名位置</source><translation>Named destinations</translation></message>
+    <message><source>给当前页起一个名字，之后可以按名字跳回来。</source><translation>Give the current page a name so you can jump back to it later.</translation></message>
+    <message><source>名称（例如 封面）</source><translation>Name (for example Cover)</translation></message>
+    <message><source>跳转到所选</source><translation>Jump to selected</translation></message>
+    <message><source>已写入命名位置：%1</source><translation>Named destination written: %1</translation></message>
+    <message><source>批处理</source><translation>Batch processing</translation></message>
+    <message><source>选一个目录，把里面的 PDF 依次处理一遍，结束时给一份 JSON 报告。</source><translation>Pick a folder, process every PDF in it one by one, and get a JSON report at the end.</translation></message>
+    <message><source>选择目录…</source><translation>Choose folder…</translation></message>
+    <message><source>选择要批处理的目录</source><translation>Choose the folder to process</translation></message>
+    <message><source>输出目录（留空则只跑处理、不落盘）</source><translation>Output folder (leave empty to process without writing files)</translation></message>
+    <message><source>移除嵌入文件</source><translation>Remove embedded files</translation></message>
+    <message><source>什么也不做（只出报告）</source><translation>Do nothing (report only)</translation></message>
+    <message><source>先选一个目录。</source><translation>Choose a folder first.</translation></message>
+    <message><source>这个目录里没有 PDF。</source><translation>There are no PDFs in this folder.</translation></message>
+    <message><source>至少勾一个处理步骤。</source><translation>Check at least one processing step.</translation></message>
+    <message><source>开始</source><translation>Start</translation></message>
+    <message><source>批处理完成：成功 %1，失败 %2</source><translation>Batch finished: %1 succeeded, %2 failed</translation></message>
+    <message><source>已合并 %1 份文件：共 %2 页</source><translation>Merged %1 files: %2 pages total</translation></message>
+    <message><source>打不开 %1：%2</source><translation>Cannot open %1: %2</translation></message>
+    <message><source>读不出 %1：%2</source><translation>Cannot read %1: %2</translation></message>
+    <message><source>合并结果校验失败：%1</source><translation>The merged result failed validation: %1</translation></message>
+    <message><source>箭头框</source><translation>Callout</translation></message>
+    <message><source>箭头框生成失败。</source><translation>Failed to generate the callout.</translation></message>
+    <message><source>箭头框没有添加成功</source><translation>The callout could not be added</translation></message>
+    <message><source>已添加箭头框</source><translation>Callout added</translation></message>
+    <message><source>区域高亮</source><translation>Region highlight</translation></message>
+    <message><source>区域高亮至少需要 3 个顶点</source><translation>A region highlight needs at least 3 points</translation></message>
+    <message><source>这个区域自交了（轮廓自己交叉），画不出高亮，请重新圈一次。</source><translation>This region is self-intersecting, so it cannot be highlighted. Please draw it again.</translation></message>
+    <message><source>区域高亮生成失败。</source><translation>Failed to generate the region highlight.</translation></message>
+    <message><source>区域高亮没有添加成功</source><translation>The region highlight could not be added</translation></message>
+    <message><source>已添加区域高亮</source><translation>Region highlight added</translation></message>
+    <message><source>纯文本查看器</source><translation>Plain text viewer</translation></message>
+    <message><source>纯文本查看器 - 第 %1 页</source><translation>Plain text viewer - page %1</translation></message>
+    <message><source>纯文本查看器 - 整篇</source><translation>Plain text viewer - whole document</translation></message>
+    <message><source>这一页没有可提取的文字。</source><translation>This page has no extractable text.</translation></message>
+    <message><source>这份文档没有可提取的文字。</source><translation>This document has no extractable text.</translation></message>
+    <message><source>密码学判定</source><translation>Cryptographic verdict</translation></message>
+    <message><source>密码学判定：%1</source><translation>Cryptographic verdict: %1</translation></message>
+    <message><source>签名有效</source><translation>Signature valid</translation></message>
+    <message><source>签名无效</source><translation>Signature invalid</translation></message>
+    <message><source>无法判定</source><translation>Cannot be determined</translation></message>
+    <message><source>摘要算法：%1</source><translation>Digest algorithm: %1</translation></message>
+    <message><source>内容摘要一致：%1</source><translation>Content digest matches: %1</translation></message>
+    <message><source>签名者：%1</source><translation>Signer: %1</translation></message>
+    <message><source>签名者主体：%1</source><translation>Signer subject: %1</translation></message>
+    <message><source>时间戳：%1</source><translation>Timestamp: %1</translation></message>
+    <message><source>时间戳机构：%1</source><translation>Timestamp authority: %1</translation></message>
+    <message><source>是</source><translation>Yes</translation></message>
+    <message><source>否</source><translation>No</translation></message>
+    <message><source>签署流程</source><translation>Signing workflow</translation></message>
+    <message><source>标题</source><translation>Title</translation></message>
+    <message><source>发起人</source><translation>Initiator</translation></message>
+    <message><source>草稿</source><translation>Draft</translation></message>
+    <message><source>进行中</source><translation>In progress</translation></message>
+    <message><source>已完成</source><translation>Completed</translation></message>
+    <message><source>已中止</source><translation>Aborted</translation></message>
+    <message><source>（还没有签署人）</source><translation>(No signatories yet)</translation></message>
+    <message><source>姓名</source><translation>Name</translation></message>
+    <message><source>联系方式</source><translation>Contact</translation></message>
+    <message><source>顺序</source><translation>Order</translation></message>
+    <message><source>自动</source><translation>Auto</translation></message>
+    <message><source>待签署</source><translation>Pending</translation></message>
+    <message><source>已签署</source><translation>Signed</translation></message>
+    <message><source>已拒签</source><translation>Rejected</translation></message>
+    <message><source>已跳过</source><translation>Skipped</translation></message>
+    <message><source>添加签署人</source><translation>Add signatory</translation></message>
+    <message><source>删除签署人</source><translation>Remove signatory</translation></message>
+    <message><source>先选中要删除的签署人。</source><translation>Select the signatory to remove first.</translation></message>
+    <message><source>签署人 %1 不能删除：签署记录要保留完整名单。</source><translation>Signatory %1 cannot be removed: the signing record keeps the full list.</translation></message>
+    <message><source>开始签署</source><translation>Start signing</translation></message>
+    <message><source>标记已签</source><translation>Mark as signed</translation></message>
+    <message><source>标记拒签</source><translation>Mark as rejected</translation></message>
+    <message><source>跳过</source><translation>Skip</translation></message>
+    <message><source>完成</source><translation>Complete</translation></message>
+    <message><source>中止</source><translation>Abort</translation></message>
+    <message><source>没有待签署的人。</source><translation>Nobody is pending signature.</translation></message>
+    <message><source>拒签理由（必填）</source><translation>Reason for rejection (required)</translation></message>
+    <message><source>拒签必须写理由。</source><translation>Rejecting requires a reason.</translation></message>
+    <message><source>中止理由（必填）</source><translation>Reason for aborting (required)</translation></message>
+    <message><source>中止必须写理由。</source><translation>Aborting requires a reason.</translation></message>
+    <message><source>操作没有成功。</source><translation>The operation did not succeed.</translation></message>
+    <message><source>创建签署流程失败。</source><translation>Failed to create the signing workflow.</translation></message>
+    <message><source>签署记录</source><translation>Signing record</translation></message>
+    <message><source>（还没有签署记录）</source><translation>(No signing records yet)</translation></message>
+    <message><source>时间</source><translation>Time</translation></message>
+    <message><source>谁</source><translation>Who</translation></message>
+    <message><source>做了什么</source><translation>Action</translation></message>
+    <message><source>说明</source><translation>Detail</translation></message>
+    <message><source>创建流程</source><translation>Workflow created</translation></message>
+    <message><source>签署完成</source><translation>Signed</translation></message>
+    <message><source>拒签</source><translation>Rejected</translation></message>
+    <message><source>完成流程</source><translation>Workflow completed</translation></message>
+    <message><source>中止流程</source><translation>Workflow aborted</translation></message>
+    <message><source>签署报告</source><translation>Signing report</translation></message>
+    <message><source>查看签署报告</source><translation>View signing report</translation></message>
+    <message><source>复制到剪贴板</source><translation>Copy to clipboard</translation></message>
+    <message><source>导出为文本文件</source><translation>Export as text file</translation></message>
+    <message><source>导出签署报告</source><translation>Export signing report</translation></message>
+    <message><source>（未知）</source><translation>(unknown)</translation></message>
+    <message><source>签署人名单</source><translation>Signatories</translation></message>
+    <message><source>新增签署人</source><translation>Signatory added</translation></message>
+    <message><source>开始签署流程</source><translation>Signing started</translation></message>
+    <message><source>跳过签署</source><translation>Skipped</translation></message>
+    <message><source>已关闭连续批注</source><translation>Continuous annotation off</translation></message>
+    <message><source>已开启连续批注：放完批注不切回选择工具</source><translation>Continuous annotation on: the tool stays selected after placing an annotation</translation></message>
+    <message><source>已把生成的图片插入当前页</source><translation>The generated image was inserted into the current page</translation></message>
+    <message><source>已插入文本批注</source><translation>Text annotation inserted</translation></message>
+    <message><source>插入图片失败</source><translation>Could not insert the image</translation></message>
+    <message><source>插入文本批注失败</source><translation>Could not insert the text annotation</translation></message>
+    <message><source>智能朗读</source><translation>Smart Read-Aloud</translation></message>
+    <message><source>智能朗读结束</source><translation>Smart read-aloud finished</translation></message>
+    <message><source>智能朗读：%1 段，预计 %2 秒</source><translation>Smart read-aloud: %1 segment(s), about %2 seconds</translation></message>
+    <message><source>生成结果不是一张可用的图片</source><translation>The generated result is not a usable image</translation></message>
+    <message><source>读取文档内容失败。</source><translation>Could not read the document content.</translation></message>
+    <message><source>这一页放不下这个文本框</source><translation>This text box does not fit on this page</translation></message>
+    <message><source>先选中一段文字。</source><translation>Select some text first.</translation></message>
+    <message><source>加水印失败。</source><translation>Adding the watermark failed.</translation></message>
+    <message><source>加页码失败。</source><translation>Adding page numbers failed.</translation></message>
+    <message><source>动作向导还没有接这一步：%1。请用对应的功能入口单独做。</source><translation>The action wizard does not handle this step yet: %1. Use the matching feature entry instead.</translation></message>
+    <message><source>已按段落参数重排 %1 个文字对象</source><translation>Re-laid out %1 text object(s) with the paragraph parameters</translation></message>
+    <message><source>文档标签树</source><translation>Document tag tree</translation></message>
+    <message><source>新的内容是空的，文档没有修改。</source><translation>The new content is empty; the document was not changed.</translation></message>
+    <message><source>本程序的水印只能放在页面正中（position 只支持 center）。</source><translation>This program can only put a watermark in the centre of the page (position only supports center).</translation></message>
+    <message><source>本程序的页码从第 1 页开始（startNumber 只支持 1）。</source><translation>Page numbers in this program start at page 1 (startNumber only supports 1).</translation></message>
+    <message><source>本程序的页码只能放在右下角（position 只支持 bottomRight）。</source><translation>This program can only put page numbers at the bottom right (position only supports bottomRight).</translation></message>
+    <message><source>段落排版</source><translation>Paragraph formatting</translation></message>
+    <message><source>水印这一步没有文字。</source><translation>This watermark step has no text.</translation></message>
+    <message><source>没有生成可写入的内容流。</source><translation>No writable content stream was produced.</translation></message>
+    <message><source>没能移除原来的文字对象，文档没有修改。</source><translation>The original text objects could not be removed; the document was not changed.</translation></message>
+    <message><source>读不到文档内容。</source><translation>The document content could not be read.</translation></message>
+    <message><source>读不到文档内容，文档没有修改。</source><translation>The document content could not be read; the document was not changed.</translation></message>
+    <message><source>读取文档标签树</source><translation>Read the document tag tree</translation></message>
+    <message><source>选区内没有可排版的文字。</source><translation>There is no text to lay out in the selection.</translation></message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -5482,5 +5971,268 @@ AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
             <source>输入的 PDF 内容为空</source>
             <translation>The input PDF is empty</translation>
         </message>
+</context>
+<context>
+    <name>aipdf::app::LastWaveBridge</name>
+    <message><source>
+%1</source><translation>
+%1</translation></message>
+    <message><source>
+另外有 %1 段里的字符标准 14 字体显示不了，已写成占位符。</source><translation>
+In addition, %1 paragraph(s) contain characters the standard 14 fonts cannot show; they were written as placeholders.</translation></message>
+    <message><source>
+提醒：%1</source><translation>
+Warning: %1</translation></message>
+    <message><source>
+有 %1 项内容没有搬过去（见下方清单）。</source><translation>
+%1 item(s) were not carried over (see the list below).</translation></message>
+    <message><source>
+说明：%1</source><translation>
+Notes: %1</translation></message>
+    <message><source> %1</source><translation> %1</translation></message>
+    <message><source> [%1]</source><translation> [%1]</translation></message>
+    <message><source> 值：%1</source><translation> value: %1</translation></message>
+    <message><source> 实际文字：%1</source><translation> Actual text: %1</translation></message>
+    <message><source> 建议：%1</source><translation> Suggestion: %1</translation></message>
+    <message><source> 必填</source><translation> required</translation></message>
+    <message><source> 替代文本：%1</source><translation> Alternative text: %1</translation></message>
+    <message><source> 正文：%1</source><translation> Body text: %1</translation></message>
+    <message><source> 用途：%1</source><translation> Intent: %1</translation></message>
+    <message><source> 语言：%1</source><translation> Language: %1</translation></message>
+    <message><source> 顺序：%1</source><translation> Order: %1</translation></message>
+    <message><source>%</source><translation>%</translation></message>
+    <message><source>%1 倍</source><translation>%1x</translation></message>
+    <message><source>-</source><translation>-</translation></message>
+    <message><source>[%1] 第 %2 页：%3</source><translation>[%1] page %2: %3</translation></message>
+    <message><source>两端对齐</source><translation>Justify</translation></message>
+    <message><source>共 %1 个图层。</source><translation>%1 layer(s) in total.</translation></message>
+    <message><source>共 %1 步：执行 %2 步，成功 %3 步，失败 %4 步，因前一步失败没执行 %5 步。</source><translation>%1 step(s) in total: %2 executed, %3 succeeded, %4 failed, %5 not executed because an earlier step failed.</translation></message>
+    <message><source>写入不可见文字层失败（领域层没有给出原因）。</source><translation>Writing the invisible text layer failed (the domain layer gave no reason).</translation></message>
+    <message><source>写回是按上表的图层定义整体重写 /OCProperties：原来标到图层上的内容流标记不会被重建。</source><translation>Writing back rewrites /OCProperties as a whole from the layer list above: content stream markers that used to point at layers are not rebuilt.</translation></message>
+    <message><source>动作向导只编排本程序已有的文档级操作（合并、加页码、加水印、加密、转换格式等），不是脚本引擎，也不会执行文档里的脚本。</source><translation>The action wizard only sequences document-level operations this program already has (merge, page numbers, watermark, encryption, format conversion and so on); it is not a script engine and never runs scripts from the document.</translation></message>
+    <message><source>右对齐</source><translation>Right</translation></message>
+    <message><source>固定 %1 点</source><translation>fixed %1 pt</translation></message>
+    <message><source>字号 %1 点；行距 %2；%3；首行缩进 %4 点；左缩进 %5 点；右缩进 %6 点。</source><translation>Font size %1 pt; line spacing %2; %3; first line indent %4 pt; left indent %5 pt; right indent %6 pt.</translation></message>
+    <message><source>居中</source><translation>Centre</translation></message>
+    <message><source>左对齐</source><translation>Left</translation></message>
+    <message><source>已写入不可见文字层，现在可以搜索/复制这页文字了。共 %1 页、%2 个字符。</source><translation>The invisible text layer was written; this page can now be searched and copied. %1 page(s), %2 character(s).</translation></message>
+    <message><source>已嵌入你选的字体，中文按嵌入字形显示。</source><translation>The font you picked is embedded; Chinese text uses the embedded glyphs.</translation></message>
+    <message><source>已生成 %1 页。</source><translation>%1 page(s) generated.</translation></message>
+    <message><source>文档语言：%1。</source><translation>Document language: %1.</translation></message>
+    <message><source>文档语言：文件里没有写。</source><translation>Document language: not written in the file.</translation></message>
+    <message><source>有 %1 个字符无法显示，已替换（默认用标准 14 字体，它没有中文字形；要正确显示中文请用「选择字体文件」选一份 TTF）。</source><translation>%1 character(s) cannot be shown and were replaced (the standard 14 fonts have no Chinese glyphs; use &quot;Select a font file&quot; to pick a TTF so Chinese shows correctly).</translation></message>
+    <message><source>本地索引里没找到相关内容。</source><translation>Nothing related was found in the local index.</translation></message>
+    <message><source>本程序只写对 3D 与多媒体注解的结构，不渲染 3D、不解码音视频；要让模型动起来或把视频放出来，得用带相应运行时的阅读器。</source><translation>This program only writes the structure of 3D and media annotations; it does not render 3D and does not decode audio or video. A reader with the matching runtime is needed to move the model or play the video.</translation></message>
+    <message><source>没有地方可以放转换结果。</source><translation>There is nowhere to put the conversion result.</translation></message>
+    <message><source>沿用发票上的税率</source><translation>keep the tax rate on the invoice</translation></message>
+    <message><source>用标准 14 字体排版（没有嵌入字体）。</source><translation>Laid out with the standard 14 fonts (no embedded font).</translation></message>
+    <message><source>第 %1 步（%2）失败：%3</source><translation>Step %1 (%2) failed: %3</translation></message>
+    <message><source>第 %1 页：%2</source><translation>Page %1: %2</translation></message>
+    <message><source>第 %1 页：%2（涉及图层：%3）</source><translation>Page %1: %2 (layers involved: %3)</translation></message>
+    <message><source>结论：不合规（通过 %1 项、警告 %2 项、不通过 %3 项）。</source><translation>Verdict: not compliant (%1 passed, %2 warnings, %3 failed).</translation></message>
+    <message><source>结论：合规（通过 %1 项、警告 %2 项、不通过 %3 项）。</source><translation>Verdict: compliant (%1 passed, %2 warnings, %3 failed).</translation></message>
+    <message><source>识别结果有 %1 页，文档有 %2 页（相差 %3 页）。</source><translation>The recognition result has %1 page(s) but the document has %2 (a difference of %3 page(s)).</translation></message>
+    <message><source>读到 %1 个 XFA 字段（跳过 %2 个没有名字的）。</source><translation>%1 XFA field(s) read (%2 without a name were skipped).</translation></message>
+    <message><source>读到标签树：%1 个结构元素。</source><translation>Tag tree read: %1 structure element(s).</translation></message>
+    <message><source>读回：%1 个 3D 注解、%2 个多媒体注解。</source><translation>Read back: %1 3D annotation(s), %2 media annotation(s).</translation></message>
+    <message><source>这一步没有执行。</source><translation>This step was not executed.</translation></message>
+    <message><source>这一页的识别被取消了。</source><translation>Recognition of this page was cancelled.</translation></message>
+    <message><source>这个检查器只做检查并给出修复建议，不会生成 PDF/UA 合规文件。</source><translation>This checker only checks and suggests fixes; it does not produce a PDF/UA compliant file.</translation></message>
+    <message><source>这份 XFA 含动态逻辑（%1）：本程序只做静态字段提取，不执行脚本，表单在阅读器里的实际行为取决于那些脚本。</source><translation>This XFA contains dynamic logic (%1): this program only extracts static fields and does not run scripts; how the form behaves in a reader depends on those scripts.</translation></message>
+    <message><source>这份文档不是 XFA 表单（没有 /XFA 数据）。</source><translation>This document is not an XFA form (no /XFA data).</translation></message>
+    <message><source>这份文档没有图层（没有 /OCProperties）。</source><translation>This document has no layers (no /OCProperties).</translation></message>
+    <message><source>这份文档没有标签树（文件里没有 /StructTreeRoot）。</source><translation>This document has no tag tree (no /StructTreeRoot in the file).</translation></message>
+    <message><source>重排会改变版面：页数会变，图表与表格的位置会变，页眉页脚不会搬过来，图形、表格与公式不会重排。</source><translation>Reflowing changes the layout: the page count changes, figures and tables move, headers and footers are not carried over, and graphics, tables and formulas are not reflowed.</translation></message>
+    <message><source>重排完成：原来 %1 页，现在 %2 页；重排了 %3 段正文。</source><translation>Reflow done: %1 page(s) before, %2 page(s) now; %3 body block(s) reflowed.</translation></message>
+    <message><source>重新识别会替换上一次写入的隐藏文字层（不是再叠一层）：两层叠在同一坐标上时，阅读器只会保留其中一层。</source><translation>Recognising again replaces the hidden text layer written last time (it is not stacked): with two layers at the same coordinates a reader keeps only one of them.</translation></message>
+    <message><source>（%1）</source><translation>(%1)</translation></message>
+    <message><source>（原第 %1 页）</source><translation>(page %1 of the original)</translation></message>
+    <message><source>（层级 %1）</source><translation>(depth %1)</translation></message>
+    <message><source>（无标签）</source><translation>(no tag)</translation></message>
+    <message><source>（第 %1 页，层级 %2）</source><translation>(page %1, depth %2)</translation></message>
+    <message><source>（默认可见）</source><translation>(visible by default)</translation></message>
+    <message><source>（默认隐藏）</source><translation>(hidden by default)</translation></message>
+    <message><source>：%1</source><translation>: %1</translation></message>
+</context>
+
+<context>
+    <name>aipdf::app::LastWavePanels</name>
+    <message><source>0 位</source><translation>0 digits</translation></message>
+    <message><source>2 位</source><translation>2 digits</translation></message>
+    <message><source>3 位</source><translation>3 digits</translation></message>
+    <message><source>3D 模型（U3D）</source><translation>3D model (U3D)</translation></message>
+    <message><source>CSV 文件 (*.csv)</source><translation>CSV files (*.csv)</translation></message>
+    <message><source>PDF/UA 合规检查</source><translation>PDF/UA compliance check</translation></message>
+    <message><source>X</source><translation>X</translation></message>
+    <message><source>XFA 字段</source><translation>XFA fields</translation></message>
+    <message><source>XFA 字段列表</source><translation>XFA field list</translation></message>
+    <message><source>XFA 摘要</source><translation>XFA summary</translation></message>
+    <message><source>Y</source><translation>Y</translation></message>
+    <message><source>上移</source><translation>Move up</translation></message>
+    <message><source>下移</source><translation>Move down</translation></message>
+    <message><source>不通过</source><translation>Failed</translation></message>
+    <message><source>从文件新建 PDF</source><translation>New PDF from a file</translation></message>
+    <message><source>保存为 PDF…</source><translation>Save as PDF…</translation></message>
+    <message><source>倍数</source><translation>Multiple</translation></message>
+    <message><source>值</source><translation>Value</translation></message>
+    <message><source>先选一个文件。</source><translation>Choose a file first.</translation></message>
+    <message><source>先选一个源文件。</source><translation>Choose a source file first.</translation></message>
+    <message><source>写不了这个文件：%1</source><translation>Cannot write this file: %1</translation></message>
+    <message><source>写入结果</source><translation>Write result</translation></message>
+    <message><source>写回文档</source><translation>Write back to the document</translation></message>
+    <message><source>写回说明</source><translation>Write-back notice</translation></message>
+    <message><source>删除一行</source><translation>Delete row</translation></message>
+    <message><source>删除这一步</source><translation>Delete this step</translation></message>
+    <message><source>动作向导</source><translation>Action wizard</translation></message>
+    <message><source>动作类型</source><translation>Action type</translation></message>
+    <message><source>动态 XFA 提示</source><translation>Dynamic XFA notice</translation></message>
+    <message><source>单价</source><translation>Unit price</translation></message>
+    <message><source>单位</source><translation>Unit</translation></message>
+    <message><source>参数名</source><translation>Parameter name</translation></message>
+    <message><source>发 票</source><translation>INVOICE</translation></message>
+    <message><source>发票号码</source><translation>Invoice number</translation></message>
+    <message><source>发票打印</source><translation>Invoice printing</translation></message>
+    <message><source>发票要素不完整。</source><translation>The invoice is incomplete.</translation></message>
+    <message><source>右缩进</source><translation>Right indent</translation></message>
+    <message><source>右缩进（点）</source><translation>Right indent (points)</translation></message>
+    <message><source>合规结论</source><translation>Compliance conclusion</translation></message>
+    <message><source>合计 %1；税额 %2；价税合计 %3</source><translation>Subtotal %1; tax %2; grand total %3</translation></message>
+    <message><source>名称</source><translation>Name</translation></message>
+    <message><source>向导名</source><translation>Recipe name</translation></message>
+    <message><source>否</source><translation>No</translation></message>
+    <message><source>固定磅值</source><translation>Fixed points</translation></message>
+    <message><source>图层列表</source><translation>Layer list</translation></message>
+    <message><source>图层摘要</source><translation>Layer summary</translation></message>
+    <message><source>图层面板</source><translation>Layer panel</translation></message>
+    <message><source>多媒体（音频 / 视频 / 图片）</source><translation>Media (audio / video / image)</translation></message>
+    <message><source>字体文件</source><translation>Font file</translation></message>
+    <message><source>字体文件 (*.ttf *.ttc)</source><translation>Font files (*.ttf *.ttc)</translation></message>
+    <message><source>字体文件（可选，TTF）</source><translation>Font file (optional, TTF)</translation></message>
+    <message><source>字号</source><translation>Font size</translation></message>
+    <message><source>字号（点）</source><translation>Font size (points)</translation></message>
+    <message><source>字符串</source><translation>String</translation></message>
+    <message><source>字符串列表</source><translation>String list</translation></message>
+    <message><source>实际文字</source><translation>Actual text</translation></message>
+    <message><source>宽</source><translation>Width</translation></message>
+    <message><source>对齐</source><translation>Alignment</translation></message>
+    <message><source>导出 PDF</source><translation>Export PDF</translation></message>
+    <message><source>导出 XFA 字段</source><translation>Export XFA fields</translation></message>
+    <message><source>导出字段 CSV</source><translation>Export fields as CSV</translation></message>
+    <message><source>小数</source><translation>Decimal</translation></message>
+    <message><source>小数位</source><translation>Decimal places</translation></message>
+    <message><source>层级</source><translation>Depth</translation></message>
+    <message><source>左缩进</source><translation>Left indent</translation></message>
+    <message><source>左缩进（点）</source><translation>Left indent (points)</translation></message>
+    <message><source>币种</source><translation>Currency</translation></message>
+    <message><source>布尔</source><translation>Boolean</translation></message>
+    <message><source>建议</source><translation>Suggestion</translation></message>
+    <message><source>开票日期</source><translation>Issue date</translation></message>
+    <message><source>当前值</source><translation>Current value</translation></message>
+    <message><source>必填</source><translation>Required</translation></message>
+    <message><source>我知道重排会改变版面（页数、图表位置都会变）</source><translation>I understand that reflowing changes the layout (page count and figure positions change)</translation></message>
+    <message><source>打印</source><translation>Print</translation></message>
+    <message><source>执行结果</source><translation>Run result</translation></message>
+    <message><source>抬头</source><translation>Title</translation></message>
+    <message><source>按新页宽重排</source><translation>Reflow to a new page width</translation></message>
+    <message><source>按页宽自动算</source><translation>Computed from the page width</translation></message>
+    <message><source>排成 %1 行%s</source><translation>Laid out as %1 line(s)%s</translation></message>
+    <message><source>排版</source><translation>Lay out</translation></message>
+    <message><source>排版失败：%1</source><translation>Layout failed: %1</translation></message>
+    <message><source>排版结果</source><translation>Layout result</translation></message>
+    <message><source>插入</source><translation>Insert</translation></message>
+    <message><source>插入 3D 模型 / 多媒体</source><translation>Insert 3D model / media</translation></message>
+    <message><source>数量</source><translation>Quantity</translation></message>
+    <message><source>整数</source><translation>Integer</translation></message>
+    <message><source>文件</source><translation>File</translation></message>
+    <message><source>文件路径</source><translation>File path</translation></message>
+    <message><source>文本文件 (*.txt *.md *.csv *.json *.html *.htm)</source><translation>Text files (*.txt *.md *.csv *.json *.html *.htm)</translation></message>
+    <message><source>文档标签树</source><translation>Document tag tree</translation></message>
+    <message><source>新页宽</source><translation>New page width</translation></message>
+    <message><source>新页宽（点）</source><translation>New page width (points)</translation></message>
+    <message><source>新页高</source><translation>New page height</translation></message>
+    <message><source>新页高（点，0 = 自动）</source><translation>New page height (points, 0 = automatic)</translation></message>
+    <message><source>是</source><translation>Yes</translation></message>
+    <message><source>替代文本</source><translation>Alternative text</translation></message>
+    <message><source>标签</source><translation>Label</translation></message>
+    <message><source>标签树元素</source><translation>Tag tree elements</translation></message>
+    <message><source>标签树摘要</source><translation>Tag tree summary</translation></message>
+    <message><source>标题</source><translation>Title</translation></message>
+    <message><source>校验没通过：%1</source><translation>Validation failed: %1</translation></message>
+    <message><source>校验结果</source><translation>Validation result</translation></message>
+    <message><source>检查器能力说明</source><translation>Checker scope</translation></message>
+    <message><source>正文</source><translation>Body text</translation></message>
+    <message><source>步骤列表</source><translation>Step list</translation></message>
+    <message><source>步骤参数</source><translation>Step parameters</translation></message>
+    <message><source>段落</source><translation>Paragraph</translation></message>
+    <message><source>段落参数</source><translation>Paragraph parameters</translation></message>
+    <message><source>段落排版</source><translation>Paragraph formatting</translation></message>
+    <message><source>没有搬过去的内容</source><translation>Content that was not carried over</translation></message>
+    <message><source>没有页面级覆盖：所有页共用同一套图层可见性。</source><translation>No page-level overrides: every page uses the same layer visibility.</translation></message>
+    <message><source>注解类型</source><translation>Annotation type</translation></message>
+    <message><source>添加一行</source><translation>Add row</translation></message>
+    <message><source>添加这一步</source><translation>Add this step</translation></message>
+    <message><source>源文件</source><translation>Source file</translation></message>
+    <message><source>源文件（txt / md / csv / json / html）</source><translation>Source file (txt / md / csv / json / html)</translation></message>
+    <message><source>版式预览</source><translation>Layout preview</translation></message>
+    <message><source>版面变化说明</source><translation>Layout change notice</translation></message>
+    <message><source>目标框（PDF 用户空间，左下原点）</source><translation>Target box (PDF user space, origin at the bottom left)</translation></message>
+    <message><source>码</source><translation>Code</translation></message>
+    <message><source>确认版面会变</source><translation>Confirm the layout changes</translation></message>
+    <message><source>税率</source><translation>Tax rate</translation></message>
+    <message><source>税率（%）</source><translation>Tax rate (%)</translation></message>
+    <message><source>类型</source><translation>Type</translation></message>
+    <message><source>给这份编排起个名字</source><translation>Name this recipe</translation></message>
+    <message><source>能力说明</source><translation>Scope</translation></message>
+    <message><source>行距</source><translation>Line spacing</translation></message>
+    <message><source>行距口径</source><translation>Line spacing mode</translation></message>
+    <message><source>行距（倍）</source><translation>Line spacing (multiple)</translation></message>
+    <message><source>行项目</source><translation>Line items</translation></message>
+    <message><source>要排的文字</source><translation>Text to lay out</translation></message>
+    <message><source>规格</source><translation>Specification</translation></message>
+    <message><source>警告</source><translation>Warning</translation></message>
+    <message><source>语言</source><translation>Language</translation></message>
+    <message><source>说明</source><translation>Detail</translation></message>
+    <message><source>读不了这个字体文件：%1</source><translation>Cannot read this font file: %1</translation></message>
+    <message><source>读不了这个文件：%1</source><translation>Cannot read this file: %1</translation></message>
+    <message><source>购买方名称</source><translation>Buyer name</translation></message>
+    <message><source>购买方税号</source><translation>Buyer tax ID</translation></message>
+    <message><source>转换</source><translation>Convert</translation></message>
+    <message><source>转换失败。</source><translation>Conversion failed.</translation></message>
+    <message><source>转换结果说明</source><translation>Conversion result notice</translation></message>
+    <message><source>运行</source><translation>Run</translation></message>
+    <message><source>这个字体文件是空的：%1</source><translation>This font file is empty: %1</translation></message>
+    <message><source>这份 XFA 没有动态逻辑：字段都是静态的。</source><translation>This XFA has no dynamic logic: every field is static.</translation></message>
+    <message><source>选择字体文件</source><translation>Select a font file</translation></message>
+    <message><source>选择字体文件…</source><translation>Select a font file…</translation></message>
+    <message><source>选择文件</source><translation>Select a file</translation></message>
+    <message><source>选择文件…</source><translation>Select a file…</translation></message>
+    <message><source>选择源文件</source><translation>Select a source file</translation></message>
+    <message><source>通过</source><translation>Passed</translation></message>
+    <message><source>重排</source><translation>Reflow</translation></message>
+    <message><source>重排会改变版面：请先勾选「我知道重排会改变版面」。</source><translation>Reflowing changes the layout: tick &quot;I understand that reflowing changes the layout&quot; first.</translation></message>
+    <message><source>重排结果</source><translation>Reflow result</translation></message>
+    <message><source>销售方名称</source><translation>Seller name</translation></message>
+    <message><source>销售方税号</source><translation>Seller tax ID</translation></message>
+    <message><source>页码</source><translation>Page</translation></message>
+    <message><source>页面级覆盖</source><translation>Page-level overrides</translation></message>
+    <message><source>页面级覆盖：
+%1</source><translation>Page-level overrides:
+%1</translation></message>
+    <message><source>首行缩进</source><translation>First line indent</translation></message>
+    <message><source>首行缩进（点）</source><translation>First line indent (points)</translation></message>
+    <message><source>高</source><translation>Height</translation></message>
+    <message><source>默认用标准 14 字体：它没有中文字形，中文会变成问号。</source><translation>The standard 14 fonts are used by default: they have no Chinese glyphs, so Chinese text turns into question marks.</translation></message>
+    <message><source>（没有内容被丢掉）</source><translation>(Nothing was dropped)</translation></message>
+    <message><source>，有文字没排进去</source><translation>, some text did not fit</translation></message>
+</context>
+
+<context>
+    <name>aipdf::app::LastWaveWriter</name>
+    <message><source>qpdf 写入失败：%1</source><translation>qpdf failed to write: %1</translation></message>
+    <message><source>qpdf 没有写出内容。</source><translation>qpdf wrote nothing.</translation></message>
+    <message><source>内容流是空的，没有东西可写。</source><translation>The content stream is empty; there is nothing to write.</translation></message>
+    <message><source>本次构建没有启用 qpdf，往页面追加内容流不可用。</source><translation>This build has no qpdf, so appending a content stream to a page is not available.</translation></message>
+    <message><source>没有可写入的 PDF 内容。</source><translation>There is no PDF content to write.</translation></message>
+    <message><source>页码超出范围：%1</source><translation>Page number out of range: %1</translation></message>
 </context>
 </TS>

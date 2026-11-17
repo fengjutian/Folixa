@@ -48,6 +48,7 @@ class AiPanel;
 class RibbonBar;
 class NavigationController;
 class AnnotationController;
+class WiringActions;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -171,6 +172,8 @@ private:
     void checkRecovery();
     // 当前标签页的文档视图；不是文档页时返回 nullptr。
     PdfView* currentView() const;
+    // 切换阅读配色（夜间 / 护眼 / 高对比）。
+    void changeReadingScheme();
     // 目录树里点到某个条目：跳到它的目标页。
     void navigateToOutlineTarget(int pageIndex, const QString& title);
     void addCurrentPageBookmark();
@@ -228,6 +231,8 @@ private:
     bool updatingStatusZoom_ = false;
     // AI 面板（v0.10.0）：三个受限功能 + 流式显示。
     AiPanel* aiPanel_ = nullptr;
+    // 第二批接线（E/F/G/H）的动作集合：新建/打印/AI 五项/转换导出/注释三件套。
+    WiringActions* wiringActions_ = nullptr;
     // 顶部 Ribbon（文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI）。
     RibbonBar* ribbonBar_ = nullptr;
     QTabWidget* tabs_ = nullptr;

@@ -13,6 +13,8 @@ qt_add_executable(AiPdfEditor WIN32
     i18n/Translate.h
     app/Theme.cpp
     app/Theme.h
+    app/ReadingScheme.cpp
+    app/ReadingScheme.h
     app/BrandMark.cpp
     app/BrandMark.h
     app/WelcomePage.cpp
@@ -55,6 +57,28 @@ qt_add_executable(AiPdfEditor WIN32
     app/SignatureDialog.cpp
     app/RibbonBar.h
     app/RibbonBar.cpp
+    app/LastWaveWriter.cpp
+    app/LastWaveWriter.h
+    app/LastWavePanels.cpp
+    app/LastWavePanels.h
+    app/LastWaveBridge.cpp
+    app/LastWaveBridge.h
+    app/WiringActions.cpp
+    app/WiringActions.h
+    app/PrintToolsDialog.cpp
+    app/PrintToolsDialog.h
+    app/ConversionToolsDialog.cpp
+    app/ConversionToolsDialog.h
+    app/ConversionReports.cpp
+    app/ConversionReports.h
+    app/ConversionExports.cpp
+    app/ConversionExports.h
+    app/AnnotationToolboxDialog.cpp
+    app/AnnotationToolboxDialog.h
+    app/AiToolsDialog.cpp
+    app/AiToolsDialog.h
+    app/AiToolService.cpp
+    app/AiToolService.h
     app/UploadPreviewDialog.h
     app/UploadPreviewDialog.cpp
     app/OcrController.cpp
@@ -153,6 +177,78 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/SignatureInspector.h
     pdf/TagTreeWriter.cpp
     pdf/TagTreeWriter.h
+    pdf/AnnotationShapes.cpp
+    pdf/AnnotationShapes.h
+    pdf/DocumentReflow.cpp
+    pdf/DocumentReflow.h
+    pdf/RichMedia3d.cpp
+    pdf/RichMedia3d.h
+    pdf/XfaSupport.cpp
+    pdf/XfaSupport.h
+    pdf/PdfUaChecker.cpp
+    pdf/PdfUaChecker.h
+    ai/OfflineQa.cpp
+    ai/OfflineQa.h
+    doc/UniversalConverter.cpp
+    doc/UniversalConverter.h
+    pdf/StructTreeReader.cpp
+    pdf/StructTreeReader.h
+    pdf/InvisibleTextLayer.cpp
+    pdf/InvisibleTextLayer.h
+    pdf/ParagraphFormat.cpp
+    pdf/ParagraphFormat.h
+    pdf/OptionalContent.cpp
+    pdf/OptionalContent.h
+    doc/InvoiceLayout.cpp
+    doc/InvoiceLayout.h
+    doc/ActionWizard.cpp
+    doc/ActionWizard.h
+    pdf/OcrSuspicion.cpp
+    pdf/OcrSuspicion.h
+    pdf/PortfolioWriter.cpp
+    pdf/PortfolioWriter.h
+    pdf/PreflightChecker.cpp
+    pdf/PreflightChecker.h
+    pdf/ExportFormats.cpp
+    pdf/ExportFormats.h
+    doc/ZipWriter.cpp
+    doc/ZipWriter.h
+    doc/FontFlattening.cpp
+    doc/FontFlattening.h
+    doc/OfdExport.cpp
+    doc/OfdExport.h
+    doc/OfficeExport.cpp
+    doc/OfficeExport.h
+    pdf/AnnotationToolkit.cpp
+    pdf/AnnotationToolkit.h
+    app/ViewModes.cpp
+    app/ViewModes.h
+    doc/PrintTemplate.cpp
+    doc/PrintTemplate.h
+    doc/PrintBatch.cpp
+    doc/PrintBatch.h
+    doc/BlankDocument.cpp
+    doc/BlankDocument.h
+    ai/PptGeneration.cpp
+    ai/PptGeneration.h
+    ai/AiNarration.cpp
+    ai/AiNarration.h
+    ai/AiContentDetection.cpp
+    ai/AiContentDetection.h
+    ai/AiImageGeneration.cpp
+    ai/AiImageGeneration.h
+    pdf/SignatureWorkflow.cpp
+    pdf/SignatureWorkflow.h
+    pdf/SignatureVerifier.cpp
+    pdf/RsaVerifier.cpp
+    pdf/RsaVerifier.h
+    pdf/SignatureVerifier.h
+    pdf/DocumentMerger.cpp
+    pdf/DocumentMerger.h
+    pdf/NamedDestination.cpp
+    pdf/NamedDestination.h
+    pdf/PageLabels.cpp
+    pdf/PageLabels.h
     pdf/PageDecorations.cpp
     pdf/SoundFormat.cpp
     pdf/AnnotationSummary.cpp
@@ -196,6 +292,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/DocumentChunk.h
     doc/DocumentStatistics.cpp
     doc/DocumentStatistics.h
+    doc/BatchProcessor.cpp
+    doc/BatchProcessor.h
     doc/EditCommand.cpp
     doc/EditCommand.h
     doc/EditContext.h

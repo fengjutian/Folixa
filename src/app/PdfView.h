@@ -5,11 +5,18 @@
 
 #include "app/NavigationHistory.h"
 #include "app/PageLayout.h"
+#include "app/ReadingScheme.h"
 #include "app/TileCache.h"
+#include "app/AnnotationController.h"
+#include "app/DocumentOutput.h"
+#include "ai/AiNarration.h"
+#include "doc/ActionWizard.h"
 #include "doc/DocumentChunk.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/PdfSecurity.h"
+#include "pdf/AnnotationToolkit.h"
 #include "pdf/FormFieldWriter.h"
+#include "pdf/SignatureWorkflow.h"
 #include "pdf/TagTreeWriter.h"
 #include "pdf/FormScriptStore.h"
 #include "i18n/Translate.h"
@@ -177,6 +184,106 @@ public slots:
 
     // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
     void mergeDocumentDialog();
+    // 页码标签：把页码显示规则写进 PDF 的 /PageLabels。
+    void pageLabelsDialog();
+    // 命名位置：给当前页起名，之后可按名字跳回。
+    void namedDestinationDialog();
+    // 通用批处理：对一个目录里的 PDF 依次处理，产出 JSON 报告。
+    void batchProcessDialog();
+    // 阅读配色（夜间 / 护眼 / 高对比）：转发给画布。
+    void setReadingScheme(theme::ReadingScheme scheme);
+
+    // --------------------------------------------------- 视图模式（v1.16）----
+    //
+    // 这一组全是「怎么显示」：标尺、边缘自动滚动、翻页过渡、纯文本查看器、
+    // 逆序镜像。它们只改画面，不改文档，也不进撤销栈。
+
+    // 标尺开关与单位。单位用整数值（0=点 1=毫米 2=英寸），
+    // 这样 Ribbon 上的按钮可以直接把序号传进来。
+    void setRulerVisible(bool visible);
+    void setRulerUnit(int unitIndex);
+    // 拖动批注或选区时把指针拖到视口边缘就自动滚动。
+    void setAutoScrollEnabled(bool enabled);
+    // 翻页过渡：0=无 1=淡入淡出 2=左滑 3=右滑。
+    void setPageTransition(int transitionIndex);
+    // 逆序镜像（日漫式从右往左读）：只改显示空间，文件里不会被改。
+    void setMirrorEnabled(bool enabled);
+
+    // 纯文本查看器：把当前页（或整篇）按阅读顺序显示成纯文本。
+    void showPlainTextViewer();
+    void showWholeDocumentPlainText();
+
+    // 电子签章：多方签署流程面板（签署流程 / 签署报告 / 签署记录）。
+    void showSignatureWorkflowDialog();
+
+    // --------------------------------------------------- 第二批接线（E/F/G/H）----
+    //
+    // 这一组是给新面板用的入口：面板只负责收集输入与显示结果，
+    // 真正碰文档的活都在这里，判定与边界一律交给领域层。
+
+    // 当前文档的字节（印前检查、活页夹、图像化 PDF、转曲都要它）。
+    // 取不到时返回空字节，并把原因写进 error。
+    QByteArray documentBytes(QString* error = nullptr) const;
+    // 当前文档的文本层（每页一个 TextPage）。
+    QVector<pdf::TextPage> documentTextPages() const;
+    // 当前页按阅读顺序拼出来的纯文本（没有文本层时返回空串）。
+    QString currentPagePlainText() const;
+    // 当前选区的文本（没有选区时返回空串）。
+    QString currentSelectionText() const;
+    // 整篇按阅读顺序拼出来的纯文本（没有文本层时返回空串）。
+    QString wholeDocumentPlainText() const;
+
+    // 智能朗读：清洗文本、排朗读分段，然后按段喂给现有的语音引擎。
+    void speakNarration();
+
+    // 把一段文字作为文本批注插到当前页（计算器、符号面板用）。
+    bool insertTextAnnotation(const QString& text, double fontSize = 12.0);
+
+    // 把一张图片（PNG/JPEG 字节）作为图片批注插到当前页正中（AI 生成图用）。
+    bool insertGeneratedImage(const QByteArray& imageBytes, const QString& label);
+
+    // 连续批注模式：打开后放完批注不切回选择工具。
+    // 状态存在领域层的 pdf::ContinuousAnnotationMode 里，界面不另记一套。
+    void setContinuousAnnotationMode(bool enabled);
+    bool continuousAnnotationMode() const;
+    // 放完一个批注后调用：返回 true 表示"保持当前工具"。
+    bool afterAnnotationPlacement();
+    // 某个工具是否支持连续（界面决定：墨迹、橡皮这类连着放会越用越歪）。
+    static bool toolSupportsContinuous(AnnotationController::Tool tool);
+    // 工具 → 领域层用的工具 id。
+    static QString continuousToolId(AnnotationController::Tool tool);
+
+    // 按指定的打印设置打印当前文档（批量打印与打印模板都用它）。
+    //
+    // 返回 false 时 error 里是中文原因；打印对话框由调用方弹。
+    bool printWithOptions(const PrintOptions& options, QString* error);
+
+    // ------------------------------------------------- 第三批接线（任务 J~U）----
+    //
+    // 这一组是给第三批新面板用的入口：面板只负责收集输入与显示结果，
+    // 真正碰文档的活都在这里，判定与边界一律交给领域层。
+
+    // 用新的字节替换当前文档的内容（写回用：隐藏文字层、图层、重排都走它）。
+    //
+    // 失败时返回 false，error 里是中文原因，**文档保持原样**。
+    bool replaceDocumentBytes(const QByteArray& bytes, QString* error = nullptr);
+
+    // 读取文档里既有的标签树（/StructTreeRoot），逐个结构元素显示出来。
+    void showStructTreeDialog();
+    // 段落排版：把选中的文字按段落参数重新排一次。
+    void paragraphFormatDialog();
+
+    // 某页的有效盒子（PDF user space，左下原点；优先 CropBox）。
+    // 写不可见文字层时字符框要相对同一个盒子才对得上。
+    pdf::MediaBox pageContentBox(int pageIndex) const;
+
+    // 执行一步文档级动作（动作向导用）。
+    //
+    // 动作类型、参数与失败原因都由领域层的类型给出；这里只做「把参数
+    // 翻译成领域层的调用」。返回 false 时 reason 里是中文原因。
+    bool applyDocumentAction(doc::WizardActionType type,
+                             const QVector<doc::WizardParam>& params,
+                             QString* reason);
     void extractCurrentPageDialog();
     void replaceSelectionWithImageDialog();
     void deleteSelectionImagesDialog();
@@ -254,6 +361,15 @@ private:
     void startSpeechOnPage(int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。
     QPointF displayToUser(int pageIndex, const QPointF& displayPoint) const;
+    // 工具切换后同步连续批注模式（当前挂着哪个工具由领域层记着）。
+    void syncContinuousModeWithTool();
+    // 连续批注：放完一个批注后的收尾（保持工具或回到选择态）。
+    void finishAnnotationPlacement();
+    // 朗读：按分段逐段送进语音引擎。
+    void speakNextNarrationSegment();
+    // 段落排版：把选中的文字对象按段落参数重排一次并写回页面。
+    // 排版本身交给 pdf::layoutParagraph，界面不算位置也不断行。
+    void applyParagraphFormat(int pageIndex, const QVector<pdf::PageObjectInfo>& objects);
 
 public:
     // 把当前选中的文字复制到剪贴板。
@@ -375,6 +491,10 @@ private:
     double fitZoomForPage() const;
     // 给当前选区加一个标记类批注（高亮 / 下划线 / 删除线）。
     void applyMarkAnnotation(pdf::AnnotationType type);
+    // 区域高亮：顶点（用户空间）→ 领域层生成外观流 → 进模型与撤销栈。
+    void createRegionHighlight(int pageIndex, const QVector<QPointF>& userPoints);
+    // callout 箭头框：注释框 + 箭头尖 → 领域层生成外观流 → 进模型与撤销栈。
+    void createCallout(int pageIndex, const QRectF& userBox, const QPointF& userTip);
     // 刷新批注工具栏的可用状态（撤销、重做、选区类按钮）。
     void updateAnnotationToolBar();
 
@@ -417,6 +537,10 @@ private:
     // 整篇问答控制器：混合检索与引用核验。
     // 它跟着索引控制器走（要块与文本），也必须在文档句柄之前释放。
     std::unique_ptr<DocumentQaController> qaController_;
+    // 电子签章：多方签署流程的状态机。
+    // 流程状态与签署人状态只由领域层管，界面不另算一套 ——
+    // 签署记录是拿来追责的，不能有第二种说法。
+    pdf::SignatureWorkflow signatureWorkflow_;
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;
@@ -479,6 +603,13 @@ private:
     QVector<speech::SpeechWord> speechWords_;
     // 排队等文本层的朗读请求：文本层是后台提取的，提取完再开读。
     int pendingSpeechPage_ = -1;
+    // 连续批注模式：状态由领域层的 pdf::ContinuousAnnotationMode 记着，
+    // 界面只存「用户开没开这个开关」这一位。
+    pdf::ContinuousAnnotationMode continuousMode_;
+    bool continuousModeEnabled_ = false;
+    // 智能朗读的分段队列：按段念，一段念完接下一段。
+    QVector<ai::NarrationSegment> narrationSegments_;
+    int narrationSegmentIndex_ = -1;
     // 一次设定、长期显示的界面文案：切换语言时就地重译。
     i18n::TextBindings texts_;
 };

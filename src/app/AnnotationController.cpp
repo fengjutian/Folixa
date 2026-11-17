@@ -169,6 +169,29 @@ quint64 AnnotationController::addPolygon(pdf::AnnotationType type, int pageIndex
     return id;
 }
 
+quint64 AnnotationController::addPreparedAnnotation(pdf::Annotation annotation) {
+    if (annotation.pageIndex < 0) {
+        return 0;
+    }
+    // id 由模型统一分配：调用方传进来的 id 一律作废，
+    // 否则两条批注可能撞 id，撤销栈与文档同步都会认错人。
+    annotation.id = model_.allocateId();
+    if (annotation.createdAt.isNull()) {
+        annotation.createdAt = QDateTime::currentDateTimeUtc();
+    }
+    const quint64 id = annotation.id;
+    auto command = std::make_unique<doc::AddAnnotationCommand>(annotation);
+    if (!undoStack_.push(std::move(command), this)) {
+        return 0;
+    }
+    trace(QStringLiteral("annotation add prepared type=%1 page=%2 id=%3")
+              .arg(pdf::annotationTypeKey(annotation.type))
+              .arg(annotation.pageIndex)
+              .arg(id));
+    emit undoStateChanged();
+    return id;
+}
+
 quint64 AnnotationController::addMeasureShape(MeasureMode mode, int pageIndex,
                                               const QVector<QPointF>& vertices, double scale) {
     if (vertices.size() < 2) {

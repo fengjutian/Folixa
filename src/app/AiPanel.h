@@ -2,6 +2,7 @@
 
 #include "ai/ChatTypes.h"
 #include "ai/DataPolicy.h"
+#include "ai/OfflineQa.h"
 #include "doc/CitationVerifier.h"
 #include "i18n/Translate.h"
 
@@ -10,6 +11,8 @@
 #include <QTextCursor>
 #include <QVector>
 #include <QWidget>
+
+#include <functional>
 
 class QButtonGroup;
 class QJsonArray;
@@ -26,6 +29,7 @@ class WorkerClient;
 namespace aipdf::app {
 
 class DocumentQaController;
+class IndexController;
 class TextController;
 
 // AI 面板：三个受限的 AI 功能 + 流式显示 + 整篇问答。
@@ -56,6 +60,17 @@ public:
     void setTextSource(TextController* controller);
     // 绑定整篇问答控制器（检索 + 引用核验）。
     void setQaController(DocumentQaController* controller);
+    // 绑定索引控制器（本地离线问答要用本地索引里的块）。
+    void setIndexController(IndexController* controller);
+
+    // 本地离线问答的提问器：由上层注入。
+    //
+    // 为什么注入而不是直接在这里 new 一个 ai::OfflineQa：
+    // 真正的检索在 ai/OfflineQa 里，而那是领域层的实现；界面层直接调它
+    // 会让「只编 AiPanel.cpp」的单测目标被迫链接领域层。注入之后，
+    // 面板只负责显示结果，检索由上层用当前文档的索引来做。
+    using OfflineAnswerProvider = std::function<ai::OfflineAnswer(const QString&)>;
+    void setOfflineAnswerProvider(OfflineAnswerProvider provider);
     // 当前页变了。
     void setCurrentPage(int pageIndex);
 
@@ -66,6 +81,19 @@ public:
     void requestAsk(const QString& question);
     // 问整篇文档（与范围选择器无关，脚本与快捷入口都用它）。
     void requestDocumentQa(const QString& question);
+
+    // 本地离线问答：不联网、不调模型，答案从本地索引里抽取。
+    //
+    // question 为空时用输入框里的内容。**找不到就说找不到**：
+    // 没找到时不显示任何答案正文，只列出最接近的几个片段。
+    void requestOfflineQa(const QString& question = QString());
+
+    // 最近一次离线问答的结果（验收与测试用）。
+    QString lastOfflineAnswer() const;
+    QString lastOfflineNotice() const;
+    QStringList lastOfflineCitationLines() const;
+    QStringList lastOfflineClosestLines() const;
+    bool lastOfflineNoMatch() const;
 
     // 取消当前这次生成。
     void cancelRequest();
@@ -151,6 +179,8 @@ private:
     ipc::WorkerClient* workerClient_ = nullptr;
     TextController* textController_ = nullptr;
     DocumentQaController* qaController_ = nullptr;
+    IndexController* indexController_ = nullptr;
+    OfflineAnswerProvider offlineAnswerProvider_;
     int currentPage_ = 0;
     Scope scope_ = Scope::CurrentPage;
 
@@ -174,6 +204,7 @@ private:
     QPushButton* newChatButton_ = nullptr;
     QPushButton* scopePageButton_ = nullptr;
     QPushButton* scopeDocumentButton_ = nullptr;
+    QPushButton* offlineButton_ = nullptr;
     QButtonGroup* scopeGroup_ = nullptr;
 
     // 常驻文案的登记表：切换语言时统一点重译。
@@ -228,6 +259,13 @@ private:
     // 历史使用用户的自然语言问题，不重复保存每轮附带的整页材料。
     QVector<ai::ChatMessage> conversationHistory_;
     QString pendingUserTurn_;
+
+    // 最近一次本地离线问答的结果。
+    QString lastOfflineAnswer_;
+    QString lastOfflineNotice_;
+    QStringList lastOfflineCitationLines_;
+    QStringList lastOfflineClosestLines_;
+    bool lastOfflineNoMatch_ = false;
 };
 
 }  // namespace aipdf::app

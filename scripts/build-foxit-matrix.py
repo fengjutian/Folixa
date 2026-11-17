@@ -304,36 +304,63 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
         "后者依赖系统语音合成、没有音色与语速可调。**"
     )
     lines.append("")
-    lines.append("### 5.2 最大的三个缺口")
-    lines.append("")
     lines.append(
-        "1. **转换与合规交付（转换 / AI助手）**：转换 25 条只对齐 5 条——PDF→Office、"
-        "HTML 导出、印前检查、PDF 转曲、整页栅格化、PDF/A 合规校验器都没有；"
-        "AI 助手 10 条只对齐「对话」1 条，朗读、内容检测、PPT 生成全空。"
-    )
-    lines.append(
-        "2. **保护与签章（保护 / 电子签章）**：两个页签加起来 28 条，只对齐 6 条——"
-        "加密、权限、元数据清理仍是「部分」；证书签名、验签、时间戳依赖随包 pyHanko，"
-        "验签界面仍只弹原始输出（签名列表与证书链面板已对齐）；"
-        "**密文四件套（标记为密文 / 马赛克 / 擦除 / 应用密文）与嵌入文件本体清除已对齐**。"
-    )
-    lines.append(
-        "3. **无障碍与朗读（辅助工具 / 视图）**：**朗读已对齐**（逐词朗读 + 逐词高亮，"
-        "但没有音色与语速可调）；阅读顺序改用视觉顺序，却仍不读 StructTreeRoot 标签树、"
-        "也不能写回区域顺序；替代文本只覆盖批注，不支持表单域说明；"
-        "Ribbon 按钮没有 accessibleName，屏幕阅读器读不出主命令区；"
-        "护眼与夜间配色没有，只有浅色主题。"
+        "**2026-11-17 第四轮（用户点名的第二批能力「全部补齐」）**补的是上一版"
+        "记成「不做 / 未做 / 部分」的那一批：AI 五项（文生图、总结配图、PPT 四模式、"
+        "内容检测、智能朗读）、新建文档 / 批量打印 / 打印模板、导出六项"
+        "（HTML、图像化 PDF、OFD、MS Office、DXF、PDF 转曲）、印前检查、"
+        "PDF 文件包与活页夹、OCR 疑似错误、注释三件套（会计计算器、符号面板、连续批注模式）、"
+        "动作向导、发票打印、OCR 隐藏文本层回写、段落排版、读取既有标签树、OCG 图层面板、"
+        "任意文件 → PDF、本地离线问答、PDF/UA 合规检查、静态 XFA 字段、3D / 多媒体注解、"
+        "整篇重排。**对齐条数 134 → "
+        f"{total['aligned']}，对齐率 54% → {total['aligned'] / total_count * 100.0:.0f}%。**"
     )
     lines.append("")
+    lines.append(
+        "同一轮还**修掉了三个真缺陷**（都是审查与端到端集成测试抓出来的，不是自查出来的）："
+        "中文全角标点切句被 `QLatin1Char` 截断、印前检查的对象图递归遍历会被畸形文件爆栈、"
+        "隐藏文字层重复写时第二遍的文字取不到而函数仍报成功。三条都补了回归测试并做过负例对照。"
+    )
+    lines.append("")
+
+    # ---- 5.2 缺口：按「未做 + 部分」现算，并逐条列出还欠什么 ----
+    lines.append("### 5.2 现在最大的三个缺口")
+    lines.append("")
+    gaps = []
+    for tab in TAB_ORDER:
+        counter = stats.get(tab)
+        if not counter:
+            continue
+        gaps.append((counter["missing"] + counter["partial"], tab, counter))
+    gaps.sort(key=lambda item: (-item[0], TAB_ORDER.index(item[1])))
+    for rank, (score, tab, counter) in enumerate(gaps[:3], start=1):
+        lines.append(
+            f"{rank}. **{tab}**（未做 {counter['missing']}、部分 {counter['partial']}）"
+        )
+        for row in rows:
+            if row["tab"] == tab and row["status"] == "missing":
+                lines.append(f"   - {row['group']}／{row['command']}：{row['note']}")
+        lines.append("")
+    lines.append(
+        f"剩下的「部分」共 {total['partial']} 条，性质一样：**主路径能走通，深度或降级还差一截**。"
+        f"每一行都把自己的边界写在第 4 节的说明列里——"
+        f"比如 DOCX 导出不含图片表格样式、PDF 转曲是栅格化而不是轮廓化、"
+        f"OFD 只支持文本对象、PPT 生成导出的是 Markdown 而不是 .pptx。"
+    )
+    lines.append("")
+
     lines.append("### 5.3 明确不追的部分")
     lines.append("")
     lines.append(
         "云协作、企业内容管理（iManage / SharePoint / eDOCS）、插件 SDK、账号与订阅、"
-        "3D/多媒体/作品集、XFA 动态表单、文本重排——共 "
+        "macOS 与 Linux 版本——共 "
         f"{total['excluded'] + total['na']} 条标成 🚫/➖，理由集中在 "
         "[对标基线 1.2](FOXIT_BENCHMARK.md#12-明确不追的四类)。"
-        "**原口径里的「在线查重、发票流程、表单设计器」已不在此列**："
-        "查重改成本地实现并已对齐，发票六条命令早已有真实入口，表单建域也已落地并对齐。"
+        "**原口径里的「3D/多媒体/作品集」「XFA 动态表单」「文本重排」已不在此列**："
+        "作品集能读写、3D 与多媒体**只写结构不渲染**、XFA **只做静态字段提取**、"
+        "文本重排与整篇重排已实现但**必然改版面并丢图形表格**，"
+        "边界见评分卡 A8 / A11 / E6 / F6。"
+        "查重早已改成本地实现并对齐，发票六条命令有真实入口，表单建域也已落地并对齐。"
     )
     lines.append("")
 
@@ -344,27 +371,39 @@ def render_matrix(rows: list[dict[str, str]], stats: dict[str, Counter]) -> str:
     lines.append("| 批次 | 目标任务 | 要补的命令 | 对应评分卡 |")
     lines.append("|---|---|---|---|")
     lines.append(
-        "| P0 | 把一份合同改完、签掉、发出去 | 批量加密、保护设置面板、"
-        "验签的结构化逐项判定与时间戳校验 | G1–G7 |"
+        "| 已完成 | 把一份合同改完、签掉、发出去 | 验签逐项密码学判定、签署流程 / 报告 / 记录、"
+        "动作向导、发票打印 | G1–G7 |"
     )
     lines.append(
-        "| P1 | 把几十份 PDF 拼成一本 | 页面标签 /PageLabels、一次并多份与跨文件书签搬运、"
-        "批处理 JSON 报告 | D2–D9 |"
+        "| 已完成 | 把几十份 PDF 拼成一本 | 页面标签 /PageLabels、一次并多份与跨文件书签搬运、"
+        "批处理 JSON 报告、命名位置 | D2–D9、B8 |"
     )
     lines.append(
-        "| P1 | 转换出能交付的合规格式 | PDF→Office、HTML 导出、印前检查、PDF 转曲、"
-        "整页栅格化 PDF、PDF/A 合规校验器 | H5–H8 |"
+        "| 已完成 | 转换出能交付的合规格式 | PDF→Office、HTML 导出、印前检查、PDF 转曲、"
+        "整页栅格化 PDF、OFD、DXF、PDF/UA 合规检查、活页夹 | H5–H8、J6 |"
     )
     lines.append(
-        "| P1 | 在文档里找东西、贴附件、截图 | 文档级附件面板、区域截图、"
-        "完整词典的拼写检查 | B5、E4、C8 |"
+        "| 已完成 | 让更多人能用 | 夜间 / 护眼配色、屏幕阅读器可读（Ribbon accessibleName 与助记符）、"
+        "读写 StructTreeRoot 标签树、替代文本 | A9、J1–J5 |"
     )
     lines.append(
-        "| P2 | 让更多人能用 | 护眼配色、屏幕阅读器可读（Ribbon accessibleName）、"
-        "读写 StructTreeRoot 标签树、朗读的音色与语速设置 | A9、J1–J5 |"
+        "| 已完成 | 让 AI 更能干 | 文生图、总结配图、PPT 四模式、内容检测、智能朗读、"
+        "本地离线问答 | L2、L6–L8 |"
     )
     lines.append(
-        "| P2 | 让 AI 更能干 | 整篇翻译、内容检测、朗读、总结配图、PPT 生成 | L2、L6–L8 |"
+        "| 待补 | 从任何材料变成 PDF | 扫描仪（WIA / TWAIN）、剪贴板、网页 | H6 |"
+    )
+    lines.append(
+        "| 待补 | 一批文档一起加密 | 批量加密、保护设置面板 | G1 |"
+    )
+    lines.append(
+        "| 待补 | 两个版本对着看 | 文档比较（结构差异 + 引用定位） | L7 |"
+    )
+    lines.append(
+        "| 待补 | 系统级整合 | 默认阅读器关联、OneNote 发送、循环放映、放映过渡 | — |"
+    )
+    lines.append(
+        "| 待补 | 辅助工具补齐 | 自动打标签到文档 / 表单域、文本块链接与合并 | J5、E4 |"
     )
     lines.append("")
     lines.append(

@@ -54,6 +54,8 @@ public:
         Arrow,   // 箭头：拖出两点
         Polygon, // 多边形：逐点点击，双击结束
         Cloud,   // 云线：同多边形，边框画成扇贝
+        Callout,      // 箭头框：先拖出注释框，再点一下选箭头指向的位置
+        RegionHighlight, // 区域高亮：逐点点击，双击结束，画半透明填充
         FreeText, // 文本框：拖出一块再输入文字
         Stamp,   // 图章：点一下放一个
         ImageStamp, // 图片图章
@@ -117,6 +119,17 @@ public:
                         double fontSize = 12.0);
     quint64 addPolygon(pdf::AnnotationType type, int pageIndex,
                        const QVector<QPointF>& vertices);
+
+    // 添加一条**已经算好外观**的批注（callout 箭头框、区域高亮这类）。
+    //
+    // 为什么让调用方把批注填好再进来：几何与外观流的内容由
+    // pdf::AnnotationShapes 那一层算（它是纯函数，可以单独编译与单测），
+    // 这一层只负责重新分配 id 并进撤销栈 —— 走的是与普通批注完全一样的流程。
+    //
+    // 注意：这里**不能**去调 pdf::AnnotationShapes 的函数：
+    // 有几个单测目标只编了 AnnotationController.cpp，没有编 AnnotationShapes.cpp，
+    // 引用它会直接链接失败。几何与外观流由界面层算好后整个传进来。
+    quint64 addPreparedAnnotation(pdf::Annotation annotation);
     // 墨迹：一笔（user space 的一串点）。
     quint64 addInk(int pageIndex, const QVector<QPointF>& stroke);
 

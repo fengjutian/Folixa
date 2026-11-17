@@ -1,5 +1,6 @@
 #include "app/MainWindow.h"
 #include "app/RibbonBar.h"
+#include "app/ReadingScheme.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -11,15 +12,18 @@
 #include "app/DocumentConverter.h"
 #include "app/DigitalSignatureBackend.h"
 #include "app/IndexPanel.h"
+#include "app/IndexController.h"
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/AiPanel.h"
+#include "app/WiringActions.h"
 #include "app/SettingsDialog.h"
 #include "app/SignatureDialog.h"
 #include "app/FormScriptDialog.h"
 #include "app/FormToolSettingsDialog.h"
 #include "app/FormDesignAssistantDialog.h"
 #include "ai/AuditLog.h"
+#include "ai/OfflineQa.h"
 #include "app/OcrController.h"
 #include "tools/ProposalValidator.h"
 #include "app/ProposalRunner.h"
@@ -878,6 +882,15 @@ void MainWindow::buildUi() {
     auto* fileGroup = ribbonBar_->addGroup(fileTab, tr("文件"));
     addRibbonCommand(fileGroup, "打开", "打开 PDF 文件", ":/icons/book.svg",
                      [this] { openPdfDialog(); }, true, "ribbonOpen");
+    addRibbonCommand(fileGroup, "新建", "新建一份空白文档（可选纸张、方向与页数）",
+                     ":/icons/page-insert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->newDocument(); }
+    }, true, "file.new");
+    // 任意文件 → PDF：txt / md / csv / json / html 直接变成 PDF。
+    addRibbonCommand(fileGroup, "从文件新建 PDF", "把 txt / md / csv / json / html 转成 PDF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->universalConvert(); }
+    }, true, "file.fromFile");
     addRibbonCommand(fileGroup, "保存", "保存当前文档", ":/icons/save.svg",
                      [this] { saveDocument(); }, true, "document.save");
     addRibbonCommand(fileGroup, "另存为", "另存为新的 PDF", ":/icons/save.svg",
@@ -896,6 +909,25 @@ void MainWindow::buildUi() {
     addRibbonCommand(exportGroup, "文本", "导出纯文本", ":/icons/convert.svg", [this] {
         if (auto* view = currentView()) { view->exportPlainText(); }
     }, true, "permission.exportText");
+    // 批量打印与打印模板：把打印参数存下来复用，或者一次打一批文件。
+    addRibbonCommand(exportGroup, "批量打印", "把多个 PDF 排成一个打印队列", ":/icons/pages.svg",
+                     [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->printBatch(); }
+    }, true, "file.printBatch");
+    addRibbonCommand(exportGroup, "打印模板", "保存与套用打印参数（份数、纸张、缩放、页范围）",
+                     ":/icons/form.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->printTemplates(); }
+    }, true, "file.printTemplates");
+    // 动作向导：把已有的文档级操作编排成一条流程。
+    addRibbonCommand(exportGroup, "动作向导", "把整理、加页码、加水印等操作编排成一条流程",
+                     ":/icons/tools.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->actionWizard(); }
+    }, true, "file.actionWizard");
+    // 发票打印：填要素 → 预览版式 → 打印 / 导出 PDF。
+    addRibbonCommand(exportGroup, "发票打印", "填发票要素、预览版式，再打印或导出 PDF",
+                     ":/icons/form.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->invoicePrint(); }
+    }, true, "file.invoicePrint");
 
     const int homeTab = ribbonBar_->addTab(tr("主页"));
     auto* zoomGroup = ribbonBar_->addGroup(homeTab, tr("显示"));
@@ -930,6 +962,11 @@ void MainWindow::buildUi() {
     addRibbonCommand(toolsGroup, "加密", "加密与权限", ":/icons/protect.svg",
                      [encryptionAction] { encryptionAction->trigger(); }, true,
                      "ribbonEncryption");
+    // 写入隐藏文字层：把 OCR 识别结果写回文档，让这页能搜索 / 能复制。
+    addRibbonCommand(toolsGroup, "写入隐藏文字层", "把识别结果写成不可见文字层（可搜索、可复制）",
+                     ":/icons/search.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->writeInvisibleTextLayer(); }
+    }, true, "ocr.invisibleTextLayer");
 
     const int commentTab = ribbonBar_->addTab(tr("注释"));
     auto addToolCommand = [this, &addRibbonCommand](QHBoxLayout* group, const char* label,
@@ -959,6 +996,9 @@ void MainWindow::buildUi() {
     addToolCommand(shapeGroup, "箭头", "拖出一个箭头", ":/icons/square.svg", "arrow");
     addToolCommand(shapeGroup, "多边形", "画一个多边形", ":/icons/square.svg", "polygon");
     addToolCommand(shapeGroup, "云线", "画一个云线", ":/icons/square.svg", "cloud");
+    addToolCommand(shapeGroup, "箭头框", "用箭头框指向正文", ":/icons/square.svg", "callout");
+    addToolCommand(shapeGroup, "区域高亮", "圈出一块区域做半透明高亮", ":/icons/square.svg",
+                   "regionHighlight");
     auto* inkGroup = ribbonBar_->addGroup(commentTab, tr("手写"));
     addToolCommand(inkGroup, "墨迹", "自由绘制", ":/icons/ink.svg", "ink");
     addToolCommand(inkGroup, "橡皮", "擦掉整笔", ":/icons/annotation.svg", "eraser");
@@ -984,6 +1024,30 @@ void MainWindow::buildUi() {
     });
     addRibbonCommand(reviewGroup, "摘要", "导出批注摘要 HTML", ":/icons/annotation.svg", [this] {
         if (auto* view = currentView()) { view->exportAnnotationSummary(); }
+    });
+    // 注释三件套：会计计算器、符号面板、连续批注模式。
+    //
+    // 计算器与符号面板把算好的文字插到当前页；连续批注是个开关，
+    // 打开后放完批注不切回选择工具（状态存在领域层的 ContinuousAnnotationMode 里）。
+    auto* toolboxGroup = ribbonBar_->addGroup(commentTab, tr("工具箱"));
+    addRibbonCommand(toolboxGroup, "计算器", "算一条算式，把结果整理成批注插到当前页",
+                     ":/icons/form.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->calculator(); }
+    }, true, "annotation.calculator");
+    addRibbonCommand(toolboxGroup, "符号面板", "按分类挑符号，插到当前光标处",
+                     ":/icons/annotation.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->symbolPanel(); }
+    }, true, "annotation.symbols");
+    QToolButton* continuousAnnotationButton = ribbonBar_->addCommand(
+        toolboxGroup, tr("连续批注"), QIcon(":/icons/square.svg"),
+        tr("放完一个批注后不切回选择工具，可以连着标"), true, "annotation.continuous");
+    continuousAnnotationButton->setCheckable(true);
+    texts_.bind([this, continuousAnnotationButton] {
+        continuousAnnotationButton->setText(tr("连续批注"));
+        continuousAnnotationButton->setToolTip(tr("放完一个批注后不切回选择工具，可以连着标"));
+    });
+    connect(continuousAnnotationButton, &QToolButton::clicked, this, [this](bool checked) {
+        if (wiringActions_ != nullptr) { wiringActions_->toggleContinuousAnnotationMode(checked); }
     });
 
     const int pageTab = ribbonBar_->addTab(tr("页面管理"));
@@ -1041,6 +1105,20 @@ void MainWindow::buildUi() {
     addRibbonCommand(assemblyGroup, "合并", "合并另一份 PDF", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->mergeDocumentDialog(); }
     }, true, "ribbonMerge");
+    // 按新页宽重排：会改变版面（页数、图表位置都变），界面要逐条说明丢了什么。
+    addRibbonCommand(assemblyGroup, "按新页宽重排", "按新的页宽把正文重新排一遍（版面会变）",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->documentReflow(); }
+    }, true, "page.reflow");
+    auto* labelGroup = ribbonBar_->addGroup(pageTab, tr("标签"));
+    addRibbonCommand(labelGroup, "页码标签", "设置页码显示格式（罗马数字、字母、前缀）",
+                     ":/icons/page-insert.svg", [this] {
+        if (auto* view = currentView()) { view->pageLabelsDialog(); }
+    }, true, "ribbonPageLabels");
+    addRibbonCommand(labelGroup, "命名位置", "给当前页起个名字，之后可以按名字跳回来",
+                     ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->namedDestinationDialog(); }
+    }, true, "ribbonNamedDestination");
     auto* decorationGroup = ribbonBar_->addGroup(pageTab, tr("装饰"));
     addRibbonCommand(decorationGroup, "水印", "添加水印", ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) { view->applyWatermarkDialog(); }
@@ -1100,6 +1178,81 @@ void MainWindow::buildUi() {
     addRibbonCommand(showGroup, "AI 助手", "显示或隐藏 AI 面板", ":/icons/chat.svg", [this] {
         aiDock_->setVisible(!aiDock_->isVisible());
     });
+    addRibbonCommand(showGroup, "阅读配色", "切换夜间 / 护眼 / 高对比阅读底色", ":/icons/square.svg",
+                     [this] { changeReadingScheme(); }, true, "view.readingScheme");
+    // 视图模式：标尺、边缘自动滚动、翻页过渡、纯文本查看器、逆序镜像。
+    // 这一组只改「怎么显示」，不改文档，也不进撤销栈。
+    auto* modeGroup = ribbonBar_->addGroup(viewTab, tr("视图模式"));
+    auto addToggleCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
+                                   const QString& icon, const QString& objectName) {
+        QToolButton* button = ribbonBar_->addCommand(group, tr(source), QIcon(icon), tr(tip),
+                                                     true, objectName);
+        button->setCheckable(true);
+        texts_.bind([this, button, source, tip] {
+            button->setText(tr(source));
+            button->setToolTip(tr(tip));
+        });
+        return button;
+    };
+    auto* rulerButton = addToggleCommand(modeGroup, "标尺", "在页面上显示标尺", ":/icons/square.svg",
+                                          "view.ruler");
+    connect(rulerButton, &QToolButton::clicked, this, [this](bool checked) {
+        if (auto* view = currentView()) { view->setRulerVisible(checked); }
+    });
+    auto* rulerUnitButton = ribbonBar_->addCommand(modeGroup, tr("标尺单位"),
+                                                   QIcon(":/icons/square.svg"), tr("选择标尺单位"),
+                                                   true, "view.rulerUnit");
+    auto* rulerUnitMenu = new QMenu(rulerUnitButton);
+    // 单位用序号传给视图层，视图层再映射成领域层的枚举。
+    const QVector<QPair<QString, int>> rulerUnits{
+        {tr("点"), 0}, {tr("毫米"), 1}, {tr("英寸"), 2}};
+    for (const auto& unit : rulerUnits) {
+        QAction* action = rulerUnitMenu->addAction(unit.first);
+        action->setObjectName(QStringLiteral("view.rulerUnit.%1").arg(unit.second));
+        const int index = unit.second;
+        connect(action, &QAction::triggered, this, [this, index]() {
+            if (auto* view = currentView()) { view->setRulerUnit(index); }
+        });
+    }
+    rulerUnitButton->setMenu(rulerUnitMenu);
+    rulerUnitButton->setPopupMode(QToolButton::InstantPopup);
+    auto* autoScrollButton = addToggleCommand(modeGroup, "自动滚动",
+                                              "拖动选区或批注到视口边缘时自动滚动",
+                                              ":/icons/square.svg", "view.autoScroll");
+    connect(autoScrollButton, &QToolButton::clicked, this, [this](bool checked) {
+        if (auto* view = currentView()) { view->setAutoScrollEnabled(checked); }
+    });
+    auto* transitionButton = ribbonBar_->addCommand(modeGroup, tr("翻页过渡"),
+                                                    QIcon(":/icons/square.svg"), tr("选择翻页过渡方式"),
+                                                    true, "view.pageTransition");
+    auto* transitionMenu = new QMenu(transitionButton);
+    const QVector<QPair<QString, int>> transitions{
+        {tr("无"), 0}, {tr("淡入淡出"), 1}, {tr("左滑"), 2}, {tr("右滑"), 3}};
+    for (const auto& transition : transitions) {
+        QAction* action = transitionMenu->addAction(transition.first);
+        action->setObjectName(QStringLiteral("view.pageTransition.%1").arg(transition.second));
+        const int index = transition.second;
+        connect(action, &QAction::triggered, this, [this, index]() {
+            if (auto* view = currentView()) { view->setPageTransition(index); }
+        });
+    }
+    transitionButton->setMenu(transitionMenu);
+    transitionButton->setPopupMode(QToolButton::InstantPopup);
+    auto* mirrorButton = addToggleCommand(modeGroup, "逆序镜像",
+                                          "左右镜像显示（日漫式从右往左读）",
+                                          ":/icons/square.svg", "view.mirror");
+    connect(mirrorButton, &QToolButton::clicked, this, [this](bool checked) {
+        if (auto* view = currentView()) { view->setMirrorEnabled(checked); }
+    });
+    auto* plainTextGroup = ribbonBar_->addGroup(viewTab, tr("纯文本"));
+    addRibbonCommand(plainTextGroup, "本页文本", "把当前页按阅读顺序显示成纯文本",
+                     ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->showPlainTextViewer(); }
+    }, true, "view.plainText");
+    addRibbonCommand(plainTextGroup, "全文文本", "把整篇按阅读顺序显示成纯文本",
+                     ":/icons/book.svg", [this] {
+        if (auto* view = currentView()) { view->showWholeDocumentPlainText(); }
+    }, true, "view.plainTextAll");
     auto* viewStatsGroup = ribbonBar_->addGroup(viewTab, tr("统计"));
     addRibbonCommand(viewStatsGroup, "字数统计", "统计总字数、字符数与每页分布", ":/icons/search.svg",
                      [this] {
@@ -1146,6 +1299,37 @@ void MainWindow::buildUi() {
     auto* aiOpsGroup = ribbonBar_->addGroup(aiTab, tr("文档操作"));
     addRibbonCommand(aiOpsGroup, "找空白页", "找出空白页并提议删除", ":/icons/annotation.svg",
                      [blankAction] { blankAction->trigger(); });
+    // AI 工具：文生图、总结配图、生成 PPT、内容检测、智能朗读。
+    //
+    // 这一组接的是已经写好并有单测的领域层能力（src/ai/ 下的五个模块），
+    // 判定与解析全由领域层做，界面只负责收参数与显示结果。
+    auto* aiToolGroup = ribbonBar_->addGroup(aiTab, tr("AI 工具"));
+    addRibbonCommand(aiToolGroup, "文生图", "用一句提示词生成图片，并插到当前页",
+                     ":/icons/square.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->imageGeneration(); }
+    }, true, "ai.generateImage");
+    addRibbonCommand(aiToolGroup, "总结配图", "把正文压成要点，再逐条生成配图",
+                     ":/icons/summarize.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->summaryImage(); }
+    }, true, "ai.summaryImage");
+    addRibbonCommand(aiToolGroup, "生成 PPT", "按主题、文档或大纲生成一套 PPT",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->pptGeneration(); }
+    }, true, "ai.ppt");
+    addRibbonCommand(aiToolGroup, "内容检测", "判断一段文字是不是 AI 写的",
+                     ":/icons/proofread.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->detection(); }
+    }, true, "ai.detect");
+    addRibbonCommand(aiToolGroup, "智能朗读", "清洗正文、排成朗读分段并逐段朗读",
+                     ":/icons/book.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->narration(); }
+    }, true, "ai.narration");
+    // 本地离线问答：不需要配 Provider，也不联网；找不到就说找不到。
+    addRibbonCommand(aiToolGroup, "本地离线问答", "在本地索引里检索并摘出答案（不联网、不调模型）",
+                     ":/icons/chat.svg", [this] {
+        if (aiPanel_ != nullptr) { aiDock_->show(); }
+        if (wiringActions_ != nullptr) { wiringActions_->offlineQa(); }
+    }, true, "ai.offlineQa");
     // 尚未实现的能力先按福昕截图补齐信息架构。按钮保持禁用并明确提示，
     // 只对齐页面，不把视觉存在伪装成功能可用。
     struct PlaceholderGroup {
@@ -1238,9 +1422,63 @@ void MainWindow::buildUi() {
                      ":/icons/convert.svg", [this] {
         convertDocument(ConversionKind::OptimizePdf);
     }, true, "convert.optimize");
+    // 导出与检查：这些能力已经写好并有单测，界面上必须点得到。
+    auto* convertExportGroup = ribbonBar_->addGroup(convertTab, tr("导出"));
+    addRibbonCommand(convertExportGroup, "导出 HTML", "把文字层导成一个 HTML 文件",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->exportHtml(); }
+    }, true, "convert.exportHtml");
+    addRibbonCommand(convertExportGroup, "图像化 PDF", "把每一页渲染成位图，写成一份新的 PDF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->exportImagePdf(); }
+    }, true, "convert.imagePdf");
+    addRibbonCommand(convertExportGroup, "到 OFD", "把文字层导成 OFD 包",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->exportOfd(); }
+    }, true, "convert.exportOfd");
+    addRibbonCommand(convertExportGroup, "到 MS Office", "把当前页的文字层导成 Word 文档",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->exportOffice(); }
+    }, true, "convert.exportOffice");
+    addRibbonCommand(convertExportGroup, "到 CAD", "把页面上的矢量路径导成 DXF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->exportDxf(); }
+    }, true, "convert.exportDxf");
+    addRibbonCommand(convertExportGroup, "PDF 转曲",
+                     "把字体转成不再依赖字体的形式（视觉等价的栅格化版本）",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->flattenFonts(); }
+    }, true, "convert.flattenFonts");
+    auto* convertCheckGroup = ribbonBar_->addGroup(convertTab, tr("检查与打包"));
+    addRibbonCommand(convertCheckGroup, "印前检查", "检查字体内嵌、图片分辨率、脚本等印前问题",
+                     ":/icons/search.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->preflight(); }
+    }, true, "convert.preflight");
+    addRibbonCommand(convertCheckGroup, "PDF 文件包", "把若干 PDF 收进一个活页夹，或打开一个包",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->portfolio(); }
+    }, true, "convert.portfolio");
+    addRibbonCommand(convertCheckGroup, "OCR 疑似错误", "列出 OCR 认错的字（只提示，不自动改）",
+                     ":/icons/proofread.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->ocrSuspicion(); }
+    }, true, "convert.ocrSuspicion");
+    // PDF/UA 合规检查：**只做检查并给修复建议**，不会生成合规文件。
+    addRibbonCommand(convertCheckGroup, "PDF/UA 合规检查", "按 PDF/UA 逐项检查并给出修复建议",
+                     ":/icons/protect.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->pdfUaCheck(); }
+    }, true, "convert.pdfUa");
+    // XFA 字段：只做静态字段提取，不执行脚本。
+    addRibbonCommand(convertCheckGroup, "XFA 字段", "列出 XFA 表单字段并导出成 CSV",
+                     ":/icons/form.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->xfaFields(); }
+    }, true, "convert.xfa");
+    // 图层面板：列出图层并逐个开关。
+    addRibbonCommand(convertCheckGroup, "图层面板", "列出文档里的图层，逐个显示或隐藏",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->ocgLayers(); }
+    }, true, "convert.layers");
     auto* convertUnavailableGroup = ribbonBar_->addGroup(convertTab, tr("更多转换"));
-    for (const char* command : {"从扫描仪", "从网页", "到 MS Office", "到 CAD",
-                                "PDF 文件包", "印前检查", "PDF 转曲"}) {
+    for (const char* command : {"从扫描仪", "从网页"}) {
         addRibbonCommand(convertUnavailableGroup, command, "将在后续版本中提供",
                          placeholderIcon(tr(command)), [] {}, false);
     }
@@ -1310,12 +1548,26 @@ void MainWindow::buildUi() {
                      ":/icons/search.svg", [this] {
         if (auto* view = currentView()) { view->batchReplaceDialog(); }
     }, true, "edit.replaceAll");
+    // 段落排版：对齐 / 行距 / 缩进。断行与位置交给领域层算。
+    addRibbonCommand(textEditGroup, "段落排版", "按对齐、行距与缩进重排选中的段落",
+                     ":/icons/edit.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->paragraphFormat(); }
+    }, true, "edit.paragraphFormat");
 
     auto* insertEditGroup = ribbonBar_->addGroup(contentEditTab, tr("插入"));
     addEditTool(insertEditGroup, "添加文本", "在页面上拖出文本框", ":/icons/edit.svg",
                 "freetext", "edit.addText");
     addEditTool(insertEditGroup, "添加图像", "在页面上添加图片", ":/icons/annotation.svg",
                 "imagestamp", "edit.addImage");
+    // 3D 与多媒体注解：只写对结构，不渲染 3D、不解码音视频。
+    addRibbonCommand(insertEditGroup, "插入 3D 模型", "插入一个 3D 模型注解（只写结构，本程序不渲染）",
+                     ":/icons/annotation.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(true); }
+    }, true, "edit.insert3d");
+    addRibbonCommand(insertEditGroup, "插入多媒体", "插入一个多媒体注解（只写结构，本程序不播放）",
+                     ":/icons/annotation.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(false); }
+    }, true, "edit.insertMedia");
     QToolButton* addShapeButton = addRibbonCommand(
         insertEditGroup, "添加形状", "选择形状后在页面上绘制", ":/icons/square.svg",
         [this] {
@@ -1527,8 +1779,10 @@ void MainWindow::buildUi() {
     addRibbonCommand(sealGroup, "签章", "选择本地签章并在页面上放置", ":/icons/ink.svg",
                      [chooseSignature] { chooseSignature(false); }, true, "signature.place");
     auto* signatureFlowGroup = ribbonBar_->addGroup(signatureTab, tr("流程"));
-    addRibbonCommand(signatureFlowGroup, "签署流程", "云端签署流程尚未连接", ":/icons/protect.svg",
-                     [] {}, false, "signature.workflow");
+    addRibbonCommand(signatureFlowGroup, "签署流程", "打开签署流程面板（签署流程 / 签署报告 / 签署记录）",
+                     ":/icons/protect.svg", [this] {
+        if (auto* view = currentView()) { view->showSignatureWorkflowDialog(); }
+    }, true, "signature.workflow");
     addRibbonCommand(signatureFlowGroup, "签署报告", "导出当前文档的批注与签章摘要",
                      ":/icons/annotation.svg", [this] {
         if (auto* view = currentView()) view->exportAnnotationSummary();
@@ -1624,6 +1878,12 @@ void MainWindow::buildUi() {
     addRibbonCommand(accessibilityReadingGroup, "阅读顺序",
                      "核对当前页文字的逻辑顺序", ":/icons/pages.svg",
                      showReadingOrder, true, "accessibility.readingOrder");
+    // 读取文档里既有的标签树（别的工具写出来的树也认）。
+    addRibbonCommand(accessibilityReadingGroup, "读取标签树",
+                     "读出文档里的标签树（标签、页码、层级、替代文本与语言）",
+                     ":/icons/pages.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->structTree(); }
+    }, true, "accessibility.structTree");
     addRibbonCommand(accessibilityReadingGroup, "替代文本",
                      "给选中的批注写一句给读屏软件念的说明", ":/icons/edit.svg",
                      [this] { setSelectedAnnotationAltText(); }, true, "accessibility.alternativeText");
@@ -1697,6 +1957,10 @@ void MainWindow::buildUi() {
                      [this] { if (auto* view = currentView()) view->mergeDocumentDialog(); }, true, "documentManagement.invoiceMerge");
 
     auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
+    addRibbonCommand(documentBatchGroup, "批处理", "把一个目录里的 PDF 依次处理一遍并出 JSON 报告",
+                     ":/icons/convert.svg", [this] {
+        if (auto* view = currentView()) { view->batchProcessDialog(); }
+    }, true, "documentManagement.batch");
     addRibbonCommand(documentBatchGroup, "批量重命名", "按统一前缀和序号重命名多个文件",
                      ":/icons/edit.svg", [this] { batchRenameDocuments(); }, true,
                      "documentManagement.batchRename");
@@ -2051,6 +2315,22 @@ void MainWindow::buildUi() {
     // 面板自己管 Worker 客户端、状态标签与对话区。
     aiPanel_ = new AiPanel(aiDock_);
     aiPanel_->setWorkerClient(workerClient_);
+    // 本地离线问答的提问器：检索用当前文档的本地索引（不联网、不调模型）。
+    aiPanel_->setOfflineAnswerProvider([this](const QString& question) {
+        ai::OfflineAnswer answer;
+        PdfView* view = currentView();
+        if (view == nullptr || view->indexController() == nullptr) {
+            answer.status = ai::OfflineAnswerStatus::NoMatch;
+            return answer;
+        }
+        const doc::LocalIndex& index = view->indexController()->index();
+        if (index.isEmpty()) {
+            answer.status = ai::OfflineAnswerStatus::NoMatch;
+            return answer;
+        }
+        const ai::OfflineQa qa(&index);
+        return qa.answer(question);
+    });
     aiDock_->setWidget(aiPanel_);
     addDockWidget(Qt::RightDockWidgetArea, aiDock_);
     resizeDocks({navigationDock_, aiDock_}, {52, 340}, Qt::Horizontal);
@@ -2267,6 +2547,8 @@ void MainWindow::buildUi() {
             aiPanel_->setCurrentPage(view != nullptr ? view->currentPage() : 0);
             // 整篇问答也跟着当前文档走：检索要用它的索引与向量索引。
             aiPanel_->setQaController(view != nullptr ? view->qaController() : nullptr);
+            // 本地离线问答直接用本地索引里的块。
+            aiPanel_->setIndexController(view != nullptr ? view->indexController() : nullptr);
         }
     });
 
@@ -2418,6 +2700,28 @@ void MainWindow::buildUi() {
         resize(fitted);
         move(available.center() - QPoint(fitted.width() / 2, fitted.height() / 2));
     }
+    // 第二批接线（E/F/G/H）的动作集合：Ribbon 上的新按钮都走它。
+    wiringActions_ = new WiringActions(this);
+    wiringActions_->setViewProvider([this] { return currentView(); });
+    wiringActions_->setOpenDocumentHandler([this](const QString& path) { openPdfFile(path); });
+    wiringActions_->setWorkerClient(workerClient_);
+    // 第三批接线：写隐藏文字层要用识别结果，离线问答要用 AI 面板。
+    wiringActions_->setOcrController(ocrController_);
+    wiringActions_->setAiPanel(aiPanel_);
+    connect(wiringActions_, &WiringActions::message, this, [this](const QString& value) {
+        statusBar()->showMessage(value, 4000);
+    });
+
+    // Tab 顺序：Ribbon → 侧栏 → 主视图 → 状态栏。
+    //
+    // 显式声明，不靠控件创建顺序碰运气：控件一多，创建顺序与阅读顺序就分家了，
+    // 键盘用户按 Tab 会先掉进状态栏再跳回顶部。
+    QWidget::setTabOrder(ribbonBar_, navigationDock_);
+    QWidget::setTabOrder(navigationDock_, tabs_);
+    QWidget::setTabOrder(tabs_, statusPageEdit_);
+    QWidget::setTabOrder(statusPageEdit_, statusZoomSlider_);
+    QWidget::setTabOrder(statusZoomSlider_, statusSettingsButton_);
+
     syncTabBar();
 }
 
@@ -3564,6 +3868,43 @@ void MainWindow::removeSelectedAnnotation() {
     if (boundAnnotations_->removeAnnotation(id)) {
         statusBar()->showMessage(tr("已删除批注"), 3000);
     }
+}
+
+// 切换阅读配色（夜间 / 护眼 / 高对比）。
+//
+// 为什么只改阅读区底色：界面的颜色是硬编码在样式表里的（几百处），
+// 整套换肤要重写那份样式表，风险远大于收益；
+// 而用户真正在意的是读页面时眼睛盯着的那块地方——页面周围的底色。
+// 页面本身的像素一个都不动：换配色不会改变文档内容，也不影响打印与导出。
+void MainWindow::changeReadingScheme() {
+    const QVector<aipdf::app::theme::ReadingScheme> schemes{
+        aipdf::app::theme::ReadingScheme::Light,
+        aipdf::app::theme::ReadingScheme::Night,
+        aipdf::app::theme::ReadingScheme::EyeCare,
+        aipdf::app::theme::ReadingScheme::HighContrast};
+    QStringList names;
+    names << tr("浅色") << tr("夜间") << tr("护眼") << tr("高对比");
+    const int current = schemes.indexOf(aipdf::app::theme::currentScheme());
+    bool accepted = false;
+    const QString chosen = QInputDialog::getItem(this, tr("阅读配色"), tr("配色:"), names,
+                                                  current < 0 ? 0 : current, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int index = names.indexOf(chosen);
+    if (index < 0) {
+        return;
+    }
+    const aipdf::app::theme::ReadingScheme scheme = schemes.at(index);
+    aipdf::app::theme::setCurrentScheme(scheme);
+    aipdf::app::theme::applyScheme(*qApp, scheme);
+    // 已经打开的文档页签也要跟着换：配色是全局设置，不是单文档的。
+    for (int tab = 0; tab < tabs_->count(); ++tab) {
+        if (auto* view = qobject_cast<PdfView*>(tabs_->widget(tab))) {
+            view->setReadingScheme(scheme);
+        }
+    }
+    statusBar()->showMessage(tr("阅读配色已切换"), 3000);
 }
 
 PdfView* MainWindow::currentView() const {
@@ -5174,6 +5515,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
         // 否则它握着的是上一个已经销毁的控制器。
         if (aiPanel_ != nullptr) {
             aiPanel_->setQaController(view->qaController());
+            aiPanel_->setIndexController(view->indexController());
         }
     });
     connect(view, &PdfView::filePathChanged, this, [this, view](const QString&) {
@@ -5199,6 +5541,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
     // 这里不指的话，整篇问答会找不到索引。
     if (aiPanel_ != nullptr) {
         aiPanel_->setQaController(view->qaController());
+        aiPanel_->setIndexController(view->indexController());
     }
     statusBar()->showMessage(tr("已打开 %1（%2 页）").arg(title).arg(view->pageCount()));
 }
@@ -5261,6 +5604,10 @@ void MainWindow::updateStatusZoom(double factor) {
 
 void MainWindow::retranslateUi() {
     texts_.retranslate();
+    // 翻译会把按钮文字重写一遍，助记符标记与无障碍名要跟着重算。
+    if (ribbonBar_ != nullptr) {
+        ribbonBar_->refreshCommandLabels();
+    }
     syncLanguageMenu();
     // 随状态变化的文案由各自的 update 函数按当前语言重算。
     updateAiQuickActions();

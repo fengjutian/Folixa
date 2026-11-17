@@ -154,6 +154,16 @@ QJsonObject annotationToJson(const Annotation& annotation) {
     object.insert(QStringLiteral("contents"), annotation.contents);
     object.insert(QStringLiteral("alt"), annotation.altText);
     object.insert(QStringLiteral("author"), annotation.author);
+    // 自定义外观流是二进制内容流，JSON 里必须用 base64：
+    // 直接塞原始字节会经过 UTF-8 转换，非 ASCII 字节会被改写，往返就丢了。
+    if (!annotation.customAppearance.isEmpty()) {
+        object.insert(QStringLiteral("customAppearance"),
+                      QString::fromLatin1(annotation.customAppearance.toBase64()));
+    }
+    if (!annotation.customAppearanceResources.isEmpty()) {
+        object.insert(QStringLiteral("customAppearanceResources"),
+                      QString::fromLatin1(annotation.customAppearanceResources.toBase64()));
+    }
     return object;
 }
 
@@ -183,6 +193,10 @@ bool annotationFromJson(const QJsonObject& object, Annotation* annotation) {
     result.contents = object.value(QStringLiteral("contents")).toString();
     result.altText = object.value(QStringLiteral("alt")).toString();
     result.author = object.value(QStringLiteral("author")).toString();
+    result.customAppearance =
+        QByteArray::fromBase64(object.value(QStringLiteral("customAppearance")).toString().toLatin1());
+    result.customAppearanceResources = QByteArray::fromBase64(
+        object.value(QStringLiteral("customAppearanceResources")).toString().toLatin1());
 
     for (const QJsonValue& value : quads) {
         const QJsonArray quad = value.toArray();

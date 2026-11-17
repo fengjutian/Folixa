@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <QIcon>
+#include <QSet>
 #include <QStringList>
 #include <QVector>
 #include <QWidget>
@@ -50,6 +51,28 @@ public:
     void setCurrentTab(int index);
     int currentTab() const;
     int tabCount() const;
+
+    // ------------------------------------------------------- 无障碍与助记符 ----
+    //
+    // 屏幕阅读器读的是 accessibleName，不是按钮文字：文字里可能带助记符标记，
+    // 读出来会是「&打开」这种怪东西。所以无障碍名一律用去掉助记符后的文字。
+
+    // 去掉助记符标记："&打开" → "打开"，"&&" → 字面量 "&"。
+    static QString stripMnemonics(const QString& text);
+    // 取助记键：单个 '&' 后面的那个字符；没有助记符时返回空 QChar。
+    // "&&" 是字面量 '&'，不算助记符。
+    static QChar mnemonicKey(const QString& text);
+    // 在指定字符前插入助记符标记（该字符已经是文本里的一部分时用）。
+    static QString insertMnemonic(const QString& text, QChar key);
+
+    // 命令区里的所有命令按钮（按创建顺序）。
+    QVector<QToolButton*> commandButtons() const;
+
+    // 切换语言之后重算按钮文字里的助记符与无障碍名。
+    //
+    // 为什么需要单独调一次：按钮文字是 texts_.bind 重新翻译出来的，
+    // 翻译会把之前插进去的 '&' 冲掉，助记符与无障碍名都要跟着重算。
+    void refreshCommandLabels();
     // 欢迎页只保留标签导航；打开文档后恢复完整命令区。
     void setCompactMode(bool compact);
     // 按标题重排标签与对应内容页；未列出的标签保持在末尾。
@@ -66,6 +89,8 @@ signals:
 
 private:
     int appendPage();
+    // 给一个命令按钮补上助记符标记（已有显式助记符时不动）。
+    void applyMnemonicTo(QToolButton* button);
     QTabBar* tabs_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     // QStackedWidget 的直接子项是滚动容器，不是 pageWidgets_ 中的内容页。
@@ -74,6 +99,11 @@ private:
     QVector<QWidget*> pageWidgets_;
     QVector<QHBoxLayout*> pageLayouts_;
     bool compactMode_ = false;
+    // 命令按钮（按创建顺序）：助记符与无障碍名都靠它统一维护。
+    QVector<QToolButton*> commandButtons_;
+    // 已经用过的助记键：Alt+同一键对应多个按钮会让用户按到一半不知道按的是谁，
+    // 所以助记键全 Ribbon 唯一。
+    QSet<QChar> usedMnemonics_;
 };
 
 }  // namespace aipdf::app

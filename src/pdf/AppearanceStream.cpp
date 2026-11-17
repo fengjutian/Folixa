@@ -1,4 +1,4 @@
-﻿#include "pdf/AppearanceStream.h"
+#include "pdf/AppearanceStream.h"
 #include <QImage>
 
 #include <algorithm>
@@ -182,6 +182,18 @@ double appearanceLineWidth(AnnotationType type) {
 }
 
 Appearance buildAnnotationAppearance(const Annotation& annotation) {
+    // 自定义外观优先：callout 箭头框、区域高亮的外观是按用户画的几何算的，
+    // 按类型生成那套规则表达不了。
+    // bbox 用批注的 rect：自定义内容流是按批注矩形左下角为原点写的。
+    if (!annotation.customAppearance.isEmpty()) {
+        Appearance custom;
+        custom.content = annotation.customAppearance;
+        custom.bbox = annotation.rect;
+        custom.resources = annotation.customAppearanceResources;
+        // 带了资源片段说明用了 ExtGState，透明度必须靠它才生效。
+        custom.usesTransparency = !custom.resources.isEmpty();
+        return custom;
+    }
     Appearance appearance;
     const QRectF bounds = effectiveBounds(annotation).normalized();
     if (bounds.width() <= 0.0 || bounds.height() <= 0.0) {

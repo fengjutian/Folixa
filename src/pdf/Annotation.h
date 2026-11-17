@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QColor>
 #include <QJsonObject>
@@ -76,6 +76,16 @@ struct Annotation {
     double opacity = 0.0;
     // 测量比例：1 个 PDF 点 = 多少用户单位（默认 1，即按点计）。
     double measureScale = 1.0;
+    // 自定义外观流（/AP 的内容部分）。
+    //
+    // 为什么需要它：callout 箭头框、区域高亮这类批注，外观是"按用户画出来的几何"
+    // 算出来的，没法用"按批注类型生成外观"那套规则表达。
+    // 非空时优先于按类型生成的外观。
+    QByteArray customAppearance;
+    // 自定义外观要用的资源字典片段（例如区域高亮的 /ExtGState）。
+    // 空表示自定义外观不需要资源；非空时写入层必须把它放进 /Resources，
+    // 否则半透明会退化成不透明色块，把正文盖死。
+    QByteArray customAppearanceResources;
     // 附件的文件名与内容。PDFium 没有创建附件的接口，这两项由我们自己的写入器落盘。
     QString attachmentName;
     QByteArray attachmentData;

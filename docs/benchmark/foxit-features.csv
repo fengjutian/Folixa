@@ -1,23 +1,23 @@
 tab,group,command,status,capability,note
 文件,文件操作,打开,aligned,—,命令行/拖放/最近文档
-文件,文件操作,创建,missing,E7,只能插入空白页，不能新建文档
+文件,文件操作,创建,aligned,E7,新建空白文档：选纸张（标准/自定义）、方向与页数，落盘后按既有打开流程载入；Ribbon「文件 → 新建」；`doc::BlankDocument`，`BlankDocumentTests`
 文件,文件操作,属性,aligned,—,读 PDF 的 /Info 并可改写回；有专项单测
 文件,文件操作,保存,aligned,—,临时文件→重开校验→原子替换
 文件,文件操作,另存为,aligned,—,可换路径并保留备份
 文件,文件操作,关闭,aligned,—,标签页关闭并清理
 文件,打印,打印,aligned,H1,范围与份数可用；输出到打印机或 PDF
-文件,打印,批量打印,missing,D9,没有批量打印；批量能力只有重命名与 OFD 转换
+文件,打印,批量打印,aligned,D9,"批量打印：多文件 + 份数 + 页码范围（支持 `1-3,5` 语法），逐个走系统打印对话框，失败项在汇总框列出；**总页数恒为「未知」**（领域层 totalPages 恒 -1，不显示假数字）；`doc::PrintBatch`，`PrintBatchTests`"
 文件,打印,高级打印,partial,H1,双面/多页合一取决于打印驱动
-文件,打印,发票打印,missing,—,地区性发票排版
-文件,打印,打印模板,missing,—,没有模板管理
+文件,打印,发票打印,aligned,—,发票打印：填发票要素（抬头、税号、金额、日期、备注等）→ 预览版式 → 打印 / 导出 PDF；币种与小数位 / 千分位格式可选，**税号与税率按用户填的写，不替用户编造**；版式计算在领域层（`doc::InvoiceLayout`，`InvoiceLayoutTests` 25 条）
+文件,打印,打印模板,aligned,—,打印模板：模板名 / 份数 / 纸张 / 缩放（适应页面 / 不缩放 / 缩小到可打印 / 比例，比例合法区间 10–399%）/ 页码范围，可保存后直接套用；`doc::PrintTemplate`，`PrintTemplateTests`
 文件,共享与恢复,共享,na,—,云协作非目标
 文件,共享与恢复,恢复,aligned,—,恢复日志可重放未保存命令
 文件,共享与恢复,本地备份,aligned,—,保存时留下 .folixa.bak
 文件,导出与工具,导出,aligned,H3,导出页面图片与纯文本
 文件,导出与工具,PDF优化,partial,H8,调 Ghostscript 压缩；依赖本机安装 gs，无体积断言
 文件,导出与工具,索引,aligned,—,本地分块索引与检索
-文件,导出与工具,动作向导,missing,D9,没有动作向导编排
-文件,导出与工具,皮肤,missing,—,当前只有浅色主题
+文件,导出与工具,动作向导,aligned,D9,动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**当前文档上真正落地的是「打开文件 / 加水印（只支持页面正中）/ 加页码（右下角、从 1 起）/ 结束」**，其余步骤如实报「动作向导还没有接这一步」，不假装成功；每步失败显示领域层给的中文原因。**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard`，`ActionWizardTests` 31 条）
+文件,导出与工具,皮肤,aligned,—,主题切换：浅色/夜间/护眼/高对比，Ribbon 有入口；`ReadingSchemeTests` 兜底
 文件,最近文档,最近文档,aligned,—,显示文件名/路径/时间
 文件,最近文档,云文档,na,—,没有云盘接入
 文件,最近文档,添加一个位置,na,—,同上
@@ -49,31 +49,31 @@ tab,group,command,status,capability,note
 主页,商业,立即购买,na,—,无订阅
 主页,商业,订阅,na,—,无订阅
 主页,AI,翻译助手,aligned,L2,翻译选区/当前页
-转换,输入,文件转换,partial,H6,Office→PDF 走本机 LibreOffice；扫描仪/剪贴板/网页仍无
+转换,输入,文件转换,aligned,H6,文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 23 条），Office / HTML 另走本机 LibreOffice；扫描仪 / 剪贴板 / 网页仍无
 转换,输入,从扫描仪,missing,H6,同上
 转换,输入,从剪贴板,missing,—,没有剪贴板转 PDF
 转换,输入,从网页,missing,—,没有网页抓取
 转换,输入,从CAJ,na,—,地区性格式
 转换,输入,表单,missing,—,没有表单文件转换
-转换,打包,PDF文件包,missing,—,不支持 Portfolio
-转换,打包,制作活页夹,missing,—,同上
-转换,组装,合并文件,partial,D2,单选一次并一份；跨文件书签不随页搬运
+转换,打包,PDF文件包,aligned,—,PDF 文件包（Portfolio）：添加文件、填包标题/作者、创建 `.pdf` 包、打开已有包、列出并取出条目；`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`
+转换,打包,制作活页夹,aligned,—,活页夹与 PDF 文件包同一套实现（PDF Portfolio）；同上单测兜底
+转换,组装,合并文件,aligned,D2,一次可多选多份合并，跨文件书签按层级搬运并加来源名前缀，内部跳转改指合并后页号；有专项单测（`DocumentMergerTests` 13 条）
 转换,组装,空白页,aligned,D1,插入空白页
 转换,输出,导出全部图像,aligned,H3,按 DPI 导出 PNG/JPEG
-转换,输出,到MS Office,missing,H5,入口禁用占位，未实现
+转换,输出,到MS Office,partial,H5,PDF→Word（DOCX，真 zip 包）/ RTF / 纯文本；**只导一页文本层，不含图片、表格与样式**，Excel 与 PPT 未做；`doc::exportPageTo`，`OfficeExportTests`
 转换,输出,到图片,aligned,H3,与导出图片同一条通路
-转换,输出,到HTML,missing,—,没有 HTML 导出
-转换,输出,转为基于图像的PDF,missing,—,没有整页栅格化导出
-转换,输出,到CAD,missing,—,没有 CAD
-转换,输出,到其它格式,missing,—,没有其它格式
-转换,输出,到PDF,partial,H6,Office/HTML→PDF 走 LibreOffice；非任意文件
-转换,输出,到OFD,missing,—,没有 OFD
+转换,输出,到HTML,partial,—,整篇导出 HTML；**不含图片与图形，字号按字形高度估算**；`pdf::exportPageToHtml`，`ExportFormatsTests`
+转换,输出,转为基于图像的PDF,aligned,—,整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests`
+转换,输出,到CAD,partial,—,导出 DXF；**只含文字几何，不含曲线、标注与图层**；`pdf::exportPageToDxf`，`ExportFormatsTests`
+转换,输出,到其它格式,partial,—,导出对话框提供 HTML / 图像化PDF / DXF / OFD / DOCX / RTF 六种，各格式另有降级（见对应行）；**不是任意格式**
+转换,输出,到PDF,aligned,H6,任意文件 → PDF：除本机 LibreOffice 外，自建转换覆盖 txt / md / csv / json / html，**不需要装任何外部引擎**；**用标准 14 字体时中文会变成 `?`**，界面如实提示替换了多少字符并提供「选择字体文件」入口；`UniversalConverterTests` 23 条
+转换,输出,到OFD,partial,—,导出 OFD；**只支持文本对象**，不含图形与图片；`doc::exportPageToOfd`，`OfdExportTests`
 转换,输出,OFD批量转换,missing,—,同上
 转换,OCR,识别文本,aligned,I1,识别结果进本地索引，可检索可问答；未回写 PDF 隐藏文本层
 转换,OCR,快速识别,aligned,I1,与 OCR 同一引擎
-转换,OCR,疑似错误,missing,—,没有识别纠错
-转换,印前,印前检查,missing,—,没有印前检查
-转换,印前,PDF转曲,missing,E5,没有字体转曲
+转换,OCR,疑似错误,aligned,—,OCR 疑似错误：列出疑似错字（页码 / 识别到的字 / 建议的字 / 理由 / 上下文），**只提示不改原文**；`pdf::findSuspiciousCharacters`，`OcrSuspicionTests`
+转换,印前,印前检查,aligned,—,印前检查：读当前文档给可送印/不可送印结论，按严重度分三组列出条目，计数与判定全部取自领域层 `runPreflightCheck`；`PreflightCheckerTests`
+转换,印前,PDF转曲,partial,E5,PDF 转曲：**是视觉等价的整页栅格化，不是矢量轮廓化**（文字变成像素，不再可选可搜）；界面文案刻意不含「矢量」「轮廓」并有负例守卫；`doc::flattenFontsToOutlines`，`FontFlatteningTests`
 编辑,内容,编辑文本,aligned,E1,行级重写 + 就地编辑，可写盘
 编辑,内容,编辑对象,aligned,E3,选择/移动/旋转/缩放/删除，可撤销
 编辑,内容,链接&合并文本,missing,E4,没有文本块链接与合并
@@ -93,7 +93,7 @@ tab,group,command,status,capability,note
 编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
 编辑,附件,图像标注,aligned,C7,图片图章
 编辑,附件,音频&视频,partial,C8,录音以 WAV 附件保存；无视频
-编辑,3D,添加3D,excluded,A11,不追 3D/多媒体
+编辑,3D,添加3D,partial,A11,3D 与多媒体注解能写能读回：`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`（`RichMedia3dTests` 26 条）；**只写对结构（`/3D`、`/Screen`、Filespec），不渲染 3D、不解码音视频**，界面文案如实说明，不承诺「可以旋转模型」「可以播放视频」
 页面管理,页面,插入,aligned,D1,插入空白页；也可从别的文件插入页面
 页面管理,页面,删除,aligned,D1,删除当前页，可撤销
 页面管理,页面,提取,aligned,D3,提取当前页与按范围提取；切分逻辑抽到 PageSplitPlanner 并有专项单测
@@ -122,17 +122,17 @@ tab,group,command,status,capability,note
 注释,标注,文件,aligned,C8,文件附件批注
 注释,标注,打字机,aligned,C4,自由文本
 注释,标注,文本框,aligned,C4,带边框的 FreeText
-注释,标注,注释框,missing,C5,没有 callout 箭头框
+注释,标注,注释框,aligned,C5,callout 箭头框：两段式交互（先拖注释框，再点箭头尖），PDF 无 callout Subtype 故用 Square+自定义 /AP；有界面入口与专项单测（`AnnotationShapesTests` 17 条、`CustomAppearanceTests` 12 条）
 注释,绘图,绘图,aligned,C5,矩形/椭圆/线/箭头/多边形/云线
 注释,绘图,铅笔,aligned,C6,墨迹与整笔擦除
 注释,绘图,橡皮,aligned,C6,整笔删除
-注释,高亮工具,区域高亮,missing,—,没有区域高亮
+注释,高亮工具,区域高亮,aligned,—,区域高亮：Polygon + 自定义 /AP（带 /ExtGState 半透明），屏幕显示与文件外观一致；自交轮廓被拒；`AnnotationShapesTests` 17 条 + `CustomAppearanceTests` 12 条
 注释,高亮工具,搜索&高亮,aligned,B9,搜索结果高亮与跳转
 注释,测量,测量,aligned,C9,距离/周长/面积 + 比例尺
-注释,测量,会计计算器,missing,—,没有计算器
+注释,测量,会计计算器,aligned,—,会计计算器：输入算式（含百分比）求值，可把结果插入当前页成文本批注，**非法表达式显示具体错误原因**；`pdf::AnnotationToolkit`，`AnnotationToolkitTests`
 注释,图章,图章,aligned,C7,四种文字图章
 注释,图章,自定义图章,aligned,C7,图片图章
-注释,符号,符号,missing,—,没有符号面板
+注释,符号,符号,aligned,—,符号面板：按分类挑选符号插入到光标处，面板不关可连续插；条目数与领域层符号目录一致（有单测）；`pdf::AnnotationToolkit`，`AnnotationToolkitTests`
 注释,符号,数字,partial,C7,只有文字图章，没有数字图章
 注释,符号,字母,partial,C7,同上
 注释,审阅,小结注释,aligned,C12,批注摘要 HTML/打印
@@ -141,19 +141,19 @@ tab,group,command,status,capability,note
 注释,审阅,邮件发送PDF,aligned,K1,调默认邮件客户端并复制路径供贴附件
 注释,审阅,管理注释,partial,C11,列表/跳转/删除/回复；无批量筛选
 注释,工具,保持工具选择,partial,C6,工具互斥；用后回到选择
-注释,工具,批注模式,missing,—,没有连续批注模式
+注释,工具,批注模式,aligned,—,连续批注模式：开关式；开时放完批注保持工具激活，关时放完回选择态；墨迹/橡皮/声音/附件等会越用越歪的工具仍放完即退；`pdf::ContinuousAnnotationMode`，`AnnotationToolkitTests`
 视图,阅读,阅读模式,partial,A4,专注模式隐藏面板；没有全屏沉浸阅读
-视图,阅读,重排,excluded,A8,明确不做
-视图,阅读,逆序阅读,missing,—,逆序指整篇页面逆序，不是逆序阅读版式
-视图,显示,视觉模式,missing,A9,只有浅色主题；护眼/夜间未做
-视图,显示,文本查看器,missing,—,没有纯文本视图
+视图,阅读,重排,partial,A8,整篇重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
+视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,显示,视觉模式,aligned,A9,夜间/护眼/高对比四套配色，QSettings 持久化，Ribbon 有切换入口；有专项单测（`ReadingSchemeTests`）
+视图,显示,文本查看器,aligned,—,纯文本查看器：可看本页或整篇，词间空格保留；有界面入口与专项单测（`ViewModesTests` 24 条）
 视图,显示,旋转视图,aligned,A7,90° 步进并记忆
-视图,显示,切换标尺,missing,—,没有标尺
+视图,显示,切换标尺,aligned,—,标尺：横竖两杆，刻度锚在当前页绝对坐标，单位可切点/毫米/英寸；有界面入口与专项单测（`ViewModesTests` 24 条）
 视图,布局,单页,aligned,A4,连续单页
 视图,布局,双页,aligned,A4,对开
 视图,布局,连续,aligned,A3,连续滚动 + 瓦片渲染
-视图,交互,自动滚动,missing,—,没有自动滚动
-视图,交互,页面过渡,missing,—,没有过渡
+视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 24 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
 视图,朗读,朗读,partial,J4,逐词朗读并逐词高亮；有专项单测；依赖系统语音合成，无音色/语速可调，长文逐词合成较慢
 视图,比较,比较,missing,L7,计划 2.0
@@ -169,7 +169,7 @@ tab,group,command,status,capability,note
 表单,建域,按钮,aligned,E7,可新建并落盘；经典 xref 与交叉引用流都能写
 表单,建域,条形码,aligned,E7,Code128 真条码画进外观流，扫描器能扫出来
 表单,模板,页面模板,partial,—,可把当前页的域存成模板并按模板建域；没有内置模板库
-表单,XFA,编辑静态XFA表单,excluded,F6,PDFium 无 XFA 引擎，须显式提示
+表单,XFA,编辑静态XFA表单,partial,F6,静态 XFA 字段可提取：字段名 / 标签 / 类型 / 当前值 / 是否必填，可导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**含动态逻辑的 XFA 只做静态字段提取，不执行脚本**，界面明确提示
 表单,计算,计算次序,aligned,F3,按 AcroForm /CO 次序执行计算脚本，可调序并写回
 表单,设计,添加工具提示,aligned,F5,域属性可填提示，表单面板有提示列
 表单,填写,重置表单,aligned,F2,恢复字段默认值；没有默认值的清空
@@ -191,16 +191,16 @@ tab,group,command,status,capability,note
 保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
 保护,签名,签名&认证,partial,G5,PKCS#12 证书签名走随包 pyHanko
 保护,签名,时间戳文档,partial,G7,时间戳地址透传给 pyHanko
-保护,签名,验证,partial,G6,新增签名列表与证书链面板（有专项单测）；pyHanko 验签输出仍是原始文本，未做逐项密码学判定
+保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 15 条 + `RsaVerifierTests` 14 条
 电子签章,签署,对外签署,na,—,云端电子签平台
 电子签章,签署,对内签署,na,—,同上
 电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；无对外平台
 电子签章,签章,骑缝章,aligned,G5,骑缝章有入口与实现
 电子签章,签署,邀请他人签署,na,—,需要服务端
 电子签章,签章,签章,partial,G5,手写或导入签章并盖到页面
-电子签章,流程,签署流程,missing,—,没有流程
-电子签章,流程,签署报告,missing,—,没有报告
-电子签章,流程,签署记录,missing,—,没有记录
+电子签章,流程,签署流程,aligned,—,签署流程面板：标题/发起人/签署人增删/开始签署/标记已签/拒签/跳过/完成/中止，流程与签署人状态一律取自领域层；`SignatureWorkflowTests` 36 条
+电子签章,流程,签署报告,aligned,—,签署报告：buildReport().toPlainText()，可复制到剪贴板或导出为文本文件；同上单测兜底
+电子签章,流程,签署记录,aligned,—,签署记录：按 events() 顺序显示时间/谁/做了什么/说明；同上单测兜底
 电子签章,服务,分享反馈,na,—,平台功能
 电子签章,服务,了解更多,na,—,平台功能
 电子签章,服务,我的额度,na,—,平台功能
@@ -219,13 +219,13 @@ tab,group,command,status,capability,note
 共享,企业,iManage 9,excluded,—,同上
 共享,企业,iManage 10,excluded,—,同上
 共享,企业,eDOCS DM,excluded,—,同上
-辅助工具,标签,自动添加标签到文档中,missing,J5,入口是禁用占位
+辅助工具,标签,自动添加标签到文档中,partial,J5,标签树能写（`pdf::writeTaggedStructure`），但**只到行粒度**：按文本行推结构元素，不是语义级的自动打标签；`TagTreeWriterTests` 18 条
 辅助工具,标签,自动添加标签到表单域,missing,J5,同上
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
 辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导
 辅助工具,阅读,阅读选项,partial,J4,当前指向阅读顺序预览；未接朗读设置
-辅助工具,阅读,阅读顺序,partial,J5,阅读顺序预览改用视觉顺序；标签树可写入（行粒度）；仍不读 StructTreeRoot 标签树
+辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`），读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规
 辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；不支持表单域说明与自动生成
 辅助工具,阅读,设置区域阅读顺序,partial,J5,能看文档标签树里已写好的顺序；标签树只到行粒度，无替代文本与语言标记；行聚类与选区同规则（`PageTextLinesTests` 11 条）
 辅助工具,阅读,更改区域顺序,partial,J5,可调整当前页各行先后并写进标签树；只到行粒度，未过 PDF/A 标签合规；行聚类与选区同规则（`PageTextLinesTests` 11 条）
@@ -267,11 +267,11 @@ tab,group,command,status,capability,note
 帮助,商业,订阅,na,—,无订阅
 AI助手,对话,AI聊天,aligned,L1,流式回答/停止/用量与费用
 AI助手,翻译,翻译文档,partial,L2,选区与当前页；整篇未做
-AI助手,朗读,智能朗读,missing,J4,没有 AI 朗读（系统朗读在视图页签）
-AI助手,检测,AI内容检测,missing,—,没有内容检测
-AI助手,生成,生成图像,missing,—,没有文生图
-AI助手,生成,AI总结生图,missing,—,没有总结配图
-AI助手,生成,AI生成PPT,missing,—,没有 PPT 生成
-AI助手,生成,主题生成PPT,missing,—,同上
-AI助手,生成,文档生成PPT,missing,—,同上
-AI助手,生成,大纲生成PPT,missing,—,同上
+AI助手,朗读,智能朗读,aligned,J4,AI 智能朗读：自动取正文、清洗分段后逐段朗读，状态栏显示段数与预计时长，可被打断；走系统语音合成，**没有音色与语速可调**；`ai::AiNarration`，`AiNarrationTests`
+AI助手,检测,AI内容检测,aligned,—,AI 内容检测：自动带入选区文字（无选区则当前页正文），输出判定与置信度，**模型解析失败时显示「无法判断」而不是编一个结论**；`ai::AiContentDetection`，`AiContentDetectionTests`
+AI助手,生成,生成图像,aligned,—,文生图：提示词 / 反向提示词 / 画风 / 尺寸 / 张数 1–4，生成后可直接插成图片批注；**需配置 Provider 密钥，没密钥直接报错，不做离线兜底**；`ai::AiImageGeneration`，`AiImageGenerationTests`
+AI助手,生成,AI总结生图,aligned,—,总结配图：先取当前页正文生成要点列表，再逐条生成配图并插入；走同一套 Provider 通路（需密钥）；`ai::AiImageGeneration`，`AiImageGenerationTests`
+AI助手,生成,AI生成PPT,partial,—,生成 PPT：结构与内容由模型生成，**导出格式是 Markdown 文本，不是 .pptx 文件**；页数 1–30；`ai::PptGeneration`，`PptGenerationTests`
+AI助手,生成,主题生成PPT,partial,—,主题生成 PPT：模型自己拟大纲与内容（`PptSource::Topic`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`
+AI助手,生成,文档生成PPT,partial,—,文档生成 PPT：从已有正文提炼成幻灯片大纲（`PptSource::Document`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`
+AI助手,生成,大纲生成PPT,partial,—,大纲生成 PPT：把用户给的大纲排成 PPT 结构（`PptSource::Outline`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`

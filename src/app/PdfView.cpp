@@ -3,29 +3,42 @@
 #include "app/AudioRecorder.h"
 #include "app/DocumentOutput.h"
 #include "app/EncryptionDialog.h"
+#include "app/LastWavePanels.h"
+#include "app/LastWaveWriter.h"
 #include "app/PdfPageOperations.h"
 #include "app/Language.h"
 #include "app/PageChunkBuilder.h"
+#include "app/ReadingScheme.h"
 #include "app/PageTextLines.h"
+#include "doc/BatchProcessor.h"
 #include "doc/ChunkBuilder.h"
 #include "doc/DocumentStatistics.h"
 #include "pdf/AnnotationSummary.h"
+#include "pdf/AnnotationShapes.h"
+#include "pdf/DocumentMerger.h"
 #include "pdf/DocumentProperties.h"
 #include "pdf/FormData.h"
 #include "pdf/FormFieldWriter.h"
 #include "pdf/FormToolSettings.h"
 #include "pdf/BatchReplace.h"
+#include "pdf/NamedDestination.h"
 #include "pdf/OutlineGenerator.h"
+#include "pdf/PageLabels.h"
 #include "pdf/PageSplitPlanner.h"
 #include "pdf/Redaction.h"
 #include "pdf/SignatureInspector.h"
+#include "pdf/SignatureVerifier.h"
+#include "pdf/SignatureWorkflow.h"
 #include "pdf/SpellChecker.h"
+#include "pdf/StructTreeReader.h"
+#include "pdf/ParagraphFormat.h"
 #include "pdf/TagTreeWriter.h"
 #include "speech/SpeechEngine.h"
 #include "pdf/PageDecorations.h"
 #include "pdf/SoundFormat.h"
 #include "pdf/Xfdf.h"
 #include "app/PresentationWindow.h"
+#include "app/ViewModes.h"
 #include "app/ZoomMemory.h"
 #include "app/PageCanvas.h"
 #include "app/RenderThread.h"
@@ -48,6 +61,7 @@
 
 #include <QColorDialog>
 #include <QComboBox>
+#include <QSpinBox>
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QBuffer>
@@ -76,6 +90,7 @@
 #include <QListWidget>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QShortcut>
 #include <QSizePolicy>
 #include <QTimer>
@@ -313,6 +328,11 @@ PdfView::PdfView(QWidget* parent) : QWidget(parent), cache_(kCacheBytes) {
     connect(speechEngine_.get(), &speech::SpeechEngine::finished, this, [this]() {
         canvas_->setSpeechHighlight(-1, QVector<QRectF>());
         speechPage_ = -1;
+        // 智能朗读是分段念的：一段念完接下一段。
+        if (!narrationSegments_.isEmpty()) {
+            speakNextNarrationSegment();
+            return;
+        }
         emit statusMessage(tr("朗读结束"));
     });
     connect(speechEngine_.get(), &speech::SpeechEngine::failed, this, [this](const QString& message) {
@@ -517,6 +537,13 @@ void PdfView::buildUi() {
             this, &PdfView::beginInlineTextEdit);
     connect(canvas_, &PageCanvas::inlineTextEditCommitted,
             this, &PdfView::commitInlineTextEdit);
+    // 区域高亮与箭头框：画布只负责采集几何，判定与外观流由领域层算。
+    connect(canvas_, &PageCanvas::regionHighlightRequested, this,
+            &PdfView::createRegionHighlight);
+    connect(canvas_, &PageCanvas::calloutRequested, this, &PdfView::createCallout);
+    // 画布的步骤提示（箭头框的第二步等）直接进状态栏。
+    connect(canvas_, &PageCanvas::hintMessage, this,
+            [this](const QString& text) { emit statusMessage(text); });
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -947,6 +974,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
         noteButton_->setChecked(tool == AnnotationController::Tool::Note);
         squareButton_->setChecked(tool == AnnotationController::Tool::Square);
         inkButton_->setChecked(tool == AnnotationController::Tool::Ink);
+        // 工具换了，连续批注要跟着记住现在挂的是哪个工具。
+        syncContinuousModeWithTool();
     });
     // 页面结构变了：布局、渲染线程、后台控制器都要跟着换。
     connect(annotationController_.get(), &AnnotationController::documentStructureChanged,
@@ -975,11 +1004,13 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                                   kNoteAnnotationSize,
                                   kNoteAnnotationSize);
                 annotationController_->addNote(pageIndex, rect, contents);
+                finishAnnotationPlacement();
             });
     connect(canvas_, &PageCanvas::squareAnnotationRequested, this,
             [this](int pageIndex, const QRectF& userRect) {
                 if (annotationController_) {
                     annotationController_->addSquare(pageIndex, userRect);
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::measureShapeRequested, this,
@@ -987,6 +1018,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 if (annotationController_) {
                     annotationController_->addMeasureShape(
                         static_cast<MeasureMode>(mode), pageIndex, vertices, 1.0);
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::imageStampRequested, this,
@@ -1019,6 +1051,8 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                     pendingSignatureName_.clear();
                     annotationController_->setTool(AnnotationController::Tool::None);
                     emit statusMessage(tr("签章已放置；保存文档后写入 PDF。"));
+                } else {
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::soundRequested, this,
@@ -1045,6 +1079,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 // 走原生 /Sound 通路：保存时注入页面 /Annots，别的阅读器认得出。
                 annotationController_->addSoundFromWav(pageIndex, rect, QFileInfo(path).fileName(),
                                                        bytes);
+                finishAnnotationPlacement();
             });
     connect(canvas_, &PageCanvas::attachmentRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
@@ -1061,6 +1096,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 file.close();
                 annotationController_->addAttachment(pageIndex, userPoint,
                                                     QFileInfo(path).fileName(), data);
+                finishAnnotationPlacement();
             });
     connect(canvas_, &PageCanvas::stampRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
@@ -1078,6 +1114,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - kHeight / 2.0,
                                   kWidth, kHeight);
                 annotationController_->addStamp(pageIndex, rect, label);
+                finishAnnotationPlacement();
             });
     connect(canvas_, &PageCanvas::freeTextRequested, this,
             [this](int pageIndex, const QRectF& userRect) {
@@ -1087,6 +1124,7 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                     QString(), &accepted);
                 if (accepted && !text.trimmed().isEmpty() && annotationController_) {
                     annotationController_->addFreeText(pageIndex, userRect, text);
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::lineAnnotationRequested, this,
@@ -1100,12 +1138,14 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                     annotationController_->addLine(static_cast<pdf::AnnotationType>(type), pageIndex,
                                                    from, to);
                 }
+                finishAnnotationPlacement();
             });
     connect(canvas_, &PageCanvas::polygonAnnotationRequested, this,
             [this](int pageIndex, int type, const QVector<QPointF>& vertices) {
                 if (annotationController_) {
                     annotationController_->addPolygon(static_cast<pdf::AnnotationType>(type),
                                                       pageIndex, vertices);
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::ellipseAnnotationRequested, this,
@@ -1113,12 +1153,14 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 if (annotationController_) {
                     annotationController_->addShape(pdf::AnnotationType::Ellipse, pageIndex,
                                                     userRect);
+                    finishAnnotationPlacement();
                 }
             });
     connect(canvas_, &PageCanvas::inkAnnotationRequested, this,
             [this](int pageIndex, const QVector<QPointF>& stroke) {
                 if (annotationController_) {
                     annotationController_->addInk(pageIndex, stroke);
+                    finishAnnotationPlacement();
                 }
             });
 
@@ -2996,31 +3038,514 @@ int PdfView::resetFormFields() {
     return count;
 }
 
+
+// 设置页码标签：把「页码怎么显示」写进 PDF 的 /PageLabels。
+//
+// 为什么要单独一个功能：页码显示规则是 PDF 的**文档级属性**（catalog 的 /PageLabels），
+// 它决定阅读器状态栏与「跳转页」框里显示什么；
+// 页面正文里印着的页码文字是另一件事（页眉页脚装饰），两者不能混为一谈。
+void PdfView::setReadingScheme(theme::ReadingScheme scheme) {
+    if (canvas_ != nullptr) {
+        canvas_->setReadingScheme(scheme);
+    }
+}
+
+// --------------------------------------------------------- 视图模式 ----
+//
+// 五个开关全都只是「怎么显示」：标尺、边缘自动滚动、翻页过渡、纯文本查看器、
+// 逆序镜像。文档一个字节都没动，也不进撤销栈 —— 用户按 Ctrl+Z 不该把标尺撤掉。
+
+void PdfView::setRulerVisible(bool visible) {
+    if (canvas_ != nullptr) {
+        canvas_->setRulerVisible(visible);
+    }
+}
+
+void PdfView::setRulerUnit(int unitIndex) {
+    if (canvas_ == nullptr) {
+        return;
+    }
+    // 单位用整数值传进来（Ribbon 上的按钮只认序号），这里映射成领域层的枚举。
+    viewmodes::RulerUnit unit = viewmodes::RulerUnit::Millimeters;
+    switch (unitIndex) {
+        case 0: unit = viewmodes::RulerUnit::Points; break;
+        case 1: unit = viewmodes::RulerUnit::Millimeters; break;
+        case 2: unit = viewmodes::RulerUnit::Inches; break;
+        default: break;
+    }
+    canvas_->setRulerUnit(unit);
+}
+
+void PdfView::setAutoScrollEnabled(bool enabled) {
+    if (canvas_ != nullptr) {
+        canvas_->setAutoScrollEnabled(enabled);
+    }
+}
+
+void PdfView::setPageTransition(int transitionIndex) {
+    if (canvas_ == nullptr) {
+        return;
+    }
+    viewmodes::PageTransition transition = viewmodes::PageTransition::None;
+    switch (transitionIndex) {
+        case 1: transition = viewmodes::PageTransition::Fade; break;
+        case 2: transition = viewmodes::PageTransition::SlideLeft; break;
+        case 3: transition = viewmodes::PageTransition::SlideRight; break;
+        default: break;
+    }
+    canvas_->setPageTransition(transition);
+}
+
+void PdfView::setMirrorEnabled(bool enabled) {
+    if (canvas_ != nullptr) {
+        canvas_->setMirrorEnabled(enabled);
+    }
+}
+
+// 纯文本查看器：把当前页的文本层按阅读顺序显示成纯文本。
+//
+// 行与行之间的空格由领域层保证（词与词之间的空格是文本层里真实存在的字符），
+// 这里只是把结果摆进文本框，不做自己的拼接。
+void PdfView::showPlainTextViewer() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("纯文本查看器"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const int pageIndex = currentPage();
+    const std::optional<pdf::PdfPage> page = document_.page(pageIndex);
+    const std::optional<pdf::TextPage> text = page ? page->extractText() : std::nullopt;
+    if (!text) {
+        QMessageBox::information(this, tr("纯文本查看器"), tr("这一页没有可提取的文字。"));
+        return;
+    }
+    const QString plain = viewmodes::pageAsPlainText(*text);
+    if (plain.isEmpty()) {
+        QMessageBox::information(this, tr("纯文本查看器"), tr("这一页没有可提取的文字。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("纯文本查看器 - 第 %1 页").arg(pageIndex + 1));
+    dialog.resize(720, 640);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* editor = new QPlainTextEdit(&dialog);
+    editor->setObjectName(QStringLiteral("plainText.viewer"));
+    editor->setReadOnly(true);
+    editor->setLineWrapMode(QPlainTextEdit::NoWrap);
+    editor->setPlainText(plain);
+    layout->addWidget(editor);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    dialog.exec();
+}
+
+// 整篇纯文本：一页一页接起来，页与页之间空一行。
+void PdfView::showWholeDocumentPlainText() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("纯文本查看器"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QString all;
+    for (int index = 0; index < document_.pageCount(); ++index) {
+        const std::optional<pdf::PdfPage> page = document_.page(index);
+        const std::optional<pdf::TextPage> text = page ? page->extractText() : std::nullopt;
+        if (!text) {
+            continue;
+        }
+        const QString plain = viewmodes::pageAsPlainText(*text);
+        if (plain.isEmpty()) {
+            continue;
+        }
+        if (!all.isEmpty()) {
+            all += QLatin1Char('\n');
+            all += QLatin1Char('\n');
+        }
+        all += plain;
+    }
+    if (all.isEmpty()) {
+        QMessageBox::information(this, tr("纯文本查看器"), tr("这份文档没有可提取的文字。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("纯文本查看器 - 整篇"));
+    dialog.resize(720, 640);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* editor = new QPlainTextEdit(&dialog);
+    editor->setObjectName(QStringLiteral("plainText.document"));
+    editor->setReadOnly(true);
+    editor->setPlainText(all);
+    layout->addWidget(editor);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    dialog.exec();
+}
+
+
+// 给当前页起个名字（命名位置），并能按名字跳回来。
+//
+// 为什么单独一个功能：命名目标（/Dests）是 PDF 里**跨工具通用**的跳转方式，
+// 别的阅读器、别的程序也认；书签只在本程序的书签面板里能用。
+void PdfView::namedDestinationDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        QMessageBox::warning(this, tr("命名位置"), error);
+        return;
+    }
+    const QVector<pdf::NamedDestination> existing = pdf::readNamedDestinations(source, &error);
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("命名位置"));
+    dialog.resize(520, 440);
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(tr("给当前页起一个名字，之后可以按名字跳回来。"), &dialog));
+
+    auto* list = new QListWidget(&dialog);
+    list->setObjectName(QStringLiteral("namedDestination.list"));
+    for (const pdf::NamedDestination& destination : existing) {
+        list->addItem(QStringLiteral("%1（第 %2 页）")
+                          .arg(destination.name)
+                          .arg(destination.pageIndex + 1));
+    }
+    layout->addWidget(list);
+
+    auto* nameEdit = new QLineEdit(&dialog);
+    nameEdit->setObjectName(QStringLiteral("namedDestination.name"));
+    nameEdit->setPlaceholderText(tr("名称（例如 封面）"));
+    layout->addWidget(nameEdit);
+
+    auto* jumpButton = new QPushButton(tr("跳转到所选"), &dialog);
+    jumpButton->setObjectName(QStringLiteral("namedDestination.jump"));
+    layout->addWidget(jumpButton);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("写入"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(jumpButton, &QPushButton::clicked, &dialog, [&list, &existing, this, &dialog] {
+        const int row = list->currentRow();
+        if (row < 0 || row >= existing.size()) {
+            return;
+        }
+        const pdf::NamedDestination& destination = existing.at(row);
+        if (destination.pageIndex >= 0) {
+            goToPage(destination.pageIndex);
+        }
+        dialog.accept();
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QString name = nameEdit->text().trimmed();
+    if (name.isEmpty()) {
+        return;
+    }
+    // 写回是覆盖语义：已有的加上新的一条一起写，否则旧的名字会丢。
+    QVector<pdf::NamedDestination> targets = existing;
+    bool replaced = false;
+    for (pdf::NamedDestination& destination : targets) {
+        if (destination.name == name) {
+            destination = pdf::NamedDestination{name, currentPage(), {}, 0.0, false};
+            replaced = true;
+            break;
+        }
+    }
+    if (!replaced) {
+        targets.append(pdf::NamedDestination{name, currentPage(), {}, 0.0, false});
+    }
+    const QByteArray written = pdf::writeNamedDestinations(source, targets, &error);
+    if (written.isEmpty()) {
+        QMessageBox::warning(this, tr("命名位置"),
+                             error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+        return;
+    }
+    QString reloadError;
+    auto reopened = pdf::openDocumentFromBytes(written, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("命名位置"),
+                             tr("写入后的文档无法重新打开，文档没有修改：%1")
+                                 .arg(reopened.errorMessage));
+        return;
+    }
+    setDocument(std::move(reopened.document), filePath_);
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已写入命名位置：%1").arg(name));
+    trace(QStringLiteral("named destination written"));
+}
+
+
+// 通用批处理：对一个目录里的 PDF 依次执行几步处理，产出 JSON 报告。
+//
+// 为什么是「目录 + 步骤」而不是「文件 + 步骤」：批量场景里人手里通常是一堆
+// 文件，不会逐个挑；目录扫一遍更贴近实际用法。
+void PdfView::batchProcessDialog() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("批处理"));
+    dialog.resize(620, 520);
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(
+        tr("选一个目录，把里面的 PDF 依次处理一遍，结束时给一份 JSON 报告。"),
+        &dialog));
+
+    auto* inputRow = new QHBoxLayout;
+    auto* inputEdit = new QLineEdit(&dialog);
+    inputEdit->setObjectName(QStringLiteral("batch.inputDirectory"));
+    inputEdit->setReadOnly(true);
+    inputRow->addWidget(inputEdit);
+    auto* inputButton = new QPushButton(tr("选择目录…"), &dialog);
+    inputRow->addWidget(inputButton);
+    layout->addLayout(inputRow);
+    connect(inputButton, &QPushButton::clicked, &dialog, [inputEdit, &dialog] {
+        const QString path = QFileDialog::getExistingDirectory(
+            &dialog, tr("选择要批处理的目录"), inputEdit->text());
+        if (!path.isEmpty()) {
+            inputEdit->setText(path);
+        }
+    });
+
+    auto* outputRow = new QHBoxLayout;
+    auto* outputEdit = new QLineEdit(&dialog);
+    outputEdit->setObjectName(QStringLiteral("batch.outputDirectory"));
+    outputEdit->setPlaceholderText(tr("输出目录（留空则只跑处理、不落盘）"));
+    outputRow->addWidget(outputEdit);
+    layout->addLayout(outputRow);
+
+    auto* steps = new QListWidget(&dialog);
+    steps->setObjectName(QStringLiteral("batch.steps"));
+    const QStringList stepNames{tr("清理隐藏信息"), tr("移除嵌入文件"), tr("什么也不做（只出报告）")};
+    for (const QString& name : stepNames) {
+        QListWidgetItem* item = new QListWidgetItem(name, steps);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(Qt::Unchecked);
+    }
+    layout->addWidget(steps);
+
+    auto* report = new QPlainTextEdit(&dialog);
+    report->setObjectName(QStringLiteral("batch.report"));
+    report->setReadOnly(true);
+    layout->addWidget(report);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("开始"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [this, &dialog, inputEdit, outputEdit,
+                                                             steps, report, &stepNames] {
+        const QString directory = inputEdit->text().trimmed();
+        if (directory.isEmpty()) {
+            QMessageBox::information(&dialog, tr("批处理"), tr("先选一个目录。"));
+            return;
+        }
+        QDir source(directory);
+        const QStringList files = source.entryList(QStringList{QStringLiteral("*.pdf")}, QDir::Files,
+                                                    QDir::Name);
+        if (files.isEmpty()) {
+            QMessageBox::information(&dialog, tr("批处理"), tr("这个目录里没有 PDF。"));
+            return;
+        }
+        QVector<doc::BatchStep> batchSteps;
+        for (int index = 0; index < steps->count(); ++index) {
+            const QListWidgetItem* item = steps->item(index);
+            if (item->checkState() != Qt::Checked) {
+                continue;
+            }
+            const QString title = item->text();
+            if (title == stepNames.at(0)) {
+                batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
+                    return pdf::sanitizeHiddenDataFully(in, err);
+                }});
+            } else if (title == stepNames.at(1)) {
+                batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
+                    return pdf::removeEmbeddedFiles(in, err);
+                }});
+            } else {
+                // 「什么也不做」：原样返回，报告里照样有它的字节数。
+                batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString*) {
+                    return in;
+                }});
+            }
+        }
+        if (batchSteps.isEmpty()) {
+            QMessageBox::information(&dialog, tr("批处理"), tr("至少勾一个处理步骤。"));
+            return;
+        }
+        QStringList inputPaths;
+        for (const QString& name : files) {
+            inputPaths.append(source.filePath(name));
+        }
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const doc::BatchReport result = doc::runBatch(inputPaths, QStringList(), batchSteps, true,
+                                                       outputEdit->text().trimmed());
+        QApplication::restoreOverrideCursor();
+        report->setPlainText(QString::fromUtf8(result.toJson()));
+        emit statusMessage(tr("批处理完成：成功 %1，失败 %2")
+                               .arg(result.succeededCount)
+                               .arg(result.failedCount));
+    });
+    dialog.exec();
+}
+
+void PdfView::pageLabelsDialog() {
+    if (!document_.isValid()) {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("页码标签"));
+    dialog.resize(420, 240);
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* styleBox = new QComboBox(&dialog);
+    styleBox->setObjectName(QStringLiteral("pageLabels.style"));
+    styleBox->addItem(tr("阿拉伯数字 (1, 2, 3)"), QStringLiteral("/D"));
+    styleBox->addItem(tr("大写罗马 (I, II, III)"), QStringLiteral("/R"));
+    styleBox->addItem(tr("小写罗马 (i, ii, iii)"), QStringLiteral("/r"));
+    styleBox->addItem(tr("大写字母 (A, B, C)"), QStringLiteral("/A"));
+    styleBox->addItem(tr("小写字母 (a, b, c)"), QStringLiteral("/a"));
+    layout->addWidget(styleBox);
+
+    auto* prefixEdit = new QLineEdit(&dialog);
+    prefixEdit->setObjectName(QStringLiteral("pageLabels.prefix"));
+    prefixEdit->setPlaceholderText(tr("前缀（例如 A-）"));
+    layout->addWidget(prefixEdit);
+
+    auto* startSpin = new QSpinBox(&dialog);
+    startSpin->setObjectName(QStringLiteral("pageLabels.start"));
+    startSpin->setRange(1, 1000000);
+    startSpin->setValue(1);
+    layout->addWidget(startSpin);
+
+    // 预览用和写入完全相同的换算函数：界面显示的必须就是文件里存的。
+    auto* preview = new QLabel(&dialog);
+    preview->setObjectName(QStringLiteral("pageLabels.preview"));
+    preview->setWordWrap(true);
+    layout->addWidget(preview);
+    const auto refreshPreview = [&]() {
+        const QVector<pdf::PageLabelRange> ranges{
+            pdf::PageLabelRange{0, 0, styleBox->currentData().toString(), prefixEdit->text()}};
+        QStringList samples;
+        const int shown = qMin(6, document_.pageCount());
+        for (int index = 0; index < shown; ++index) {
+            samples.append(QStringLiteral("%1 → %2")
+                               .arg(index + 1)
+                               .arg(pdf::pageLabelText(ranges, index, startSpin->value())));
+        }
+        preview->setText(samples.join(QStringLiteral("    ")));
+    };
+    connect(styleBox, &QComboBox::currentIndexChanged, &dialog, refreshPreview);
+    connect(prefixEdit, &QLineEdit::textChanged, &dialog, refreshPreview);
+    connect(startSpin, &QSpinBox::valueChanged, &dialog, refreshPreview);
+    refreshPreview();
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("写入"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        QMessageBox::warning(this, tr("页码标签"), error);
+        return;
+    }
+    pdf::PageLabelScheme scheme;
+    scheme.firstPageNumber = startSpin->value();
+    scheme.ranges.append(pdf::PageLabelRange{0, 0, styleBox->currentData().toString(),
+                                              prefixEdit->text()});
+    const QByteArray labeled = pdf::writePageLabels(source, scheme, &error);
+    if (labeled.isEmpty()) {
+        QMessageBox::warning(this, tr("页码标签"),
+                             error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+        return;
+    }
+    QString reloadError;
+    auto reopened = pdf::openDocumentFromBytes(labeled, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("页码标签"),
+                             tr("写入后的文档无法重新打开，文档没有修改：%1")
+                                 .arg(reopened.errorMessage));
+        return;
+    }
+    setDocument(std::move(reopened.document), filePath_);
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已写入页码标签"));
+    trace(QStringLiteral("page labels written"));
+}
+
 void PdfView::mergeDocumentDialog() {
     if (!requirePermission(effectivePermissions().allowAssembly, tr("合并页面"))) return;
     trace(QStringLiteral("document merge dialog"));
     if (!document_.isValid()) {
         return;
     }
-    const QString path = QFileDialog::getOpenFileName(this, tr("合并 PDF"), QString(),
-                                                      tr("PDF (*.pdf)"));
-    if (path.isEmpty()) {
+    // 一次可以选多份：福昕能一次并多份，我们原来只能并一份。
+    const QStringList paths = QFileDialog::getOpenFileNames(this, tr("合并 PDF"), QString(),
+                                                           tr("PDF (*.pdf)"));
+    if (paths.isEmpty()) {
         return;
     }
-    const auto opened = pdf::openDocument(path);
-    if (!opened.document.isValid()) {
-        QMessageBox::warning(this, tr("合并 PDF"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+    QString error;
+    const QByteArray currentBytes = document_.serialize(&error);
+    if (currentBytes.isEmpty()) {
+        QMessageBox::warning(this, tr("合并 PDF"), error);
         return;
     }
-    if (!document_.appendDocumentPages(opened.document)) {
-        QMessageBox::warning(this, tr("合并 PDF"), tr("合并失败。"));
+    // 当前文档排在第一位：合并结果 = 当前文档 + 选中的这些文件。
+    QVector<pdf::MergeInput> inputs;
+    inputs.append(pdf::MergeInput{currentBytes, QFileInfo(filePath_).fileName()});
+    for (const QString& path : paths) {
+        const auto opened = pdf::openDocument(path);
+        if (!opened.document.isValid()) {
+            QMessageBox::warning(this, tr("合并 PDF"),
+                                 tr("打不开 %1：%2")
+                                     .arg(QFileInfo(path).fileName(), opened.errorMessage));
+            return;
+        }
+        QString serializeError;
+        const QByteArray bytes = opened.document.serialize(&serializeError);
+        if (bytes.isEmpty()) {
+            QMessageBox::warning(this, tr("合并 PDF"),
+                                 tr("读不出 %1：%2")
+                                     .arg(QFileInfo(path).fileName(), serializeError));
+            return;
+        }
+        inputs.append(pdf::MergeInput{bytes, QFileInfo(path).fileName()});
+    }
+    pdf::MergeOptions options;
+    pdf::MergeOutcome outcome;
+    if (!pdf::mergeDocuments(inputs, options, &outcome, &error)) {
+        QMessageBox::warning(this, tr("合并 PDF"), error.isEmpty() ? tr("合并失败。") : error);
         return;
     }
+    auto reopened = pdf::openDocumentFromBytes(outcome.bytes, filePath_);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("合并 PDF"),
+                             tr("合并结果校验失败：%1").arg(reopened.errorMessage));
+        return;
+    }
+    setDocument(std::move(reopened.document), filePath_);
     refreshAfterDecoration();
     rebuildLayout();
     setModified(true);
-    trace(QStringLiteral("document merged pages=%1").arg(document_.pageCount()));
-    emit statusMessage(tr("已合并 %1").arg(QFileInfo(path).fileName()));
+    trace(QStringLiteral("document merged pages=%1").arg(outcome.pageCount));
+    emit statusMessage(tr("已合并 %1 份文件：共 %2 页").arg(paths.size()).arg(outcome.pageCount));
 }
 
 void PdfView::extractCurrentPageDialog() {
@@ -3274,6 +3799,11 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useC
                        ? tr("解锁") : tr("锁定"));
     if (objects.size() == 1) actions.append({tr("置于顶层"), tr("置于底层"),
                                              tr("上移一层"), tr("下移一层")});
+    // 段落排版：只有选到文字对象时才有意义。
+    if (std::any_of(objects.cbegin(), objects.cend(),
+                    [](const auto& object) { return object.type == pdf::PageObjectType::Text; })) {
+        actions.append(tr("段落排版"));
+    }
     bool accepted = false;
     const QString action = QInputDialog::getItem(this, tr("编辑对象"),
                                                   tr("已选择 %1 个对象：").arg(objects.size()),
@@ -3283,6 +3813,12 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useC
                                        [](const auto& object) { return object.locked; });
     if (hasLocked && action != tr("解锁")) {
         QMessageBox::information(this, tr("编辑对象"), tr("选区包含锁定对象，请先解锁"));
+        return;
+    }
+    if (action == tr("段落排版")) {
+        // 段落排版要重写整页的内容流，与这里的对象级编辑不是一回事
+        // （页面级撤销快照会失效），所以单独走一条路。
+        applyParagraphFormat(pageIndex, objects);
         return;
     }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
@@ -3437,6 +3973,124 @@ void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useC
         selectedObjectIndexes_.clear();
     }
     emit statusMessage(tr("已修改 %1 个页面对象").arg(objects.size()));
+}
+
+// 段落排版：把选中的文字对象按段落参数重排一次。
+//
+// 三件事全部交给领域层：断行与位置（pdf::layoutParagraph）、
+// 内容流（pdf::buildParagraphContentStream）、页面坐标。
+// 界面只负责收参数与把结果写回去。
+void PdfView::applyParagraphFormat(int pageIndex, const QVector<pdf::PageObjectInfo>& objects) {
+    if (!document_.isValid()) {
+        return;
+    }
+    QStringList texts;
+    QVector<int> textIndexes;
+    QRectF bounds;
+    for (const pdf::PageObjectInfo& object : objects) {
+        if (object.type != pdf::PageObjectType::Text) {
+            continue;
+        }
+        if (object.text.trimmed().isEmpty()) {
+            continue;
+        }
+        texts.append(object.text);
+        textIndexes.append(object.index);
+        bounds = bounds.united(object.bounds);
+    }
+    if (texts.isEmpty()) {
+        QMessageBox::information(this, tr("段落排版"), tr("选区内没有可排版的文字。"));
+        return;
+    }
+
+    ParagraphFormatDialog dialog(this);
+    dialog.setText(texts.join(QLatin1Char('\n')));
+    dialog.setBox(bounds);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    // 位置与断行：界面不算，全交给领域层。
+    const pdf::ParagraphFormat format = dialog.format();
+    const pdf::ParagraphPlan plan = pdf::layoutParagraph(dialog.text(), dialog.box(), format);
+    if (!plan.ok()) {
+        QMessageBox::warning(this, tr("段落排版"), plan.error);
+        return;
+    }
+    // 内容流：复用领域层给的写法，界面不自己拼 BT/ET。
+    const QByteArray content =
+        pdf::buildParagraphContentStream(plan, QStringLiteral("AipdfPara"));
+    if (content.isEmpty()) {
+        QMessageBox::warning(this, tr("段落排版"), tr("没有生成可写入的内容流。"));
+        return;
+    }
+
+    // 先备份这一页：写失败时要能原样退回去。
+    const pdf::PdfDocument backup = document_.backupPage(pageIndex);
+    if (!backup.isValid()) {
+        QMessageBox::warning(this, tr("段落排版"), tr("无法创建页面安全备份，文档没有修改。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    // 原来的文字对象先去掉：新段落是替掉它的，不是叠在它上面。
+    if (!page->removeObjects(textIndexes)) {
+        QMessageBox::warning(this, tr("段落排版"), tr("没能移除原来的文字对象，文档没有修改。"));
+        return;
+    }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        document_.restorePageFrom(backup, pageIndex);
+        QMessageBox::warning(this, tr("段落排版"),
+                             serializeError.isEmpty() ? tr("读不到文档内容，文档没有修改。")
+                                                     : serializeError);
+        return;
+    }
+    QString appendError;
+    const QByteArray updated = appendContentStreamToPage(
+        bytes, pageIndex, content, QStringLiteral("AipdfPara"), &appendError);
+    if (updated.isEmpty()) {
+        document_.restorePageFrom(backup, pageIndex);
+        QMessageBox::warning(this, tr("段落排版"), appendError);
+        return;
+    }
+    QString replaceError;
+    if (!replaceDocumentBytes(updated, &replaceError)) {
+        document_.restorePageFrom(backup, pageIndex);
+        QMessageBox::warning(this, tr("段落排版"), replaceError);
+        return;
+    }
+    canvas_->clearObjectSelection();
+    selectedObjectPage_ = -1;
+    selectedObjectIndexes_.clear();
+    emit statusMessage(tr("已按段落参数重排 %1 个文字对象").arg(textIndexes.size()));
+}
+
+// 段落排版入口（Ribbon 上用）：拿当前选区里的文字对象来排。
+void PdfView::paragraphFormatDialog() {
+    if (!document_.isValid() || textController_ == nullptr) {
+        QMessageBox::information(this, tr("段落排版"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const int pageIndex = textController_->selectionPage();
+    const QVector<QRectF> displayRects = textController_->selectionRects();
+    if (pageIndex < 0 || displayRects.isEmpty()) {
+        QMessageBox::information(this, tr("段落排版"), tr("先选中一段文字。"));
+        return;
+    }
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return;
+    }
+    QRectF userRect;
+    for (const QRectF& rect : displayRects) {
+        userRect = userRect.united(QRectF(displayToUser(pageIndex, rect.topLeft()),
+                                         displayToUser(pageIndex, rect.bottomRight())).normalized());
+    }
+    applyParagraphFormat(pageIndex, page->objectsInRect(userRect));
 }
 
 void PdfView::selectObjectAtPoint(int pageIndex, const QPointF& userPoint, bool additive) {
@@ -4749,6 +5403,26 @@ void PdfView::activateAnnotationTool(const QString& id) {
         redoAnnotation();
         return;
     }
+    // 箭头框与区域高亮：工具栏上没有对应的按钮（按钮在 Ribbon 的「注释」标签页），
+    // 所以直接切工具，并把工具栏上其它按钮的选中态清掉 ——
+    // 免得界面上显示的还是上一个工具。
+    if (id == QStringLiteral("callout") || id == QStringLiteral("regionHighlight")) {
+        if (annotationController_ != nullptr) {
+            annotationController_->setTool(id == QStringLiteral("callout")
+                                              ? AnnotationController::Tool::Callout
+                                              : AnnotationController::Tool::RegionHighlight);
+            for (QToolButton* button : {noteButton_, squareButton_, ellipseButton_, lineButton_,
+                                        arrowButton_, polygonButton_, cloudButton_, freeTextButton_,
+                                        stampButton_, measureButton_, perimeterButton_, areaButton_,
+                                        inkButton_, eraserButton_, attachmentButton_,
+                                        imageStampButton_, soundButton_}) {
+                if (button != nullptr) {
+                    button->setChecked(false);
+                }
+            }
+        }
+        return;
+    }
     QToolButton* target = nullptr;
     if (id == QStringLiteral("highlight")) target = highlightButton_;
     else if (id == QStringLiteral("underline")) target = underlineButton_;
@@ -4821,6 +5495,111 @@ void PdfView::applyMarkAnnotation(pdf::AnnotationType type) {
         return;
     }
     emit statusMessage(tr("已添加%1").arg(pdf::annotationTypeName(type)));
+    finishAnnotationPlacement();
+}
+
+// 区域高亮：画布给了顶点（用户空间），这里做判定、算外观流、落进模型。
+//
+// 三步判定与几何全部交给领域层（pdf::AnnotationShapes）：
+// 自交的区域高亮画出来会翻车，必须在生成外观流之前就拒掉。
+void PdfView::createRegionHighlight(int pageIndex, const QVector<QPointF>& userPoints) {
+    if (!annotationController_) {
+        return;
+    }
+    if (userPoints.size() < 3) {
+        emit statusMessage(tr("区域高亮至少需要 3 个顶点"));
+        return;
+    }
+    if (pdf::polygonIsSelfIntersecting(userPoints)) {
+        QMessageBox::warning(this, tr("区域高亮"),
+                             tr("这个区域自交了（轮廓自己交叉），画不出高亮，请重新圈一次。"));
+        return;
+    }
+
+    pdf::RegionHighlightSpec spec;
+    spec.polygon = userPoints;
+    spec.opacity = 0.35;
+    spec.color = QColor(255, 214, 0);
+    QString error;
+    const QByteArray appearance = pdf::buildRegionHighlightAppearanceStream(spec, &error);
+    if (appearance.isEmpty()) {
+        QMessageBox::warning(this, tr("区域高亮"),
+                             error.isEmpty() ? tr("区域高亮生成失败。") : error);
+        return;
+    }
+    const QByteArray resources = pdf::regionHighlightResources(spec.opacity);
+
+    pdf::Annotation annotation;
+    annotation.pageIndex = pageIndex;
+    // 类型用 Polygon：PDF 规范里区域高亮就是多边形，
+    // 区别只在外观（半透明填充而不是描边），那由 customAppearance 表达。
+    annotation.type = pdf::AnnotationType::Polygon;
+    annotation.vertices = userPoints;
+    annotation.rect = pdf::polygonBounds(userPoints);
+    annotation.color = spec.color;
+    annotation.opacity = spec.opacity;
+    annotation.customAppearance = appearance;
+    annotation.customAppearanceResources = resources;
+
+    if (annotationController_->addPreparedAnnotation(annotation) == 0) {
+        emit statusMessage(tr("区域高亮没有添加成功"));
+        return;
+    }
+    emit statusMessage(tr("已添加区域高亮"));
+    finishAnnotationPlacement();
+}
+
+// callout 箭头框：注释框 + 箭头尖 → 领域层算外观流 → 落进模型。
+void PdfView::createCallout(int pageIndex, const QRectF& userBox, const QPointF& userTip) {
+    if (!annotationController_) {
+        return;
+    }
+    pdf::CalloutSpec spec;
+    spec.box = userBox;
+    spec.tip = userTip;
+    // 直箭头：折点与箭头尖重合。折线箭头需要第三步交互，这一版没做。
+    spec.knee = userTip;
+    spec.strokeWidth = 1.0;
+    spec.color = QColor(226, 62, 62);
+
+    QString error;
+    // 用 Extended 版本：箭头可以伸出注释框（福昕那种「框在别处、箭头指向正文」）。
+    const QByteArray appearance = pdf::buildCalloutAppearanceStreamExtended(spec, &error);
+    if (appearance.isEmpty()) {
+        QMessageBox::warning(this, tr("箭头框"), error.isEmpty() ? tr("箭头框生成失败。") : error);
+        return;
+    }
+
+    const QRectF box = spec.box.normalized();
+    pdf::Annotation annotation;
+    annotation.pageIndex = pageIndex;
+    // callout 在 PDF 规范里没有对应的 Subtype，用 Square + 自定义 /AP 是通行做法。
+    annotation.type = pdf::AnnotationType::Square;
+    annotation.color = spec.color;
+    annotation.lineWidth = spec.strokeWidth;
+    // /Rect 必须盖住箭头：注释框 ∪ 箭头。
+    annotation.rect = pdf::calloutBounds(spec);
+    annotation.customAppearance = appearance;
+
+    // 画布要按「注释框 + 箭头」把 callout 画出来，PDF 写入层却不写 Square 的 /Vertices，
+    // 所以几何放在 vertices 里给画布用（写盘时这一项会被忽略）。
+    // 前 4 个点是注释框的四角（逆时针，左下角起），后面是箭头的折线点。
+    annotation.vertices.append(QPointF(box.x(), box.y()));
+    annotation.vertices.append(QPointF(box.x() + box.width(), box.y()));
+    annotation.vertices.append(QPointF(box.x() + box.width(), box.y() + box.height()));
+    annotation.vertices.append(QPointF(box.x(), box.y() + box.height()));
+    const QVector<QPointF> localArrow = pdf::calloutArrowPoints(spec);
+    for (const QPointF& point : localArrow) {
+        // calloutArrowPoints 给的是相对注释框左下角的坐标，换算回页面坐标。
+        annotation.vertices.append(point + QPointF(box.x(), box.y()));
+    }
+
+    if (annotationController_->addPreparedAnnotation(annotation) == 0) {
+        emit statusMessage(tr("箭头框没有添加成功"));
+        return;
+    }
+    emit statusMessage(tr("已添加箭头框"));
+    finishAnnotationPlacement();
 }
 
 void PdfView::undoAnnotation() {
@@ -5402,8 +6181,36 @@ void PdfView::showReadingOrder() {
     text->setAccessibleName(tr("当前页阅读顺序"));
     layout->addWidget(text);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    // 读文档里既有的标签树：别的工具（Word、Acrobat）写出来的树形状各不相同，
+    // 这里按 PDF 32000-1 的通用规则解析，不只是「读回自己写的」。
+    QPushButton* structTreeButton =
+        buttons->addButton(tr("读取文档标签树"), QDialogButtonBox::ActionRole);
+    structTreeButton->setObjectName(QStringLiteral("readOrder.structTree"));
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(structTreeButton, &QPushButton::clicked, &dialog, [this] { showStructTreeDialog(); });
     layout->addWidget(buttons);
+    dialog.exec();
+}
+
+// 读取文档里既有的标签树。
+//
+// 没有标签树不是错误：界面要明确说「这份文档没有标签树」，
+// 不能显示成空列表让人以为读过了。
+void PdfView::showStructTreeDialog() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("文档标签树"), tr("先打开一份 PDF。"));
+        return;
+    }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("文档标签树"),
+                             serializeError.isEmpty() ? tr("读不到文档内容。") : serializeError);
+        return;
+    }
+    const pdf::StructTreeReport report = pdf::readStructTree(bytes);
+    StructTreeDialog dialog(this);
+    dialog.setReport(report);
     dialog.exec();
 }
 
@@ -5518,6 +6325,9 @@ void PdfView::speakCurrentPage() {
 
 void PdfView::stopSpeaking() {
     pendingSpeechPage_ = -1;
+    // 智能朗读的分段队列也要停：不然下一段会在用户以为已经停掉之后接着念。
+    narrationSegments_.clear();
+    narrationSegmentIndex_ = -1;
     if (speechEngine_ != nullptr) {
         speechEngine_->stop();
     }
@@ -5997,16 +6807,22 @@ void PdfView::showSignatureListDialog() {
         return;
     }
 
+    // 密码学判定：验签要拿**整份文档的字节**去算摘要，
+    // 只给签名域是判不出来的（摘要覆盖的是整个 /ByteRange）。
+    QString verdictError;
+    const QVector<pdf::SignatureCryptoVerdict> verdicts =
+        pdf::verifyDocumentSignatures(bytes, &verdictError);
+
     QDialog dialog(this);
     dialog.setWindowTitle(tr("签名列表"));
     dialog.resize(900, 600);
 
     auto* layout = new QVBoxLayout(&dialog);
 
-    auto* table = new QTableWidget(signatures.size(), 5, &dialog);
+    auto* table = new QTableWidget(signatures.size(), 6, &dialog);
     table->setObjectName(QStringLiteral("signature.list"));
     table->setHorizontalHeaderLabels(
-        {tr("签名域"), tr("签署人"), tr("签署时间"), tr("算法"), tr("覆盖检查")});
+        {tr("签名域"), tr("签署人"), tr("签署时间"), tr("算法"), tr("覆盖检查"), tr("密码学判定")});
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -6025,6 +6841,33 @@ void PdfView::showSignatureListDialog() {
             coverage = tr("覆盖不完整");
         }
         table->setItem(row, 4, new QTableWidgetItem(coverage));
+
+        // 判定列：不成立时把原因写出来（是「RSA 对不上」还是「文件被改过」），
+        // 不要只写「无效」—— 用户看不出该找谁。
+        auto* verdictItem = new QTableWidgetItem();
+        if (row < verdicts.size()) {
+            const pdf::SignatureCryptoVerdict& verdict = verdicts.at(row);
+            if (verdict.signatureValid) {
+                verdictItem->setText(tr("签名有效"));
+                verdictItem->setForeground(QColor(46, 160, 67));
+            } else {
+                verdictItem->setText(verdict.failureReason.isEmpty()
+                                         ? tr("签名无效")
+                                         : verdict.failureReason);
+                verdictItem->setForeground(QColor(198, 40, 40));
+            }
+            if (!verdict.algorithm.isEmpty()) {
+                verdictItem->setToolTip(tr("摘要算法：%1").arg(verdict.algorithm));
+            }
+            if (!verdict.signerSubject.isEmpty()) {
+                verdictItem->setToolTip(verdictItem->toolTip() + "\n" +
+                                        tr("签名者：%1").arg(verdict.signerSubject));
+            }
+        } else {
+            verdictItem->setText(verdictError.isEmpty() ? tr("无法判定") : verdictError);
+            verdictItem->setForeground(QColor(140, 140, 140));
+        }
+        table->setItem(row, 5, verdictItem);
     }
     layout->addWidget(table);
 
@@ -6083,6 +6926,28 @@ void PdfView::showSignatureListDialog() {
                          .arg(signature.coversDocument ? tr("覆盖完整") : signature.coverError));
         lines.append(tr("覆盖区间："));
         lines.append(ranges.isEmpty() ? tr("（没有读到覆盖区间）") : ranges.join('\n'));
+        // 密码学判定的细节也放进详情面板：摘要算法、签名者、时间戳。
+        if (row < verdicts.size()) {
+            const pdf::SignatureCryptoVerdict& verdict = verdicts.at(row);
+            lines.append(tr("密码学判定：%1")
+                             .arg(verdict.signatureValid ? tr("签名有效")
+                                                          : (verdict.failureReason.isEmpty()
+                                                                 ? tr("签名无效")
+                                                                 : verdict.failureReason)));
+            lines.append(tr("摘要算法：%1")
+                             .arg(verdict.algorithm.isEmpty() ? tr("（未知）") : verdict.algorithm));
+            lines.append(tr("内容摘要一致：%1").arg(verdict.digestMatched ? tr("是") : tr("否")));
+            lines.append(tr("签名者主体：%1")
+                             .arg(verdict.signerSubject.isEmpty() ? tr("（未知）")
+                                                                 : verdict.signerSubject));
+            if (!verdict.timestamp.isEmpty()) {
+                lines.append(tr("时间戳：%1").arg(verdict.timestamp));
+                lines.append(tr("时间戳机构：%1")
+                                 .arg(verdict.timestampAuthority.isEmpty()
+                                          ? tr("（未知）")
+                                          : verdict.timestampAuthority));
+            }
+        }
         detail->setPlainText(lines.join('\n'));
     };
     connect(table, &QTableWidget::currentCellChanged, &dialog,
@@ -6097,6 +6962,392 @@ void PdfView::showSignatureListDialog() {
     connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
 
+    dialog.exec();
+}
+
+
+// -------------------------------------------------- 电子签章：签署流程 ----
+//
+// 面板只做三件事：收集输入、把领域层的流程状态显示出来、把用户的动作转给领域层。
+// 流程状态与签署人状态**一律**由 pdf::SignatureWorkflow 管，界面不另算一套 ——
+// 两处各算一套迟早会打架，而签署记录是拿来追责的，不能有第二种说法。
+void PdfView::showSignatureWorkflowDialog() {
+    pdf::SignatureWorkflow& workflow = signatureWorkflow_;
+
+    QDialog dialog(this);
+    // 名字与 Ribbon 上的按钮（signature.workflow）错开一位：
+    // UI Automation 的 AutomationId 是全应用唯一的，同名会让验收脚本认错控件。
+    dialog.setObjectName(QStringLiteral("signature.workflowDialog"));
+    dialog.setWindowTitle(tr("签署流程"));
+    dialog.resize(880, 660);
+    auto* layout = new QVBoxLayout(&dialog);
+
+    // 状态与签署人状态的中文标签。
+    const auto stateName = [](pdf::WorkflowState state) -> QString {
+        switch (state) {
+            case pdf::WorkflowState::Draft: return tr("草稿");
+            case pdf::WorkflowState::InProgress: return tr("进行中");
+            case pdf::WorkflowState::Completed: return tr("已完成");
+            case pdf::WorkflowState::Aborted: return tr("已中止");
+        }
+        return tr("草稿");
+    };
+    const auto stepName = [](pdf::SignStepStatus status) -> QString {
+        switch (status) {
+            case pdf::SignStepStatus::Pending: return tr("待签署");
+            case pdf::SignStepStatus::Signed: return tr("已签署");
+            case pdf::SignStepStatus::Rejected: return tr("已拒签");
+            case pdf::SignStepStatus::Skipped: return tr("已跳过");
+        }
+        return tr("待签署");
+    };
+    // 事件动作码 → 人看得懂的一句话。
+    // 这里的措辞与按钮上的刻意错开（按钮是「开始签署」，事件是「开始签署流程」）：
+    // 同一个上下文里同一条文案只能有一个译文，两处共用一个词就会有一处译不准。
+    const auto actionName = [](const QString& action) -> QString {
+        if (action == QLatin1String("created")) return tr("创建流程");
+        if (action == QLatin1String("signatory_added")) return tr("新增签署人");
+        if (action == QLatin1String("started")) return tr("开始签署流程");
+        if (action == QLatin1String("signed")) return tr("签署完成");
+        if (action == QLatin1String("rejected")) return tr("拒签");
+        if (action == QLatin1String("skipped")) return tr("跳过签署");
+        if (action == QLatin1String("completed")) return tr("完成流程");
+        if (action == QLatin1String("aborted")) return tr("中止流程");
+        return action;
+    };
+
+    auto* form = new QFormLayout();
+    auto* titleEdit = new QLineEdit(&dialog);
+    titleEdit->setObjectName(QStringLiteral("signature.workflow.title"));
+    auto* initiatorEdit = new QLineEdit(&dialog);
+    initiatorEdit->setObjectName(QStringLiteral("signature.workflow.initiator"));
+    auto* stateLabel = new QLabel(&dialog);
+    stateLabel->setObjectName(QStringLiteral("signature.workflow.state"));
+    form->addRow(tr("标题"), titleEdit);
+    form->addRow(tr("发起人"), initiatorEdit);
+    form->addRow(tr("状态"), stateLabel);
+    layout->addLayout(form);
+
+    // 签署人名单。
+    // 标题用「签署人名单」而不是「签署人」：签名列表那一栏早就有「签署人」，
+    // 同一个上下文里同一条文案只能有一个译文，别把人家那一栏的译名改掉。
+    layout->addWidget(new QLabel(tr("签署人名单"), &dialog));
+    auto* signatoryTable = new QTableWidget(0, 4, &dialog);
+    signatoryTable->setObjectName(QStringLiteral("signature.workflow.signatories"));
+    signatoryTable->setHorizontalHeaderLabels({tr("姓名"), tr("联系方式"), tr("顺序"), tr("状态")});
+    signatoryTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    signatoryTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    signatoryTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layout->addWidget(signatoryTable);
+    auto* signatoryEmpty = new QLabel(tr("（还没有签署人）"), &dialog);
+    signatoryEmpty->setObjectName(QStringLiteral("signature.workflow.signatories.empty"));
+    layout->addWidget(signatoryEmpty);
+
+    // 添加 / 删除签署人。
+    auto* addRow = new QHBoxLayout();
+    auto* nameEdit = new QLineEdit(&dialog);
+    nameEdit->setObjectName(QStringLiteral("signature.workflow.newName"));
+    nameEdit->setPlaceholderText(tr("姓名"));
+    auto* contactEdit = new QLineEdit(&dialog);
+    contactEdit->setObjectName(QStringLiteral("signature.workflow.newContact"));
+    contactEdit->setPlaceholderText(tr("联系方式"));
+    auto* orderSpin = new QSpinBox(&dialog);
+    orderSpin->setObjectName(QStringLiteral("signature.workflow.newOrder"));
+    orderSpin->setRange(0, 999);
+    orderSpin->setSpecialValueText(tr("自动"));
+    addRow->addWidget(nameEdit);
+    addRow->addWidget(contactEdit);
+    addRow->addWidget(orderSpin);
+    auto* addButton = new QPushButton(tr("添加签署人"), &dialog);
+    addButton->setObjectName(QStringLiteral("signature.workflow.addSignatory"));
+    addRow->addWidget(addButton);
+    auto* removeButton = new QPushButton(tr("删除签署人"), &dialog);
+    removeButton->setObjectName(QStringLiteral("signature.workflow.removeSignatory"));
+    addRow->addWidget(removeButton);
+    layout->addLayout(addRow);
+
+    // 流程动作。
+    auto* actionRow = new QHBoxLayout();
+    const auto makeAction = [&](const QString& label, const QString& objectName) {
+        auto* button = new QPushButton(label, &dialog);
+        button->setObjectName(objectName);
+        actionRow->addWidget(button);
+        return button;
+    };
+    auto* startButton = makeAction(tr("开始签署"), QStringLiteral("signature.workflow.start"));
+    auto* signedButton = makeAction(tr("标记已签"), QStringLiteral("signature.workflow.signed"));
+    auto* rejectButton = makeAction(tr("标记拒签"), QStringLiteral("signature.workflow.rejected"));
+    auto* skipButton = makeAction(tr("跳过"), QStringLiteral("signature.workflow.skip"));
+    auto* completeButton = makeAction(tr("完成"), QStringLiteral("signature.workflow.complete"));
+    auto* abortButton = makeAction(tr("中止"), QStringLiteral("signature.workflow.abort"));
+    layout->addLayout(actionRow);
+
+    // 签署记录。
+    layout->addWidget(new QLabel(tr("签署记录"), &dialog));
+    auto* eventTable = new QTableWidget(0, 4, &dialog);
+    eventTable->setObjectName(QStringLiteral("signature.workflow.events"));
+    eventTable->setHorizontalHeaderLabels({tr("时间"), tr("谁"), tr("做了什么"), tr("说明")});
+    eventTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    eventTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(eventTable);
+    auto* eventEmpty = new QLabel(tr("（还没有签署记录）"), &dialog);
+    eventEmpty->setObjectName(QStringLiteral("signature.workflow.events.empty"));
+    layout->addWidget(eventEmpty);
+
+    // 报告。
+    auto* reportRow = new QHBoxLayout();
+    auto* reportButton = new QPushButton(tr("查看签署报告"), &dialog);
+    reportButton->setObjectName(QStringLiteral("signature.workflow.report"));
+    reportRow->addWidget(reportButton);
+    layout->addLayout(reportRow);
+
+    // 刷新：所有显示都从领域层的数据里来。
+    const auto refresh = [&]() {
+        stateLabel->setText(stateName(workflow.state()));
+        if (!workflow.id().isEmpty()) {
+            titleEdit->setText(workflow.title());
+            initiatorEdit->setText(workflow.initiator());
+            titleEdit->setEnabled(false);
+            initiatorEdit->setEnabled(false);
+        }
+
+        const QVector<pdf::Signatory> signatories = workflow.signatories();
+        signatoryTable->setRowCount(signatories.size());
+        for (int row = 0; row < signatories.size(); ++row) {
+            const pdf::Signatory& signatory = signatories.at(row);
+            signatoryTable->setItem(row, 0, new QTableWidgetItem(signatory.name));
+            signatoryTable->setItem(row, 1, new QTableWidgetItem(signatory.contact));
+            signatoryTable->setItem(row, 2, new QTableWidgetItem(QString::number(signatory.order)));
+            auto* statusItem = new QTableWidgetItem(stepName(signatory.status));
+            if (signatory.status == pdf::SignStepStatus::Signed) {
+                statusItem->setForeground(QColor(46, 160, 67));
+            } else if (signatory.status == pdf::SignStepStatus::Rejected) {
+                statusItem->setForeground(QColor(198, 40, 40));
+            }
+            if (!signatory.rejectReason.isEmpty()) {
+                statusItem->setToolTip(signatory.rejectReason);
+            }
+            signatoryTable->setItem(row, 3, statusItem);
+        }
+        signatoryEmpty->setVisible(signatories.isEmpty());
+
+        const QVector<pdf::WorkflowEvent> events = workflow.events();
+        eventTable->setRowCount(events.size());
+        for (int row = 0; row < events.size(); ++row) {
+            const pdf::WorkflowEvent& event = events.at(row);
+            eventTable->setItem(row, 0, new QTableWidgetItem(event.at.toString(Qt::ISODate)));
+            eventTable->setItem(row, 1, new QTableWidgetItem(event.actor));
+            eventTable->setItem(row, 2, new QTableWidgetItem(actionName(event.action)));
+            eventTable->setItem(row, 3, new QTableWidgetItem(event.detail));
+        }
+        eventEmpty->setVisible(events.isEmpty());
+
+        // 终态之后不能再改：按钮置灰，避免用户点出「流程已结束，不能再修改」。
+        const bool finished = workflow.state() == pdf::WorkflowState::Completed ||
+                              workflow.state() == pdf::WorkflowState::Aborted;
+        startButton->setEnabled(!finished &&
+                                 workflow.state() == pdf::WorkflowState::Draft &&
+                                 !workflow.id().isEmpty() && !signatories.isEmpty());
+        signedButton->setEnabled(!finished);
+        rejectButton->setEnabled(!finished);
+        skipButton->setEnabled(!finished);
+        completeButton->setEnabled(!finished);
+        abortButton->setEnabled(!finished);
+        reportButton->setEnabled(!workflow.id().isEmpty());
+    };
+
+    // 流程还没创建时，先把标题与发起人落成一条流程。
+    const auto ensureCreated = [&]() -> bool {
+        if (!workflow.id().isEmpty()) {
+            return true;
+        }
+        QString error;
+        const QString title = titleEdit->text().trimmed();
+        const QString initiator = initiatorEdit->text().trimmed();
+        if (workflow.createWorkflow(title, initiator, &error).isEmpty()) {
+            QMessageBox::warning(&dialog, tr("签署流程"),
+                                 error.isEmpty() ? tr("创建签署流程失败。") : error);
+            return false;
+        }
+        return true;
+    };
+    const auto showError = [&](const QString& error) {
+        QMessageBox::warning(&dialog, tr("签署流程"),
+                             error.isEmpty() ? tr("操作没有成功。") : error);
+    };
+
+    connect(addButton, &QPushButton::clicked, &dialog, [&]() {
+        if (!ensureCreated()) {
+            return;
+        }
+        pdf::Signatory signatory;
+        signatory.name = nameEdit->text();
+        signatory.contact = contactEdit->text();
+        signatory.order = orderSpin->value();
+        QString error;
+        workflow.addSignatory(signatory, &error);
+        if (!error.isEmpty()) {
+            showError(error);
+            return;
+        }
+        nameEdit->clear();
+        contactEdit->clear();
+        orderSpin->setValue(0);
+        refresh();
+    });
+
+    connect(removeButton, &QPushButton::clicked, &dialog, [&]() {
+        const int row = signatoryTable->currentRow();
+        if (row < 0 || row >= workflow.signatories().size()) {
+            QMessageBox::information(&dialog, tr("签署流程"), tr("先选中要删除的签署人。"));
+            return;
+        }
+        const QString name = workflow.signatories().at(row).name;
+        // 名单只能靠领域层改：这里没有「删除签署人」的接口，
+        // 所以如实说明，而不是偷偷改内部状态。
+        QMessageBox::information(&dialog, tr("签署流程"),
+                                 tr("签署人 %1 不能删除：签署记录要保留完整名单。").arg(name));
+    });
+
+    connect(startButton, &QPushButton::clicked, &dialog, [&]() {
+        if (!ensureCreated()) {
+            return;
+        }
+        QString error;
+        if (!workflow.startSigning(&error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(signedButton, &QPushButton::clicked, &dialog, [&]() {
+        const QString name = workflow.nextPendingSignatory();
+        if (name.isEmpty()) {
+            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
+            return;
+        }
+        QString error;
+        if (!workflow.recordSigned(name, QDateTime::currentDateTime(), &error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(rejectButton, &QPushButton::clicked, &dialog, [&]() {
+        const QString name = workflow.nextPendingSignatory();
+        if (name.isEmpty()) {
+            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
+            return;
+        }
+        bool ok = false;
+        const QString reason = QInputDialog::getText(&dialog, tr("标记拒签"),
+                                                     tr("拒签理由（必填）"), QLineEdit::Normal,
+                                                     QString(), &ok);
+        if (!ok) {
+            return;
+        }
+        if (reason.trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, tr("标记拒签"), tr("拒签必须写理由。"));
+            return;
+        }
+        QString error;
+        if (!workflow.recordRejected(name, reason.trimmed(), QDateTime::currentDateTime(), &error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(skipButton, &QPushButton::clicked, &dialog, [&]() {
+        const QString name = workflow.nextPendingSignatory();
+        if (name.isEmpty()) {
+            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
+            return;
+        }
+        QString error;
+        if (!workflow.skipSignatory(name, &error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(completeButton, &QPushButton::clicked, &dialog, [&]() {
+        QString error;
+        if (!workflow.completeWorkflow(&error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(abortButton, &QPushButton::clicked, &dialog, [&]() {
+        bool ok = false;
+        const QString reason = QInputDialog::getText(&dialog, tr("中止流程"),
+                                                     tr("中止理由（必填）"), QLineEdit::Normal,
+                                                     QString(), &ok);
+        if (!ok) {
+            return;
+        }
+        if (reason.trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, tr("中止流程"), tr("中止必须写理由。"));
+            return;
+        }
+        QString error;
+        if (!workflow.abortWorkflow(reason.trimmed(), &error)) {
+            showError(error);
+            return;
+        }
+        refresh();
+    });
+
+    connect(reportButton, &QPushButton::clicked, &dialog, [&]() {
+        const pdf::SignatureWorkflow::Report report = workflow.buildReport();
+        const QString text = report.toPlainText();
+        QDialog reportDialog(&dialog);
+        reportDialog.setObjectName(QStringLiteral("signature.workflow.reportDialog"));
+        reportDialog.setWindowTitle(tr("签署报告"));
+        reportDialog.resize(680, 560);
+        auto* reportLayout = new QVBoxLayout(&reportDialog);
+        auto* editor = new QPlainTextEdit(&reportDialog);
+        editor->setObjectName(QStringLiteral("signature.workflow.reportText"));
+        editor->setReadOnly(true);
+        editor->setPlainText(text);
+        reportLayout->addWidget(editor);
+        auto* reportButtons = new QDialogButtonBox(&reportDialog);
+        auto* copyButton = reportButtons->addButton(tr("复制到剪贴板"),
+                                                    QDialogButtonBox::ActionRole);
+        copyButton->setObjectName(QStringLiteral("signature.workflow.reportCopy"));
+        auto* exportButton = reportButtons->addButton(tr("导出为文本文件"),
+                                                      QDialogButtonBox::ActionRole);
+        exportButton->setObjectName(QStringLiteral("signature.workflow.reportExport"));
+        reportButtons->addButton(QDialogButtonBox::Close);
+        reportLayout->addWidget(reportButtons);
+        connect(copyButton, &QPushButton::clicked, &reportDialog, [text]() {
+            QApplication::clipboard()->setText(text);
+        });
+        connect(exportButton, &QPushButton::clicked, &reportDialog, [text, &reportDialog]() {
+            QWidget* owner = reportDialog.parentWidget();
+            const QString path = QFileDialog::getSaveFileName(
+                owner, tr("导出签署报告"), QString(), tr("文本文件 (*.txt)"));
+            if (path.isEmpty()) {
+                return;
+            }
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+                QMessageBox::warning(owner, tr("导出签署报告"), tr("写不了这个文件。"));
+                return;
+            }
+            file.write(text.toUtf8());
+            file.close();
+        });
+        connect(reportButtons, &QDialogButtonBox::rejected, &reportDialog, &QDialog::reject);
+        reportDialog.exec();
+    });
+
+    refresh();
     dialog.exec();
 }
 
@@ -6320,6 +7571,444 @@ void PdfView::applyRegionReadingOrder() {
         return;
     }
     emit statusMessage(tr("已按默认顺序写好标签树"));
+}
+
+// ------------------------------------------------- 第二批接线（E/F/G/H）----
+//
+// 这一组是给新面板用的入口：面板只负责收集输入与显示结果，
+// 真正碰文档的活都在这里；判定与边界一律交给领域层。
+
+QByteArray PdfView::documentBytes(QString* error) const {
+    if (!document_.isValid()) {
+        if (error != nullptr) {
+            *error = tr("先打开一份 PDF。");
+        }
+        return QByteArray();
+    }
+    QString reason;
+    const QByteArray bytes = document_.serialize(&reason);
+    if (bytes.isEmpty() && error != nullptr) {
+        *error = reason.isEmpty() ? tr("读取文档内容失败。") : reason;
+    }
+    return bytes;
+}
+
+// 用新的字节替换当前文档的内容。
+//
+// 写回失败时文档保持原样：reloadFromBytes 先解析再换手柄，解析不过就还是旧文档。
+bool PdfView::replaceDocumentBytes(const QByteArray& bytes, QString* error) {
+    if (!document_.isValid()) {
+        if (error != nullptr) {
+            *error = tr("先打开一份 PDF。");
+        }
+        return false;
+    }
+    if (bytes.isEmpty()) {
+        if (error != nullptr) {
+            *error = tr("新的内容是空的，文档没有修改。");
+        }
+        return false;
+    }
+    QString reloadError;
+    if (!document_.reloadFromBytes(bytes, &reloadError)) {
+        if (error != nullptr) {
+            *error = tr("写入后的文档无法重新打开，文档没有修改：%1").arg(reloadError);
+        }
+        return false;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    return true;
+}
+
+// 某页的有效盒子（PDF user space；优先 CropBox，没有就用 MediaBox）。
+//
+// 写不可见文字层时字符框必须相对同一个盒子，否则字会整体偏移。
+pdf::MediaBox PdfView::pageContentBox(int pageIndex) const {
+    pdf::MediaBox box;
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return box;
+    }
+    return page->contentBox();
+}
+
+// 执行一步文档级动作（动作向导用）。
+//
+// 参数怎么解释、动作能不能做，领域层已经定好了（doc::ActionWizard 的参数表
+// 与 validateActionWizard）。这里只把参数翻译成领域层的调用；
+// 做不了的步骤要**如实**说做不到，不假装成功。
+bool PdfView::applyDocumentAction(doc::WizardActionType type,
+                                  const QVector<doc::WizardParam>& params,
+                                  QString* reason) {
+    if (!document_.isValid()) {
+        if (reason != nullptr) {
+            *reason = tr("先打开一份 PDF。");
+        }
+        return false;
+    }
+    const auto stringParam = [&params](const char* name) {
+        for (const doc::WizardParam& param : params) {
+            if (param.name == QString::fromLatin1(name)) {
+                return param.stringValue;
+            }
+        }
+        return QString();
+    };
+    const auto numberParam = [&params](const char* name, double fallback) {
+        for (const doc::WizardParam& param : params) {
+            if (param.name == QString::fromLatin1(name)) {
+                return param.numberValue;
+            }
+        }
+        return fallback;
+    };
+    const auto integerParam = [&params](const char* name, qint64 fallback) {
+        for (const doc::WizardParam& param : params) {
+            if (param.name == QString::fromLatin1(name)) {
+                return param.integerValue;
+            }
+        }
+        return fallback;
+    };
+
+    switch (type) {
+        case doc::WizardActionType::AddWatermark: {
+            const QString text = stringParam("text");
+            if (text.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = tr("水印这一步没有文字。");
+                }
+                return false;
+            }
+            const QString position = stringParam("position");
+            if (!position.isEmpty() && position != QStringLiteral("center")) {
+                if (reason != nullptr) {
+                    *reason = tr("本程序的水印只能放在页面正中（position 只支持 center）。");
+                }
+                return false;
+            }
+            pdf::WatermarkOptions options;
+            options.text = text;
+            options.opacity = numberParam("opacity", 0.15);
+            if (!pdf::applyWatermark(document_, options)) {
+                if (reason != nullptr) {
+                    *reason = tr("加水印失败。");
+                }
+                return false;
+            }
+            refreshAfterDecoration();
+            setModified(true);
+            return true;
+        }
+        case doc::WizardActionType::AddPageNumbers: {
+            const QString position = stringParam("position");
+            if (!position.isEmpty() && position != QStringLiteral("bottomRight")) {
+                if (reason != nullptr) {
+                    *reason = tr("本程序的页码只能放在右下角（position 只支持 bottomRight）。");
+                }
+                return false;
+            }
+            const qint64 start = integerParam("startNumber", 1);
+            if (start != 1) {
+                if (reason != nullptr) {
+                    *reason = tr("本程序的页码从第 1 页开始（startNumber 只支持 1）。");
+                }
+                return false;
+            }
+            pdf::PageNumberOptions options;
+            if (!pdf::applyPageNumbers(document_, options)) {
+                if (reason != nullptr) {
+                    *reason = tr("加页码失败。");
+                }
+                return false;
+            }
+            refreshAfterDecoration();
+            setModified(true);
+            return true;
+        }
+        case doc::WizardActionType::End:
+            return true;
+        default:
+            break;
+    }
+    if (reason != nullptr) {
+        *reason = tr("动作向导还没有接这一步：%1。请用对应的功能入口单独做。")
+                      .arg(doc::wizardActionTypeTitle(type));
+    }
+    return false;
+}
+
+QVector<pdf::TextPage> PdfView::documentTextPages() const {
+    QVector<pdf::TextPage> pages;
+    if (!document_.isValid()) {
+        return pages;
+    }
+    for (int pageIndex = 0; pageIndex < document_.pageCount(); ++pageIndex) {
+        auto page = document_.page(pageIndex);
+        if (!page.has_value()) {
+            continue;
+        }
+        const auto text = page->extractText();
+        if (!text.has_value()) {
+            continue;
+        }
+        pages.append(*text);
+    }
+    return pages;
+}
+
+QString PdfView::currentPagePlainText() const {
+    if (!document_.isValid()) {
+        return QString();
+    }
+    // 优先用文本控制器排好的阅读顺序（多栏文档里内容流顺序是乱的）；
+    // 文本层还没抽出来时退回 PDFium 的原始顺序。
+    if (textController_ != nullptr) {
+        const TextLayout* layout = textController_->layout(currentPage());
+        if (layout != nullptr && !layout->isEmpty()) {
+            return layout->textForRange(0, layout->readingOrder().size());
+        }
+    }
+    auto page = document_.page(currentPage());
+    if (!page.has_value()) {
+        return QString();
+    }
+    const auto text = page->extractText();
+    if (!text.has_value()) {
+        return QString();
+    }
+    return text->plainText();
+}
+
+QString PdfView::currentSelectionText() const {
+    if (textController_ == nullptr) {
+        return QString();
+    }
+    return textController_->selectedText();
+}
+
+QString PdfView::wholeDocumentPlainText() const {
+    if (!document_.isValid()) {
+        return QString();
+    }
+    QString all;
+    for (int pageIndex = 0; pageIndex < document_.pageCount(); ++pageIndex) {
+        auto page = document_.page(pageIndex);
+        if (!page.has_value()) {
+            continue;
+        }
+        const auto text = page->extractText();
+        if (!text.has_value()) {
+            continue;
+        }
+        const QString pageText = text->plainText();
+        if (pageText.isEmpty()) {
+            continue;
+        }
+        if (!all.isEmpty()) {
+            all += QLatin1Char('\n');
+        }
+        all += pageText;
+    }
+    return all;
+}
+
+// 智能朗读：清洗 → 排段 → 按段喂给现有的语音引擎。
+//
+// 为什么分段念而不是一口气念：领域层把标题、列表项、引用分成了不同类型的段，
+// 一次念完就把「这是标题」这类信息全丢了。
+void PdfView::speakNarration() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("智能朗读"), tr("先打开一份 PDF。"));
+        return;
+    }
+    if (!speech::SpeechEngine::isSupported()) {
+        QMessageBox::information(this, tr("智能朗读"),
+                                 tr("系统没有可用的语音：%1")
+                                     .arg(speechEngine_->unavailableReason()));
+        return;
+    }
+    const QString selection = currentSelectionText();
+    const QString source = selection.isEmpty() ? currentPagePlainText() : selection;
+    const ai::NarrationPlan plan = ai::planNarration(ai::cleanTextForNarration(source));
+    if (!plan.ok) {
+        QMessageBox::information(this, tr("智能朗读"), plan.error);
+        return;
+    }
+    narrationSegments_ = plan.segments;
+    narrationSegmentIndex_ = -1;
+    emit statusMessage(tr("智能朗读：%1 段，预计 %2 秒")
+                           .arg(plan.segments.size())
+                           .arg(plan.estimatedSeconds));
+    speakNextNarrationSegment();
+}
+
+void PdfView::speakNextNarrationSegment() {
+    if (narrationSegments_.isEmpty() || narrationSegmentIndex_ < 0) {
+        return;
+    }
+    ++narrationSegmentIndex_;
+    if (narrationSegmentIndex_ >= narrationSegments_.size()) {
+        narrationSegments_.clear();
+        narrationSegmentIndex_ = -1;
+        emit statusMessage(tr("智能朗读结束"));
+        return;
+    }
+    const ai::NarrationSegment& segment = narrationSegments_.at(narrationSegmentIndex_);
+    speechEngine_->speak(segment.text);
+}
+
+bool PdfView::printWithOptions(const PrintOptions& options, QString* error) {
+    if (!document_.isValid()) {
+        if (error != nullptr) {
+            *error = tr("先打开一份 PDF。");
+        }
+        return false;
+    }
+    QPrinter printer(QPrinter::HighResolution);
+    if (!app::printDocument(document_, &printer, options, error)) {
+        return false;
+    }
+    return true;
+}
+
+bool PdfView::insertTextAnnotation(const QString& text, double fontSize) {
+    if (!document_.isValid() || text.isEmpty() || annotationController_ == nullptr) {
+        return false;
+    }
+    const int pageIndex = currentPage();
+    const QRectF rect = defaultInsertRect(document_, pageIndex, 220.0, 40.0);
+    if (rect.isEmpty()) {
+        emit statusMessage(tr("这一页放不下这个文本框"));
+        return false;
+    }
+    if (annotationController_->addFreeText(pageIndex, rect, text, fontSize) == 0) {
+        emit statusMessage(tr("插入文本批注失败"));
+        return false;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已插入文本批注"));
+    return true;
+}
+
+bool PdfView::insertGeneratedImage(const QByteArray& imageBytes, const QString& label) {
+    if (!document_.isValid() || imageBytes.isEmpty() || annotationController_ == nullptr) {
+        return false;
+    }
+    QImage image;
+    if (!image.loadFromData(imageBytes)) {
+        emit statusMessage(tr("生成结果不是一张可用的图片"));
+        return false;
+    }
+    const int pageIndex = currentPage();
+    auto page = document_.page(pageIndex);
+    if (!page.has_value()) {
+        return false;
+    }
+    const pdf::MediaBox box = page->contentBox();
+    const double width = 160.0;
+    const double height = width * image.height() / qMax(1, image.width());
+    const QRectF rect(box.left + box.width() / 2.0 - width / 2.0,
+                      box.bottom + box.height() / 2.0 - height / 2.0,
+                      width, height);
+    if (annotationController_->addImageStamp(pageIndex, rect, imageBytes, label) == 0) {
+        emit statusMessage(tr("插入图片失败"));
+        return false;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已把生成的图片插入当前页"));
+    return true;
+}
+
+// ------------------------------------------------------- 连续批注模式 ----
+
+void PdfView::setContinuousAnnotationMode(bool enabled) {
+    continuousModeEnabled_ = enabled;
+    syncContinuousModeWithTool();
+    emit statusMessage(enabled ? tr("已开启连续批注：放完批注不切回选择工具")
+                                : tr("已关闭连续批注"));
+}
+
+bool PdfView::continuousAnnotationMode() const {
+    return continuousModeEnabled_;
+}
+
+bool PdfView::afterAnnotationPlacement() {
+    if (!continuousModeEnabled_) {
+        if (annotationController_ != nullptr) {
+            annotationController_->setTool(AnnotationController::Tool::None);
+        }
+        return false;
+    }
+    // 领域层决定这次放完要不要保持：放完就退出的工具（墨迹、橡皮等）在这里退出。
+    const bool keep = continuousMode_.afterPlacement();
+    if (!keep && annotationController_ != nullptr) {
+        annotationController_->setTool(AnnotationController::Tool::None);
+    }
+    return keep;
+}
+
+void PdfView::finishAnnotationPlacement() {
+    afterAnnotationPlacement();
+}
+
+void PdfView::syncContinuousModeWithTool() {
+    if (annotationController_ == nullptr) {
+        continuousMode_.deactivate();
+        return;
+    }
+    const AnnotationController::Tool tool = annotationController_->tool();
+    if (!continuousModeEnabled_ || tool == AnnotationController::Tool::None) {
+        continuousMode_.deactivate();
+        return;
+    }
+    continuousMode_.activate(continuousToolId(tool), toolSupportsContinuous(tool));
+}
+
+bool PdfView::toolSupportsContinuous(AnnotationController::Tool tool) {
+    switch (tool) {
+    // 连着放会越用越歪的工具：放完就退出连续模式。
+    case AnnotationController::Tool::Ink:
+    case AnnotationController::Tool::Eraser:
+    case AnnotationController::Tool::Sound:
+    case AnnotationController::Tool::Attachment:
+    case AnnotationController::Tool::ImageStamp:
+    case AnnotationController::Tool::Measure:
+    case AnnotationController::Tool::MeasurePerimeter:
+    case AnnotationController::Tool::MeasureArea:
+        return false;
+    default:
+        return true;
+    }
+}
+
+QString PdfView::continuousToolId(AnnotationController::Tool tool) {
+    switch (tool) {
+    case AnnotationController::Tool::Note: return QStringLiteral("note");
+    case AnnotationController::Tool::Square: return QStringLiteral("square");
+    case AnnotationController::Tool::Ellipse: return QStringLiteral("ellipse");
+    case AnnotationController::Tool::Line: return QStringLiteral("line");
+    case AnnotationController::Tool::Arrow: return QStringLiteral("arrow");
+    case AnnotationController::Tool::Polygon: return QStringLiteral("polygon");
+    case AnnotationController::Tool::Cloud: return QStringLiteral("cloud");
+    case AnnotationController::Tool::Callout: return QStringLiteral("callout");
+    case AnnotationController::Tool::RegionHighlight: return QStringLiteral("regionHighlight");
+    case AnnotationController::Tool::FreeText: return QStringLiteral("freetext");
+    case AnnotationController::Tool::Stamp: return QStringLiteral("stamp");
+    case AnnotationController::Tool::ImageStamp: return QStringLiteral("imagestamp");
+    case AnnotationController::Tool::Sound: return QStringLiteral("sound");
+    case AnnotationController::Tool::Measure: return QStringLiteral("measure");
+    case AnnotationController::Tool::MeasurePerimeter: return QStringLiteral("perimeter");
+    case AnnotationController::Tool::MeasureArea: return QStringLiteral("area");
+    case AnnotationController::Tool::Attachment: return QStringLiteral("attachment");
+    case AnnotationController::Tool::Ink: return QStringLiteral("ink");
+    case AnnotationController::Tool::Eraser: return QStringLiteral("eraser");
+    case AnnotationController::Tool::None: break;
+    }
+    return QString();
 }
 
 }  // namespace aipdf::app

@@ -2,13 +2,16 @@
 
 #include "app/AiSettingsDialog.h"
 #include "app/DocumentQaController.h"
+#include "app/IndexController.h"
 #include "app/Language.h"
+#include "app/LastWaveBridge.h"
 #include "app/TextController.h"
 #include "app/TextLayout.h"
 #include "app/UploadPreviewDialog.h"
 #include "ai/AuditLog.h"
 #include "ai/ChatTypes.h"
 #include "ai/CredentialStore.h"
+#include "ai/OfflineQa.h"
 #include "ai/ProviderConfig.h"
 #include "ai/ProviderFactory.h"
 #include "ai/UploadPreview.h"
@@ -174,9 +177,15 @@ void AiPanel::buildUi() {
     translateButton_->setObjectName(QStringLiteral("aiTranslateButton"));
     texts_.bind([this] { translateButton_->setText(tr("翻译选区")); });
     texts_.bind([this] { translateButton_->setToolTip(tr("翻译选中的文字")); });
+    // 本地离线问答：不需要配 Provider，也不联网。
+    offlineButton_ = new QPushButton(QString(), this);
+    offlineButton_->setObjectName(QStringLiteral("aiOfflineButton"));
+    texts_.bind([this] { offlineButton_->setText(tr("本地离线问答")); });
+    texts_.bind([this] { offlineButton_->setToolTip(tr("在本地索引里检索并摘出答案（不联网、不调模型）")); });
     actions->addWidget(summaryButton_, 1);
     actions->addWidget(explainButton_, 1);
     actions->addWidget(translateButton_, 1);
+    actions->addWidget(offlineButton_, 1);
     contextLayout->addLayout(scopeRow);
     contextLayout->addLayout(scopeSwitch);
     contextLayout->addWidget(scopeLabel_);
@@ -265,6 +274,9 @@ void AiPanel::buildUi() {
     connect(summaryButton_, &QPushButton::clicked, this, &AiPanel::requestSummary);
     connect(explainButton_, &QPushButton::clicked, this, &AiPanel::requestExplain);
     connect(translateButton_, &QPushButton::clicked, this, &AiPanel::requestTranslate);
+    connect(offlineButton_, &QPushButton::clicked, this, [this]() {
+        requestOfflineQa(prompt_->text());
+    });
     connect(sendButton_, &QPushButton::clicked, this, [this]() {
         requestAsk(prompt_->text());
     });
@@ -526,6 +538,97 @@ void AiPanel::setQaController(DocumentQaController* controller) {
 
 void AiPanel::setCurrentPage(int pageIndex) {
     currentPage_ = pageIndex;
+}
+
+void AiPanel::setIndexController(IndexController* controller) {
+    indexController_ = controller;
+}
+
+void AiPanel::setOfflineAnswerProvider(OfflineAnswerProvider provider) {
+    offlineAnswerProvider_ = std::move(provider);
+}
+
+// 本地离线问答：不联网、不调模型，答案从本地索引里**摘**出来。
+//
+// 找不到就说找不到：这时不显示任何答案正文，只列出最接近的几个片段，
+// 让人自己判断——编一句「看起来像答案」的话比不给答案坏得多。
+void AiPanel::requestOfflineQa(const QString& question) {
+    lastOfflineAnswer_.clear();
+    lastOfflineNotice_.clear();
+    lastOfflineCitationLines_.clear();
+    lastOfflineClosestLines_.clear();
+    lastOfflineNoMatch_ = false;
+
+    const QString asked = question.trimmed();
+    if (asked.isEmpty()) {
+        lastOfflineNotice_ = tr("先输入一个问题。");
+        appendMessage(tr("<b>本地离线问答：</b>%1").arg(lastOfflineNotice_.toHtmlEscaped()));
+        return;
+    }
+    if (indexController_ == nullptr) {
+        lastOfflineNotice_ = tr("当前文档还没有索引：先在「索引」面板里建立索引，再问。");
+        appendMessage(tr("<b>本地离线问答：</b>%1").arg(lastOfflineNotice_.toHtmlEscaped()));
+        return;
+    }
+    const doc::LocalIndex& index = indexController_->index();
+    if (index.isEmpty()) {
+        lastOfflineNotice_ = tr("本地索引里还没有内容：先建立索引，再问。");
+        appendMessage(tr("<b>本地离线问答：</b>%1").arg(lastOfflineNotice_.toHtmlEscaped()));
+        return;
+    }
+
+    if (!offlineAnswerProvider_) {
+        lastOfflineNotice_ = tr("本地离线问答还没有接上：当前文档没有可检索的索引。");
+        appendMessage(tr("<b>本地离线问答：</b>%1").arg(lastOfflineNotice_.toHtmlEscaped()));
+        return;
+    }
+
+    const ai::OfflineAnswer answer = offlineAnswerProvider_(asked);    lastOfflineNoMatch_ = answer.isNoMatch();
+    lastOfflineAnswer_ = offlineAnswerText(answer);
+    lastOfflineNotice_ = offlineNoMatchText(answer);
+    lastOfflineCitationLines_ = offlineCitationLines(answer);
+    lastOfflineClosestLines_ = offlineClosestLines(answer);
+
+    QString html = QStringLiteral("<div class='message'><b>本地离线问答</b><br/>");
+    if (lastOfflineNoMatch_) {
+        html += QStringLiteral("<span class='bad'>%1</span><br/>")
+                    .arg(lastOfflineNotice_.toHtmlEscaped());
+        html += QStringLiteral("<span class='muted'>最接近的几个片段（请自己判断）：</span><br/>");
+        for (const QString& line : lastOfflineClosestLines_) {
+            html += QStringLiteral("· %1<br/>").arg(line.toHtmlEscaped());
+        }
+    } else {
+        html += QStringLiteral("%1<br/>").arg(lastOfflineAnswer_.toHtmlEscaped());
+        if (!lastOfflineCitationLines_.isEmpty()) {
+            html += QStringLiteral("<div class='citations'><span class='muted'>引用：</span><br/>");
+            for (const QString& line : lastOfflineCitationLines_) {
+                html += QStringLiteral("· %1<br/>").arg(line.toHtmlEscaped());
+            }
+            html += QStringLiteral("</div>");
+        }
+    }
+    html += QStringLiteral("</div>");
+    appendMessage(html);
+}
+
+QString AiPanel::lastOfflineAnswer() const {
+    return lastOfflineAnswer_;
+}
+
+QString AiPanel::lastOfflineNotice() const {
+    return lastOfflineNotice_;
+}
+
+QStringList AiPanel::lastOfflineCitationLines() const {
+    return lastOfflineCitationLines_;
+}
+
+QStringList AiPanel::lastOfflineClosestLines() const {
+    return lastOfflineClosestLines_;
+}
+
+bool AiPanel::lastOfflineNoMatch() const {
+    return lastOfflineNoMatch_;
 }
 
 QString AiPanel::currentPageText() const {

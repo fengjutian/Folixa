@@ -1,5 +1,7 @@
 #include "app/PageCanvas.h"
 
+#include "app/ReadingScheme.h"
+
 #include "app/RenderThread.h"
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -11,6 +13,7 @@
 #include "pdf/Annotation.h"
 
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QMouseEvent>
 #include <QPainter>
@@ -20,6 +23,7 @@
 #include <QPlainTextEdit>
 #include <QKeyEvent>
 #include <QScrollBar>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -30,6 +34,17 @@ namespace {
 constexpr double kPageSpacing = 20.0;
 constexpr double kPageMargin = 24.0;
 constexpr int kPrefetchPages = 1;
+
+// 翻页过渡的总时长（毫秒）。够短不打断阅读，够长能看出变化。
+constexpr int kTransitionDurationMs = 220;
+
+// 标尺的尺寸（像素）：横杆高、竖杆宽。
+constexpr double kRulerThickness = 20.0;
+constexpr double kRulerLabelWidth = 46.0;
+
+// 自动滚动的参数：离边缘多近算贴边、贴边时的最大速度（像素/秒）。
+constexpr double kAutoScrollEdgeMargin = 36.0;
+constexpr double kAutoScrollMaxVelocity = 900.0;
 
 // 验收探针用的轨迹文件：选择与复制的过程要能被脚本看到。
 void trace(const QString& message) {
@@ -86,6 +101,17 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
         emptyText_ = tr("未打开文档");
         viewport()->update();
     });
+
+    // 自动滚动：拖动时指针贴到视口边缘就跟着滚。
+    // 定时器常驻但默认不跑 —— 速度为 0 时自己停，省得空转。
+    autoScrollTimer_ = new QTimer(this);
+    autoScrollTimer_->setInterval(16);
+    connect(autoScrollTimer_, &QTimer::timeout, this, &PageCanvas::onAutoScrollTick);
+
+    // 翻页过渡：旧页截图叠在视口上淡出 / 推走。
+    transitionTimer_ = new QTimer(this);
+    transitionTimer_->setInterval(16);
+    connect(transitionTimer_, &QTimer::timeout, this, &PageCanvas::onTransitionTick);
 
     connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
             this, &PageCanvas::retranslateUi);
@@ -183,17 +209,94 @@ void PageCanvas::visiblePageRange(int* first, int* last) const {
     }
 }
 
+void PageCanvas::setReadingScheme(theme::ReadingScheme scheme) {
+    if (readingScheme_ == scheme) {
+        return;
+    }
+    readingScheme_ = scheme;
+    viewport()->update();
+}
+
+theme::ReadingScheme PageCanvas::readingScheme() const {
+    return readingScheme_;
+}
+
+void PageCanvas::setRulerVisible(bool visible) {
+    if (rulerVisible_ == visible) {
+        return;
+    }
+    rulerVisible_ = visible;
+    viewport()->update();
+}
+
+bool PageCanvas::rulerVisible() const {
+    return rulerVisible_;
+}
+
+void PageCanvas::setRulerUnit(viewmodes::RulerUnit unit) {
+    if (rulerUnit_ == unit) {
+        return;
+    }
+    rulerUnit_ = unit;
+    viewport()->update();
+}
+
+viewmodes::RulerUnit PageCanvas::rulerUnit() const {
+    return rulerUnit_;
+}
+
+void PageCanvas::setAutoScrollEnabled(bool enabled) {
+    if (autoScrollEnabled_ == enabled) {
+        return;
+    }
+    autoScrollEnabled_ = enabled;
+    if (!enabled) {
+        stopAutoScroll();
+    }
+}
+
+bool PageCanvas::autoScrollEnabled() const {
+    return autoScrollEnabled_;
+}
+
+void PageCanvas::setPageTransition(viewmodes::PageTransition transition) {
+    pageTransition_ = transition;
+    if (transition == viewmodes::PageTransition::None) {
+        transitionTimer_->stop();
+        transitionSnapshot_ = QPixmap();
+    }
+}
+
+viewmodes::PageTransition PageCanvas::pageTransition() const {
+    return pageTransition_;
+}
+
+void PageCanvas::setMirrorEnabled(bool enabled) {
+    if (mirrorEnabled_ == enabled) {
+        return;
+    }
+    mirrorEnabled_ = enabled;
+    viewport()->update();
+}
+
+bool PageCanvas::mirrorEnabled() const {
+    return mirrorEnabled_;
+}
+
 void PageCanvas::goToPage(int index) {
     if (layout_.isEmpty()) {
         return;
     }
     const int clamped = std::clamp(index, 0, layout_.pageCount() - 1);
+    // 过渡：先抓下旧画面，再滚到新页 —— 抓在滚动之前，拿到的是旧页。
+    startPageTransition();
     verticalScrollBar()->setValue(static_cast<int>(layout_.pageTop(clamped)));
 }
 
 void PageCanvas::paintEvent(QPaintEvent* event) {
     QPainter painter(viewport());
-    painter.fillRect(event->rect(), palette().color(QPalette::Mid));
+    // 阅读区底色按配色方案走：夜间是深色、护眼是米绿、高对比是纯黑。
+    painter.fillRect(event->rect(), theme::backdropColor(readingScheme_));
 
     if (layout_.isEmpty()) {
         painter.setPen(palette().color(QPalette::Text));
@@ -212,10 +315,20 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         const double left = pageLeft(index);
         const QRectF pageRect(left, top, size.width(), size.height());
 
+        // 逆序镜像：把整页内容（页面位图 + 高亮 + 批注）左右翻过来。
+        // 用 painter 变换而不是逐个改坐标：页面位图是位图，没法靠改坐标翻，
+        // 而变换一次就保证「图与图上的标注」一起翻，不会出现图翻了标注没翻。
+        // 变换是绕页面自身的中线翻的，所以页面在视口里的位置不变。
+        painter.save();
+        if (mirrorEnabled_) {
+            painter.translate(2.0 * pageRect.left() + pageRect.width(), 0.0);
+            painter.scale(-1.0, 1.0);
+        }
+
         // 页面底板和克制的投影，帮助纸张从工作区背景中分离。
         painter.fillRect(pageRect.translated(0.0, 3.0), QColor(24, 24, 27, 20));
         painter.fillRect(pageRect, Qt::white);
-        painter.setPen(QPen(QColor(QStringLiteral("#D4D4D8")), 1.0));
+        painter.setPen(QPen(theme::pageOutlineColor(readingScheme_), 1.0));
         painter.drawRect(pageRect.adjusted(0.0, 0.0, -1.0, -1.0));
 
         if (cache_ != nullptr) {
@@ -268,6 +381,37 @@ void PageCanvas::paintEvent(QPaintEvent* event) {
         if (index == drawPage_) {
             paintAnnotationPreview(painter, pageRect, layout_.zoom());
         }
+        // callout 等箭头尖时的预览：注释框 + 一条指向鼠标的虚线。
+        if (awaitingCalloutTip_ && index == calloutPage_) {
+            const QRectF box = toViewportRect(calloutBoxDisplay_, pageRect, layout_.zoom());
+            painter.setPen(QPen(QColor(64, 124, 235), 1.4, Qt::DashLine));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(box);
+            const QPointF tip(pageRect.left() + calloutTipPreviewDisplay_.x() * layout_.zoom(),
+                              pageRect.top() + calloutTipPreviewDisplay_.y() * layout_.zoom());
+            painter.drawLine(box.center(), tip);
+        }
+        painter.restore();
+    }
+
+    // 标尺画在最上面：它是量尺寸的工具，不该被页面内容盖住。
+    if (rulerVisible_) {
+        paintRulers(painter, currentPage_);
+    }
+
+    // 翻页过渡：旧页的截图叠在最上层，按进度淡出 / 推走。
+    if (transitionTimer_->isActive() && !transitionSnapshot_.isNull()) {
+        const double progress = static_cast<double>(transitionElapsedMs_) /
+                                static_cast<double>(kTransitionDurationMs);
+        const viewmodes::PageTransitionFrame frame =
+            viewmodes::pageTransitionFrame(pageTransition_, progress);
+        const double pageWidthPixels = layout_.pageCount() > 0
+                                          ? layout_.pageSize(currentPage_).width()
+                                          : viewport()->width();
+        painter.save();
+        painter.setOpacity(qBound(0.0, frame.opacity, 1.0));
+        painter.drawPixmap(QPointF(frame.offsetX * pageWidthPixels, 0.0), transitionSnapshot_);
+        painter.restore();
     }
 }
 
@@ -447,6 +591,20 @@ void PageCanvas::paintAnnotations(QPainter& painter,
                     polygon << toViewportRect(QRectF(transform.toDisplay(vertex), QSizeF(0.0, 0.0)),
                                               pageRect, zoom).topLeft();
                 }
+                // 区域高亮带自定义外观（半透明填充），普通多边形只描边。
+                // 靠 customAppearance 非空来区分：屏幕上的颜色必须与写进文件的外观一致，
+                // 否则用户看到的和别的软件打开的不一样。
+                if (!annotation.customAppearance.isEmpty()) {
+                    QColor fill = annotation.color;
+                    const double opacity = (annotation.opacity > 0.0 && annotation.opacity <= 1.0)
+                                              ? annotation.opacity
+                                              : 0.35;
+                    fill.setAlpha(qBound(0, static_cast<int>(opacity * 255.0 + 0.5), 255));
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(fill);
+                    painter.drawPolygon(polygon);
+                    break;
+                }
                 painter.setPen(QPen(annotation.color, 1.5));
                 painter.setBrush(Qt::NoBrush);
                 painter.drawPolygon(polygon);
@@ -486,6 +644,12 @@ void PageCanvas::paintAnnotations(QPainter& painter,
                 break;
             }
             case pdf::AnnotationType::Square: {
+                // callout 用 Square + 自定义 /AP：屏幕要画成「注释框 + 箭头」，
+                // 与文件里的外观一致，不能画成一个半透明大方块。
+                if (!annotation.customAppearance.isEmpty()) {
+                    paintCallout(painter, annotation, transform, pageRect, zoom);
+                    break;
+                }
                 const QRectF rect = toViewportRect(transform.toDisplay(annotation.rect), pageRect, zoom);
                 QColor fill = annotation.color;
                 fill.setAlpha(38);
@@ -513,6 +677,64 @@ void PageCanvas::paintAnnotations(QPainter& painter,
             }
         }
     }
+}
+
+// callout 的屏幕画法：注释框描边 + 箭头折线 + 箭头尖。
+//
+// 顶点约定（前 4 个是注释框的四角，后面是箭头的折线点，都在页面 user space）：
+// 这是界面层与画布之间约定好的，与写进 PDF 的外观流画的是同一套几何。
+void PageCanvas::paintCallout(QPainter& painter,
+                              const pdf::Annotation& annotation,
+                              const PageTransform& transform,
+                              const QRectF& pageRect,
+                              double zoom) const {
+    const QVector<QPointF>& vertices = annotation.vertices;
+    if (vertices.size() < 6) {
+        return;
+    }
+    const double strokeWidth = (annotation.lineWidth > 0.0 ? annotation.lineWidth : 1.0);
+    const auto toViewportPoint = [&](const QPointF& userPoint) {
+        return toViewportRect(QRectF(transform.toDisplay(userPoint), QSizeF(0.0, 0.0)),
+                              pageRect, zoom).topLeft();
+    };
+
+    QPolygonF box;
+    for (int i = 0; i < 4; ++i) {
+        box << toViewportPoint(vertices.at(i));
+    }
+    painter.setPen(QPen(annotation.color, strokeWidth * zoom));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolygon(box);
+
+    QPolygonF arrow;
+    for (int i = 4; i < vertices.size(); ++i) {
+        arrow << toViewportPoint(vertices.at(i));
+    }
+    if (arrow.size() < 2) {
+        return;
+    }
+    painter.drawPolyline(arrow);
+
+    // 箭头尖：两段短线。角度与长度与 pdf::AnnotationShapes 里生成外观流时一致，
+    // 免得屏幕上一个大头小尾、文件里是另一个样子。
+    const QPointF tip = arrow.last();
+    const QPointF from = arrow.at(arrow.size() - 2);
+    const double dx = tip.x() - from.x();
+    const double dy = tip.y() - from.y();
+    const double length = std::hypot(dx, dy);
+    if (length <= 0.01) {
+        return;
+    }
+    const double head = std::min(std::max(6.0, strokeWidth * 4.0) * zoom, length * 0.45);
+    const double ux = dx / length;
+    const double uy = dy / length;
+    const double angle = 0.4363;  // 25°
+    const double ca = std::cos(angle);
+    const double sa = std::sin(angle);
+    painter.drawLine(tip, QPointF(tip.x() - head * (ux * ca - uy * sa),
+                                 tip.y() - head * (uy * ca + ux * sa)));
+    painter.drawLine(tip, QPointF(tip.x() - head * (ux * ca + uy * sa),
+                                 tip.y() - head * (uy * ca - ux * sa)));
 }
 
 void PageCanvas::paintAnnotationPreview(QPainter& painter,
@@ -556,7 +778,16 @@ QPointF PageCanvas::toUserSpacePoint(int pageIndex, const QPointF& displayPoint)
     if (!annotationController_->transformForPage(pageIndex, &transform)) {
         return displayPoint;
     }
-    return transform.toUserSpace(displayPoint);
+    QPointF point = displayPoint;
+    if (mirrorEnabled_) {
+        // 画面是镜像的：先把 x 换算回「未镜像」的位置，再进页面坐标，
+        // 否则点在镜像后的正文上会命中反方向的字。
+        const double zoom = qMax(0.01, layout_.zoom());
+        const double pageWidthPoints = layout_.pageSize(pageIndex).width() / zoom;
+        const double mirrored = viewmodes::mirrorX(displayPoint.x(), pageWidthPoints);
+        point = QPointF(mirrored, displayPoint.y());
+    }
+    return transform.toUserSpace(point);
 }
 
 void PageCanvas::setIndexHighlight(int pageIndex, const QVector<QRectF>& displayRects) {
@@ -728,11 +959,36 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
     viewport()->setFocus();
+    // 拖动期间指针贴到视口边缘就自动滚：定时器在这里开，
+    // 松手时停。速度由 mouseMoveEvent 里的 autoScrollState 决定。
+    startAutoScroll();
 
     int pageIndex = -1;
     QPointF displayPoint;
     if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
         trace(QStringLiteral("press ignored pos=%1,%2").arg(event->pos().x()).arg(event->pos().y()));
+        return;
+    }
+
+    // callout 的第二段：注释框已经拖好了，这一次点击是选箭头指向的位置。
+    // 必须在工具分发之前处理，否则这次点击会被当成「再拖一个框」。
+    if (awaitingCalloutTip_) {
+        if (pageIndex != calloutPage_) {
+            emit hintMessage(tr("请在同一个页面上选择箭头指向的位置"));
+            return;
+        }
+        const int boxPage = calloutPage_;
+        const QRectF box = calloutBoxDisplay_.normalized();
+        // 显示坐标 → 用户坐标：复用画布现成的那一套换算，不另写一份。
+        const QRectF userBox =
+            QRectF(toUserSpacePoint(boxPage, box.topLeft()),
+                   toUserSpacePoint(boxPage, box.bottomRight())).normalized();
+        const QPointF userTip = toUserSpacePoint(pageIndex, displayPoint);
+        awaitingCalloutTip_ = false;
+        calloutBoxDisplay_ = QRectF();
+        calloutPage_ = -1;
+        viewport()->update();
+        emit calloutRequested(boxPage, userBox, userTip);
         return;
     }
 
@@ -868,8 +1124,20 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 viewport()->update();
                 return;
             }
+            if (tool == AnnotationController::Tool::Callout) {
+                // 第一段：拖出注释框。松手之后再点一下选箭头尖（见上面那段）。
+                drawingSquare_ = true;
+                drawingCallout_ = true;
+                drawPage_ = pageIndex;
+                drawAnchor_ = displayPoint;
+                drawCurrent_ = displayPoint;
+                trace(QStringLiteral("annotation tool callout page=%1").arg(pageIndex));
+                viewport()->update();
+                return;
+            }
             if (tool == AnnotationController::Tool::Polygon ||
                 tool == AnnotationController::Tool::Cloud ||
+                tool == AnnotationController::Tool::RegionHighlight ||
                 tool == AnnotationController::Tool::MeasurePerimeter ||
                 tool == AnnotationController::Tool::MeasureArea) {
                 measureMode_ = tool == AnnotationController::Tool::MeasureArea
@@ -884,6 +1152,8 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                     polygonType_ = tool == AnnotationController::Tool::Cloud
                                        ? pdf::AnnotationType::Cloud
                                        : pdf::AnnotationType::Polygon;
+                    polygonIsRegionHighlight_ =
+                        tool == AnnotationController::Tool::RegionHighlight;
                 }
                 polygonPoints_.append(displayPoint);
                 trace(QStringLiteral("annotation polygon point page=%1 count=%2")
@@ -956,7 +1226,18 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
 void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseMoveEvent(event);
     updateLinkCursor(event->pos());
+    // 等箭头尖时记下鼠标位置，用来画「注释框 → 箭头尖」的预览线。
+    if (awaitingCalloutTip_) {
+        int pageIndex = -1;
+        QPointF displayPoint;
+        if (pagePointAt(event->pos(), &pageIndex, &displayPoint) && pageIndex == calloutPage_) {
+            calloutTipPreviewDisplay_ = displayPoint;
+            viewport()->update();
+        }
+        return;
+    }
     if (draggingObjectSelection_) {
+        updateAutoScroll(event->pos().y());
         int pageIndex = -1;
         QPointF point;
         if (!pagePointAt(event->pos(), &pageIndex, &point) || pageIndex != objectSelectionPage_) return;
@@ -1049,12 +1330,16 @@ void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
             }
             viewport()->update();
         }
+        if (drawingSquare_ || drawingInk_ || drawingLine_) {
+            updateAutoScroll(event->pos().y());
+        }
         return;
     }
 
     if (!selecting_ || textController_ == nullptr) {
         return;
     }
+    updateAutoScroll(event->pos().y());
     int pageIndex = -1;
     QPointF displayPoint;
     if (!pagePointAt(event->pos(), &pageIndex, &displayPoint)) {
@@ -1110,6 +1395,10 @@ void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
 
 void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseReleaseEvent(event);
+    // 松手就停：边缘自动滚动只发生在拖动期间。
+    // 这一句必须放在最前面 —— 下面每条分支都会 return，
+    // 放后面的话拖完直线/墨迹/方框后定时器还在跑，视口会一直自己滚。
+    stopAutoScroll();
     if (event->button() != Qt::LeftButton) {
         return;
     }
@@ -1171,6 +1460,18 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
             drawingSquare_ = false;
             drawPage_ = -1;
             viewport()->update();
+            if (drawingCallout_) {
+                // callout 的第一段结束：记下注释框，等下一次点击选箭头尖。
+                drawingCallout_ = false;
+                const QRectF box = QRectF(drawAnchor_, drawCurrent_).normalized();
+                if (box.width() > 4.0 && box.height() > 4.0) {
+                    calloutPage_ = pageIndex;
+                    calloutBoxDisplay_ = box;
+                    awaitingCalloutTip_ = true;
+                    emit hintMessage(tr("点击页面选择箭头指向的位置"));
+                }
+                return;
+            }
             if (drawingObjectSelection_ && QLineF(drawAnchor_, drawCurrent_).length() <
                                                4.0 / qMax(0.01, layout_.zoom())) {
                 drawingObjectSelection_ = false;
@@ -1283,26 +1584,10 @@ void PageCanvas::setFormFieldPlacementKind(const QString& kind) {
 
 void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseDoubleClickEvent(event);
-    // 多边形/云线：双击就是"收笔"。这条必须先于文字选词判定，
+    // 多边形/云线/区域高亮：双击就是"收笔"。这条必须先于文字选词判定，
     // 否则双击最后一个顶点时会顺手选中一个词。
     if (polygonPoints_.size() >= 3 && polygonPage_ >= 0) {
-        QVector<QPointF> userPoints;
-        userPoints.reserve(polygonPoints_.size());
-        for (const QPointF& point : polygonPoints_) {
-            userPoints.append(toUserSpacePoint(polygonPage_, point));
-        }
-        const int page = polygonPage_;
-        const auto type = polygonType_;
-        polygonPoints_.clear();
-        polygonPage_ = -1;
-        viewport()->update();
-        if (measureMode_ != MeasureMode::Distance) {
-            const auto mode = measureMode_;
-            measureMode_ = MeasureMode::Distance;
-            emit measureShapeRequested(page, static_cast<int>(mode), userPoints);
-        } else {
-            emit polygonAnnotationRequested(page, static_cast<int>(type), userPoints);
-        }
+        finishPolygonInput();
         return;
     }
     if (event->button() != Qt::LeftButton || textController_ == nullptr) {
@@ -1335,6 +1620,25 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void PageCanvas::keyPressEvent(QKeyEvent* event) {
+    // 回车收笔：与双击等价。逐点输入的工具（多边形 / 区域高亮 / 面积周长）
+    // 都能用它结束，免得用户必须去够鼠标双击。
+    if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) &&
+        polygonPoints_.size() >= 3 && polygonPage_ >= 0) {
+        finishPolygonInput();
+        event->accept();
+        return;
+    }
+    // ESC 取消箭头框的第二段：注释框已经拖好了，但用户改主意了。
+    if (event->key() == Qt::Key_Escape && (awaitingCalloutTip_ || drawingCallout_)) {
+        awaitingCalloutTip_ = false;
+        drawingCallout_ = false;
+        calloutBoxDisplay_ = QRectF();
+        calloutPage_ = -1;
+        viewport()->update();
+        emit hintMessage(tr("已取消箭头框"));
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Escape && objectEditMode_) {
         objectEditMode_ = false;
         drawingObjectSelection_ = false;
@@ -1488,6 +1792,196 @@ double PageCanvas::pageLeft(int index) const {
                   .arg(rowLeft));
     }
     return rowLeft + rect.x();
+}
+
+QRectF PageCanvas::pageRectInViewport(int index) const {
+    if (index < 0 || index >= layout_.pageCount()) {
+        return QRectF();
+    }
+    const QSizeF size = layout_.pageSize(index);
+    const double top = layout_.pageTop(index) - verticalScrollBar()->value();
+    return QRectF(pageLeft(index), top, size.width(), size.height());
+}
+
+// 标尺：一横一竖，贴在视口的上面与左边。
+//
+// 刻度网格锚在**当前页的绝对坐标**上：视口左边缘落在页面上的位置是
+// -page.left()/zoom（可能是负数），把它当作标尺的起点传给 rulerTicks，
+// 领域层算出的刻度就自动对齐到绝对网格上 —— 页面上 10mm 的位置永远显示 10mm。
+void PageCanvas::paintRulers(QPainter& painter, int pageIndex) {
+    if (layout_.isEmpty() || pageIndex < 0 || pageIndex >= layout_.pageCount()) {
+        return;
+    }
+    const double zoom = layout_.zoom();
+    const QRectF page = pageRectInViewport(pageIndex);
+    const double viewportWidth = viewport()->width();
+    const double viewportHeight = viewport()->height();
+
+    painter.save();
+    QFont font = painter.font();
+    font.setPointSizeF(7.0);
+    painter.setFont(font);
+    painter.setBrush(QColor(246, 246, 248, 235));
+    painter.setPen(QPen(QColor(150, 152, 158), 1.0));
+    painter.drawRect(QRectF(0.0, 0.0, viewportWidth, kRulerThickness));
+    painter.drawRect(QRectF(0.0, 0.0, kRulerLabelWidth, viewportHeight));
+
+    // 横杆。
+    const double horizontalOrigin = -page.left() / zoom;
+    const QVector<viewmodes::RulerTick> horizontalTicks =
+        viewmodes::rulerTicks(horizontalOrigin, viewportWidth / zoom, rulerUnit_);
+    double lastLabelRight = kRulerLabelWidth;
+    for (const viewmodes::RulerTick& tick : horizontalTicks) {
+        const double absolute = horizontalOrigin + tick.position;
+        const double x = page.left() + absolute * zoom;
+        if (x < kRulerLabelWidth || x > viewportWidth) {
+            continue;
+        }
+        painter.setPen(QPen(QColor(150, 152, 158), 1.0));
+        painter.drawLine(QPointF(x, tick.major ? 1.0 : kRulerThickness - 6.0),
+                         QPointF(x, kRulerThickness));
+        if (tick.major && !tick.label.isEmpty()) {
+            const QRectF box(x + 2.0, 1.0, 120.0, kRulerThickness - 2.0);
+            // 缩得太小时刻度会挤在一起，标签只画第一个不重叠的。
+            if (box.left() >= lastLabelRight) {
+                painter.drawText(box, Qt::AlignLeft | Qt::AlignVCenter, tick.label);
+                lastLabelRight = box.left() + 46.0;
+            }
+        }
+    }
+
+    // 竖杆。
+    const double verticalOrigin = -page.top() / zoom;
+    const QVector<viewmodes::RulerTick> verticalTicks =
+        viewmodes::rulerTicks(verticalOrigin, viewportHeight / zoom, rulerUnit_);
+    double lastLabelBottom = -1000.0;
+    for (const viewmodes::RulerTick& tick : verticalTicks) {
+        const double absolute = verticalOrigin + tick.position;
+        const double y = page.top() + absolute * zoom;
+        if (y < kRulerThickness || y > viewportHeight) {
+            continue;
+        }
+        painter.setPen(QPen(QColor(150, 152, 158), 1.0));
+        painter.drawLine(QPointF(tick.major ? 1.0 : kRulerLabelWidth - 6.0, y),
+                         QPointF(kRulerLabelWidth, y));
+        if (tick.major && !tick.label.isEmpty()) {
+            const QRectF box(2.0, y + 1.0, kRulerLabelWidth - 4.0, 12.0);
+            if (box.top() >= lastLabelBottom) {
+                painter.drawText(box, Qt::AlignLeft | Qt::AlignVCenter, tick.label);
+                lastLabelBottom = box.bottom() + 2.0;
+            }
+        }
+    }
+    painter.restore();
+}
+
+void PageCanvas::startAutoScroll() {
+    if (!autoScrollEnabled_ || autoScrollTimer_ == nullptr) {
+        return;
+    }
+    if (!autoScrollTimer_->isActive()) {
+        autoScrollTimer_->start();
+    }
+}
+
+void PageCanvas::stopAutoScroll() {
+    autoScrollVelocity_ = 0.0;
+    if (autoScrollTimer_ != nullptr) {
+        autoScrollTimer_->stop();
+    }
+}
+
+void PageCanvas::updateAutoScroll(int pointerViewportY) {
+    if (!autoScrollEnabled_) {
+        autoScrollVelocity_ = 0.0;
+        return;
+    }
+    autoScrollPointerY_ = pointerViewportY;
+    // 这里传的是「视口像素」：领域层只负责「贴边越近越快」的换算，
+    // 具体的像素/秒由界面决定。
+    const viewmodes::AutoScrollState state =
+        viewmodes::autoScrollState(pointerViewportY, viewport()->height(),
+                                   kAutoScrollEdgeMargin, kAutoScrollMaxVelocity);
+    // 参数非法时领域层返回「不滚动」，这里照着不滚，不硬滚。
+    autoScrollVelocity_ = state.active ? state.velocity : 0.0;
+    // 指针刚挪到边缘时速度还是 0（那时定时器已经停了），这里要把它重新叫醒，
+    // 否则「拖到边缘自动滚」在指针先停在中间、再移向边缘时不会生效。
+    if (autoScrollVelocity_ != 0.0 && autoScrollTimer_ != nullptr &&
+        !autoScrollTimer_->isActive()) {
+        autoScrollTimer_->start();
+    }
+}
+
+void PageCanvas::onAutoScrollTick() {
+    if (autoScrollVelocity_ == 0.0) {
+        autoScrollTimer_->stop();
+        return;
+    }
+    const double seconds = static_cast<double>(autoScrollTimer_->interval()) / 1000.0;
+    const int dy = static_cast<int>(autoScrollVelocity_ * seconds);
+    if (dy != 0) {
+        scrollContentsBy(0, dy);
+    }
+}
+
+void PageCanvas::startPageTransition() {
+    if (pageTransition_ == viewmodes::PageTransition::None || transitionTimer_ == nullptr) {
+        return;
+    }
+    if (viewport()->width() <= 0 || viewport()->height() <= 0) {
+        return;
+    }
+    // 先把旧画面抓下来：翻页之后画在上面的就是这一张，
+    // 底下露出来的是新页 —— 淡出与滑动都是它在做。
+    transitionSnapshot_ = viewport()->grab();
+    if (transitionSnapshot_.isNull()) {
+        return;
+    }
+    transitionElapsedMs_ = 0;
+    transitionTimer_->start();
+}
+
+void PageCanvas::onTransitionTick() {
+    transitionElapsedMs_ += transitionTimer_->interval();
+    if (transitionElapsedMs_ >= kTransitionDurationMs) {
+        transitionTimer_->stop();
+        transitionSnapshot_ = QPixmap();
+    }
+    viewport()->update();
+}
+
+// 逐点输入的收尾：多边形 / 云线 / 区域高亮 / 面积周长共用。
+void PageCanvas::finishPolygonInput() {
+    if (polygonPoints_.size() < 3 || polygonPage_ < 0) {
+        polygonPoints_.clear();
+        polygonPage_ = -1;
+        polygonIsRegionHighlight_ = false;
+        viewport()->update();
+        return;
+    }
+    QVector<QPointF> userPoints;
+    userPoints.reserve(polygonPoints_.size());
+    for (const QPointF& point : polygonPoints_) {
+        userPoints.append(toUserSpacePoint(polygonPage_, point));
+    }
+    const int page = polygonPage_;
+    const auto type = polygonType_;
+    const bool region = polygonIsRegionHighlight_;
+    polygonPoints_.clear();
+    polygonPage_ = -1;
+    polygonIsRegionHighlight_ = false;
+    viewport()->update();
+    if (region) {
+        emit regionHighlightRequested(page, userPoints);
+        return;
+    }
+    if (measureMode_ != MeasureMode::Distance) {
+        const auto mode = measureMode_;
+        measureMode_ = MeasureMode::Distance;
+        emit measureShapeRequested(page, static_cast<int>(mode), userPoints);
+        return;
+    }
+    emit polygonAnnotationRequested(page, static_cast<int>(type), userPoints);
 }
 
 }  // namespace aipdf::app

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QByteArray>
 #include <QImage>
@@ -365,7 +365,14 @@ int annotationTypeToPdfium(AnnotationType type);
 bool annotationTypeFromPdfium(int subtype, AnnotationType* out);
 
 // 安全上限：文件大小与渲染像素。
-inline constexpr qint64 kMaxPdfFileSizeBytes = 256LL * 1024 * 1024;
+//
+// 文件大小上限从 256 MiB 提到 2 GiB：评分卡 K4 要求「1 GB 级文件可开可翻」，
+// 256 MiB 会把这类文档直接挡在门外（打开时给出「文件过大」）。
+//
+// 代价要说清楚：打开走的是 `file.readAll()`，整份文档会进内存，
+// 内存占用与文件大小同量级——这是「能开大文件」的必然代价。
+// 真正防住渲染爆炸的是下面两个像素上限，它们与文件大小无关，不会被这次放宽带松。
+inline constexpr qint64 kMaxPdfFileSizeBytes = 2LL * 1024 * 1024 * 1024;
 inline constexpr int kMaxRenderPixelDimension = 8192;
 inline constexpr qint64 kMaxRenderPixelCount = 64LL * 1024 * 1024;
 

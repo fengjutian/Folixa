@@ -1,0 +1,343 @@
+#include "doc/OfficeExport.h"
+
+#include <QStringList>
+#include <QtMath>
+
+#include <algorithm>
+
+#include "doc/ZipWriter.h"
+
+namespace aipdf::doc {
+
+namespace {
+
+// Word 的页宽页高用缇（twip）表示：1 点 = 20 缇。
+constexpr double kPointsToTwips = 20.0;
+
+// 默认页面（A4），调用方给的尺寸非法时用它兜底。
+constexpr double kDefaultPageWidthPoints = 595.0;
+constexpr double kDefaultPageHeightPoints = 842.0;
+
+// XML 文本转义。
+QString escapeXml(const QString& text) {
+    QString out;
+    out.reserve(text.size());
+    for (const QChar ch : text) {
+        switch (ch.unicode()) {
+        case '&':
+            out.append(QStringLiteral("&amp;"));
+            break;
+        case '<':
+            out.append(QStringLiteral("&lt;"));
+            break;
+        case '>':
+            out.append(QStringLiteral("&gt;"));
+            break;
+        case '"':
+            out.append(QStringLiteral("&quot;"));
+            break;
+        case '\'':
+            out.append(QStringLiteral("&apos;"));
+            break;
+        default:
+            out.append(ch);
+            break;
+        }
+    }
+    return out;
+}
+
+// RTF 文本转义。
+//
+// 非 ASCII 字符写成 \uN?：N 是 UTF-16 码元（超过 0x7FFF 时按有符号 16 位
+// 写负数，这是 RTF 规范的要求），? 是"退化成单字节时的替代字符"。
+// 代理对按两个码元分别输出，Word / WordPad 读出来仍然是原字符。
+QString escapeRtf(const QString& text) {
+    QString out;
+    out.reserve(text.size() + 8);
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar ch = text.at(i);
+        if (ch == QLatin1Char('\\')) {
+            out.append(QStringLiteral("\\\\"));
+        } else if (ch == QLatin1Char('{')) {
+            out.append(QStringLiteral("\\{"));
+        } else if (ch == QLatin1Char('}')) {
+            out.append(QStringLiteral("\\}"));
+        } else if (ch.unicode() < 128) {
+            out.append(ch);
+        } else {
+            out.append(QStringLiteral("\\u"));
+            out.append(QString::number(static_cast<int>(static_cast<qint16>(ch.unicode()))));
+            out.append(QLatin1Char('?'));
+        }
+    }
+    return out;
+}
+
+// 行内文字：按字符间隙补空格。
+QString buildLineText(const QVector<pdf::TextChar>& chars) {
+    QString out;
+    bool hasPrevious = false;
+    double previousRight = 0.0;
+    double previousHeight = 0.0;
+    for (const pdf::TextChar& character : chars) {
+        const double height = qMax(character.box.height(), 1.0);
+        if (hasPrevious) {
+            const double gap = character.box.left() - previousRight;
+            // 阈值取字高的两成：正常字距远小于它，词距大于它。
+            const double threshold = 0.2 * qMax(previousHeight, 1.0);
+            const bool previousIsSpace = out.endsWith(QLatin1Char(' '));
+            const bool currentIsSpace = character.text.startsWith(QLatin1Char(' '));
+            if (gap > threshold && !previousIsSpace && !currentIsSpace) {
+                out.append(QLatin1Char(' '));
+            }
+        }
+        out.append(character.text);
+        previousRight = character.box.right();
+        previousHeight = height;
+        hasPrevious = true;
+    }
+    return out;
+}
+
+// ---- 纯文本 -------------------------------------------------------------
+
+QByteArray exportPlainText(const QVector<TextExportLine>& lines) {
+    QString out;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (i > 0) {
+            out.append(QLatin1Char('\n'));
+        }
+        out.append(lines.at(i).text);
+    }
+    return out.toUtf8();
+}
+
+// ---- RTF ----------------------------------------------------------------
+
+QByteArray exportRtf(const QVector<TextExportLine>& lines) {
+    QString out;
+    out.append(QStringLiteral("{\\rtf1\\ansi\\ansicpg936\\deff0"));
+    // 字体表：\fcharset134 是 GB2312，中文能正常显示。
+    out.append(QStringLiteral("{\\fonttbl{\\f0\\fnil\\fcharset134 SimSun;}}"));
+    out.append(QStringLiteral("{\\colortbl;}"));
+    for (const TextExportLine& line : lines) {
+        // \fs24 = 12 磅；\par 结束这一段。
+        out.append(QStringLiteral("\\pard\\plain\\f0\\fs24 "));
+        out.append(escapeRtf(line.text));
+        out.append(QStringLiteral("\\par\n"));
+    }
+    out.append(QLatin1Char('}'));
+    return out.toUtf8();
+}
+
+// ---- Word Open XML（.docx） ---------------------------------------------
+
+QByteArray contentTypesXml() {
+    QString out;
+    out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
+    out.append(QStringLiteral(
+        "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+        "<Default Extension=\"rels\" "
+        "ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+        "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+        "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd."
+        "openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>"
+        "</Types>"));
+    return out.toUtf8();
+}
+
+QByteArray packageRelsXml() {
+    QString out;
+    out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
+    out.append(QStringLiteral(
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+        "<Relationship Id=\"rId1\" "
+        "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" "
+        "Target=\"word/document.xml\"/>"
+        "</Relationships>"));
+    return out.toUtf8();
+}
+
+QByteArray documentXml(const QVector<TextExportLine>& lines, const QSizeF& pageSizePt) {
+    double widthPoints = pageSizePt.width();
+    double heightPoints = pageSizePt.height();
+    if (!(widthPoints > 0.0) || !(heightPoints > 0.0)) {
+        widthPoints = kDefaultPageWidthPoints;
+        heightPoints = kDefaultPageHeightPoints;
+    }
+
+    QString out;
+    out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
+    out.append(QStringLiteral(
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        "<w:body>"));
+    for (const TextExportLine& line : lines) {
+        // xml:space="preserve"：不加它，行首行尾的空格会被 Word 吃掉。
+        out.append(QStringLiteral("<w:p><w:r><w:t xml:space=\"preserve\">%1</w:t></w:r></w:p>")
+                       .arg(escapeXml(line.text)));
+    }
+    out.append(QStringLiteral("<w:sectPr><w:pgSz w:w=\"%1\" w:h=\"%2\"/></w:sectPr>")
+                   .arg(qRound(widthPoints * kPointsToTwips))
+                   .arg(qRound(heightPoints * kPointsToTwips)));
+    out.append(QStringLiteral("</w:body></w:document>"));
+    return out.toUtf8();
+}
+
+QByteArray exportWordOpenXml(const QVector<TextExportLine>& lines, const QSizeF& pageSizePt) {
+    // 说明：产出的是**zip 打包的 .docx**（[Content_Types].xml + _rels/.rels +
+    // word/document.xml），不是 Flat OPC 单文件。Word / WPS / LibreOffice
+    // 都能直接打开这种包。
+    zip::Writer writer;
+    writer.addFile(QStringLiteral("[Content_Types].xml"), contentTypesXml());
+    writer.addFile(QStringLiteral("_rels/.rels"), packageRelsXml());
+    writer.addFile(QStringLiteral("word/document.xml"), documentXml(lines, pageSizePt));
+    return writer.toByteArray();
+}
+
+}  // namespace
+
+QVector<TextExportLine> buildTextLines(const pdf::TextPage& text) {
+    QVector<pdf::TextChar> chars;
+    chars.reserve(text.chars.size());
+    for (const pdf::TextChar& character : text.chars) {
+        if (character.text.isEmpty()) {
+            continue;
+        }
+        chars.append(character);
+    }
+
+    // 按页面上从上到下排；同一行内按 x 从小到大。
+    //
+    // 注意 Qt 的 QRectF 约定：top() 是**较小的** y，bottom() 是较大的 y；
+    // 而 PDF 的 y 向上，页面上方是较大的 y。所以这里按 box.bottom() 排
+    // （那才是 PDF 的上边）。弄反了整页的上下都会颠倒，
+    // 同一个坑在 pdf/TextPage.h 开头也写着。
+    std::sort(chars.begin(), chars.end(),
+              [](const pdf::TextChar& left, const pdf::TextChar& right) {
+                  if (left.box.bottom() != right.box.bottom()) {
+                      return left.box.bottom() > right.box.bottom();
+                  }
+                  return left.box.left() < right.box.left();
+              });
+
+    QVector<TextExportLine> lines;
+    for (const pdf::TextChar& character : chars) {
+        const double height = qMax(character.box.height(), 1.0);
+        const double center = character.box.center().y();
+
+        bool appended = false;
+        if (!lines.isEmpty()) {
+            TextExportLine& last = lines.last();
+            const double tolerance = 0.6 * qMax(qMin(last.fontSize, height), 1.0);
+            const double lineCenter = (last.bottom + last.top) * 0.5;
+            if (qAbs(center - lineCenter) <= tolerance) {
+                last.chars.append(character);
+                // PDF 的下边 = Qt 的 box.top()（较小的 y），
+                // PDF 的上边 = Qt 的 box.bottom()（较大的 y）。
+                last.bottom = qMin(last.bottom, character.box.top());
+                last.top = qMax(last.top, character.box.bottom());
+                last.left = qMin(last.left, character.box.left());
+                last.right = qMax(last.right, character.box.right());
+                last.fontSize = qMax(last.fontSize, height);
+                appended = true;
+            }
+        }
+        if (appended) {
+            continue;
+        }
+
+        TextExportLine line;
+        line.chars.append(character);
+        line.bottom = character.box.top();
+        line.top = character.box.bottom();
+        line.left = character.box.left();
+        line.right = character.box.right();
+        line.fontSize = height;
+        lines.append(line);
+    }
+
+    for (TextExportLine& line : lines) {
+        std::sort(line.chars.begin(), line.chars.end(),
+                  [](const pdf::TextChar& left, const pdf::TextChar& right) {
+                      return left.box.left() < right.box.left();
+                  });
+        line.text = buildLineText(line.chars);
+    }
+    return lines;
+}
+
+ExportCapability exportCapability(ExportFormat format) {
+    ExportCapability capability;
+    switch (format) {
+    case ExportFormat::WordOpenXml:
+        capability.keepsText = true;
+        capability.keepsLayout = false;
+        capability.keepsImages = false;
+        capability.keepsTables = false;
+        capability.limitation = QStringLiteral(
+            "只保留文字内容与段落划分，图片、表格、批注和精确版式都会丢失。");
+        break;
+    case ExportFormat::Rtf:
+        capability.keepsText = true;
+        capability.keepsLayout = false;
+        capability.keepsImages = false;
+        capability.keepsTables = false;
+        capability.limitation = QStringLiteral(
+            "只保留文字与换行，图片、表格、颜色和字体样式都会丢失。");
+        break;
+    case ExportFormat::PlainText:
+        capability.keepsText = true;
+        capability.keepsLayout = false;
+        capability.keepsImages = false;
+        capability.keepsTables = false;
+        capability.limitation = QStringLiteral(
+            "只保留纯文字，表格会退化成空格，页眉页脚会混进正文。");
+        break;
+    default:
+        capability.limitation = QStringLiteral("未知格式，无法导出。");
+        break;
+    }
+    return capability;
+}
+
+ExportResult exportPageTo(ExportFormat format, const pdf::TextPage& text,
+                           const QSizeF& pageSizePt) {
+    ExportResult result;
+    switch (format) {
+    case ExportFormat::WordOpenXml: {
+        result.suggestedSuffix = QStringLiteral("docx");
+        const QVector<TextExportLine> lines = buildTextLines(text);
+        result.bytes = exportWordOpenXml(lines, pageSizePt);
+        result.ok = !result.bytes.isEmpty();
+        if (!result.ok) {
+            result.bytes.clear();
+            result.error = QStringLiteral("导出 Word 文档失败：生成的压缩包为空。");
+        }
+        break;
+    }
+    case ExportFormat::Rtf: {
+        result.suggestedSuffix = QStringLiteral("rtf");
+        const QVector<TextExportLine> lines = buildTextLines(text);
+        result.bytes = exportRtf(lines);
+        result.ok = true;
+        break;
+    }
+    case ExportFormat::PlainText: {
+        result.suggestedSuffix = QStringLiteral("txt");
+        const QVector<TextExportLine> lines = buildTextLines(text);
+        result.bytes = exportPlainText(lines);
+        result.ok = true;
+        break;
+    }
+    default:
+        result.ok = false;
+        result.bytes.clear();
+        result.suggestedSuffix.clear();
+        result.error = QStringLiteral("导出失败：不支持的导出格式。");
+        break;
+    }
+    return result;
+}
+
+}  // namespace aipdf::doc

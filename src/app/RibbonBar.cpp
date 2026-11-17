@@ -176,6 +176,10 @@ QToolButton* RibbonBar::addCommand(QHBoxLayout* group,
     }
     styleCommand(button);
     group->addWidget(button);
+    // 无障碍名一开始就要有：屏幕阅读器读的是它，不是按钮文字。
+    button->setAccessibleName(stripMnemonics(text));
+    commandButtons_.append(button);
+    applyMnemonicTo(button);
     return button;
 }
 
@@ -190,6 +194,119 @@ QToolButton* RibbonBar::addLargeCommand(QHBoxLayout* group,
         button->setMinimumWidth(72);
     }
     return button;
+}
+
+// ------------------------------------------------------------- 无障碍与助记符 ----
+
+QString RibbonBar::stripMnemonics(const QString& text) {
+    QString result;
+    result.reserve(text.size());
+    for (int index = 0; index < text.size(); ++index) {
+        const QChar ch = text.at(index);
+        if (ch != QLatin1Char('&')) {
+            result.append(ch);
+            continue;
+        }
+        // "&&" 是字面量 '&'：保留一个 &，不当作助记符标记。
+        if (index + 1 < text.size() && text.at(index + 1) == QLatin1Char('&')) {
+            result.append(QLatin1Char('&'));
+            ++index;
+            continue;
+        }
+        // 单个 '&' 是助记符标记：标记本身不显示。
+    }
+    return result;
+}
+
+QChar RibbonBar::mnemonicKey(const QString& text) {
+    for (int index = 0; index < text.size(); ++index) {
+        if (text.at(index) != QLatin1Char('&')) {
+            continue;
+        }
+        if (index + 1 < text.size() && text.at(index + 1) == QLatin1Char('&')) {
+            ++index;
+            continue;
+        }
+        if (index + 1 < text.size()) {
+            return text.at(index + 1);
+        }
+    }
+    return QChar();
+}
+
+QString RibbonBar::insertMnemonic(const QString& text, QChar key) {
+    if (key.isNull()) {
+        return text;
+    }
+    for (int index = 0; index < text.size(); ++index) {
+        if (text.at(index) == key) {
+            return text.left(index) + QLatin1Char('&') + text.mid(index);
+        }
+    }
+    return text;
+}
+
+QVector<QToolButton*> RibbonBar::commandButtons() const {
+    return commandButtons_;
+}
+
+void RibbonBar::applyMnemonicTo(QToolButton* button) {
+    if (button == nullptr) {
+        return;
+    }
+    const QString text = button->text();
+    // 已经有显式助记符（"保存(&S)"、"&打开"）就不再自动加。
+    if (!mnemonicKey(text).isNull()) {
+        const QChar key = mnemonicKey(text);
+        usedMnemonics_.insert(key.toLower());
+        return;
+    }
+    // 自动挑一个还没被用过的助记键：
+    // 先找 ASCII 字母（Alt+字母 真的按得出来），没有再退到第一个汉字。
+    QChar chosen;
+    for (int index = 0; index < text.size() && chosen.isNull(); ++index) {
+        const QChar ch = text.at(index);
+        if (ch.isLetter() && ch.unicode() < 128 && !usedMnemonics_.contains(ch.toLower())) {
+            chosen = ch;
+        }
+    }
+    if (chosen.isNull()) {
+        // 没有 ASCII 字母：退到第一个还没用过的汉字。
+        // Qt 允许 `&` 后面跟中文（显示时会把 & 去掉，Alt+该字仍可触发）。
+        for (int index = 0; index < text.size() && chosen.isNull(); ++index) {
+            const QChar ch = text.at(index);
+            if (ch.unicode() >= 128 && ch.isLetter() && !usedMnemonics_.contains(ch)) {
+                chosen = ch;
+            }
+        }
+    }
+    if (chosen.isNull()) {
+        return;
+    }
+    usedMnemonics_.insert(chosen.toLower());
+    button->setText(insertMnemonic(text, chosen));
+}
+
+void RibbonBar::refreshCommandLabels() {
+    usedMnemonics_.clear();
+    for (QToolButton* button : commandButtons_) {
+        if (button == nullptr) {
+            continue;
+        }
+        const QString current = button->text();
+        const QChar existing = mnemonicKey(current);
+        if (!existing.isNull()) {
+            // 文字里已经有助记符（显式写的，或上一轮自动加的）：保留它。
+            button->setAccessibleName(stripMnemonics(current));
+            usedMnemonics_.insert(existing.toLower());
+            continue;
+        }
+        // 没有助记符：挑一个还没被用过的插进去。
+        const QString base = stripMnemonics(current);
+        button->setText(base);
+        button->setAccessibleName(base);
+        applyMnemonicTo(button);
+    }
 }
 
 

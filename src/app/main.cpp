@@ -1,4 +1,4 @@
-﻿#include "app/Language.h"
+#include "app/Language.h"
 #include "app/MainWindow.h"
 #include "app/PdfView.h"
 #include "app/Theme.h"
@@ -46,6 +46,8 @@ int main(int argc, char* argv[]) {
     aipdf::i18n::LanguageManager::instance().loadSavedPreference();
 
     aipdf::app::theme::apply(application);
+    // 阅读配色（夜间 / 护眼 / 高对比）：只改阅读区底色，界面保持浅色。
+    aipdf::app::theme::applyScheme(application, aipdf::app::theme::currentScheme());
 
     // 窗口与任务栏图标：与标题栏左侧、安装包里的那份一致。
     // 矢量图标由 Qt 按需栅格化，16px 标题栏和高 DPI 任务栏都清楚。

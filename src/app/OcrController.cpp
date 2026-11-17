@@ -14,6 +14,8 @@
 #include <QFile>
 #include <QImage>
 
+#include <algorithm>
+
 namespace aipdf::app {
 
 OcrController::OcrController(QObject* parent) : QObject(parent) {
@@ -141,6 +143,17 @@ void OcrController::handlePageReady(const ocr::OcrPageResult& result) {
         return;
     }
 
+    // 结果先留下来：写不可见文字层要的就是这份词级坐标，
+    // 即使索引暂时不可用也不该把识别结果丢掉。
+    //
+    // 控制器是全局的，换文档时上一份的结果必须清掉：
+    // 拿别的文档的坐标去写隐藏文字层，字会落到别的页上。
+    if (pendingView_.data() != resultsView_.data()) {
+        results_.clear();
+        resultsView_ = pendingView_;
+    }
+    results_.insert(result.pageIndex, result);
+
     PdfView* view = pendingView_.data();
     if (view == nullptr || view->indexController() == nullptr) {
         emit failed(result.pageIndex, tr("索引不可用，识别结果未保存"));
@@ -154,6 +167,31 @@ void OcrController::handlePageReady(const ocr::OcrPageResult& result) {
     }
     view->indexController()->applyOcrPage(result.pageIndex, chunks);
     emit pageApplied(result.pageIndex, chunks.size());
+}
+
+bool OcrController::ocrResult(int pageIndex, ocr::OcrPageResult* out) const {
+    const auto found = results_.constFind(pageIndex);
+    if (found == results_.constEnd()) {
+        return false;
+    }
+    if (out != nullptr) {
+        *out = found.value();
+    }
+    return true;
+}
+
+QVector<int> OcrController::ocrResultPages() const {
+    QVector<int> pages;
+    pages.reserve(results_.size());
+    for (auto it = results_.constBegin(); it != results_.constEnd(); ++it) {
+        pages.append(it.key());
+    }
+    std::sort(pages.begin(), pages.end());
+    return pages;
+}
+
+int OcrController::ocrResultCount() const {
+    return static_cast<int>(results_.size());
 }
 
 void OcrController::handlePageShown(PdfView* view, int pageIndex) {
