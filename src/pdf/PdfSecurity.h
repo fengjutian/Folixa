@@ -73,6 +73,20 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr)
 // 需要 qpdf；未启用 qpdf 时返回空 QByteArray 并写中文错误。
 QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error = nullptr);
 
+// 「清理隐藏信息」按钮真正要走的那条路：先清嵌入文件本体，再清隐藏信息。
+//
+// 为什么单独提供组合入口，而不是让界面自己串两个函数：
+//   顺序有讲究——removeEmbeddedFiles() 要靠 /Names 里的名称树把嵌入文件一个个
+//   找出来并「掏空」，所以必须**先**跑；sanitizeHiddenData() 随后把
+//   /Metadata、/Info、JavaScript 这些一并删掉。
+//   这个顺序一旦写反（例如先删索引再找文件），文件就找不到了。
+//   组合放在领域层，界面只调一个函数，顺序就永远不会被写错。
+//
+// 语义：sanitizeHiddenData() 的清理项 + 嵌入文件本体（/Filespec 与 EmbeddedFile 流）
+// 一起清掉。挂附件的 /FileAttachment 批注会连同附件一起删除（附件没了，批注没有意义）。
+// 页面正文、可见批注与表单值不受影响。
+QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error = nullptr);
+
 // 用 qpdf 区分用户密码和所有者密码。仅“能打开”不足以解除权限限制。
 bool verifyOwnerPassword(const QByteArray& input,
                          const QString& password,

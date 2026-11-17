@@ -319,6 +319,21 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
 #endif
 }
 
+QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error) {
+    if (input.isEmpty()) {
+        if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
+        return {};
+    }
+    // 顺序不能反：removeEmbeddedFiles() 要靠名称树把嵌入文件找出来，
+    // 先删索引就找不到了（EmbeddedFileTests 的 removeThenSanitizeKeepsItClean
+    // 就是按这个顺序断言的）。
+    QByteArray withoutFiles = removeEmbeddedFiles(input, error);
+    if (withoutFiles.isEmpty()) {
+        return {};
+    }
+    return sanitizeHiddenData(withoutFiles, error);
+}
+
 bool verifyOwnerPassword(const QByteArray& input, const QString& password, QString* error) {
     if (input.isEmpty() || password.isEmpty()) {
         if (error != nullptr) *error = toLocal(QStringLiteral("所有者密码不能为空"));

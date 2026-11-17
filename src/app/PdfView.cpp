@@ -1952,7 +1952,7 @@ void PdfView::sanitizeHiddenData() {
     }
     if (QMessageBox::question(
             this, tr("清理隐藏信息"),
-            tr("将删除文档属性、XMP、文档脚本、自动动作和嵌入文件索引。"
+            tr("将删除文档属性、XMP、文档脚本、自动动作，以及嵌入文件（含附件本体）。"
                "页面正文、可见批注和表单值会保留。继续吗？"),
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
         return;
@@ -1963,7 +1963,7 @@ void PdfView::sanitizeHiddenData() {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
     }
-    const QByteArray sanitized = pdf::sanitizeHiddenData(source, &error);
+    const QByteArray sanitized = pdf::sanitizeHiddenDataFully(source, &error);
     if (sanitized.isEmpty()) {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
@@ -1976,7 +1976,7 @@ void PdfView::sanitizeHiddenData() {
     }
     setDocument(std::move(reopened.document), filePath_);
     setModified(true);
-    emit statusMessage(tr("隐藏信息已清理；请保存文档以写入磁盘"));
+    emit statusMessage(tr("隐藏信息与嵌入文件已清理；请保存文档以写入磁盘"));
     trace(QStringLiteral("hidden data sanitized"));
 }
 

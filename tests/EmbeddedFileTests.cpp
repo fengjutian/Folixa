@@ -32,6 +32,7 @@
 
 using aipdf::pdf::removeEmbeddedFiles;
 using aipdf::pdf::sanitizeHiddenData;
+using aipdf::pdf::sanitizeHiddenDataFully;
 
 namespace {
 
@@ -175,6 +176,8 @@ private slots:
     void sanitizeHiddenDataStillKeepsTheBody();
     void sanitizeHiddenDataDropsBodyWithoutOtherReferences();
     void removeThenSanitizeKeepsItClean();
+    void sanitizeHiddenDataFullyRemovesTheBody();
+    void sanitizeHiddenDataFullyKeepsVisibleContent();
     void emptyInputIsRejected();
     void brokenInputIsRejected();
     void missingQpdfIsReported();
@@ -342,6 +345,58 @@ void EmbeddedFileTests::missingQpdfIsReported() {
     QString error;
     QVERIFY(removeEmbeddedFiles(readFixture(QStringLiteral("normal.pdf")), &error).isEmpty());
     QVERIFY(!error.isEmpty());
+}
+
+
+// 界面上的「清理隐藏信息」走的就是这条组合。
+//
+// 为什么要有这条测试：removeEmbeddedFiles() 早就实现好了，却没有任何界面入口调用它——
+// 用户点那个按钮，文件字节照样留在输出里（「声称清掉了、字节里还在」是最坏的失败）。
+// 这条断言盯的是**用户点按钮之后**的结果，不是某个函数的中间产物。
+void EmbeddedFileTests::sanitizeHiddenDataFullyRemovesTheBody() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray source = buildPdfWithEmbeddedFile(kPayload);
+    QVERIFY(!source.isEmpty());
+    QVERIFY(payloadSurvives(source, kPayload));
+
+    QString error;
+    const QByteArray cleaned = sanitizeHiddenDataFully(source, &error);
+    QVERIFY2(!cleaned.isEmpty(), qPrintable(error));
+
+    QVERIFY2(!cleaned.contains(kPayload), "组合清理之后 payload 又回来了");
+    QVERIFY2(!payloadSurvives(cleaned, kPayload), "组合清理之后文件本体还在");
+    // 挂附件的批注要连附件一起删：留着它就是留着一个坏图标。
+    QCOMPARE(fileAttachmentCount(cleaned), 0);
+
+    const auto opened = aipdf::pdf::openDocumentFromBytes(cleaned, QStringLiteral("fully-cleaned.pdf"));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QCOMPARE(opened.document.pageCount(), 1);
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// 清隐藏信息不能把正文一起清掉：清完还得能读、能搜。
+void EmbeddedFileTests::sanitizeHiddenDataFullyKeepsVisibleContent() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray source = buildPdfWithEmbeddedFile(kPayload);
+    QVERIFY(!source.isEmpty());
+
+    QString error;
+    const QByteArray cleaned = sanitizeHiddenDataFully(source, &error);
+    QVERIFY2(!cleaned.isEmpty(), qPrintable(error));
+
+    const auto opened = aipdf::pdf::openDocumentFromBytes(cleaned, QStringLiteral("fully-cleaned.pdf"));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    const auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    const auto text = page->extractText();
+    QVERIFY(text.has_value());
+    QVERIFY2(text->plainText().contains(QStringLiteral("Hello PDFium")),
+             "清理隐藏信息之后正文没了");
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
 }
 
 QTEST_GUILESS_MAIN(EmbeddedFileTests)

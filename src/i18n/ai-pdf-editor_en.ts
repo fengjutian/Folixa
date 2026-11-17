@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="zh_CN">
     <context>
@@ -3191,9 +3191,9 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         </message>
         <message><source>清理隐藏信息</source><translation>Sanitize hidden data</translation></message>
         <message><source>本次构建没有启用 qpdf，无法可靠清理隐藏信息。</source><translation>This build does not include qpdf, so hidden data cannot be sanitized reliably.</translation></message>
-        <message><source>将删除文档属性、XMP、文档脚本、自动动作和嵌入文件索引。页面正文、可见批注和表单值会保留。继续吗？</source><translation>This removes document properties, XMP, document scripts, automatic actions, and embedded-file indexes. Page content, visible annotations, and form values are preserved. Continue?</translation></message>
+        <message><source>将删除文档属性、XMP、文档脚本、自动动作，以及嵌入文件（含附件本体）。页面正文、可见批注和表单值会保留。继续吗？</source><translation>This removes document properties, XMP, document scripts, automatic actions, and embedded files (including the file bodies). Page content, visible annotations, and form values are preserved. Continue?</translation></message>
         <message><source>清理结果校验失败：%1</source><translation>Sanitized result validation failed: %1</translation></message>
-        <message><source>隐藏信息已清理；请保存文档以写入磁盘</source><translation>Hidden data was sanitized. Save the document to write the changes to disk.</translation></message>
+        <message><source>隐藏信息与嵌入文件已清理；请保存文档以写入磁盘</source><translation>Hidden data and embedded files were removed. Save the document to write the changes to disk.</translation></message>
         <message><source>密文遮盖</source><translation>Redaction</translation></message>
         <message><source>请先选中要永久遮盖的文字区域。</source><translation>Select the text area to redact permanently first.</translation></message>
         <message><source>为避免旋转坐标误判，请先把该页旋转回 0° 再执行遮盖。</source><translation>To avoid incorrect rotated coordinates, rotate the page back to 0° before redacting.</translation></message>

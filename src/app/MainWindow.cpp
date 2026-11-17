@@ -1119,7 +1119,7 @@ void MainWindow::buildUi() {
     addRibbonCommand(securityGroup, "加密与权限", "设置打开密码与权限位",
                      ":/icons/protect.svg", [encryptionAction] { encryptionAction->trigger(); },
                      true, "ribbonSecurity");
-    addRibbonCommand(securityGroup, "清理隐藏信息", "删除元数据、脚本、自动动作和嵌入文件索引",
+    addRibbonCommand(securityGroup, "清理隐藏信息", "删除元数据、脚本、自动动作与嵌入文件（含附件本体）",
                      ":/icons/protect.svg", [this] {
         if (auto* view = currentView()) view->sanitizeHiddenData();
     }, true, "ribbonSanitize");
