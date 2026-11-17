@@ -8,8 +8,12 @@ namespace aipdf::pdf {
 
 // 图像字节的格式。
 //
-// 为什么只认两种：JPEG 能**原样**当 /DCTDecode 塞进 PDF（不重编码、不掉画质），
-// BMP 自己解成 RGB 再 /FlateDecode。这两条路都能保证「扫出来的像素一个不差」。
+// 为什么认三种：JPEG 能**原样**当 /DCTDecode 塞进 PDF（不重编码、不掉画质），
+// BMP 与 PNG 自己解成 RGB 再 /FlateDecode。这三条路都能保证「扫出来的像素一个不差」。
+//
+// 为什么 PNG 也要自己解：部署包不一定带 Qt 的 PNG 图像插件
+// （scripts/package.ps1 只保证 gif/ico/jpeg/svg），把「能不能读 PNG」押在部署环境上，
+// 结果就是同一份程序在开发机上能读、在用户机上打不开图。
 //
 // 为什么没有 TIFF：本机 Qt 只部署了 gif/ico/jpeg/svg 图像插件，读 TIFF 会直接失败，
 // 所以 TIFF 明确不支持（而不是「看情况失败」）。
@@ -17,6 +21,7 @@ enum class ImageFormat {
     Unknown,  // 认不出来
     Jpeg,
     Bmp,
+    Png,
 };
 
 // 按字节头猜格式。
@@ -25,12 +30,18 @@ enum class ImageFormat {
 // 只认扩展名的话，扫描仪这条路根本走不通。
 ImageFormat detectImageFormat(const QByteArray& bytes);
 
+// 说清这串字节**像是**什么格式（ASCII：PNG / TIFF / BMP / JPEG / unknown）。
+//
+// 为什么要单独给一个名字：用户拿 TIFF 回来时，提示只写「格式不支持」等于让他自己猜；
+// 直接点名「TIFF」，他立刻知道是设备设置的问题还是程序的问题。
+QString describeImageFormat(const QByteArray& bytes);
+
 // 一张图像解出来的内容。
 struct DecodedImage {
     // 像素宽高。
     int width = 0;
     int height = 0;
-    // DeviceRGB / 每通道 8 位 / 行优先 / 行不补齐（BMP 走这条路）。
+    // DeviceRGB / 每通道 8 位 / 行优先 / 行不补齐（BMP 与 PNG 走这条路）。
     QByteArray rgb;
     // 原样的 JPEG 字节（/DCTDecode 直接用它，一个字节都不改）。
     QByteArray jpeg;
@@ -55,7 +66,7 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail = n
 enum class ImageToPdfError {
     None,
     EmptyInput,         // 一张图都没有
-    UnsupportedFormat,  // 不是 JPEG/BMP（TIFF/PNG 走这条路）
+    UnsupportedFormat,  // 不是 JPEG/BMP/PNG（TIFF 走这条路）
     DecodeFailed,       // 头坏了 / 数据被截断
     InvalidPageSize,    // 分辨率或像素尺寸算出来的页面不合法
     EncodeFailed,       // 拼 PDF 失败

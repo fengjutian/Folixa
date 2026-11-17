@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QImage>
 #include <QSet>
 
 #include <algorithm>
@@ -511,6 +512,296 @@ int kindOrder(DiffKind kind) {
     return 5;
 }
 
+// ============================================================ 像素级比对 =========
+
+// 像素比对的默认页数上限。
+//
+// 渲染是 O(页数 × 像素数) 的重活：612×400 的页面在 72 DPI 下就有 24 万像素，
+// 一页一页画出来再逐像素比，几百页的文档能跑上好几分钟。
+constexpr int kDefaultMaxPixelComparedPages = 200;
+
+// 「像素坐标 → PDF user space」的换算表。
+//
+// 为什么自己算：PdfPage::render 出来的图是**应用过页面 /Rotate 之后**的，
+// 而差异包围盒要报在未旋转的用户空间里（和文字块框、MediaBox 同一坐标系）。
+// 两者之间差一个旋转，不换算就会把差异框报在页面的错误位置。
+struct PixelToUserMap {
+    // 页面的有效盒子（PDF user space，左下原点）：PDFium 渲染的就是它。
+    MediaBox box;
+    // 页面自带的 /Rotate（顺时针度数）：0 / 90 / 180 / 270。
+    int rotation = 0;
+    // 一个用户空间单位对应多少像素（沿用户空间的 x / y 轴）。
+    double pixelsPerUnitX = 1.0;
+    double pixelsPerUnitY = 1.0;
+};
+
+// 图像上的一个点（像素坐标，左上原点）换算回 PDF user space。
+QPointF pixelToUser(const PixelToUserMap& map, double px, double py) {
+    const MediaBox& box = map.box;
+    switch (map.rotation) {
+        case 90:
+            // 顺时针转了 90°：用户空间的 y 变成图像的 x，用户空间的 x 变成图像的 y。
+            return {box.left + py / map.pixelsPerUnitX,
+                    box.bottom + px / map.pixelsPerUnitY};
+        case 180:
+            return {box.right - px / map.pixelsPerUnitX,
+                    box.bottom + py / map.pixelsPerUnitY};
+        case 270:
+            return {box.right - py / map.pixelsPerUnitX,
+                    box.top - px / map.pixelsPerUnitY};
+        case 0:
+        default:
+            return {box.left + px / map.pixelsPerUnitX,
+                    box.top - py / map.pixelsPerUnitY};
+    }
+}
+
+// 图像上的一个矩形换算回 PDF user space 的矩形。
+//
+// 差异像素的包围盒用的是「最后一个不同像素」的下标（闭区间），
+// 所以右边界与下边界要 +1 像素才是真正的外沿。
+QRectF rectToUserSpace(const PixelToUserMap& map, const QRect& rect) {
+    if (rect.isNull()) {
+        return {};
+    }
+    const QPointF topLeft = pixelToUser(map, rect.left(), rect.top());
+    const QPointF bottomRight = pixelToUser(map, rect.right() + 1.0, rect.bottom() + 1.0);
+    return QRectF(topLeft, bottomRight).normalized();
+}
+
+// 渲染一页，并准备好像素 → 用户空间的换算表。
+bool renderForPixelCompare(const PdfPage& page,
+                            double zoom,
+                            QImage* image,
+                            PixelToUserMap* map,
+                            QString* reason) {
+    const QImage rendered = page.render(zoom);
+    if (rendered.isNull()) {
+        *reason = QStringLiteral("page render failed (zoom=%1)").arg(zoom);
+        return false;
+    }
+    const MediaBox box = page.contentBox();
+    if (box.width() <= 0.0 || box.height() <= 0.0) {
+        *reason = QStringLiteral("page has an empty content box");
+        return false;
+    }
+    map->box = box;
+    map->rotation = page.rotationDegrees();
+    if (map->rotation == 90 || map->rotation == 270) {
+        // 页面转了 90°/270°：图像的宽对应用户空间的「高」，反之亦然。
+        map->pixelsPerUnitX = static_cast<double>(rendered.height()) / box.width();
+        map->pixelsPerUnitY = static_cast<double>(rendered.width()) / box.height();
+    } else {
+        map->pixelsPerUnitX = static_cast<double>(rendered.width()) / box.width();
+        map->pixelsPerUnitY = static_cast<double>(rendered.height()) / box.height();
+    }
+    *image = rendered;
+    return true;
+}
+
+// 两个像素的通道差（只看 RGB：渲染图是不透明的，alpha 恒为 255）。
+int channelDistance(QRgb left, QRgb right) {
+    const int red = qAbs(qRed(left) - qRed(right));
+    const int green = qAbs(qGreen(left) - qGreen(right));
+    const int blue = qAbs(qBlue(left) - qBlue(right));
+    return qMax(red, qMax(green, blue));
+}
+
+// 两张位图比对的结果。
+struct BitmapDiff {
+    // 比不比得了。false 时 reason 里写明原因（ASCII 技术细节）。
+    bool comparable = false;
+    QString reason;
+    // 差异比例（0..1）与两边的像素计数。
+    double differenceRatio = 0.0;
+    qint64 comparedPixels = 0;
+    qint64 differingPixels = 0;
+    // 差异像素的包围盒（图像坐标）。
+    QRect differingRect;
+    // 两张图尺寸是否不同（不同 → 只比了共同区域）。
+    bool sizeMismatch = false;
+};
+
+// 逐像素比两张位图。
+//
+// 两页尺寸不同时**只比共同区域**（左上角对齐的那一块），不做缩放归一化。
+// 为什么这么选：缩放要插值，放大与缩小用的核还不一样，
+// 插值本身就会造出成片的「假差异」，把真正要找的图形改动淹掉。
+// 只比共同区域能保证两张图都是 PDFium 原样渲染出来的，
+// 「像素不同」就真的是渲染结果不同；代价是超出共同区域的部分不比（已知边界）。
+//
+// 逐行直接读扫描线，不用 QImage::pixel()：后者每次都要做一次边界与格式检查，
+// 24 万像素一页够慢的。
+BitmapDiff compareBitmaps(const QImage& left, const QImage& right, int tolerance) {
+    BitmapDiff diff;
+    if (left.isNull() || right.isNull()) {
+        diff.reason = QStringLiteral("one of the pages produced no bitmap");
+        return diff;
+    }
+    const QImage leftImage = left.format() == QImage::Format_ARGB32
+                                 ? left
+                                 : left.convertToFormat(QImage::Format_ARGB32);
+    const QImage rightImage = right.format() == QImage::Format_ARGB32
+                                  ? right
+                                  : right.convertToFormat(QImage::Format_ARGB32);
+
+    const int width = qMin(leftImage.width(), rightImage.width());
+    const int height = qMin(leftImage.height(), rightImage.height());
+    if (width <= 0 || height <= 0) {
+        diff.reason = QStringLiteral("the two pages have no overlapping pixels");
+        return diff;
+    }
+    diff.sizeMismatch = leftImage.size() != rightImage.size();
+
+    int minX = width;
+    int minY = height;
+    int maxX = -1;
+    int maxY = -1;
+    qint64 differing = 0;
+    for (int y = 0; y < height; ++y) {
+        const QRgb* leftLine = reinterpret_cast<const QRgb*>(leftImage.constScanLine(y));
+        const QRgb* rightLine = reinterpret_cast<const QRgb*>(rightImage.constScanLine(y));
+        for (int x = 0; x < width; ++x) {
+            if (channelDistance(leftLine[x], rightLine[x]) <= tolerance) {
+                continue;
+            }
+            ++differing;
+            minX = qMin(minX, x);
+            minY = qMin(minY, y);
+            maxX = qMax(maxX, x);
+            maxY = qMax(maxY, y);
+        }
+    }
+
+    diff.comparable = true;
+    diff.comparedPixels = static_cast<qint64>(width) * static_cast<qint64>(height);
+    diff.differingPixels = differing;
+    diff.differenceRatio = diff.comparedPixels > 0
+        ? static_cast<double>(differing) / static_cast<double>(diff.comparedPixels)
+        : 0.0;
+    if (maxX >= minX && maxY >= minY) {
+        diff.differingRect = QRect(QPoint(minX, minY), QPoint(maxX, maxY));
+    }
+    return diff;
+}
+
+// 像素级比对：把配对的每一页渲染成位图再逐像素比。
+//
+// 配对用的是文字层那一轮的页对齐结果。为什么连「文字层认为不是同一页」的
+// 配对也比：纯图形改动最典型的场景就是「这一页的图被换掉了」，
+// 文字层会认为它跟另一页毫无关系，但视觉上恰恰是这里变了。
+void comparePagesByPixels(const QByteArray& oldBytes,
+                          const QByteArray& newBytes,
+                          const DocumentCompareOptions& options,
+                          const QVector<SequencePair>& pagePairs,
+                          DocumentCompareResult* result) {
+    result->pixelsCompared = true;
+
+    // 文字层那两份文档已经在 extractTextBlocks 里关掉了，这里再开一份。
+    // 为什么不再心疼一次解析：像素比对本来就要把每页画一遍，
+    // 重新解析 PDF 的开销相对渲染可以忽略。
+    const PdfOpenResult oldOpened =
+        openDocumentFromBytes(oldBytes, QString(), options.oldPassword);
+    const PdfOpenResult newOpened =
+        openDocumentFromBytes(newBytes, QString(), options.newPassword);
+    if (!oldOpened.document.isValid() || !newOpened.document.isValid()) {
+        result->pixelError =
+            QStringLiteral("cannot reopen documents for pixel comparison: old=%1 new=%2")
+                .arg(oldOpened.errorMessage, newOpened.errorMessage);
+        return;
+    }
+
+    const int maxPages = options.maxPixelComparedPages > 0
+                             ? options.maxPixelComparedPages
+                             : kDefaultMaxPixelComparedPages;
+    const double zoom = options.pixelZoom > 0.0 ? options.pixelZoom : 1.0;
+    const int tolerance = qBound(0, options.pixelColorTolerance, 255);
+
+    int processed = 0;
+    double ratioSum = 0.0;
+    int ratioCount = 0;
+    for (const SequencePair& pair : pagePairs) {
+        if (processed >= maxPages) {
+            result->pixelNote =
+                QStringLiteral("pixel comparison stopped after %1 pages (limit reached)")
+                    .arg(maxPages);
+            break;
+        }
+        ++processed;
+
+        VisualPageDifference visual;
+        visual.oldPageIndex = pair.oldIndex;
+        visual.newPageIndex = pair.newIndex;
+
+        const std::optional<PdfPage> oldPage = oldOpened.document.page(pair.oldIndex);
+        const std::optional<PdfPage> newPage = newOpened.document.page(pair.newIndex);
+        if (!oldPage.has_value() || !newPage.has_value()) {
+            // 渲染不出来不算致命：记成这一页比不了，写明原因，继续比下一页。
+            visual.comparable = false;
+            visual.reason = QStringLiteral("page handle unavailable");
+            ++result->pixelIncomparablePageCount;
+            result->visualDifferences.append(visual);
+            continue;
+        }
+
+        QImage oldImage;
+        QImage newImage;
+        PixelToUserMap oldMap;
+        PixelToUserMap newMap;
+        QString oldReason;
+        QString newReason;
+        const bool oldRendered =
+            renderForPixelCompare(*oldPage, zoom, &oldImage, &oldMap, &oldReason);
+        const bool newRendered =
+            renderForPixelCompare(*newPage, zoom, &newImage, &newMap, &newReason);
+        if (!oldRendered || !newRendered) {
+            visual.comparable = false;
+            visual.reason = !oldRendered ? QStringLiteral("old page: %1").arg(oldReason)
+                                          : QStringLiteral("new page: %1").arg(newReason);
+            ++result->pixelIncomparablePageCount;
+            result->visualDifferences.append(visual);
+            continue;
+        }
+
+        const BitmapDiff diff = compareBitmaps(oldImage, newImage, tolerance);
+        if (!diff.comparable) {
+            visual.comparable = false;
+            visual.reason = diff.reason;
+            ++result->pixelIncomparablePageCount;
+            result->visualDifferences.append(visual);
+            continue;
+        }
+
+        ++result->pixelComparedPageCount;
+        visual.comparable = true;
+        visual.differenceRatio = diff.differenceRatio;
+        visual.comparedPixelCount = diff.comparedPixels;
+        visual.differingPixelCount = diff.differingPixels;
+        visual.sizeMismatch = diff.sizeMismatch;
+        if (diff.differingPixels > 0) {
+            visual.oldBounds = rectToUserSpace(oldMap, diff.differingRect);
+            visual.newBounds = rectToUserSpace(newMap, diff.differingRect);
+        }
+
+        ratioSum += visual.differenceRatio;
+        ++ratioCount;
+        result->maxVisualDifferenceRatio =
+            qMax(result->maxVisualDifferenceRatio, visual.differenceRatio);
+        // 尺寸不同的页也要留一条：这次比较只覆盖了共同区域，
+        // 把它吞掉的话，0% 的差异会被读成「整页都一样」。
+        if (visual.differenceRatio > options.pixelDifferenceThreshold) {
+            ++result->visualDifferencePageCount;
+            result->visualDifferences.append(visual);
+        } else if (visual.sizeMismatch) {
+            result->visualDifferences.append(visual);
+        }
+    }
+
+    if (ratioCount > 0) {
+        result->averageVisualDifferenceRatio = ratioSum / static_cast<double>(ratioCount);
+    }
+}
+
 }  // namespace
 
 double textSimilarity(const QString& left, const QString& right) {
@@ -617,10 +908,13 @@ bool compareDocuments(const QByteArray& oldBytes,
     result->oldHasText = result->oldBlockCount > 0;
     result->newHasText = result->newBlockCount > 0;
 
-    if (!result->oldHasText && !result->newHasText) {
+    if (!result->oldHasText && !result->newHasText && !options.comparePixels) {
         // 两边都是扫描件：没有文字可比。
         // 这里必须报「比不了」，不能报「没有差异」——
         // 把「没法比」说成「一样」，用户就会以为两份合同真的逐字相同。
+        //
+        // 但开了像素比对就不算失败：纯图形文档（扫描件、图表页）本来就没文字层，
+        // 这时像素比对是唯一能给出答案的路径，不能因为「没文字」就把整次比较判死。
         const QString message = QStringLiteral(
             "两份文件都没有文字层（可能是扫描件），无法比较文字内容；请先运行 OCR。");
         result->error = message;
@@ -724,6 +1018,12 @@ bool compareDocuments(const QByteArray& oldBytes,
         added.newText = pageSnippet(newPages.at(newIndex));
         result->differences.append(added);
         ++result->addedPageCount;
+    }
+
+    // 像素级比对：按上面的页配对逐页渲染、逐像素比。
+    // 放在文字层之后：它要用刚算出来的配对关系。
+    if (options.comparePixels) {
+        comparePagesByPixels(oldBytes, newBytes, options, pagePairs, result);
     }
 
     // 整体相似度：配对上的页与块按相似度加权，除以两边的块数。

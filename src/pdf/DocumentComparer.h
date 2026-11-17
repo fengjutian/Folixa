@@ -4,6 +4,7 @@
 #include <QRectF>
 #include <QString>
 #include <QVector>
+#include <QtGlobal>
 
 namespace aipdf::pdf {
 
@@ -57,6 +58,29 @@ struct DocumentCompareOptions {
     // 单页最多比较多少个块：对齐用的是 O(n×m) 的动态规划，
     // 不设上限的话，一页塞满文字的畸形文档能把内存吃光。
     int maxBlocksPerPage = 400;
+    // 是否做像素级（渲染位图）比对。
+    //
+    // 默认关：把每一页画成位图再逐像素比，比抽文字慢一个数量级。
+    // 打开它才能看出「纯图形改动」——只挪了表格线、换了颜色、画了个框，
+    // 文字层一个字符都没动，文字层比对会报「两份文件一样」。
+    bool comparePixels = false;
+    // 像素比对的渲染缩放。zoom=1 表示 72 DPI（一像素一点）。
+    //
+    // 越大越能看出细小改动，代价是成平方级的开销；
+    // 1.0 对「挪了几点」这种级别的改动已经够用。
+    double pixelZoom = 1.0;
+    // 单个颜色通道的容差（0..255）：两个像素每通道的差不超过它就算相同。
+    //
+    // 为什么默认 0：同一份 PDF 渲染两次应当逐位相同，
+    // 放宽容差会把抗锯齿边缘的一两个色阶也算成差异，把真正的图形改动淹掉。
+    int pixelColorTolerance = 0;
+    // 视觉差异比例超过这个值，才算「这一页视觉上有差异」。
+    double pixelDifferenceThreshold = 0.0;
+    // 最多比对多少页的像素。
+    //
+    // 渲染是 O(页数 × 像素数) 的重活，不设上限的话几百页的文档
+    // 会让「比较」看起来像卡死了。超出的部分记进结果里的 pixelNote。
+    int maxPixelComparedPages = 200;
 };
 
 // 一条差异。
@@ -78,6 +102,31 @@ struct CompareDifference {
     // 相似度（0..1）。页级差异给的是整页的相似度。
     double similarity = 0.0;
     // 原文 / 新文里这一处的位置（PDF user space）。
+    QRectF oldBounds;
+    QRectF newBounds;
+};
+
+// 一页的视觉（像素级）差异。
+//
+// 为什么单列一个结构：文字层差异与视觉差异是两回事——
+// 「把金额改了个数」文字层看得出来，「把表格线挪了两点」只有像素比对看得出来。
+// 混在一张表里，用户分不清「这段文字变了」和「这块图形变了」。
+struct VisualPageDifference {
+    // 原文页号 / 新文页号（0 基）。
+    int oldPageIndex = -1;
+    int newPageIndex = -1;
+    // 这一页能不能比。false 时 reason 里有原因（ASCII 技术细节）。
+    bool comparable = true;
+    // 比不了的原因（ASCII 技术细节），例如 "page render failed (zoom=1)"。
+    QString reason;
+    // 视觉差异比例：不同像素数 / 参与比较的像素数（0..1）。
+    double differenceRatio = 0.0;
+    // 参与比较的像素数 / 不同的像素数。
+    qint64 comparedPixelCount = 0;
+    qint64 differingPixelCount = 0;
+    // 两页渲染出来的尺寸是否不同（不同 → 只比了左上角对齐的共同区域）。
+    bool sizeMismatch = false;
+    // 差异区域在原文 / 新文里的包围盒（PDF user space，左下原点）。
     QRectF oldBounds;
     QRectF newBounds;
 };
@@ -114,6 +163,32 @@ struct DocumentCompareResult {
     double overallSimilarity = 1.0;
     // 差异明细，按页码、再按块序号排列。
     QVector<CompareDifference> differences;
+
+    // ---------------------------------------------------------- 视觉差异 ----
+    //
+    // 下面这些字段只有开了 comparePixels 时才有意义；
+    // 没开时 pixelsCompared 为 false，其余都是零值。
+    // 文字层的差异结构（differences 与上面那些计数）一个字都没动。
+
+    // 是否做了像素级（渲染位图）比对。
+    bool pixelsCompared = false;
+    // 像素级比对里：成功比对的页数 / 比不了的页数。
+    int pixelComparedPageCount = 0;
+    int pixelIncomparablePageCount = 0;
+    // 视觉上有差异的页数（差异比例超过阈值）。
+    int visualDifferencePageCount = 0;
+    // 平均 / 最大视觉差异比例（0..1）。
+    double averageVisualDifferenceRatio = 0.0;
+    double maxVisualDifferenceRatio = 0.0;
+    // 逐页的像素比对结果：视觉上有差异的页 + 比不了的页。
+    //
+    // 比得了但没有差异的页不进这个列表——它们没有信息量；
+    // 「一共比了多少页」看 pixelComparedPageCount。
+    QVector<VisualPageDifference> visualDifferences;
+    // 像素比对整体失败的原因（ASCII 技术细节）；没失败时为空。
+    QString pixelError;
+    // 像素比对的备注（ASCII 技术细节），例如因为页数上限跳过了几页。
+    QString pixelNote;
 };
 
 // 比较两份 PDF 的结构差异。

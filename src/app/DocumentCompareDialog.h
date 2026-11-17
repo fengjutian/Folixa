@@ -6,10 +6,12 @@
 #include <QDialog>
 #include <QString>
 
+class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
 class QTableWidget;
+class QTabWidget;
 
 namespace aipdf::app {
 
@@ -54,6 +56,11 @@ public:
     // 表格里的行数。
     int differenceRowCount() const;
 
+    // 视觉差异表格里的第 row 行。行号越界时返回 nullptr。
+    const pdf::VisualPageDifference* visualDifferenceAt(int row) const;
+    // 视觉差异表格里的行数。
+    int visualDifferenceRowCount() const;
+
     // 跳到第 row 行对应的差异：发出 navigateToPage。
     //
     // 双击表格某一行走的也是这条路径；单独暴露出来是为了让「跳到差异」
@@ -85,8 +92,11 @@ private:
     QPushButton* browseOldButton_ = nullptr;
     QPushButton* browseNewButton_ = nullptr;
     QPushButton* compareButton_ = nullptr;
+    QCheckBox* pixelCompareCheck_ = nullptr;
     QLabel* summary_ = nullptr;
+    QTabWidget* tabs_ = nullptr;
     QTableWidget* table_ = nullptr;
+    QTableWidget* visualTable_ = nullptr;
 
     pdf::DocumentCompareOptions options_;
     pdf::DocumentCompareResult lastResult_;

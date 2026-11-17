@@ -3,6 +3,7 @@
 #include <QtGlobal>
 
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 
@@ -72,7 +73,7 @@ private:
 //
 // 为什么要专门说这个：用户拿 TIFF 回来时，提示只写「格式不支持」等于让他自己猜；
 // 直接点名「TIFF」，他立刻知道是设备设置的问题还是程序的问题。
-QString describeFormat(const QByteArray& bytes) {
+QString describeFormatInternal(const QByteArray& bytes) {
     if (bytes.size() >= 8 && static_cast<quint8>(bytes.at(0)) == 0x89 &&
         bytes.startsWith(QByteArrayLiteral("\x89PNG\r\n\x1a\n"))) {
         return QStringLiteral("PNG");
@@ -471,6 +472,442 @@ bool parseBmp(const QByteArray& bytes, int* width, int* height, QByteArray* rgb,
     return true;
 }
 
+// ------------------------------------------------------------------ PNG ----
+//
+// 为什么自己解 PNG：部署包不一定带 Qt 的 PNG 图像插件
+// （scripts/package.ps1 只保证 gif/ico/jpeg/svg），把「能不能读某种格式」
+// 押在部署环境上不稳——同一份程序在开发机上能读，用户机上打不开图。
+//
+// 支持：位深 8 与 16（灰度另有 1/2/4）、灰度 / 灰度+A / RGB / RGBA / 调色板、
+// 非隔行。隔行（Adam7）明确报错，不给半张图。
+
+// PNG 的整数一律**大端**（与 BMP 相反）：按小端读会把宽 16 读成 268435456，
+// 后面申请内存那一步直接失败。
+quint32 readU32BE(const QByteArray& data, qint64 offset) {
+    return (static_cast<quint32>(static_cast<quint8>(data.at(offset))) << 24) |
+           (static_cast<quint32>(static_cast<quint8>(data.at(offset + 1))) << 16) |
+           (static_cast<quint32>(static_cast<quint8>(data.at(offset + 2))) << 8) |
+           static_cast<quint32>(static_cast<quint8>(data.at(offset + 3)));
+}
+
+// PNG 块的 CRC-32 查表。
+//
+// 为什么自己算：块头说 13 字节、实际只给 12 字节这种损坏必须当场发现，
+// 不能带着错数据一路解到像素才发现不对。
+struct Crc32Table {
+    quint32 values[256];
+    Crc32Table() {
+        for (quint32 i = 0; i < 256; ++i) {
+            quint32 value = i;
+            for (int bit = 0; bit < 8; ++bit) {
+                value = (value & 1u) != 0u ? (0xEDB88320u ^ (value >> 1)) : (value >> 1);
+            }
+            values[i] = value;
+        }
+    }
+};
+
+quint32 crc32Of(const QByteArray& data) {
+    static const Crc32Table table;
+    quint32 crc = 0xFFFFFFFFu;
+    for (char ch : data) {
+        crc = table.values[(crc ^ static_cast<quint8>(ch)) & 0xFFu] ^ (crc >> 8);
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
+// Paeth 预测器（PNG 行过滤器 4）。
+int paethPredictor(int a, int b, int c) {
+    const int p = a + b - c;
+    const int pa = std::abs(p - a);
+    const int pb = std::abs(p - b);
+    const int pc = std::abs(p - c);
+    if (pa <= pb && pa <= pc) return a;
+    if (pb <= pc) return b;
+    return c;
+}
+
+// 取一行里的第 index 个样本（原始值，尚未缩到 8 位）。
+quint32 readPngSample(const quint8* row, quint32 index, int bitDepth) {
+    if (bitDepth == 8) {
+        return row[index];
+    }
+    if (bitDepth == 16) {
+        return (static_cast<quint32>(row[index * 2]) << 8) | row[index * 2 + 1];
+    }
+    // 位深小于 8：一个字节里塞若干个样本，高位在前。
+    const int perByte = 8 / bitDepth;
+    const quint32 byteIndex = index / static_cast<quint32>(perByte);
+    const int shift = 8 - bitDepth * (static_cast<int>(index % static_cast<quint32>(perByte)) + 1);
+    const quint32 mask = (1u << bitDepth) - 1u;
+    return (row[byteIndex] >> shift) & mask;
+}
+
+// 把样本缩到 8 位。
+//
+// 为什么 16 位取高字节而不是除 257：取高字节是 PNG 生态里最常见的做法，
+// 结果可预期，也不会因为四舍五入差 1 而在测试里对不上。
+quint8 scalePngSample(quint32 value, int bitDepth) {
+    switch (bitDepth) {
+    case 1:
+        return value != 0 ? 255 : 0;
+    case 2:
+        return static_cast<quint8>(value * 85);
+    case 4:
+        return static_cast<quint8>(value * 17);
+    case 8:
+        return static_cast<quint8>(value);
+    case 16:
+        return static_cast<quint8>(value >> 8);
+    default:
+        return 0;
+    }
+}
+
+// 把带 alpha 的通道合成到白底上。
+//
+// 为什么合成到白底而不是直接丢掉 alpha：PDF 页面本来就是白纸，
+// 直接丢 alpha 会把透明区域变成黑色（很多 PNG 的透明区 RGB 是 0）。
+quint8 compositeOverWhite(quint8 channel, quint8 alpha) {
+    if (alpha == 255) {
+        return channel;
+    }
+    const int value = (channel * alpha + 255 * (255 - alpha) + 127) / 255;
+    return static_cast<quint8>(value);
+}
+
+// 自己解 PNG。
+//
+// 输出与 BMP 那条路一致：DeviceRGB、每通道 8 位、行优先、行不补齐、自上而下。
+bool parsePng(const QByteArray& bytes, int* width, int* height, QByteArray* rgb,
+              QString* detail) {
+    const auto fail = [detail](const QString& reason) {
+        if (detail != nullptr) {
+            *detail = reason;
+        }
+        return false;
+    };
+
+    if (!bytes.startsWith(QByteArrayLiteral("\x89PNG\r\n\x1a\n"))) {
+        return fail(QStringLiteral("PNG missing signature"));
+    }
+
+    quint32 headerWidth = 0;
+    quint32 headerHeight = 0;
+    int bitDepth = 0;
+    int colorType = 0;
+    bool sawHeader = false;
+    bool sawEnd = false;
+    QByteArray palette;
+    QByteArray transparency;
+    QByteArray compressed;
+
+    qint64 pos = 8;
+    while (pos + 8 <= bytes.size()) {
+        const quint32 length = readU32BE(bytes, pos);
+        if (length > 0x7FFFFFFFu) {
+            return fail(QStringLiteral("PNG chunk length out of range"));
+        }
+        const QByteArray type = bytes.mid(pos + 4, 4);
+        const qint64 dataStart = pos + 8;
+        if (dataStart + static_cast<qint64>(length) + 4 > bytes.size()) {
+            return fail(QStringLiteral("PNG chunk %1 is truncated")
+                            .arg(QString::fromLatin1(type)));
+        }
+        const QByteArray data = bytes.mid(dataStart, static_cast<qsizetype>(length));
+        const quint32 expectedCrc = readU32BE(bytes, dataStart + static_cast<qint64>(length));
+        QByteArray crcInput;
+        crcInput.append(type);
+        crcInput.append(data);
+        if (crc32Of(crcInput) != expectedCrc) {
+            return fail(QStringLiteral("PNG chunk %1 has a bad CRC")
+                            .arg(QString::fromLatin1(type)));
+        }
+        pos = dataStart + static_cast<qint64>(length) + 4;
+
+        if (type == "IHDR") {
+            if (sawHeader) {
+                return fail(QStringLiteral("PNG has more than one IHDR chunk"));
+            }
+            if (length != 13) {
+                return fail(QStringLiteral("PNG IHDR chunk has an invalid size"));
+            }
+            headerWidth = readU32BE(data, 0);
+            headerHeight = readU32BE(data, 4);
+            bitDepth = static_cast<quint8>(data.at(8));
+            colorType = static_cast<quint8>(data.at(9));
+            const int compression = static_cast<quint8>(data.at(10));
+            const int filterMethod = static_cast<quint8>(data.at(11));
+            const int interlace = static_cast<quint8>(data.at(12));
+            if (compression != 0) {
+                return fail(QStringLiteral("PNG compression method %1 is not supported")
+                                .arg(compression));
+            }
+            if (filterMethod != 0) {
+                return fail(QStringLiteral("PNG filter method %1 is not supported")
+                                .arg(filterMethod));
+            }
+            if (interlace != 0) {
+                return fail(QStringLiteral("PNG interlaced images are not supported"));
+            }
+            sawHeader = true;
+        } else if (type == "PLTE") {
+            palette = data;
+        } else if (type == "tRNS") {
+            transparency = data;
+        } else if (type == "IDAT") {
+            compressed.append(data);
+        } else if (type == "IEND") {
+            sawEnd = true;
+            break;
+        } else {
+            // 关键块（首字母大写）必须认识；辅助块（首字母小写）跳过。
+            const char first = type.at(0);
+            if (first >= 'A' && first <= 'Z') {
+                return fail(QStringLiteral("PNG chunk %1 is not supported")
+                                .arg(QString::fromLatin1(type)));
+            }
+        }
+    }
+
+    if (!sawHeader) {
+        return fail(QStringLiteral("PNG has no IHDR chunk"));
+    }
+    if (!sawEnd) {
+        return fail(QStringLiteral("PNG has no IEND chunk"));
+    }
+    if (headerWidth == 0 || headerHeight == 0) {
+        return fail(QStringLiteral("PNG invalid dimensions %1x%2")
+                        .arg(headerWidth)
+                        .arg(headerHeight));
+    }
+    if (headerWidth > 100000u || headerHeight > 100000u) {
+        return fail(QStringLiteral("PNG dimensions out of range %1x%2")
+                        .arg(headerWidth)
+                        .arg(headerHeight));
+    }
+    if (static_cast<qint64>(headerWidth) * headerHeight > kMaxPixels) {
+        return fail(QStringLiteral("PNG pixel count too large"));
+    }
+
+    int channels = 0;
+    switch (colorType) {
+    case 0:
+        channels = 1;  // 灰度
+        break;
+    case 2:
+        channels = 3;  // RGB
+        break;
+    case 3:
+        channels = 1;  // 调色板
+        break;
+    case 4:
+        channels = 2;  // 灰度 + Alpha
+        break;
+    case 6:
+        channels = 4;  // RGBA
+        break;
+    default:
+        return fail(QStringLiteral("PNG color type %1 is not supported").arg(colorType));
+    }
+    bool depthOk = false;
+    if (colorType == 0) {
+        depthOk = bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8 ||
+                  bitDepth == 16;
+    } else if (colorType == 3) {
+        depthOk = bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8;
+    } else {
+        depthOk = bitDepth == 8 || bitDepth == 16;
+    }
+    if (!depthOk) {
+        return fail(QStringLiteral("PNG bit depth %1 is not supported for color type %2")
+                        .arg(bitDepth)
+                        .arg(colorType));
+    }
+
+    if (colorType == 3 && (palette.isEmpty() || palette.size() % 3 != 0)) {
+        return fail(QStringLiteral("PNG palette image has an invalid PLTE chunk"));
+    }
+    if (!transparency.isEmpty()) {
+        if (colorType == 3) {
+            if (transparency.size() > palette.size() / 3) {
+                return fail(QStringLiteral("PNG tRNS chunk is longer than the palette"));
+            }
+        } else if (colorType == 0) {
+            if (transparency.size() != 2) {
+                return fail(QStringLiteral("PNG gray tRNS chunk has an invalid size"));
+            }
+        } else if (colorType == 2) {
+            if (transparency.size() != 6) {
+                return fail(QStringLiteral("PNG RGB tRNS chunk has an invalid size"));
+            }
+        } else {
+            return fail(QStringLiteral("PNG tRNS chunk is not valid for color type %1")
+                            .arg(colorType));
+        }
+    }
+    if (compressed.isEmpty()) {
+        return fail(QStringLiteral("PNG has no image data"));
+    }
+
+    const qint64 bitsPerPixel = static_cast<qint64>(channels) * bitDepth;
+    const qint64 rowBytes = (static_cast<qint64>(headerWidth) * bitsPerPixel + 7) / 8;
+    const qint64 expectedRaw = static_cast<qint64>(headerHeight) * (1 + rowBytes);
+    if (expectedRaw > 256LL * 1024 * 1024) {
+        return fail(QStringLiteral("PNG image data is too large"));
+    }
+
+    // Qt 的 qUncompress 认的是「4 字节长度 + zlib 流」这个自家格式，
+    // 而 PNG 的 IDAT 是**不带长度头**的 RFC1950 流，所以这里自己把长度头补上。
+    QByteArray sized;
+    sized.append(static_cast<char>((expectedRaw >> 24) & 0xFF));
+    sized.append(static_cast<char>((expectedRaw >> 16) & 0xFF));
+    sized.append(static_cast<char>((expectedRaw >> 8) & 0xFF));
+    sized.append(static_cast<char>(expectedRaw & 0xFF));
+    sized.append(compressed);
+    const QByteArray raw = qUncompress(sized);
+    if (raw.size() != expectedRaw) {
+        return fail(QStringLiteral("PNG image data is truncated or corrupt (expected %1 bytes, got %2)")
+                        .arg(expectedRaw)
+                        .arg(raw.size()));
+    }
+
+    const int filterUnit = qMax(1, static_cast<int>((bitsPerPixel + 7) / 8));
+    QByteArray previousRow(static_cast<qsizetype>(rowBytes), '\0');
+    QByteArray currentRow(static_cast<qsizetype>(rowBytes), '\0');
+
+    QByteArray out;
+    out.resize(static_cast<qsizetype>(static_cast<qint64>(headerWidth) * headerHeight * 3));
+    char* outData = out.data();
+
+    for (quint32 row = 0; row < headerHeight; ++row) {
+        const qint64 rowStart = static_cast<qint64>(row) * (1 + rowBytes);
+        const int filterType = static_cast<quint8>(raw.at(rowStart));
+        if (filterType > 4) {
+            return fail(QStringLiteral("PNG row filter %1 is not supported").arg(filterType));
+        }
+        std::memcpy(currentRow.data(), raw.constData() + rowStart + 1,
+                    static_cast<size_t>(rowBytes));
+
+        // 反滤波：每一行都依赖上一行（行过滤器 Up/Paeth），
+        // 所以必须逐行做，不能整块一起算。
+        for (qint64 i = 0; i < rowBytes; ++i) {
+            const int x = static_cast<quint8>(currentRow.at(i));
+            const int a = i >= filterUnit ? static_cast<quint8>(currentRow.at(i - filterUnit)) : 0;
+            const int b = static_cast<quint8>(previousRow.at(i));
+            const int c = i >= filterUnit ? static_cast<quint8>(previousRow.at(i - filterUnit)) : 0;
+            int value = x;
+            switch (filterType) {
+            case 1:
+                value = x + a;
+                break;
+            case 2:
+                value = x + b;
+                break;
+            case 3:
+                value = x + ((a + b) / 2);
+                break;
+            case 4:
+                value = x + paethPredictor(a, b, c);
+                break;
+            default:
+                break;
+            }
+            currentRow[i] = static_cast<char>(static_cast<quint8>(value));
+        }
+
+        const quint8* rowData = reinterpret_cast<const quint8*>(currentRow.constData());
+        char* target = outData + static_cast<qint64>(row) * headerWidth * 3;
+        for (quint32 x = 0; x < headerWidth; ++x) {
+            quint8 red = 0;
+            quint8 green = 0;
+            quint8 blue = 0;
+            quint8 alpha = 255;
+            switch (colorType) {
+            case 0: {  // 灰度
+                const quint32 sample = readPngSample(rowData, x, bitDepth);
+                const quint8 gray = scalePngSample(sample, bitDepth);
+                red = gray;
+                green = gray;
+                blue = gray;
+                if (!transparency.isEmpty()) {
+                    const quint32 key =
+                        (static_cast<quint32>(static_cast<quint8>(transparency.at(0))) << 8) |
+                        static_cast<quint8>(transparency.at(1));
+                    if (scalePngSample(sample, bitDepth) == scalePngSample(key, 16)) {
+                        alpha = 0;
+                    }
+                }
+                break;
+            }
+            case 2: {  // RGB
+                red = scalePngSample(readPngSample(rowData, x * 3 + 0, bitDepth), bitDepth);
+                green = scalePngSample(readPngSample(rowData, x * 3 + 1, bitDepth), bitDepth);
+                blue = scalePngSample(readPngSample(rowData, x * 3 + 2, bitDepth), bitDepth);
+                if (!transparency.isEmpty()) {
+                    bool matches = true;
+                    for (int channel = 0; channel < 3; ++channel) {
+                        const quint32 key =
+                            (static_cast<quint32>(
+                                 static_cast<quint8>(transparency.at(channel * 2)))
+                             << 8) |
+                            static_cast<quint8>(transparency.at(channel * 2 + 1));
+                        if (scalePngSample(readPngSample(rowData, x * 3 + channel, bitDepth),
+                                            bitDepth) != scalePngSample(key, 16)) {
+                            matches = false;
+                        }
+                    }
+                    if (matches) {
+                        alpha = 0;
+                    }
+                }
+                break;
+            }
+            case 3: {  // 调色板
+                const quint32 index = readPngSample(rowData, x, bitDepth);
+                if (index * 3 + 2 >= static_cast<quint32>(palette.size())) {
+                    return fail(QStringLiteral("PNG palette index %1 is out of range").arg(index));
+                }
+                red = static_cast<quint8>(palette.at(index * 3 + 0));
+                green = static_cast<quint8>(palette.at(index * 3 + 1));
+                blue = static_cast<quint8>(palette.at(index * 3 + 2));
+                if (index < static_cast<quint32>(transparency.size())) {
+                    alpha = static_cast<quint8>(transparency.at(index));
+                }
+                break;
+            }
+            case 4: {  // 灰度 + Alpha
+                const quint32 sample = readPngSample(rowData, x * 2 + 0, bitDepth);
+                const quint8 gray = scalePngSample(sample, bitDepth);
+                red = gray;
+                green = gray;
+                blue = gray;
+                alpha = scalePngSample(readPngSample(rowData, x * 2 + 1, bitDepth), bitDepth);
+                break;
+            }
+            case 6: {  // RGBA
+                red = scalePngSample(readPngSample(rowData, x * 4 + 0, bitDepth), bitDepth);
+                green = scalePngSample(readPngSample(rowData, x * 4 + 1, bitDepth), bitDepth);
+                blue = scalePngSample(readPngSample(rowData, x * 4 + 2, bitDepth), bitDepth);
+                alpha = scalePngSample(readPngSample(rowData, x * 4 + 3, bitDepth), bitDepth);
+                break;
+            }
+            default:
+                break;
+            }
+            target[x * 3 + 0] = static_cast<char>(compositeOverWhite(red, alpha));
+            target[x * 3 + 1] = static_cast<char>(compositeOverWhite(green, alpha));
+            target[x * 3 + 2] = static_cast<char>(compositeOverWhite(blue, alpha));
+        }
+        previousRow.swap(currentRow);
+    }
+
+    *width = static_cast<int>(headerWidth);
+    *height = static_cast<int>(headerHeight);
+    *rgb = out;
+    return true;
+}
+
 // ------------------------------------------------------------- PDF 拼装 ----
 
 // qCompress 的输出是「4 字节未压缩长度 + zlib 数据」，
@@ -589,10 +1026,20 @@ QByteArray buildPdf(const QVector<PageImage>& pages) {
 
 // ------------------------------------------------------------ 公开接口 ----
 
+QString describeImageFormat(const QByteArray& bytes) {
+    // 公开入口只是转发：真正的判断在匿名命名空间里那一份，
+    // 免得同一套规则写两遍、写歪了。
+    return describeFormatInternal(bytes);
+}
+
 ImageFormat detectImageFormat(const QByteArray& bytes) {
     if (bytes.size() >= 3 && static_cast<quint8>(bytes.at(0)) == 0xFF &&
         static_cast<quint8>(bytes.at(1)) == 0xD8 && static_cast<quint8>(bytes.at(2)) == 0xFF) {
         return ImageFormat::Jpeg;
+    }
+    // PNG 的签名是 8 字节：89 50 4E 47 0D 0A 1A 0A。
+    if (bytes.size() >= 8 && bytes.startsWith(QByteArrayLiteral("\x89PNG\r\n\x1a\n"))) {
+        return ImageFormat::Png;
     }
     if (bytes.size() >= 2 && static_cast<quint8>(bytes.at(0)) == 0x42 &&
         static_cast<quint8>(bytes.at(1)) == 0x4d) {
@@ -641,9 +1088,21 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail) {
         out->rgb = rgb;
         return true;
     }
+    case ImageFormat::Png: {
+        int width = 0;
+        int height = 0;
+        QByteArray rgb;
+        if (!parsePng(bytes, &width, &height, &rgb, detail)) {
+            return false;
+        }
+        out->width = width;
+        out->height = height;
+        out->rgb = rgb;
+        return true;
+    }
     case ImageFormat::Unknown:
     default:
-        return fail(QStringLiteral("unsupported image format: %1").arg(describeFormat(bytes)));
+        return fail(QStringLiteral("unsupported image format: %1").arg(describeImageFormat(bytes)));
     }
 }
 
@@ -688,7 +1147,7 @@ ImageToPdfResult imagesToPdf(const QVector<QByteArray>& images,
             result.error = ImageToPdfError::UnsupportedFormat;
             result.failedIndex = i;
             result.detail =
-                QStringLiteral("unsupported image format: %1").arg(describeFormat(images.at(i)));
+                QStringLiteral("unsupported image format: %1").arg(describeImageFormat(images.at(i)));
             return result;
         }
         DecodedImage decoded;

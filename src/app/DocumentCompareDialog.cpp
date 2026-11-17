@@ -3,6 +3,7 @@
 #include "app/Language.h"
 
 #include <QAbstractItemView>
+#include <QCheckBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -11,6 +12,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 namespace aipdf::app {
@@ -106,6 +108,16 @@ void DocumentCompareDialog::buildUi() {
         compareButton_->setText(i18n::tr("aipdf::app::DocumentCompareDialog", "开始比较"));
     });
     connect(compareButton_, &QPushButton::clicked, this, [this] { runComparison(); });
+    // 像素比对开关：默认关。
+    // 为什么默认关：要渲染每一页，慢一个数量级；
+    // 而大多数「文档比较」关心的是文字，图形差异人工扫一眼更快。
+    pixelCompareCheck_ = new QCheckBox(this);
+    pixelCompareCheck_->setObjectName(QStringLiteral("compare.pixelCompare"));
+    pixelCompareCheck_->setChecked(false);
+    texts_.bind([this] {
+        pixelCompareCheck_->setText(i18n::tr("aipdf::app::DocumentCompareDialog",
+                                            "同时比较图形（渲染成位图逐像素比，较慢）"));
+    });
     auto* closeButton = new QPushButton(this);
     closeButton->setObjectName(QStringLiteral("compare.close"));
     texts_.bind([this, closeButton] {
@@ -113,6 +125,7 @@ void DocumentCompareDialog::buildUi() {
     });
     connect(closeButton, &QPushButton::clicked, this, &DocumentCompareDialog::reject);
     actionRow->addWidget(compareButton_);
+    actionRow->addWidget(pixelCompareCheck_);
     actionRow->addStretch(1);
     actionRow->addWidget(closeButton);
     layout->addLayout(actionRow);
@@ -140,7 +153,36 @@ void DocumentCompareDialog::buildUi() {
         });
     });
     connect(table_, &QTableWidget::cellActivated, this, &DocumentCompareDialog::onTableActivated);
-    layout->addWidget(table_, 1);
+
+    // 视觉差异单独一张表、单独一个页签。
+    // 为什么分开：文字差异与图形差异要回答的问题不一样，
+    // 混在一张表里用户分不清「这段文字变了」和「这块图形变了」。
+    visualTable_ = new QTableWidget(this);
+    visualTable_->setObjectName(QStringLiteral("compare.visualTable"));
+    visualTable_->setColumnCount(4);
+    visualTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    visualTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    visualTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    visualTable_->verticalHeader()->setVisible(false);
+    visualTable_->horizontalHeader()->setStretchLastSection(true);
+    texts_.bind([this] {
+        visualTable_->setHorizontalHeaderLabels({
+            i18n::tr("aipdf::app::DocumentCompareDialog", "页码"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "差异比例"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "差异区域"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "说明"),
+        });
+    });
+
+    tabs_ = new QTabWidget(this);
+    tabs_->setObjectName(QStringLiteral("compare.tabs"));
+    tabs_->addTab(table_, QString());
+    tabs_->addTab(visualTable_, QString());
+    texts_.bind([this] {
+        tabs_->setTabText(0, i18n::tr("aipdf::app::DocumentCompareDialog", "文字差异"));
+        tabs_->setTabText(1, i18n::tr("aipdf::app::DocumentCompareDialog", "视觉差异（图形）"));
+    });
+    layout->addWidget(tabs_, 1);
 
     texts_.bind([this] { setWindowTitle(i18n::tr("aipdf::app::DocumentCompareDialog", "比较文档")); });
     retranslateUi();
@@ -170,10 +212,17 @@ QString DocumentCompareDialog::newFilePath() const {
 
 void DocumentCompareDialog::setOptions(const pdf::DocumentCompareOptions& options) {
     options_ = options;
+    if (pixelCompareCheck_ != nullptr) {
+        pixelCompareCheck_->setChecked(options.comparePixels);
+    }
 }
 
 pdf::DocumentCompareOptions DocumentCompareDialog::options() const {
-    return options_;
+    pdf::DocumentCompareOptions options = options_;
+    if (pixelCompareCheck_ != nullptr) {
+        options.comparePixels = pixelCompareCheck_->isChecked();
+    }
+    return options;
 }
 
 bool DocumentCompareDialog::runComparison() {
@@ -192,8 +241,9 @@ bool DocumentCompareDialog::runComparison() {
     }
 
     QString error;
+    // 用 options() 而不是 options_：开关的状态要反映到实际比较里。
     const bool succeeded =
-        pdf::compareDocumentFiles(oldPath, newPath, options_, &lastResult_, &error);
+        pdf::compareDocumentFiles(oldPath, newPath, options(), &lastResult_, &error);
     if (!succeeded) {
         lastError_ = lastResult_.error.isEmpty() ? error : lastResult_.error;
     }
@@ -218,6 +268,47 @@ bool DocumentCompareDialog::runComparison() {
         }
     }
 
+    // 视觉差异单独填一张表：页码 + 差异比例 + 差异区域 + 说明。
+    if (visualTable_ != nullptr) {
+        const QVector<pdf::VisualPageDifference>& visuals = lastResult_.visualDifferences;
+        visualTable_->setRowCount(visuals.size());
+        for (int row = 0; row < visuals.size(); ++row) {
+            const pdf::VisualPageDifference& visual = visuals.at(row);
+            const int page = visual.newPageIndex >= 0 ? visual.newPageIndex : visual.oldPageIndex;
+            const QString pageText =
+                i18n::tr("aipdf::app::DocumentCompareDialog", "第 %1 页").arg(page + 1);
+            const QString ratio =
+                QString::number(visual.differenceRatio * 100.0, 'f', 2) + QStringLiteral("%");
+            QString area;
+            QString note;
+            if (!visual.comparable) {
+                // 比不了的页也要摆出来：悄悄跳过会让用户以为「这页没问题」。
+                note = i18n::tr("aipdf::app::DocumentCompareDialog", "无法比对：%1")
+                           .arg(visual.reason);
+            } else {
+                if (!visual.oldBounds.isEmpty()) {
+                    area = i18n::tr("aipdf::app::DocumentCompareDialog", "x %1..%2, y %3..%4")
+                               .arg(QString::number(visual.oldBounds.left(), 'f', 1))
+                               .arg(QString::number(visual.oldBounds.right(), 'f', 1))
+                               .arg(QString::number(visual.oldBounds.bottom(), 'f', 1))
+                               .arg(QString::number(visual.oldBounds.top(), 'f', 1));
+                }
+                note = visual.differenceRatio > 0.0
+                           ? i18n::tr("aipdf::app::DocumentCompareDialog", "图形有变化")
+                           : i18n::tr("aipdf::app::DocumentCompareDialog", "没有图形差异");
+                if (visual.sizeMismatch) {
+                    note += QStringLiteral(" ");
+                    note += i18n::tr("aipdf::app::DocumentCompareDialog",
+                                     "（两页尺寸不同，只比了共同区域）");
+                }
+            }
+            visualTable_->setItem(row, 0, new QTableWidgetItem(pageText));
+            visualTable_->setItem(row, 1, new QTableWidgetItem(ratio));
+            visualTable_->setItem(row, 2, new QTableWidgetItem(area));
+            visualTable_->setItem(row, 3, new QTableWidgetItem(note));
+        }
+    }
+
     updateSummary();
     return succeeded;
 }
@@ -239,6 +330,17 @@ const pdf::CompareDifference* DocumentCompareDialog::differenceAt(int row) const
 
 int DocumentCompareDialog::differenceRowCount() const {
     return static_cast<int>(lastResult_.differences.size());
+}
+
+const pdf::VisualPageDifference* DocumentCompareDialog::visualDifferenceAt(int row) const {
+    if (row < 0 || row >= lastResult_.visualDifferences.size()) {
+        return nullptr;
+    }
+    return &lastResult_.visualDifferences.at(row);
+}
+
+int DocumentCompareDialog::visualDifferenceRowCount() const {
+    return static_cast<int>(lastResult_.visualDifferences.size());
 }
 
 QString DocumentCompareDialog::diffKindName(pdf::DiffKind kind) {
@@ -277,22 +379,50 @@ void DocumentCompareDialog::updateSummary() {
                                    "选两份 PDF，然后点「开始比较」。"));
         return;
     }
+    QString text;
     if (lastResult_.differences.isEmpty()) {
-        summary_->setText(i18n::tr("aipdf::app::DocumentCompareDialog",
-                                   "比较完成：两份文件的文字没有差异。"));
-        return;
+        text = i18n::tr("aipdf::app::DocumentCompareDialog",
+                        "比较完成：两份文件的文字没有差异。");
+    } else {
+        text = i18n::tr("aipdf::app::DocumentCompareDialog",
+                        "比较完成：共 %1 处差异（新增 %2 处、删除 %3 处、修改 %4 处、"
+                        "新增页 %5 页、删除页 %6 页），整体相似度 %7%。")
+                  .arg(lastResult_.differences.size())
+                  .arg(lastResult_.insertedBlockCount)
+                  .arg(lastResult_.deletedBlockCount)
+                  .arg(lastResult_.modifiedBlockCount)
+                  .arg(lastResult_.addedPageCount)
+                  .arg(lastResult_.removedPageCount)
+                  .arg(QString::number(qRound(lastResult_.overallSimilarity * 100.0))
+                       + QStringLiteral("%"));
     }
-    summary_->setText(i18n::tr("aipdf::app::DocumentCompareDialog",
-                                "比较完成：共 %1 处差异（新增 %2 处、删除 %3 处、修改 %4 处、"
-                                "新增页 %5 页、删除页 %6 页），整体相似度 %7%。")
-                          .arg(lastResult_.differences.size())
-                          .arg(lastResult_.insertedBlockCount)
-                          .arg(lastResult_.deletedBlockCount)
-                          .arg(lastResult_.modifiedBlockCount)
-                          .arg(lastResult_.addedPageCount)
-                          .arg(lastResult_.removedPageCount)
-                          .arg(QString::number(qRound(lastResult_.overallSimilarity * 100.0))
-                              + QStringLiteral("%")));
+
+    // 视觉差异另起一句：它与文字差异是两件事，不能混进同一句里。
+    if (lastResult_.pixelsCompared) {
+        if (lastResult_.visualDifferencePageCount > 0) {
+            text += QStringLiteral(" ");
+            text += i18n::tr("aipdf::app::DocumentCompareDialog",
+                             "视觉差异：%1 页（平均差异比例 %2%，最大 %3%）。")
+                        .arg(lastResult_.visualDifferencePageCount)
+                        .arg(QString::number(lastResult_.averageVisualDifferenceRatio * 100.0, 'f', 2))
+                        .arg(QString::number(lastResult_.maxVisualDifferenceRatio * 100.0, 'f', 2));
+        } else {
+            text += QStringLiteral(" ");
+            text += i18n::tr("aipdf::app::DocumentCompareDialog", "视觉差异：没有发现图形改动。");
+        }
+        if (lastResult_.pixelIncomparablePageCount > 0) {
+            text += QStringLiteral(" ");
+            text += i18n::tr("aipdf::app::DocumentCompareDialog", "有 %1 页无法比对（渲染失败）。")
+                        .arg(lastResult_.pixelIncomparablePageCount);
+        }
+        if (!lastResult_.pixelError.isEmpty()) {
+            text += QStringLiteral(" ");
+            text += i18n::tr("aipdf::app::DocumentCompareDialog", "像素比对失败：%1")
+                        .arg(lastResult_.pixelError);
+        }
+    }
+
+    summary_->setText(text);
 }
 
 void DocumentCompareDialog::onTableActivated(int row, int column) {
