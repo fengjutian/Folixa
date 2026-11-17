@@ -888,7 +888,10 @@ void PdfView::buildAnnotationToolBar() {
     updateAnnotationToolBar();
 }
 
-bool PdfView::load(const QString& path, QString* errorMessage) {    const pdf::PdfOpenResult result = pdf::openDocument(path);
+bool PdfView::load(const QString& path, QString* errorMessage) {
+    // 按路径打开：文件留在磁盘上，PDFium 按需读块，
+    // 不会因为打开一份 1 GB 的文档就把 1 GB 读进内存。
+    const pdf::PdfOpenResult result = pdf::openDocument(path);
     if (!result.document.isValid()) {
         if (errorMessage != nullptr) {
             *errorMessage = result.errorMessage;

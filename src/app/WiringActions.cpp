@@ -1379,6 +1379,22 @@ void WiringActions::autoTagFormFields() {
     QStringList lines;
     lines.append(i18n::tr("aipdf::app::MainWindow", "已给 %1 个表单域加上标签。")
                      .arg(result.taggedFieldCount));
+    // 合并还是新建要说清楚：文档本来就有标签树时，这次是往里合并，
+    // 原来的章节标题与阅读顺序都保住了 —— 这是用户最关心的一点。
+    if (result.mergedIntoExistingTree) {
+        lines.append(i18n::tr("aipdf::app::MainWindow", "文档本来就有标签树，这次是合并进去的，保留了 %1 个既有元素。")
+                     .arg(result.preservedElementCount));
+        QStringList tagParts;
+        for (const pdf::FormTagPreservedTag& preserved : result.preservedTags) {
+            tagParts.append(QStringLiteral("%1×%2").arg(preserved.tag).arg(preserved.count));
+        }
+        if (!tagParts.isEmpty()) {
+            lines.append(i18n::tr("aipdf::app::MainWindow", "保留下来的元素类型：%1")
+                         .arg(tagParts.join(QStringLiteral("、"))));
+        }
+    } else {
+        lines.append(i18n::tr("aipdf::app::MainWindow", "这份文档本来没有标签树，这次新建了一棵。"));
+    }
     for (const pdf::FormTagIssue& issue : result.issues) {
         lines.append(QStringLiteral("- ") + issue.fieldName + QStringLiteral("：") + issue.reason);
     }

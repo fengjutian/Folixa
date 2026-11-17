@@ -6,6 +6,8 @@
 #include <QUrl>
 #include <QVector>
 
+#include <functional>
+
 #include "doc/UniversalConverter.h"
 
 namespace aipdf::doc {
@@ -34,6 +36,59 @@ enum class ConversionErrorKind {
     LayoutFailed, // 排版本身失败（编码、字体等）
 };
 
+// ============================================================ 网页图片 ====
+
+// 取图片字节的回调：按地址返回图片的原始字节。
+//
+// 为什么做成注入的：领域层不碰网络（doc 层不该有副作用，单测里也跑不了网络），
+// 单测要能塞一张假图片进来。
+//
+// **空回调 = 这次不下载图片**（行为与从前完全一致）。
+using ImageFetcher = std::function<QByteArray(const QUrl&)>;
+
+// 一张图没带进来的原因（结构化）。
+//
+// 为什么是枚举而不是一句现成的中文：领域层只给事实，
+// 给用户看的中文句子由 app 层拼（那边才有 i18n::tr）。
+enum class HtmlImageIssueKind {
+    DownloadFailed,     // 没拿到字节（地址不对 / 下载失败 / 超时）
+    UnsupportedFormat,  // 格式不支持（TIFF / GIF / WebP 等）
+    DecodeFailed,       // 解不开（数据坏了 / 被截断）
+    TooLarge,           // 像素太大，一页放不下
+    LayoutFailed,       // 排不进这份 PDF（合成失败）
+    LimitReached,       // 页面里的图太多，超出单次上限
+};
+
+// 一张没带进来的图。
+struct HtmlImageIssue {
+    // 图片地址。
+    QString url;
+    // 原因（结构化）。
+    HtmlImageIssueKind kind = HtmlImageIssueKind::DownloadFailed;
+    // 技术细节（ASCII）：到底哪儿不对。
+    QString detail;
+};
+
+// 这次带图的结果。
+struct HtmlImageOutcome {
+    // 正文里找到的图片张数（同一个地址只算一次）。
+    int found = 0;
+    // 成功写进 PDF 的张数。
+    int embedded = 0;
+    // 这次是不是真的去下载过（没有注入取字节回调时为 false）。
+    bool attempted = false;
+    // 没带进来的图（逐条带原因）。
+    QVector<HtmlImageIssue> issues;
+};
+
+// 正文里的一张图片引用。
+struct HtmlImageRef {
+    // 绝对地址（按 baseUrl 解析；baseUrl 为空时保留原样）。
+    QString url;
+    // 在正文纯文本里的字符偏移（-1 = 位置未知）。
+    int textOffset = -1;
+};
+
 // ============================================================ 转换结果 =====
 //
 // 三个输入（剪贴板 / 网页 / 表单文件）里，前两个都是「文本 → PDF」，
@@ -58,6 +113,8 @@ struct ConversionResult {
     ConversionErrorKind errorKind = ConversionErrorKind::None;
     // 这次排版用的是哪一路输入（剪贴板转换时才有意义）。
     ConversionSourceKind sourceKind = ConversionSourceKind::Unknown;
+    // 这次带图的结果（网页转换时才有内容）。
+    HtmlImageOutcome imageOutcome;
 };
 
 // ---------------------------------------------------------- 剪贴板 ----
@@ -102,6 +159,11 @@ struct HtmlBody {
     QString text;
     // 正文里的链接：已按 baseUrl 解析成绝对地址，去重后按出现顺序。
     QStringList links;
+    // 正文里的图片：绝对地址，去重后按出现顺序。
+    //
+    // 只有 <img src> 算数：srcset 是一组候选（按屏幕宽度挑），
+    // 本程序不渲染 CSS，也就无从判断该挑哪一张。
+    QVector<HtmlImageRef> images;
 };
 
 // 抽 HTML 正文：去掉 script / style / 导航 / 页眉页脚，只留文章内容。
@@ -117,16 +179,24 @@ HtmlBody extractHtmlBody(const QString& html, const QUrl& baseUrl = QUrl());
 //
 // title 是**生效的标题**：网页传自己的 <title>，剪贴板传调用方给的标题
 // （剪贴板里的 <title> 是来源文档的标题，不是这一份的）。
+//
+// fetcher 非空时会把正文里的图片一并带进去：按地址取字节 → 解码 →
+// 单独排成一页，插在正文里它出现的位置附近。**空 fetcher = 不下载图片**
+// （与从前完全一致），结果里的 imageOutcome.attempted 会说明这一点。
 ConversionResult htmlBodyToPdf(const HtmlBody& body, const QString& title,
-                               const UniversalConverterOptions& options = UniversalConverterOptions());
+                               const UniversalConverterOptions& options = UniversalConverterOptions(),
+                               const ImageFetcher& fetcher = ImageFetcher());
 
 // 把 HTML 正文转成 PDF。
 //
 // 网页里没有正文（整页都是脚本、样式、导航）时**直接失败**，不生成空白 PDF。
+//
+// fetcher 的含义与 htmlBodyToPdf 一样：非空 = 连图片一起带进去。
 ConversionResult htmlToPdf(
     const QString& html,
     const QUrl& baseUrl = QUrl(),
-    const UniversalConverterOptions& options = UniversalConverterOptions());
+    const UniversalConverterOptions& options = UniversalConverterOptions(),
+    const ImageFetcher& fetcher = ImageFetcher());
 
 // ---------------------------------------------------------- 表单文件 ----
 

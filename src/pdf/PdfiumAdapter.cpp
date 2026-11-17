@@ -142,17 +142,17 @@ struct PageImpl {
 namespace {
 
 // 复制一个文档来源，给另一个线程的独立句柄用。
-std::shared_ptr<detail::DocumentReader> cloneReader(
-    const std::shared_ptr<detail::DocumentReader>& source) {
+std::shared_ptr<DocumentReader> cloneReader(
+    const std::shared_ptr<DocumentReader>& source) {
     if (!source) {
         return nullptr;
     }
-    if (source->kind() == detail::DocumentSourceKind::MemoryBytes) {
+    if (source->kind() == DocumentSourceKind::MemoryBytes) {
         // 共享同一块缓冲：QByteArray 隐式共享，不复制数据。
-        return detail::DocumentReader::fromBytes(source->bytes());
+        return DocumentReader::fromBytes(source->bytes());
     }
     // 按路径打开的文档：另开一个文件句柄读同一个文件，同样不占内存。
-    return detail::DocumentReader::openPath(source->filePath());
+    return DocumentReader::openPath(source->filePath());
 }
 
 std::once_flag g_initializeFlag;

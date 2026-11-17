@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AI PDF Editor 的完整验证流水线（本地与 CI 共用同一入口）。
 
@@ -237,6 +237,19 @@ try {
     )
 
     Invoke-Script '敏感日志扫描' (Join-Path $PSScriptRoot 'verify-logs.ps1') @('-SelfTest')
+
+    # H8 与 A12 的验收门：都是无 GUI 的（不启动应用、不合成鼠标、不抢前台），
+    # 所以放在这里而不是界面验收那一段。
+    Write-Host '=== 优化保真与 CJK 兼容语料 ===' -ForegroundColor Cyan
+    Invoke-Native '生成 CJK 兼容语料' 'python' @(
+        'scripts/gen-cjk-corpus.py', 'gen', '--out', 'build/cjk-corpus'
+    )
+    Invoke-Script '优化保真验收' (Join-Path $PSScriptRoot 'verify-optimize-fidelity.ps1') @(
+        '-RepositoryRoot', $root
+    )
+    Invoke-Script 'CJK 兼容语料验收' (Join-Path $PSScriptRoot 'verify-cjk-corpus.ps1') @(
+        '-RepositoryRoot', $root
+    )
 
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan    $versionArgs = @('-RepositoryRoot', $root)
     if (-not $SkipPackage) {

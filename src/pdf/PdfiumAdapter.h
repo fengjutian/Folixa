@@ -257,18 +257,6 @@ public:
     // 按路径打开的是 false（文件在磁盘上，内存里只有按需读的块）；
     // 只有「从内存字节打开」才是 true。
     bool holdsWholeFileInMemory() const;
-
-    // 累计从磁盘读了多少字节（交给 PDFium 的那部分数据）。
-    //
-    // 这是「有没有把整份文件读进内存」的直接证据：按路径打开大文件时，
-    // 这个数应当远小于文件大小；整份 readAll 进内存的旧做法走的是内存字节，
-    // 这个数是 0。
-    qint64 bytesReadFromDisk() const;
-    // 文档是否把整份文件留在了内存里。
-    //
-    // 按路径打开的是 false（文件在磁盘上，内存里只有按需读的块）；
-    // 只有「从内存字节打开」才是 true。
-    bool holdsWholeFileInMemory() const;
     // 读取 PDF 标准安全处理器权限位；未加密文档全部允许。
     DocumentPermissions permissions() const;
 
