@@ -251,7 +251,29 @@ try {
         '-RepositoryRoot', $root
     )
 
-    Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan    $versionArgs = @('-RepositoryRoot', $root)
+    # 文档与矩阵这一组门：矩阵 CSV 是唯一数据源，矩阵文档由脚本生成，
+    # 评分卡与版本审计的数字必须互相对得上，i18n 覆盖率与功能宣称也要当场核。
+    Write-Host '=== 文档、矩阵与 i18n 一致性 ===' -ForegroundColor Cyan
+    Invoke-Native '矩阵生成校验' 'python' @(
+        'scripts/build-foxit-matrix.py', '--check'
+    )
+    Invoke-Native '文档一致性校验' 'python' @(
+        'scripts/check-docs-consistency.py'
+    )
+    Invoke-Native '功能宣称守卫' 'python' @(
+        'scripts/check-feature-claims.py'
+    )
+    Invoke-Native '功能宣称守卫的负例对照' 'python' @(
+        'scripts/test-feature-claims-negative.py'
+    )
+    Invoke-Native 'i18n 覆盖校验' 'python' @(
+        'scripts/check-i18n.py', '--src', 'src', '--ts', 'src/i18n/ai-pdf-editor_en.ts'
+    )
+
+    Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
+    # 这一行必须单独一行：跟 Write-Host 写在一行会被当成 Write-Host 的参数吃掉，
+    # $versionArgs 拿不到值，check-version.ps1 就不会去比对 exe 与安装包。
+    $versionArgs = @('-RepositoryRoot', $root)
     if (-not $SkipPackage) {
         $versionArgs += @('-Executable', "build/windows-release/bin/AiPdfEditor.exe")
         $versionArgs += @('-PackagePath', "dist/ai-pdf-editor-$version-win64.zip")

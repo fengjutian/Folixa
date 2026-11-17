@@ -1,5 +1,25 @@
 # 降级功能整改方案
 
+> **阅读说明（2026-11-17 主会话复核后补）**
+>
+> 本文是**审计与候选 backlog**，不是排期表，也不是与版本文档平行的第三份真相源。
+>
+> - 落地状态看 [VERSION_AUDIT.md](VERSION_AUDIT.md) 的历次重算 —— 第七次已把本文成立的那部分收了进去；
+>   逐条欠什么看 [欠账清单](benchmark/scorecard-debt.csv)（评分卡 R4 第②类缺口）。
+> - 能力矩阵以 [foxit-features.csv](benchmark/foxit-features.csv) 为**唯一数据源**，
+>   [FOXIT_FEATURE_MATRIX.md](FOXIT_FEATURE_MATRIX.md) 由 `scripts/build-foxit-matrix.py` 生成。
+> - **第 7 节不能直接当排期用**：「4–6 个版本」没有落到 1.x / 2.0.0 的任何里程碑，
+>   这正是版本审计里记录的「计划与代码脱节」的成因。
+> - **第 3 / 4 / 5 节的技术栈建议与 [依赖政策](DEPENDENCY_POLICY.md) 冲突**
+>   （QtWebEngine、veraPDF、受限 JS 引擎、TWAIN / OpenCV、渲染进程隔离架构），
+>   要采纳得先有明确的依赖采纳决定，本文没有写这一步。
+> - **第 9.1 节的关键词门已落成可执行版** `scripts/check-feature-claims.py`
+>   （豁免清单 `docs/benchmark/feature-claim-exemptions.csv`，带负例对照）。
+>   词表是实测重定的：本文原词表（「未做 / 只有 / 不支持 / 未验证 / 不是」）会**误伤两行**
+>   （表单数据文件的「不是拍平的」、AI 内容检测的「而不是编一个结论」），
+>   同时**一个真正的降级词都没收到**（「只导」「只到」「只含」「仍无」）。
+
+
 **审计日期：** 2026-11-17  
 **对标对象：** Foxit PDF Editor 2026.1.2.36547  
 **数据来源：** `docs/FOXIT_BENCHMARK.md`、`docs/benchmark/foxit-features.csv`、`docs/VERSION_AUDIT.md` 与当前源码/测试  

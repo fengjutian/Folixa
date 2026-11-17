@@ -1,0 +1,3 @@
+tab,group,command,phrase,reason
+辅助工具,阅读,阅读顺序,只到,这一行写的是「读取既有标签结构生成阅读顺序」：读 StructTreeRoot 是完整能力（Alt/Lang/ActualText/MCID 都读得出来）。「只到行粒度」说的是**写**标签树那一侧（自动添加标签到文档中），那一行本来就记 partial。
+辅助工具,阅读,阅读顺序,仍只,同上：边界写在写标签那一行，读标签这一行不降级。
