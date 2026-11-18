@@ -6,7 +6,7 @@
 
 #include "i18n/Translate.h"
 #include "app/controllers/DocumentConverter.h"
-#include "pdf/document/Navigation.h"
+#include "pdf/kernel/Navigation.h"
 
 class QAction;
 class QActionGroup;

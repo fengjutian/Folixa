@@ -14,8 +14,8 @@ qt_add_executable(PageAssemblyTests
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/PageSplitPlanner.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp

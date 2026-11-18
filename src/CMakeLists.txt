@@ -321,8 +321,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/security/PdfSecurity.h
     pdf/kernel/PdfRevisionCounter.cpp
     pdf/kernel/PdfRevisionCounter.h
-    pdf/document/Navigation.cpp
-    pdf/document/Navigation.h
+    pdf/kernel/Navigation.cpp
+    pdf/kernel/Navigation.h
     pdf/kernel/TextPage.cpp
     pdf/kernel/TextPage.h
     ai/chat/ChatTypes.cpp

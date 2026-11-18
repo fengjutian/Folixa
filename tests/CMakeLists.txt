@@ -398,8 +398,8 @@ qt_add_executable(NavigationTests
     ${CMAKE_SOURCE_DIR}/src/app/layout/LinkHitTest.h
     ${CMAKE_SOURCE_DIR}/src/app/layout/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/layout/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
 )
 
 target_link_libraries(NavigationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -415,8 +415,8 @@ qt_add_executable(PdfNavigationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
@@ -1200,8 +1200,8 @@ qt_add_executable(PdfIndexTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/app/layout/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/layout/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/app/layout/TextLayout.cpp
@@ -1404,8 +1404,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )

@@ -47,9 +47,9 @@ $ErrorActionPreference = 'Stop'
 # 模块 -> 文件基名（不含扩展名）。划分依据见 docs/SOURCE_MODULES.md。
 $Maps = @{
     pdf = [ordered]@{
-        'kernel'     = 'PdfiumAdapter TextPage StandardFonts'
-        'document'   = 'DocumentOpen DocumentWriter IncrementalWriter QpdfBackend PdfRevisionCounter DocumentProperties Navigation NamedDestination'
-        'content'    = 'ContentStream TextReflow TableStructure TableIntegration ParagraphFormat TrueTypeSubset InvisibleTextLayer PageDecorations'
+        'kernel'     = 'PdfiumAdapter DocumentOpen Navigation TextPage StandardFonts TableStructure PdfRevisionCounter'
+        'document'   = 'DocumentWriter IncrementalWriter QpdfBackend DocumentProperties NamedDestination'
+        'content'    = 'ContentStream TextReflow TableIntegration ParagraphFormat TrueTypeSubset InvisibleTextLayer PageDecorations'
         'annot'      = 'Annotation AnnotationDictionary AnnotationFilter AnnotationShapes AnnotationSummary AnnotationToolkit AppearanceStream Xfdf SoundFormat PageAnnotsInjector RichMedia3d'
         'forms'      = 'FormData FormFieldWriter FormJsEvaluator FormScriptStore FormTemplateStore FormToolSettings FormDesignParser FormAutoTag BarcodeEncoder XfaSupport'
         'security'   = 'PdfSecurity SignatureVerifier SignatureInspector SignatureWorkflow RsaVerifier Redaction'

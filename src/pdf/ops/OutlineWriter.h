@@ -1,5 +1,5 @@
 #pragma once
-#include "pdf/document/Navigation.h"
+#include "pdf/kernel/Navigation.h"
 #include <QByteArray>
 #include <QString>
 #include <vector>

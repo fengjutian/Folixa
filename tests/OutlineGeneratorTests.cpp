@@ -1,7 +1,7 @@
 #include "pdf/ops/OutlineGenerator.h"
 
 #include "doc/model/ChunkBuilder.h"
-#include "pdf/document/Navigation.h"
+#include "pdf/kernel/Navigation.h"
 #include "pdf/ops/OutlineWriter.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

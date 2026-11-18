@@ -7,6 +7,7 @@
 #include <QVector>
 
 #include "pdf/annot/Annotation.h"
+#include "pdf/kernel/Navigation.h"
 #include "pdf/kernel/TextPage.h"
 #include "pdf/kernel/TableStructure.h"
 

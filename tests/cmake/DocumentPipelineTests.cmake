@@ -37,8 +37,8 @@ qt_add_executable(DocumentPipelineTests
     ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
-    ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/Navigation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/Navigation.h
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TableStructure.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TableStructure.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp

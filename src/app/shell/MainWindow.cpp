@@ -50,7 +50,7 @@
 #include "pdf/forms/FormScriptStore.h"
 #include "pdf/forms/FormTemplateStore.h"
 #include "pdf/annot/Xfdf.h"
-#include "pdf/document/Navigation.h"
+#include "pdf/kernel/Navigation.h"
 #include "pdf/ops/OutlineEditor.h"
 #include "speech/SpeechSettings.h"
 

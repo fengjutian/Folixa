@@ -20,8 +20,8 @@ qt_add_executable(DocumentMergerTests
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.cpp

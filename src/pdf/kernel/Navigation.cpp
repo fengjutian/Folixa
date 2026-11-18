@@ -1,4 +1,4 @@
-#include "pdf/document/Navigation.h"
+#include "pdf/kernel/Navigation.h"
 
 namespace aipdf::pdf {
 

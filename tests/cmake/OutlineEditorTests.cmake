@@ -12,8 +12,8 @@ qt_add_executable(OutlineEditorTests
     ${CMAKE_CURRENT_LIST_DIR}/../OutlineEditorTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp

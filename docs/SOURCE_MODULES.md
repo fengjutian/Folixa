@@ -36,9 +36,9 @@ doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同
 
 | 模块 | 文件数 | 职责 | 主要文件 |
 | --- | ---: | --- | --- |
-| `kernel/` | 5 | PDFium 适配层与最基础的页/字体模型 | `PdfiumAdapter`、`TextPage`、`StandardFonts` |
-| `document/` | 16 | 文档生命周期：打开、写出、增量保存、结构校验、属性、导航目标 | `DocumentOpen`、`DocumentWriter`、`IncrementalWriter`、`QpdfBackend`、`PdfRevisionCounter`、`DocumentProperties`、`Navigation`、`NamedDestination` |
-| `content/` | 15 | 内容流、文本重排、表格结构、字体子集化、页面装饰 | `ContentStream`、`TextReflow`、`TableStructure`、`ParagraphFormat`、`TrueTypeSubset`、`InvisibleTextLayer` |
+| `kernel/` | 13 | PDFium 适配层与最基础的文档/导航/页/表/字体模型 | `PdfiumAdapter`、`DocumentOpen`、`Navigation`、`TextPage`、`StandardFonts`、`TableStructure`、`PdfRevisionCounter` |
+| `document/` | 10 | 文档写出：增量保存、结构校验、属性、命名目标 | `DocumentWriter`、`IncrementalWriter`、`QpdfBackend`、`DocumentProperties`、`NamedDestination` |
+| `content/` | 13 | 内容流、文本重排、字体子集化、页面装饰 | `ContentStream`、`TextReflow`、`ParagraphFormat`、`TrueTypeSubset`、`InvisibleTextLayer`、`TableIntegration` |
 | `annot/` | 22 | 注释模型、外观流、批注字典、Xfdf、富媒体、页面注注入 | `Annotation`、`AppearanceStream`、`AnnotationToolkit`、`Xfdf`、`PageAnnotsInjector`、`RichMedia3d` |
 | `forms/` | 20 | 表单字段、JS 求值、模板、自动打标签、条码、XFA | `FormFieldWriter`、`FormJsEvaluator`、`FormTemplateStore`、`FormAutoTag`、`XfaSupport` |
 | `security/` | 12 | 加密、权限、签名与验签、涂黑 | `PdfSecurity`、`SignatureVerifier`、`SignatureWorkflow`、`RsaVerifier`、`Redaction` |
@@ -54,26 +54,34 @@ doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同
 统计口径：改写后 `src/pdf/<模块>/` 下的文件里，`#include "pdf/<模块>/..."` 的条数。
 
 ```
+compliance -> content      4
 content    -> kernel       3
 convert    -> kernel       2
 forms      -> kernel       3
-ops        -> kernel       3    content 2    document 4    compliance 2
-security   -> kernel       1    document 1
-compliance -> content      4
+ops        -> kernel       7    content 2    document 4    compliance 2
+security   -> kernel       2
 document   -> kernel       1    annot 5    security 1
-kernel     -> annot        1    content 1    document 2
+kernel     -> annot        1
 ```
 
-目标图是"`kernel` 在底、`document` 在顶、其余夹在中间"。现在有两处成环，都能定位到具体几行：
+`kernel` 在底、`document` 在顶、其余夹在中间，没有环。
 
-| 环 | 成因 | 拆法 |
+第一版拆完时有两处环（`kernel` ⇄ `document`、`document` ⇄ `security`），都是"底层文件反过来
+include 上层"造成的，最后靠三个文件和一行 include 解决，没有改任何逻辑：
+
+| 原环 | 成因 | 处理 |
 | --- | --- | --- |
-| `kernel` ⇄ `document` | `PdfiumAdapter.h` 引 `document/Navigation.h`；`PdfiumAdapter.cpp` 引 `document/DocumentOpen.h` | 前者改前置声明或把 `Navigation` 的类型下沉到 `kernel`；后者是 .cpp 内实现细节，可接受 |
-| `document` ⇄ `security` | `DocumentWriter.cpp` 引 `security/PdfSecurity.h`；`PdfSecurity.cpp` 引 `document/PdfRevisionCounter.h` | 把"保存前加密"收成一个接口，`DocumentWriter` 只依赖接口；或把 `PdfRevisionCounter` 下沉到 `kernel` |
+| `kernel` ⇄ `document` | `PdfiumAdapter.cpp` 引 `document/DocumentOpen.h`；`PdfiumAdapter.h` 引 `document/Navigation.h`（`PageLink`、`OutlineItem` 是适配层 API 的类型） | 两个都下沉到 `kernel`：`DocumentOpen` 本身就是"用 PDFium 打开文件"，`Navigation` 只是页内链接/大纲节点的值类型 |
+| `kernel` ⇄ `content` | `PdfiumAdapter.h` 引 `content/TableStructure.h`（返回值类型） | `TableStructure` 是适配层直接暴露的类型，下沉到 `kernel` |
+| `document` ⇄ `security` | `PdfSecurity.cpp` 引 `document/PdfRevisionCounter.h` | `PdfRevisionCounter` 是纯结构计数，下沉到 `kernel`；`DocumentWriter.cpp -> PdfSecurity.h` 保留，单向 |
 
-另外 `kernel/PdfiumAdapter.h` 还引了 `annot/Annotation.h` 和 `content/TableStructure.h`，
-这两条不成环（`annot`、`content` 都不回指 `kernel`），但同样属于"适配层知道太多"，
-可以在拆 P2 静态库时再收。
+判断标准只有一条：**被下层直接暴露成 API 的类型，跟着下层走**，而不是"按功能名词归属"。
+`TableStructure` 归 `content` 在语义上更顺，但它出现在 `PdfiumAdapter` 的签名里，放在 `content`
+就会让底层反向依赖上层。
+
+`kernel` 还剩一条指向 `annot` 的边（`PdfiumAdapter.h` 引 `Annotation.h`，把注释以
+`QVector<Annotation>` 的形式放进 API）。它不成环，但属于"适配层知道太多"，可以在拆
+P2 静态库时再收：要么改成不透明句柄，要么把注释相关方法挪到 `annot/`。
 
 ## `src/ai` 的五个模块
 

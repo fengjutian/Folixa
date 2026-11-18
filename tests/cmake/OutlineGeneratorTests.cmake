@@ -6,8 +6,8 @@ qt_add_executable(OutlineGeneratorTests
     ${CMAKE_CURRENT_LIST_DIR}/../OutlineGeneratorTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineGenerator.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineGenerator.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
