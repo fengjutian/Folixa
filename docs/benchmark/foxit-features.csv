@@ -21,9 +21,9 @@ tab,group,command,status,capability,note
 文件,最近文档,最近文档,aligned,—,显示文件名/路径/时间
 文件,最近文档,云文档,na,—,没有云盘接入
 文件,最近文档,添加一个位置,na,—,同上
-全局,导航,手型工具,partial,—,没有手型拖拽平移；滚轮与滚动条可用
+全局,导航,手型工具,aligned,—,手型工具：按住左键拖动平移视图，光标在「抓手」与「握拳」之间切换；主页与视图页各有一个开关，状态同步；判据在 `app::viewmodes::beginPanDrag` / `panScrollValue`，`ViewModesTests` 27 条
 全局,导航,选择,aligned,—,文本选择/复制/双击选词
-主页,捕获,截图,partial,—,只有整窗截图（grab()），无区域框选
+主页,捕获,截图,aligned,—,截图：可框选屏幕区域或整个窗口，主页与录制两处共用同一套选区层；区域与裁剪判据在 `app::ScreenCapture::dragRegion` / `cropRegion`，`ScreenCaptureTests` 7 条
 主页,捕获,剪贴板,partial,H9,与「转换|输入|从剪贴板」是同一实现、同一入口 handler（Ribbon「从剪贴板」（`convert.fromClipboard`）），图片与富文本现在都能转（原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG）；**入口位置不对口**：本项目把入口放在「转换」页，捕获组里没有剪贴板按钮，照着福昕的「主页 → 捕获 → 剪贴板」找过来的人会找不到；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去）
 主页,导航,书签,aligned,B3,浏览跳转 + 新建/改名/删除 + 排序与层级编辑；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测
 主页,显示,缩放,aligned,A6,25%–400% + 适应宽度/页面
@@ -142,7 +142,7 @@ tab,group,command,status,capability,note
 注释,审阅,管理注释,aligned,C11,批注面板可按类型与关键字（正文或作者）筛选、一键全选筛选结果、批量改外观与批量删除；`pdf::AnnotationFilter`，`AnnotationFilterTests`
 注释,工具,保持工具选择,aligned,C6,逐工具记住「放完别退回选择态」：注释页勾选「保持工具选择」后当前工具连着放，与全局的连续批注开关并存；`pdf::ToolRetentionSet`，`AnnotationToolkitTests`
 注释,工具,批注模式,aligned,—,连续批注模式：开关式；开时放完批注保持工具激活，关时放完回选择态；墨迹/橡皮/声音/附件等会越用越歪的工具仍放完即退；`pdf::ContinuousAnnotationMode`，`AnnotationToolkitTests`
-视图,阅读,阅读模式,partial,A4,专注模式隐藏面板；没有全屏沉浸阅读
+视图,阅读,阅读模式,aligned,A4,阅读模式：沉浸阅读把功能区、标签栏、状态栏与左右面板一起藏起来并全屏，光标静止自动隐藏，Esc 退出；界面计划在 `app::viewmodes::immersiveReadingPlan`，`ViewModesTests` 27 条
 视图,阅读,重排,partial,A8,整篇重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
 视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,显示,视觉模式,aligned,A9,夜间/护眼/高对比四套配色，QSettings 持久化，Ribbon 有切换入口；有专项单测（`ReadingSchemeTests`）
@@ -168,7 +168,7 @@ tab,group,command,status,capability,note
 表单,建域,列表框,aligned,E7,可新建并落盘；选项可维护；交叉引用流也能写
 表单,建域,按钮,aligned,E7,可新建并落盘；经典 xref 与交叉引用流都能写
 表单,建域,条形码,aligned,E7,Code128 真条码画进外观流，扫描器能扫出来
-表单,模板,页面模板,partial,—,可把当前页的域存成模板并按模板建域；没有内置模板库
+表单,模板,页面模板,aligned,—,页面模板：内置登记表 / 签到表 / 意见反馈表 / 费用报销单四个模板，用户模板与内置模板一起列出（同名以用户的为准）；内置表单位于 `pdf::FormTemplateStore::builtInTemplates`，`FormTemplateStoreTests` 14 条
 表单,XFA,编辑静态XFA表单,partial,F6,静态 XFA 字段可提取：字段名 / 标签 / 类型 / 当前值 / 是否必填，可导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**含动态逻辑的 XFA 只做静态字段提取，不执行脚本**，界面明确提示
 表单,计算,计算次序,aligned,F3,按 AcroForm /CO 次序执行计算脚本，可调序并写回
 表单,设计,添加工具提示,aligned,F5,域属性可填提示，表单面板有提示列
@@ -177,7 +177,7 @@ tab,group,command,status,capability,note
 表单,数据,导入,aligned,F4,CSV/FDF/XFDF 都可用
 表单,数据,导出,aligned,F4,CSV/FDF/XFDF 都可用
 表单,脚本,JavaScript,aligned,F3,内置 JS 子集求值器，可写脚本并把结果写回字段
-表单,设置,工具设置,partial,F5,新建域默认字体/字号/颜色写入 /DA 并本地留存；有专项单测；只给标准 14 字体三档
+表单,设置,工具设置,aligned,F5,表单工具设置：标准 14 号字体全部可选（资源名 ↔ BaseFont 对照表在 `pdf/StandardFonts.h`），新建 AcroForm 与补进已有 AcroForm 时都会把 14 个字体登记进 /DR /Font；`FormToolSettingsTests` 13 条
 保护,密文,标记为密文,aligned,G4,盖黑块提示，原文仍在文件里、仍可搜到；这正是「标记」的语义
 保护,密文,马赛克,aligned,G4,区域像素化并删相交对象，文字层读不到该区域；有专项单测
 保护,密文,擦除,aligned,G4,删相交对象，文字层读不到；页面其余仍是矢量文字；有专项单测
@@ -223,7 +223,7 @@ tab,group,command,status,capability,note
 辅助工具,标签,自动添加标签到表单域,partial,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 14 条
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
-辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导
+辅助工具,设置,设置助手,aligned,J2,设置助手：无障碍配置向导分三步（显示与阅读 / 朗读 / 摘要）配好界面字号、阅读配色、导航面板与朗读参数，规则在 `app::AccessibilityPlan`，`AccessibilityWizardTests` 8 条
 辅助工具,阅读,阅读选项,aligned,J4,一个对话框两个页签：阅读顺序预览 + 朗读设置（音色、语速、音量），设置存到语音引擎、下次朗读生效；`speech::SpeechSettings`，`SpeechEngineTests`
 辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`），读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规
 辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；不支持表单域说明与自动生成
@@ -250,7 +250,7 @@ tab,group,command,status,capability,note
 录制,录制,PDF录制,partial,—,先进入放映再调系统录屏工具；不产出文件
 录制,录制,屏幕录制,partial,—,委托 Windows 游戏栏录制任意窗口
 录制,录制,声音录制,partial,C8,已有录音组件（批注用），没有录制中心
-录制,录制,截图,partial,—,只有整窗截图
+录制,录制,截图,aligned,—,截图：录制页的截图与主页共用同一套区域框选选区层，可框选区域或整个窗口；`ScreenCaptureTests` 7 条
 录制,录制,录制列表,partial,—,录制中心可管理输出文件
 帮助,帮助,用户手册,aligned,—,应用内手册窗口
 帮助,帮助,帮助中心,partial,—,打开仓库 Issues 页面，不是站内帮助中心

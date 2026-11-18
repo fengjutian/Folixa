@@ -223,6 +223,9 @@ public slots:
     void setPageTransition(int transitionIndex);
     // 逆序镜像（日漫式从右往左读）：只改显示空间，文件里不会被改。
     void setMirrorEnabled(bool enabled);
+    // 手型工具：按住左键拖动平移视图。
+    void setPanModeEnabled(bool enabled);
+    bool panModeEnabled() const;
 
     // 纯文本查看器：把当前页（或整篇）按阅读顺序显示成纯文本。
     void showPlainTextViewer();

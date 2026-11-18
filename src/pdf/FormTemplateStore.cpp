@@ -212,6 +212,118 @@ bool isUsableName(const QString& name, QString* error) {
 
 }  // namespace
 
+// 内置模板库：常用表单模板。
+//
+// 域的位置用相对比例（relX / relY / relWidth / relHeight），
+// 套到 A4 或 Letter 上都对齐 —— 模板不该绑死一种纸张。
+namespace {
+
+// 造一个文本域。
+FormTemplateField textField(const QString& name, const QString& tip, double x, double y,
+                            double width, double height, bool multiline = false) {
+    FormTemplateField field;
+    field.name = name;
+    field.toolTip = tip;
+    field.kind = FormFieldKind::Text;
+    field.relX = x;
+    field.relY = y;
+    field.relWidth = width;
+    field.relHeight = height;
+    field.multiline = multiline;
+    return field;
+}
+
+// 造一个下拉域。
+FormTemplateField comboField(const QString& name, const QString& tip, double x, double y,
+                              double width, double height, const QStringList& options) {
+    FormTemplateField field = textField(name, tip, x, y, width, height);
+    field.kind = FormFieldKind::ComboBox;
+    field.options = options;
+    return field;
+}
+
+// 造一个复选框域。
+FormTemplateField checkField(const QString& name, const QString& tip, double x, double y,
+                              double width = 0.03, double height = 0.025) {
+    FormTemplateField field = textField(name, tip, x, y, width, height);
+    field.kind = FormFieldKind::CheckBox;
+    return field;
+}
+
+}  // namespace
+
+QVector<FormTemplate> FormTemplateStore::builtInTemplates() {
+    QVector<FormTemplate> templates;
+
+    FormTemplate registration;
+    registration.name = QStringLiteral("登记表");
+    registration.fields << textField(QStringLiteral("name"), QStringLiteral("姓名"), 0.12, 0.16,
+                                     0.3, 0.035)
+                        << comboField(QStringLiteral("gender"), QStringLiteral("性别"), 0.55, 0.16,
+                                      0.15, 0.035,
+                                      {QStringLiteral("男"), QStringLiteral("女")})
+                        << textField(QStringLiteral("birthday"), QStringLiteral("出生日期"), 0.12, 0.24,
+                                     0.3, 0.035)
+                        << textField(QStringLiteral("phone"), QStringLiteral("联系电话"), 0.55, 0.24,
+                                     0.3, 0.035)
+                        << textField(QStringLiteral("email"), QStringLiteral("电子邮箱"), 0.12, 0.32,
+                                     0.4, 0.035)
+                        << textField(QStringLiteral("remark"), QStringLiteral("备注"), 0.12, 0.42,
+                                     0.7, 0.1, true);
+    templates.append(registration);
+
+    FormTemplate signIn;
+    signIn.name = QStringLiteral("签到表");
+    signIn.fields << textField(QStringLiteral("name"), QStringLiteral("姓名"), 0.1, 0.2, 0.25, 0.035)
+                  << textField(QStringLiteral("time"), QStringLiteral("签到时间"), 0.45, 0.2, 0.3,
+                               0.035)
+                  << textField(QStringLiteral("remark"), QStringLiteral("备注"), 0.1, 0.28, 0.65, 0.08,
+                               true);
+    templates.append(signIn);
+
+    FormTemplate feedback;
+    feedback.name = QStringLiteral("意见反馈表");
+    feedback.fields << textField(QStringLiteral("content"), QStringLiteral("反馈内容"), 0.1, 0.18,
+                                 0.75, 0.2, true)
+                    << textField(QStringLiteral("contact"), QStringLiteral("联系人"), 0.1, 0.42, 0.3,
+                                 0.035)
+                    << textField(QStringLiteral("phone"), QStringLiteral("联系方式"), 0.45, 0.42,
+                                 0.3, 0.035)
+                    << checkField(QStringLiteral("reply"), QStringLiteral("愿意回访"), 0.1, 0.5);
+    templates.append(feedback);
+
+    FormTemplate expense;
+    expense.name = QStringLiteral("费用报销单");
+    expense.fields << textField(QStringLiteral("name"), QStringLiteral("申报人"), 0.1, 0.16, 0.3,
+                                0.035)
+                   << textField(QStringLiteral("department"), QStringLiteral("部门"), 0.5, 0.16, 0.3,
+                                0.035)
+                   << textField(QStringLiteral("date"), QStringLiteral("报销日期"), 0.1, 0.24, 0.3,
+                                0.035)
+                   << textField(QStringLiteral("amount"), QStringLiteral("金额"), 0.5, 0.24, 0.3,
+                                0.035)
+                   << textField(QStringLiteral("reason"), QStringLiteral("事由"), 0.1, 0.32, 0.7,
+                                0.12, true);
+    templates.append(expense);
+
+    return templates;
+}
+
+bool FormTemplateStore::builtInTemplate(const QString& name, FormTemplate* out) {
+    if (out == nullptr) {
+        return false;
+    }
+    const QString wanted = name.trimmed();
+    const QVector<FormTemplate> templates = builtInTemplates();
+    for (const FormTemplate& tmpl : templates) {
+        if (tmpl.name == wanted) {
+            *out = tmpl;
+            return true;
+        }
+    }
+    return false;
+}
+
 FormTemplateStore::FormTemplateStore(const QString& rootDir)
     : m_rootDir(rootDir.isEmpty() ? defaultRootDir() : rootDir) {}
 

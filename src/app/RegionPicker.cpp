@@ -86,12 +86,12 @@ void RegionPicker::keyPressEvent(QKeyEvent* event) {
 void RegionPicker::paintEvent(QPaintEvent*) {
     QPainter painter(this);
     if (!shot_.isNull()) {
-        painter.drawPixmap(0, 0, shot_);
+        painter.drawImage(0, 0, shot_);
     }
     // 压暗整块屏幕，再把选区那块原样画回来。
     painter.fillRect(rect(), QColor(0, 0, 0, kDimAlpha));
     if (hasSelection()) {
-        painter.drawPixmap(region_, shot_, region_);
+        painter.drawImage(region_, shot_, region_);
         painter.setPen(QColor(60, 160, 255));
         painter.drawRect(region_.adjusted(0, 0, -1, -1));
     }
@@ -111,7 +111,8 @@ bool pickScreenRegion(QWidget* parent, QRect* region, QImage* screenshot) {
         return false;
     }
     const QRect geometry = screen->geometry();
-    const QImage shot = screen->grabWindow(0);
+    // grabWindow 给的是 QPixmap，转成 QImage 才能按区域裁。
+    const QImage shot = screen->grabWindow(0).toImage();
     if (shot.isNull()) {
         return false;
     }

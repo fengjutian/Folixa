@@ -184,6 +184,11 @@ private:
     void enterImmersiveReading();
     void leaveImmersiveReading();
     bool immersiveReadingActive() const;
+    // 无障碍配置向导：一步步把界面字号、阅读配色、导航面板与朗读配好。
+    void showAccessibilityWizard();
+    // 手型工具：按住左键拖动平移视图。Ribbon 上的开关走这里。
+    void setPanModeEnabled(bool enabled);
+    bool panModeEnabled() const;
     void openRecordingFolder();
     PdfView* shareDocument();
     PdfView* savedShareDocument();
@@ -321,6 +326,12 @@ private:
     bool immersiveWindowWasFullScreen_ = false;
     // 光标自动隐藏的计时器：鼠标静止多久之后把光标藏起来。
     QTimer* immersiveCursorTimer_ = nullptr;
+    // 手型工具的开关按钮（主页与视图各一个，状态同步）。
+    QVector<QToolButton*> panToolButtons_;
+    // 用户是否要开手型工具：换文档时要保持（换视图不能把这个状态弄丢）。
+    bool panModeEnabled_ = false;
+    // 正在把状态同步到按钮上：这时按钮的 toggled 不该再反过来改状态。
+    bool panModeSyncing_ = false;
     // 当前绑定的导航控制器；换文档时要把上一个的连接断掉。
     NavigationController* boundNavigation_ = nullptr;
     QMetaObject::Connection navigationConnection_;

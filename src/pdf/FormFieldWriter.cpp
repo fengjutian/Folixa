@@ -1,6 +1,7 @@
 #include "pdf/FormFieldWriter.h"
 
 #include "pdf/BarcodeEncoder.h"
+#include "pdf/StandardFonts.h"
 
 #include <QVector>
 
@@ -658,6 +659,114 @@ QByteArray xrefStreamSection(int streamObject, int size, int rootNumber, qsizety
            "\nendstream\nendobj\n";
 }
 
+// 标准 14 号字体在 /Font 字典里的条目：<< /Helv << ... >> /HeBo << ... >> ... >>
+//
+// 为什么拆成「条目」与「字典」两截：/DR 的值是一个字典，
+// 字典里的 /Font 又是一个字典。补字体时要往**里层**那个字典里插，
+// 两截混用就会插出 /Font << /Font << ... >> >> 这种坏结构。
+QByteArray acroFormFontEntries() {
+    QByteArray entries = "<<";
+    const QStringList names = standardFormFontNames();
+    for (const QString& name : names) {
+        const QString base = standardFormBaseFont(name);
+        if (base.isEmpty()) {
+            continue;
+        }
+        entries += " /" + name.toLatin1() + " << /Type /Font /Subtype /Type1 /BaseFont /" +
+                   base.toLatin1() + " >>";
+    }
+    entries += " >>";
+    return entries;
+}
+
+// AcroForm 的 /DR 字典：<< /Font <条目> >>。
+//
+// 为什么全登记：表单域的 /DA 里写的是**资源名**，阅读器要按这个名字去
+// /DR /Font 里找；只登记 /Helv 的话，选了别的字体的域在别的阅读器里
+// 会退回默认字体 —— 用户设的粗体就没了。
+QByteArray acroFormFontDict() {
+    return "<< /Font " + acroFormFontEntries() + " >>";
+}
+
+// 值的位置上是不是紧跟着一个内联字典（"<< ..."）。
+//
+// 为什么要单独判：/DR 的值可能是间接引用（"/DR 5 0 R"）。
+// 那时直接找下一个 "<<" 会找到**别处**的字典，
+// 往里插字体就等于把字体写进了不相干的字典里。
+qsizetype inlineDictAt(const QByteArray& body, qsizetype valueAt) {
+    qsizetype at = valueAt;
+    while (at < body.size() && (body.at(at) == ' ' || body.at(at) == '\r' ||
+                                 body.at(at) == '\n' || body.at(at) == '\t')) {
+        ++at;
+    }
+    if (body.mid(at, 2) != "<<") {
+        return -1;
+    }
+    return at;
+}
+
+// 把标准 14 号字体补进已有的 AcroForm（只补缺的，不覆盖用户自己配的）。
+//
+// /DR 是间接引用（"/DR 5 0 R"）时改不了 —— 那要改另一个对象，
+// 这里老老实实跳过，不去动它。
+bool ensureAcroFormFonts(QByteArray* acroBody) {
+    if (acroBody == nullptr) {
+        return false;
+    }
+    const qsizetype drAt = findName(*acroBody, "/DR");
+    if (drAt < 0) {
+        const qsizetype close = dictClose(*acroBody);
+        if (close < 0) {
+            return false;
+        }
+        acroBody->insert(close - 2, "/DR " + acroFormFontDict() + " ");
+        return true;
+    }
+    const qsizetype drStart = inlineDictAt(*acroBody, drAt + 3);
+    if (drStart < 0) {
+        // /DR 不是内联字典（多半是间接引用）：跳过，不去动它。
+        return false;
+    }
+    const qsizetype drClose = dictClose(*acroBody, drStart);
+    if (drClose < 0) {
+        return false;
+    }
+    const qsizetype fontAt = findName(*acroBody, "/Font", drStart);
+    if (fontAt < 0 || fontAt > drClose) {
+        // /DR 里没有 /Font：补一个。
+        acroBody->insert(drClose - 2, "/Font " + acroFormFontEntries() + " ");
+        return true;
+    }
+    const qsizetype fontStart = inlineDictAt(*acroBody, fontAt + 5);
+    if (fontStart < 0) {
+        // /Font 不是内联字典：跳过。
+        return false;
+    }
+    const qsizetype fontClose = dictClose(*acroBody, fontStart);
+    if (fontClose < 0) {
+        return false;
+    }
+    QByteArray missing;
+    const QStringList names = standardFormFontNames();
+    for (const QString& name : names) {
+        const QByteArray key = "/" + name.toLatin1();
+        const qsizetype existing = findName(*acroBody, key, fontStart);
+        if (existing >= 0 && existing < fontClose) {
+            continue;  // 已经有了
+        }
+        const QString base = standardFormBaseFont(name);
+        if (base.isEmpty()) {
+            continue;
+        }
+        missing += " " + key + " << /Type /Font /Subtype /Type1 /BaseFont /" + base.toLatin1() + " >>";
+    }
+    if (missing.isEmpty()) {
+        return true;
+    }
+    acroBody->insert(fontClose - 2, missing);
+    return true;
+}
+
 }  // namespace
 
 FormFieldWriteResult appendFormField(const QByteArray& pdf, const FormFieldInsert& field) {
@@ -773,7 +882,7 @@ FormFieldWriteResult appendFormField(const QByteArray& pdf, const FormFieldInser
         if (close < 0) { result.error = QStringLiteral("根目录对象不是字典"); return result; }
         const QByteArray acro = "/AcroForm << /NeedAppearances true /Fields [" +
             QByteArray::number(fieldReference) +
-            " 0 R] /DR << /Font << /Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> "
+            " 0 R] /DR " + acroFormFontDict() + " "
             "/DA (/Helv 10 Tf 0 g) >> ";
         rootBody.insert(close - 2, acro);
     } else if (parseReferenceAfter(rootBody, acroAt + 9, &acroObject)) {
@@ -783,6 +892,9 @@ FormFieldWriteResult appendFormField(const QByteArray& pdf, const FormFieldInser
         }
         acroBody = pdf.mid(acroSpan.bodyBegin, acroSpan.bodyEnd - acroSpan.bodyBegin);
         separateAcroObject = true;
+        // 已有 AcroForm：把标准 14 号字体补进 /DR，
+        // 否则用户选的非默认字体在别的阅读器里会退回默认字体。
+        ensureAcroFormFonts(&acroBody);
         // 同一个分组只登记一次父字段。
         if (!arrayHasReference(acroBody, "/Fields", fieldReference)) {
             if (!insertReferenceIntoArray(&acroBody, "/Fields", fieldReference)) {

@@ -5,15 +5,17 @@
 namespace aipdf::app {
 
 QRect dragRegion(const QPoint& anchor, const QPoint& current) {
-    const QPoint topLeft(qMin(anchor.x(), current.x()), qMin(anchor.y(), current.y()));
-    const QPoint bottomRight(qMax(anchor.x(), current.x()), qMax(anchor.y(), current.y()));
-    const QRect raw(topLeft, bottomRight);
-    // 起点与终点重合：QRect 的宽高会是 0（不是负的），这里显式返回空矩形，
-    // 免得调用方拿到一个"有一个点"的矩形当成有效选区。
-    if (raw.width() <= 0 || raw.height() <= 0) {
+    const int left = qMin(anchor.x(), current.x());
+    const int top = qMin(anchor.y(), current.y());
+    // 宽高用差值算，不用 QRect(QPoint, QPoint)：那个构造把第二个点当成
+    // **包含**的右下角，会把宽高各多算一像素（选区与鼠标差一格）。
+    const int width = qAbs(current.x() - anchor.x());
+    const int height = qAbs(current.y() - anchor.y());
+    if (width <= 0 || height <= 0) {
+        // 起点与终点重合：还没框出东西。
         return QRect();
     }
-    return raw;
+    return QRect(left, top, width, height);
 }
 
 bool isValidRegion(const QRect& region) {

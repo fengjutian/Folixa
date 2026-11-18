@@ -11,6 +11,7 @@
 
 #include "pdf/BarcodeEncoder.h"
 #include "pdf/FormFieldWriter.h"
+#include "pdf/StandardFonts.h"
 
 #include <QRectF>
 #include <QTest>
@@ -317,6 +318,7 @@ private slots:
     void barcodeAppearanceDrawsRealBars();
     void barcodeFallsBackToFieldName();
     void barcodeRejectsNonAsciiContent();
+    void acroFormRegistersAllStandardFonts();
 };
 
 // 回归：经典 trailer 的 PDF 仍然走 xref 表 + trailer 的老路。
@@ -554,6 +556,38 @@ void FormFieldWriterTests::barcodeRejectsNonAsciiContent() {
     QVERIFY(written.bytes.isEmpty());
     QVERIFY2(written.error.contains(QStringLiteral("条形码")), qPrintable(written.error));
     QVERIFY2(written.error.contains(QStringLiteral("ASCII")), qPrintable(written.error));
+}
+
+// 新建 AcroForm 时要把标准 14 号字体全登记进 /DR /Font。
+//
+// 为什么钉这条：域的 /DA 里写的是**资源名**（例如 "/HeBo 10 Tf"），
+// 阅读器按这个名字去 /DR /Font 里找。少登记一个，用户选的粗体 / 斜体
+// 在别的阅读器里就会退回默认字体 —— 这正是「表单字体只给三档」的老毛病。
+void FormFieldWriterTests::acroFormRegistersAllStandardFonts() {
+    const FormFieldWriteResult written =
+        appendFormField(buildClassicPdf(),
+                        makeField(QStringLiteral("customerName"), FormFieldKind::Text, 10, 100));
+    QVERIFY2(written.ok, qPrintable(written.error));
+    // 目录对象（对象号 1）在增量更新里被重写，/AcroForm 挂在那儿。
+    const QByteArray root = objectBody(written.bytes, 1);
+    QVERIFY(root.contains("/AcroForm"));
+    QVERIFY(root.contains("/DR"));
+    QVERIFY(root.contains("/Font"));
+    // 14 个资源名与它们的 BaseFont 都要在。
+    for (const QString& name : aipdf::pdf::standardFormFontNames()) {
+        const QByteArray key = "/" + name.toLatin1();
+        QVERIFY2(root.contains(key),
+                 qPrintable(QStringLiteral("/DR 里没有登记资源名 %1").arg(name)));
+        const QString base = aipdf::pdf::standardFormBaseFont(name);
+        QVERIFY2(root.contains("/" + base.toLatin1()),
+                 qPrintable(QStringLiteral("/DR 里没有 %1 的 BaseFont %2").arg(name, base)));
+    }
+    // 登记的必须是 14 个，不是 15 个（多出来的说明表里混进了不该有的名字）。
+    int fontEntries = 0;
+    for (const QString& name : aipdf::pdf::standardFormFontNames()) {
+        if (root.contains("/" + name.toLatin1() + " << /Type /Font")) ++fontEntries;
+    }
+    QCOMPARE(fontEntries, 14);
 }
 
 QTEST_MAIN(FormFieldWriterTests)

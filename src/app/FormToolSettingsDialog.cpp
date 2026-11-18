@@ -18,8 +18,14 @@ FormToolSettingsDialog::FormToolSettingsDialog(QWidget* parent) : QDialog(parent
     auto* layout = new QVBoxLayout(this);
     auto* form = new QFormLayout();
     font_ = new QComboBox(this);
-    font_->addItems(pdf::FormToolSettings::fontChoices());
-    font_->setCurrentText(current.fontName);
+    // 下拉里显示的是 BaseFont（Helvetica-Bold 这样用户认得），
+    // 存的是资源名（HeBo）：/DA 里写的是资源名，两者要对得上。
+    for (const QString& resourceName : pdf::FormToolSettings::fontChoices()) {
+        const QString base = pdf::FormToolSettings::baseFontName(resourceName);
+        font_->addItem(base.isEmpty() ? resourceName : base, resourceName);
+    }
+    const int fontIndex = font_->findData(current.fontName);
+    font_->setCurrentIndex(fontIndex >= 0 ? fontIndex : 0);
     form->addRow(tr("默认字体"), font_);
 
     size_ = new QDoubleSpinBox(this);
@@ -50,7 +56,11 @@ void FormToolSettingsDialog::pickColor() {
 
 pdf::FormToolSettings FormToolSettingsDialog::settings() const {
     pdf::FormToolSettings result;
-    result.fontName = font_->currentText();
+    // 取资源名（combo 的 data），不是显示用的 BaseFont。
+    result.fontName = font_->currentData().toString();
+    if (result.fontName.isEmpty()) {
+        result.fontName = QStringLiteral("Helv");
+    }
     result.fontSize = size_->value();
     result.textColor = color_;
     return result;

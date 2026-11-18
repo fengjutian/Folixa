@@ -110,6 +110,14 @@ public:
     void setMirrorEnabled(bool enabled);
     bool mirrorEnabled() const;
 
+    // 手型工具：按住左键拖动来平移视图。
+    //
+    // 为什么单独一套而不是复用文字选区：平移改的是**视口滚动位置**，
+    // 不动文档、不进撤销栈。判据（拖到哪儿滚到哪儿）在
+    // app::viewmodes::beginPanDrag / panScrollValue 里，这里只做接线。
+    void setPanModeEnabled(bool enabled);
+    bool panModeEnabled() const;
+
 public slots:
     // 滚到指定页（从 0 开始）。
     void goToPage(int index);
@@ -316,6 +324,9 @@ private:
     bool autoScrollEnabled_ = false;
     viewmodes::PageTransition pageTransition_ = viewmodes::PageTransition::None;
     bool mirrorEnabled_ = false;
+    // 手型平移：手型工具开着，以及这一拖的起点与起始滚动位置。
+    bool panMode_ = false;
+    viewmodes::PanDragState panDrag_;
     // 自动滚动：定时器 + 指针位置 + 速度（像素/秒，正 = 向下）。
     QTimer* autoScrollTimer_ = nullptr;
     double autoScrollPointerY_ = 0.0;

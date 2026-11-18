@@ -3177,6 +3177,16 @@ void PdfView::setMirrorEnabled(bool enabled) {
     }
 }
 
+void PdfView::setPanModeEnabled(bool enabled) {
+    if (canvas_ != nullptr) {
+        canvas_->setPanModeEnabled(enabled);
+    }
+}
+
+bool PdfView::panModeEnabled() const {
+    return canvas_ != nullptr && canvas_->panModeEnabled();
+}
+
 // 纯文本查看器：把当前页的文本层按阅读顺序显示成纯文本。
 //
 // 行与行之间的空格由领域层保证（词与词之间的空格是文本层里真实存在的字符），

@@ -305,6 +305,22 @@ bool PageCanvas::mirrorEnabled() const {
     return mirrorEnabled_;
 }
 
+void PageCanvas::setPanModeEnabled(bool enabled) {
+    if (panMode_ == enabled) {
+        return;
+    }
+    panMode_ = enabled;
+    if (!panMode_) {
+        // 关掉手型时正在拖的那一下也要收尾，否则滚动位置会僵在中间。
+        panDrag_ = viewmodes::PanDragState();
+    }
+    updateToolCursor();
+}
+
+bool PageCanvas::panModeEnabled() const {
+    return panMode_;
+}
+
 void PageCanvas::goToPage(int index) {
     if (layout_.isEmpty()) {
         return;
@@ -982,6 +998,15 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
     viewport()->setFocus();
+    // 手型工具：按住左键就是平移，页面外的空白区也一样能拖。
+    // 必须在页面命中判定之前 —— 平移不关心指针压在哪一页上。
+    if (panMode_) {
+        panDrag_ = viewmodes::beginPanDrag(event->pos(), horizontalScrollBar()->value(),
+                                            verticalScrollBar()->value());
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        trace(QStringLiteral("pan drag begin"));
+        return;
+    }
     // 拖动期间指针贴到视口边缘就自动滚：定时器在这里开，
     // 松手时停。速度由 mouseMoveEvent 里的 autoScrollState 决定。
     startAutoScroll();
@@ -1254,6 +1279,16 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
 
 void PageCanvas::mouseMoveEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseMoveEvent(event);
+    // 手型拖拽中：光标判定交给平移，别让链接判定把光标改回去。
+    if (panDrag_.active) {
+        const int nextX = viewmodes::panScrollValue(panDrag_.startScrollX, panDrag_.anchor.x(),
+                                                     event->pos().x(), horizontalScrollBar()->maximum());
+        const int nextY = viewmodes::panScrollValue(panDrag_.startScrollY, panDrag_.anchor.y(),
+                                                     event->pos().y(), verticalScrollBar()->maximum());
+        horizontalScrollBar()->setValue(nextX);
+        verticalScrollBar()->setValue(nextY);
+        return;
+    }
     updateLinkCursor(event->pos());
     // 等箭头尖时记下鼠标位置，用来画「注释框 → 箭头尖」的预览线。
     if (awaitingCalloutTip_) {
@@ -1396,6 +1431,11 @@ void PageCanvas::updateLinkCursor(const QPoint& viewportPos) {
         viewport()->setCursor(Qt::CrossCursor);
         return;
     }
+    // 手型工具开着：光标是「抓手」，链接判定不参与。
+    if (panMode_) {
+        viewport()->setCursor(Qt::OpenHandCursor);
+        return;
+    }
     if (navigationController_ == nullptr) {
         viewport()->setCursor(Qt::ArrowCursor);
         return;
@@ -1429,6 +1469,13 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     // 放后面的话拖完直线/墨迹/方框后定时器还在跑，视口会一直自己滚。
     stopAutoScroll();
     if (event->button() != Qt::LeftButton) {
+        return;
+    }
+    // 手型拖拽结束：收手，光标回到「抓手」。
+    if (panDrag_.active) {
+        panDrag_ = viewmodes::PanDragState();
+        viewport()->setCursor(Qt::OpenHandCursor);
+        trace(QStringLiteral("pan drag end"));
         return;
     }
     if (draggingObjectSelection_) {
@@ -1765,6 +1812,11 @@ void PageCanvas::updateToolCursor() {
                          annotationTool;
     if (drawing) {
         viewport()->setCursor(Qt::CrossCursor);
+        return;
+    }
+    // 手型工具开着：光标是「抓手」。
+    if (panMode_) {
+        viewport()->setCursor(Qt::OpenHandCursor);
         return;
     }
     // 退出工具模式后把光标交回链接判定。

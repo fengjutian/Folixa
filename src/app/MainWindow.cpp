@@ -3,6 +3,8 @@
 #include "app/RibbonBar.h"
 #include "app/ReadingScheme.h"
 #include "app/Theme.h"
+#include "app/AccessibilityPlan.h"
+#include "app/AccessibilityWizard.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -35,6 +37,7 @@
 #include "app/EditProposalDialog.h"
 #include "app/BlankPageDetector.h"
 #include "app/BrandMark.h"
+#include "app/ViewModes.h"
 #include "app/WelcomePage.h"
 #include "ipc/WorkerClient.h"
 #include "doc/EditCommand.h"
@@ -49,6 +52,7 @@
 #include "pdf/Xfdf.h"
 #include "pdf/Navigation.h"
 #include "pdf/OutlineEditor.h"
+#include "speech/SpeechSettings.h"
 
 #include "i18n/Translate.h"
 
@@ -903,6 +907,30 @@ void MainWindow::buildUi() {
         return button;
     };
 
+    // 手型工具的开关按钮：主页与视图各一个，状态同步。
+    //
+    // 为什么同步：手型是全局工具，在哪一页打开都该一致；
+    // 两个按钮各管各的会出现"主页显示开着、视图显示关着"的怪状态。
+    auto addPanToolCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
+                                    const QString& icon, const QString& objectName) {
+        QToolButton* button = ribbonBar_->addCommand(group, tr(source), QIcon(icon), tr(tip),
+                                                     true, objectName);
+        button->setCheckable(true);
+        texts_.bind([this, button, source, tip] {
+            button->setText(tr(source));
+            button->setToolTip(tr(tip));
+        });
+        panToolButtons_.append(button);
+        connect(button, &QToolButton::toggled, this, [this](bool checked) {
+            // 正在同步状态时按钮的 toggled 不能再反过来改状态。
+            if (panModeSyncing_) {
+                return;
+            }
+            setPanModeEnabled(checked);
+        });
+        return button;
+    };
+
     const int fileTab = ribbonBar_->addTab(tr("文件"));
     auto* fileGroup = ribbonBar_->addGroup(fileTab, tr("文件"));
     addRibbonCommand(fileGroup, "打开", "打开 PDF 文件", ":/icons/book.svg",
@@ -974,6 +1002,10 @@ void MainWindow::buildUi() {
     addRibbonCommand(zoomGroup, "右旋", "向右旋转视图", ":/icons/rotate-right.svg", [this] {
         if (auto* view = currentView()) { view->rotateRight(); }
     });
+    // 导航：手型工具。按住左键拖动来平移视图，滚轮照旧。
+    auto* homeNavGroup = ribbonBar_->addGroup(homeTab, tr("导航"));
+    addPanToolCommand(homeNavGroup, "手型", "按住左键拖动，平移视图", ":/icons/hand.svg",
+                      "home.panTool");
     auto* editGroup = ribbonBar_->addGroup(homeTab, tr("编辑"));
     addRibbonCommand(editGroup, "撤销", "撤销批注操作", ":/icons/undo.svg", [this] {
         if (auto* view = currentView()) { view->undoAnnotation(); }
@@ -998,6 +1030,13 @@ void MainWindow::buildUi() {
                      ":/icons/pages.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->scanFromScanner(); }
     }, true, "scan.fromScanner");
+    // 捕获：截图（区域框选 / 整个窗口）。
+    //
+    // 入口放在主页这一页：照着福昕「主页 → 捕获」找过来的人不用跑到录制页。
+    auto* captureGroup = ribbonBar_->addGroup(homeTab, tr("捕获"));
+    addRibbonCommand(captureGroup, "截图", "框选屏幕区域或整个窗口，保存为 PNG 图片",
+                     ":/icons/square.svg", [this] { captureWindowScreenshot(); }, true,
+                     "home.screenshot");
     // 放映：循环开关只影响手动翻页到头时的行为，不做定时自动翻页。
     auto* presentGroup = ribbonBar_->addGroup(homeTab, tr("放映"));
     addRibbonCommand(presentGroup, "循环放映", "放映到最后一页时自动回到第一页",
@@ -1253,6 +1292,8 @@ void MainWindow::buildUi() {
     // 视图模式：标尺、边缘自动滚动、翻页过渡、纯文本查看器、逆序镜像。
     // 这一组只改「怎么显示」，不改文档，也不进撤销栈。
     auto* modeGroup = ribbonBar_->addGroup(viewTab, tr("视图模式"));
+    addPanToolCommand(modeGroup, "手型", "按住左键拖动，平移视图", ":/icons/hand.svg",
+                      "view.panTool");
     auto addToggleCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
                                    const QString& icon, const QString& objectName) {
         QToolButton* button = ribbonBar_->addCommand(group, tr(source), QIcon(icon), tr(tip),
@@ -1981,10 +2022,14 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) view->exportAccessibilityReport();
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "accessibility.report");
+    // 设置助手：无障碍配置向导。
+    //
+    // 为什么不再跳设置对话框：设置对话框把所有选项平铺出来，
+    // 无障碍用户往往不知道该改哪一项。向导一步步问下来更贴合。
+    // 常规的显示 / 字体 / 语言设置仍在状态栏的齿轮按钮里。
     addRibbonCommand(accessibilityCheckGroup, "设置助手",
-                     "打开显示、字体和语言设置", ":/icons/tools.svg", [this] {
-        if (statusSettingsButton_ != nullptr) statusSettingsButton_->click();
-    }, true, "accessibility.settingsAssistant");
+                     "一步步配置界面字号、阅读配色、导航面板与朗读", ":/icons/tools.svg",
+                     [this] { showAccessibilityWizard(); }, true, "accessibility.settingsAssistant");
 
     auto* accessibilityReadingGroup = ribbonBar_->addGroup(accessibilityTab, tr("阅读"));
     auto showReadingOrder = [this] {
@@ -2111,7 +2156,7 @@ void MainWindow::buildUi() {
             statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
         }
     }, true, "record.audio");
-    addRibbonCommand(recordCaptureGroup, "截图", "把当前 Folixa 窗口保存为 PNG 图片",
+    addRibbonCommand(recordCaptureGroup, "截图", "框选屏幕区域或整个窗口，保存为 PNG 图片",
                      ":/icons/square.svg", [this] { captureWindowScreenshot(); }, true,
                      "record.screenshot");
     auto* recordManageGroup = ribbonBar_->addGroup(recordTab, tr("管理"));
@@ -2690,6 +2735,10 @@ void MainWindow::buildUi() {
         auto* view = qobject_cast<PdfView*>(tabs_->currentWidget());
         updatePermissionActionState();
         refreshThumbnails(view);
+        // 手型工具是全局状态：换文档要接着开，不能悄悄关掉。
+        if (view != nullptr && panModeEnabled_) {
+            view->setPanModeEnabled(true);
+        }
         // 目录与书签跟着当前文档走。
         bindNavigation(view);
         // 批注列表也跟着当前文档走。
@@ -3780,7 +3829,17 @@ void MainWindow::applyFormTemplate() {
         return;
     }
     pdf::FormTemplateStore store;
-    const QStringList names = store.templateNames();
+    const QStringList userNames = store.templateNames();
+    // 内置模板 + 用户模板一起列：用户自己的同名模板优先。
+    QStringList names;
+    const QVector<pdf::FormTemplate> builtIns = pdf::FormTemplateStore::builtInTemplates();
+    for (const pdf::FormTemplate& tmpl : builtIns) {
+        if (userNames.contains(tmpl.name)) {
+            continue;
+        }
+        names << tmpl.name;
+    }
+    names << userNames;
     if (names.isEmpty()) {
         statusBar()->showMessage(tr("还没有保存过表单模板。"), 3000);
         return;
@@ -3792,8 +3851,11 @@ void MainWindow::applyFormTemplate() {
     pdf::FormTemplate tmpl;
     QString error;
     if (!store.load(name, &tmpl, &error)) {
-        statusBar()->showMessage(tr("读取模板失败：%1").arg(error), 4000);
-        return;
+        // 内置模板不在用户目录里：按名字找内置的那份。
+        if (!pdf::FormTemplateStore::builtInTemplate(name, &tmpl)) {
+            statusBar()->showMessage(tr("读取模板失败：%1").arg(error), 4000);
+            return;
+        }
     }
     const int page = view->currentPage();
     const QSizeF pageSize = view->pageSizePoints(page);
@@ -4466,7 +4528,7 @@ void MainWindow::captureWindowScreenshot() {
         }
         image = cropRegion(screen, region);
     } else {
-        image = grab();
+        image = grab().toImage();
     }
     if (image.isNull()) {
         QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
@@ -4500,7 +4562,7 @@ void MainWindow::enterImmersiveReading() {
     // 先把界面原来的样子记下来：退出时照原样恢复，
     // 否则用户之前的布局就被这一次沉浸阅读改掉了。
     immersiveRibbonWasVisible_ = ribbonBar_ != nullptr && ribbonBar_->isVisible();
-    immersiveTabsWasVisible_ = tabs_ != nullptr && tabs_->isVisible();
+    immersiveTabsWereVisible_ = tabs_ != nullptr && tabs_->isVisible();
     immersiveStatusWasVisible_ = statusBar()->isVisible();
     immersiveNavigationWasVisible_ = navigationDock_ != nullptr && navigationDock_->isVisible();
     immersiveAiWasVisible_ = aiDock_ != nullptr && aiDock_->isVisible();
@@ -4553,7 +4615,7 @@ void MainWindow::leaveImmersiveReading() {
         ribbonDock->setVisible(immersiveRibbonWasVisible_);
     }
     if (tabs_ != nullptr) {
-        tabs_->setVisible(immersiveTabsWasVisible_);
+        tabs_->setVisible(immersiveTabsWereVisible_);
     }
     statusBar()->setVisible(immersiveStatusWasVisible_);
     if (navigationDock_ != nullptr) {
@@ -4571,6 +4633,70 @@ void MainWindow::leaveImmersiveReading() {
 
 bool MainWindow::immersiveReadingActive() const {
     return immersiveReading_;
+}
+
+// 无障碍配置向导。
+//
+// 为什么不是「打开设置对话框」：设置对话框把所有选项平铺出来，
+// 无障碍用户往往不知道该改哪一项。向导按「看得清 → 听得清 → 确认」
+// 三步问下来，最后一份摘要说明改了哪些。
+void MainWindow::showAccessibilityWizard() {
+    speech::SpeechSettings speech;
+    if (auto* view = currentView()) {
+        speech = view->speechSettings();
+    }
+    AccessibilityWizard wizard(speech, this);
+    if (wizard.exec() != QDialog::Accepted) {
+        return;
+    }
+    const AccessibilityPlan plan = wizard.plan();
+
+    // 界面字号：改整个应用的字体，并记下来（下次启动还是这个大小）。
+    QFont font = qApp->font();
+    font.setPointSize(plan.interfaceFontSize);
+    qApp->setFont(font);
+    QSettings().setValue(QStringLiteral("accessibility/interfaceFontSize"),
+                         plan.interfaceFontSize);
+
+    // 阅读配色：走既有的一套（含持久化），文档视图也跟着换。
+    theme::setCurrentScheme(plan.readingScheme);
+    if (auto* view = currentView()) {
+        view->setReadingScheme(plan.readingScheme);
+    }
+
+    // 导航面板：跟着向导里的勾选走。
+    if (navigationDock_ != nullptr) {
+        navigationDock_->setVisible(plan.navigationVisible);
+    }
+
+    // 朗读设置：交给视图层的引擎（下一段朗读就用新参数）。
+    if (auto* view = currentView()) {
+        view->setSpeechSettings(plan.speech);
+    }
+
+    statusBar()->showMessage(tr("已应用无障碍配置。"), 3000);
+}
+
+// 手型工具：按住左键拖动平移视图。
+//
+// 按钮在主页与视图各有一个，状态同步：勾一个另一个也跟着勾。
+void MainWindow::setPanModeEnabled(bool enabled) {
+    panModeEnabled_ = enabled;
+    panModeSyncing_ = true;
+    if (auto* view = currentView()) {
+        view->setPanModeEnabled(enabled);
+    }
+    for (QToolButton* button : panToolButtons_) {
+        if (button != nullptr) {
+            QSignalBlocker blocker(button);
+            button->setChecked(enabled);
+        }
+    }
+    panModeSyncing_ = false;
+}
+
+bool MainWindow::panModeEnabled() const {
+    return panModeEnabled_;
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {

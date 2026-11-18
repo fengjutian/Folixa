@@ -2,10 +2,18 @@
 
 #include <QSettings>
 
+#include "pdf/StandardFonts.h"
+
 namespace aipdf::pdf {
 
 QStringList FormToolSettings::fontChoices() {
-    return {QStringLiteral("Helv"), QStringLiteral("TiRo"), QStringLiteral("Cour")};
+    // 14 种标准字体全给：以前只给 Helv / TiRo / Cour 三档，
+    // 用户要粗体、斜体、等宽变体就只能去改别的工具。
+    return standardFormFontNames();
+}
+
+QString FormToolSettings::baseFontName(const QString& resourceName) {
+    return standardFormBaseFont(resourceName);
 }
 
 QString FormToolSettings::appearance() const {

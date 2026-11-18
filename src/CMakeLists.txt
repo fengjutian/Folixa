@@ -100,6 +100,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/RegionPicker.h
     app/ScreenCapture.cpp
     app/ScreenCapture.h
+    app/AccessibilityWizard.cpp
+    app/AccessibilityWizard.h
     app/ReadingOptionsDialog.cpp
     app/ReadingOptionsDialog.h
     app/AiToolsDialog.cpp

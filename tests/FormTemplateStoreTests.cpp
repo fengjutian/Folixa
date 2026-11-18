@@ -9,6 +9,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QSet>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -77,6 +78,10 @@ private slots:
     void rejectsInvalidNames();
     void skipsFieldWithUnknownKind();
     void defaultRootDirEndsWithFormTemplates();
+    void builtInTemplatesCoverCommonForms();
+    void builtInTemplateLookupFindsByName();
+    void builtInTemplateLookupRejectsUnknownName();
+    void builtInTemplateFieldsStayInsidePage();
 };
 
 void FormTemplateStoreTests::savesAndListsTemplate() {
@@ -283,6 +288,78 @@ void FormTemplateStoreTests::defaultRootDirEndsWithFormTemplates() {
     const QString path = FormTemplateStore::defaultRootDir();
     QVERIFY(!path.isEmpty());
     QVERIFY(path.endsWith(QStringLiteral("form-templates")));
+}
+
+// 内置模板库：常用表单要真的有模板，用户第一次用「套用模板」才不用先手画一遍。
+void FormTemplateStoreTests::builtInTemplatesCoverCommonForms() {
+    const QVector<FormTemplate> templates = FormTemplateStore::builtInTemplates();
+    QVERIFY(templates.size() >= 4);
+    QStringList names;
+    for (const FormTemplate& tmpl : templates) {
+        names << tmpl.name;
+        // 每个模板都得有域：一个域都没有的模板套上去等于没套。
+        QVERIFY2(!tmpl.fields.isEmpty(),
+                 qPrintable(QStringLiteral("内置模板 %1 一个域都没有").arg(tmpl.name)));
+        // 域的名字不能重名：重名的话建域时会互相顶掉。
+        QSet<QString> fieldNames;
+        for (const FormTemplateField& field : tmpl.fields) {
+            QVERIFY2(!fieldNames.contains(field.name),
+                     qPrintable(QStringLiteral("模板 %1 里域名 %2 重复了")
+                                    .arg(tmpl.name, field.name)));
+            fieldNames.insert(field.name);
+        }
+    }
+    QVERIFY(names.contains(QStringLiteral("登记表")));
+    QVERIFY(names.contains(QStringLiteral("签到表")));
+    QVERIFY(names.contains(QStringLiteral("意见反馈表")));
+    QVERIFY(names.contains(QStringLiteral("费用报销单")));
+}
+
+// 按名字找内置模板要找得到，而且要把域一起带出来。
+void FormTemplateStoreTests::builtInTemplateLookupFindsByName() {
+    FormTemplate tmpl;
+    QVERIFY(FormTemplateStore::builtInTemplate(QStringLiteral("登记表"), &tmpl));
+    QCOMPARE(tmpl.name, QStringLiteral("登记表"));
+    QVERIFY(!tmpl.fields.isEmpty());
+    // 域的提示文字要能直接用（模板里带的是显示名）。
+    bool hasTooltip = false;
+    for (const FormTemplateField& field : tmpl.fields) {
+        hasTooltip = hasTooltip || !field.toolTip.isEmpty();
+    }
+    QVERIFY(hasTooltip);
+}
+
+// 名字对不上就说找不到，不能返回一份空的模板。
+void FormTemplateStoreTests::builtInTemplateLookupRejectsUnknownName() {
+    FormTemplate tmpl;
+    QVERIFY(!FormTemplateStore::builtInTemplate(QStringLiteral("不存在的模板"), &tmpl));
+    QVERIFY(!FormTemplateStore::builtInTemplate(QString(), &tmpl));
+}
+
+// 内置模板的域必须落在页面里：比例坐标越界的话套上去就跑到页面外去了。
+void FormTemplateStoreTests::builtInTemplateFieldsStayInsidePage() {
+    for (const FormTemplate& tmpl : FormTemplateStore::builtInTemplates()) {
+        for (const FormTemplateField& field : tmpl.fields) {
+            QVERIFY2(field.relX >= 0.0 && field.relX <= 1.0,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 横坐标越界")
+                                    .arg(tmpl.name, field.name)));
+            QVERIFY2(field.relY >= 0.0 && field.relY <= 1.0,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 纵坐标越界")
+                                    .arg(tmpl.name, field.name)));
+            QVERIFY2(field.relWidth > 0.0 && field.relWidth <= 1.0,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 宽度越界")
+                                    .arg(tmpl.name, field.name)));
+            QVERIFY2(field.relHeight > 0.0 && field.relHeight <= 1.0,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 高度越界")
+                                    .arg(tmpl.name, field.name)));
+            QVERIFY2(field.relX + field.relWidth <= 1.0001,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 横向超出页面")
+                                    .arg(tmpl.name, field.name)));
+            QVERIFY2(field.relY + field.relHeight <= 1.0001,
+                     qPrintable(QStringLiteral("模板 %1 的域 %2 纵向超出页面")
+                                    .arg(tmpl.name, field.name)));
+        }
+    }
 }
 
 QTEST_MAIN(FormTemplateStoreTests)

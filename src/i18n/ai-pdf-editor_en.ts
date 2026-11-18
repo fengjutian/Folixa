@@ -161,11 +161,7 @@
     </context>
     <context>
         <name>aipdf::ai::ProviderConfig</name>
-                <message>
-            <source>不认识这个服务商，请重新选择</source>
-            <translation>This provider is not recognised, please pick another one</translation>
-        </message>
-<message>
+        <message>
             <source>单价不能是负数</source>
             <translation>The unit price cannot be negative</translation>
         </message>
@@ -181,11 +177,7 @@
             <source>服务地址里没有主机名</source>
             <translation>The service URL has no host name</translation>
         </message>
-                <message>
-            <source>本地模型要写上模型名（例如 qwen2.5:7b，要和你 ollama list 里的一致）</source>
-            <translation>A local model needs the model name (for example qwen2.5:7b, matching your ollama list)</translation>
-        </message>
-<message>
+        <message>
             <source>模型名不能为空</source>
             <translation>The model name cannot be empty</translation>
         </message>
@@ -196,6 +188,14 @@
         <message>
             <source>超时时间不能小于 1 秒</source>
             <translation>The timeout cannot be less than 1 second</translation>
+        </message>
+        <message>
+            <source>不认识这个服务商，请重新选择</source>
+            <translation>This provider is not recognised, please pick another one</translation>
+        </message>
+        <message>
+            <source>本地模型要写上模型名（例如 qwen2.5:7b，要和你 ollama list 里的一致）</source>
+            <translation>A local model needs the model name (for example qwen2.5:7b, matching your ollama list)</translation>
         </message>
     </context>
         <context>
@@ -231,6 +231,125 @@
         <message>
             <source>未知的服务商</source>
             <translation>Unknown provider</translation>
+        </message>
+    </context>
+<context>
+        <name>aipdf::app::AccessibilityWizard</name>
+        <message>
+            <source> 磅</source>
+            <translation> pt</translation>
+        </message>
+        <message>
+            <source>%1（%2）</source>
+            <translation>%1 (%2)</translation>
+        </message>
+        <message>
+            <source>三步把阅读配置调好：先看得清，再听得清，最后确认。随时可以按「完成」结束。</source>
+            <translation>Three steps to set up reading: make it easy to see, easy to hear, then confirm. You can press Done at any time.</translation>
+        </message>
+        <message>
+            <source>上一步</source>
+            <translation>Back</translation>
+        </message>
+        <message>
+            <source>下一步</source>
+            <translation>Next</translation>
+        </message>
+        <message>
+            <source>完成</source>
+            <translation>Done</translation>
+        </message>
+        <message>
+            <source>当前语速: %1</source>
+            <translation>Current rate: %1</translation>
+        </message>
+        <message>
+            <source>当前音量: %1</source>
+            <translation>Current volume: %1</translation>
+        </message>
+        <message>
+            <source>导航面板: %1</source>
+            <translation>Navigation panel: %1</translation>
+        </message>
+        <message>
+            <source>无障碍配置向导</source>
+            <translation>Accessibility setup wizard</translation>
+        </message>
+        <message>
+            <source>显示</source>
+            <translation>Shown</translation>
+        </message>
+        <message>
+            <source>显示左侧导航面板</source>
+            <translation>Show the navigation panel on the left</translation>
+        </message>
+        <message>
+            <source>界面字号:</source>
+            <translation>Interface font size:</translation>
+        </message>
+        <message>
+            <source>界面字号: %1 磅</source>
+            <translation>Interface font size: %1 pt</translation>
+        </message>
+        <message>
+            <source>导航面板</source>
+            <translation>Navigation panel</translation>
+        </message>
+        <message>
+            <source>音色:</source>
+            <translation>Voice:</translation>
+        </message>
+        <message>
+            <source>音色: %1</source>
+            <translation>Voice: %1</translation>
+        </message>
+        <message>
+            <source>浅色</source>
+            <translation>Light</translation>
+        </message>
+        <message>
+            <source>夜间</source>
+            <translation>Night</translation>
+        </message>
+        <message>
+            <source>护眼</source>
+            <translation>Eye care</translation>
+        </message>
+        <message>
+            <source>高对比</source>
+            <translation>High contrast</translation>
+        </message>
+        <message>
+            <source>自动（按文本语言选择）</source>
+            <translation>Automatic (picked by the text language)</translation>
+        </message>
+        <message>
+            <source>语速:</source>
+            <translation>Speech rate:</translation>
+        </message>
+        <message>
+            <source>语速: %1</source>
+            <translation>Speech rate: %1</translation>
+        </message>
+        <message>
+            <source>音量:</source>
+            <translation>Volume:</translation>
+        </message>
+        <message>
+            <source>音量: %1</source>
+            <translation>Volume: %1</translation>
+        </message>
+        <message>
+            <source>阅读配色:</source>
+            <translation>Reading colours:</translation>
+        </message>
+        <message>
+            <source>阅读配色: %1</source>
+            <translation>Reading colours: %1</translation>
+        </message>
+        <message>
+            <source>隐藏</source>
+            <translation>Hidden</translation>
         </message>
     </context>
 <context>
@@ -2896,6 +3015,50 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message>
             <source>阅读顺序预览与朗读设置（音色、语速、音量）</source>
             <translation>Reading order preview and narration settings (voice, rate, volume)</translation>
+        </message>
+        <message>
+            <source>区域框选</source>
+            <translation>Select a region</translation>
+        </message>
+        <message>
+            <source>整个窗口</source>
+            <translation>Whole window</translation>
+        </message>
+        <message>
+            <source>截图范围:</source>
+            <translation>Screenshot area:</translation>
+        </message>
+        <message>
+            <source>已取消截图</source>
+            <translation>Screenshot cancelled</translation>
+        </message>
+        <message>
+            <source>沉浸阅读</source>
+            <translation>Immersive reading</translation>
+        </message>
+        <message>
+            <source>隐藏界面进入全屏阅读，按 Esc 退出</source>
+            <translation>Hide the interface for full-screen reading; press Esc to exit</translation>
+        </message>
+        <message>
+            <source>沉浸阅读：按 Esc 退出</source>
+            <translation>Immersive reading: press Esc to exit</translation>
+        </message>
+        <message>
+            <source>截图</source>
+            <translation>Screenshot</translation>
+        </message>
+        <message>
+            <source>已应用无障碍配置。</source>
+            <translation>Accessibility settings applied.</translation>
+        </message>
+        <message>
+            <source>手型</source>
+            <translation>Hand</translation>
+        </message>
+        <message>
+            <source>按住左键拖动，平移视图</source>
+            <translation>Hold the left mouse button and drag to pan the view</translation>
         </message>
 </context>
     <context>
@@ -8026,6 +8189,17 @@ Notes: %1</translation></message>
         <message>
             <source>阅读选项</source>
             <translation>Reading options</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::RegionPicker</name>
+        <message>
+            <source>选择截图区域</source>
+            <translation>Select screenshot region</translation>
+        </message>
+        <message>
+            <source>拖动鼠标框选要截图的区域，松开鼠标确认，Esc 取消</source>
+            <translation>Drag to select the screenshot region, release to confirm, Esc to cancel</translation>
         </message>
     </context>
 </TS>

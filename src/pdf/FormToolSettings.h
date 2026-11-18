@@ -14,14 +14,17 @@ namespace aipdf::pdf {
 // 每次都写成同一串 /DA。用户想统一改一遍外观，就得逐个域去改——
 // 「表单工具设置」就是把这串默认值提到一处。
 struct FormToolSettings {
-    // 标准 14 字体：Helv（无衬线）/ TiRo（衬线）/ Cour（等宽）。
-    // 只用这三种：挂外部字体会破坏 SBOM 与许可证清单。
+    // 标准 14 字体：Helv（无衬线）/ TiRo（衬线）/ Cour（等宽）等。
+    // 只用这几种：挂外部字体会破坏 SBOM 与许可证清单。
     QString fontName = QStringLiteral("Helv");
     double fontSize = 10.0;
     QColor textColor = QColor(0, 0, 0);
 
-    // 界面上的字体选项。
+    // 界面上的字体选项（14 个标准字体的资源名）。
     static QStringList fontChoices();
+
+    // 资源名 → BaseFont（界面上给用户看的是这个）。
+    static QString baseFontName(const QString& resourceName);
 
     // 外观串：写进字段字典的 /DA。
     QString appearance() const;

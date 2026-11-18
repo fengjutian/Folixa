@@ -52,6 +52,10 @@ const RibbonCommandSpec kNewCommands[] = {
     {"连续批注", "annotation.continuous"},
     {"数字图章", "annotation.numberstamp"},
     {"保持工具选择", "annotation.keepTool"},
+    {"截图", "home.screenshot"},
+    {"沉浸阅读", "view.immersiveReading"},
+    {"手型", "home.panTool"},
+    {"手型", "view.panTool"},
     {"导出 HTML", "convert.exportHtml"},
     {"图像化 PDF", "convert.imagePdf"},
     {"到 OFD", "convert.exportOfd"},
@@ -456,6 +460,7 @@ void UiWiringTests::newStringsAreInTranslationCatalog() {
         QStringLiteral("内容检测"),
         QStringLiteral("智能朗读"),
         QStringLiteral("连续批注"),
+        QStringLiteral("手型"),
     };
     for (const QString& sample : samples) {
         QVERIFY2(sources.contains(sample), qPrintable(sample));

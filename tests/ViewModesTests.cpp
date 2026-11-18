@@ -93,6 +93,11 @@ private slots:
     void mirrorXMirrorsAroundPageCenter();
     void mirrorRectSwapsEdges();
     void mirrorRejectsInvalidPageWidth();
+    void immersivePlanHidesEverythingByDefault();
+    void immersivePlanKeepsDocksInFocusMode();
+    void panDragStartsInactive();
+    void panScrollFollowsPointer();
+    void panScrollClampsToRange();
 };
 
 // ---------------------------------------------------------------- 标尺 ----
@@ -336,6 +341,51 @@ void ViewModesTests::mirrorRejectsInvalidPageWidth() {
     QCOMPARE(mirrorX(123.0, 0.0), 123.0);
     const QRectF rect(10.0, 20.0, 30.0, 40.0);
     QCOMPARE(mirrorRect(rect, -5.0), rect);
+}
+
+// ------------------------------------------------------ 沉浸阅读与平移 ----
+
+void ViewModesTests::immersivePlanHidesEverythingByDefault() {
+    const auto plan = aipdf::app::viewmodes::immersiveReadingPlan(false);
+    QVERIFY(plan.hideRibbon);
+    QVERIFY(plan.hideTabs);
+    QVERIFY(plan.hideStatusBar);
+    QVERIFY(plan.hideDocks);
+    QVERIFY(plan.fullScreen);
+    QVERIFY(plan.autoHideCursor);
+}
+
+void ViewModesTests::immersivePlanKeepsDocksInFocusMode() {
+    // 专注模式里面板已经藏着了：不用再藏一次，但也别把它放出来。
+    const auto plan = aipdf::app::viewmodes::immersiveReadingPlan(true);
+    QVERIFY(!plan.hideDocks);
+    // 全屏与光标自动隐藏照旧。
+    QVERIFY(plan.fullScreen);
+    QVERIFY(plan.autoHideCursor);
+    QVERIFY(plan.hideRibbon);
+}
+
+void ViewModesTests::panDragStartsInactive() {
+    const auto state = aipdf::app::viewmodes::beginPanDrag(QPoint(5, 7), 100, 200);
+    QVERIFY(state.active);
+    QCOMPARE(state.anchor, QPoint(5, 7));
+    QCOMPARE(state.startScrollX, 100);
+    QCOMPARE(state.startScrollY, 200);
+}
+
+void ViewModesTests::panScrollFollowsPointer() {
+    // 抓住内容往右拖 40 像素 → 滚动位置往回走 40。
+    QCOMPARE(aipdf::app::viewmodes::panScrollValue(300, 100, 140, 1000), 260);
+    // 往左拖 → 滚动位置往前走。
+    QCOMPARE(aipdf::app::viewmodes::panScrollValue(300, 100, 60, 1000), 340);
+}
+
+void ViewModesTests::panScrollClampsToRange() {
+    // 拖过头：夹到边界，不要越界。
+    QCOMPARE(aipdf::app::viewmodes::panScrollValue(10, 100, 300, 500), 0);
+    QCOMPARE(aipdf::app::viewmodes::panScrollValue(490, 100, 0, 500), 500);
+    // 范围非法（没有可滚的内容）时只能是 0。
+    QCOMPARE(aipdf::app::viewmodes::panScrollValue(100, 0, 50, 0), 0);
 }
 
 QTEST_GUILESS_MAIN(ViewModesTests)
