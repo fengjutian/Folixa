@@ -933,6 +933,10 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
     result.report.outputPageCount = totalPages;
     result.report.reflowedBlockCount = reflowed;
     result.report.degradedBlockCount = degraded;
+    // 丢弃清单在这里就落进报告：门禁拦下时下面会提前返回，
+    // 清单要是等到最后才赋值，那份「到底什么没搬过去」的明细就丢了。
+    result.report.dropped = dropped;
+    result.report.droppedCount = dropped.size();
     if (degraded > 0) {
         result.report.notes.append(
             i18n::tr("aipdf::pdf::DocumentReflow",
@@ -1078,8 +1082,8 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
         i18n::tr("aipdf::pdf::DocumentReflow",
                  "重排不保留书签与内部链接的目标：页码变了，那些指向已经旧了"));
 
-    result.report.dropped = dropped;
-    result.report.droppedCount = dropped.size();
+    // 丢弃清单在排版结束时就已经落进报告（见上文），
+    // 这里不用再赋一次：门禁拦下时是提前返回的。
     return result;
 }
 

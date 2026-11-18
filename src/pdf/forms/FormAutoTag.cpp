@@ -446,7 +446,7 @@ QPDFObjectHandle findPartElement(const QPDFObjectHandle& parent, const QPDFObjec
 // PDF/UA-1 的结构树是「文档 → 部件 → 页面内容」三层（§7.2、§7.3）。
 // 表单域属于它所在的那一页，所以它该挂在那一页的 /Part 里；
 // 平铺在 /Document 下，读屏软件就分不清这个域属于哪一页。
-QPDFObjectHandle createPartElement(QPDF& pdf, const QPDFObjectHandle& documentElement,
+QPDFObjectHandle createPartElement(QPDF& pdf, QPDFObjectHandle documentElement,
                                     const QPDFObjectHandle& page) {
     QPDFObjectHandle part = QPDFObjectHandle::newDictionary();
     part.replaceKey("/Type", QPDFObjectHandle::newName("/StructElem"));
@@ -756,6 +756,8 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
         std::vector<QPDFObjectHandle> formRefs;
         // 页序号 → 这一页的 /Form 元素（按阅读顺序）。
         QMap<int, QVector<QPDFObjectHandle>> formsByPage;
+        // 找不到所在页的域：它们的结构元素挂在文档元素下面。
+        QVector<QPDFObjectHandle> orphanFormRefs;
         struct Pending {
             int pageIndex = -1;
             QPDFObjectHandle widget;
@@ -806,7 +808,11 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
 
             const QPDFObjectHandle elementRef = pdf.makeIndirectObject(element);
             formRefs.push_back(elementRef);
-            if (parent.isDictionary()) formsByPage[field.pageIndex].append(elementRef);
+            if (parent.isDictionary()) {
+                formsByPage[field.pageIndex].append(elementRef);
+            } else {
+                orphanFormRefs.append(elementRef);
+            }
             for (const QPDFObjectHandle& widget : field.widgets) {
                 pending.append({field.pageIndex, widget, elementRef});
             }
@@ -937,18 +943,15 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
         parentTree.replaceKey("/Kids", QPDFObjectHandle::newNull());
         root.replaceKey("/ParentTreeNextKey", QPDFObjectHandle::newInteger(maxKey + 1));
 
-        // 表单域的结构元素挂到 Document 下面（旧的 /Form 已经被摘掉了）。
-        {
-            std::vector<QPDFObjectHandle> docKids;
-            const QPDFObjectHandle docKidValue = documentElement.getKey("/K");
-            if (docKidValue.isArray()) {
-                docKids = docKidValue.getArrayAsVector();
-            } else if (docKidValue.isDictionary()) {
-                docKids.push_back(docKidValue);
-            }
-            for (const QPDFObjectHandle& ref : formRefs) docKids.push_back(ref);
-            documentElement.replaceKey("/K", QPDFObjectHandle::newArray(docKids));
+        // 表单域的结构元素挂到所属页的 /Part 下面（旧的 /Form 已经被摘掉了）。
+        //
+        // 挂载顺序 = 阅读顺序：fields 已经按页面上从上到下排好，
+        // 所以同一页的 /Form 元素按这个次序追加，读屏念的次序就跟人看的一致。
+        for (auto it = formsByPage.constBegin(); it != formsByPage.constEnd(); ++it) {
+            appendChild(partOfPage.value(it.key()), it.value());
         }
+        // 找不到所在页的域：挂在文档元素下面（它不属于任何一页）。
+        appendChild(documentElement, orphanFormRefs);
 
         // 合并完成之后**再数一遍**既有结构元素，报给调用方的是最终那棵树里的实数。
         //
@@ -964,6 +967,14 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
                 const auto document = preservedCounts.find(QStringLiteral("Document"));
                 if (document != preservedCounts.constEnd() && document.value() > 0) {
                     preservedCounts[QStringLiteral("Document")] = document.value() - 1;
+                }
+            }
+            if (createdPartCount > 0) {
+                // 新建的 /Part 元素同样不是「既有元素」：它是这次为了挂表单域才补的。
+                const auto part = preservedCounts.find(QStringLiteral("Part"));
+                if (part != preservedCounts.constEnd()) {
+                    preservedCounts[QStringLiteral("Part")] =
+                        std::max(0, part.value() - createdPartCount);
                 }
             }
             for (auto it = preservedCounts.constBegin(); it != preservedCounts.constEnd(); ++it) {

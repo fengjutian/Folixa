@@ -62,6 +62,31 @@ QString textOf(const QByteArray& bytes) {
     return result;
 }
 
+// 用 PDFium 取某一页的文字。
+QString textOfPage(const QByteArray& bytes, int pageIndex) {
+    FPDF_DOCUMENT document =
+        FPDF_LoadMemDocument(bytes.constData(), static_cast<int>(bytes.size()), nullptr);
+    if (document == nullptr) return QString();
+    QString result;
+    FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
+    if (page != nullptr) {
+        FPDF_TEXTPAGE textPage = FPDFText_LoadPage(page);
+        if (textPage != nullptr) {
+            const int count = FPDFText_CountChars(textPage);
+            QByteArray raw;
+            raw.resize(count * 2);
+            if (count > 0) {
+                FPDFText_GetText(textPage, 0, count, reinterpret_cast<unsigned short*>(raw.data()));
+            }
+            result = QString::fromUtf16(reinterpret_cast<const char16_t*>(raw.constData()), count);
+            FPDFText_ClosePage(textPage);
+        }
+        FPDF_ClosePage(page);
+    }
+    FPDF_CloseDocument(document);
+    return result;
+}
+
 // 造一份 PDF。
 //
 // xref 表必须覆盖到最大的对象号：表短了的话，后面几个对象就成了「找不到的引用」。
@@ -119,10 +144,10 @@ QByteArray plainPdf() {
 //
 // 结构刻意做成常见的样子：Document 下面挂 H1、P（里面再套 Span）、Figure、
 // Table（里面挂 TD）、Head。
-//   * H1、P、TD 是正文 → 应该被重排；
-//   * Figure 是图片 → 搬不走，要进「丢弃清单」；
-//   * Table 的表格结构搬不走，但单元格文字按独立段落重排；
-//   * Head 是页眉 → 按约定不搬。
+//   * H1、P、TD 是正文 → 重新排版；
+//   * Figure 是图片 → 位置与图片一起搬过去；
+//   * Table 的表格结构按行列重建，单元格文字写进重建出来的表格；
+//   * Head 是页眉 → 不混进正文流，按「每页重复」的语义写到每一页上。
 QByteArray taggedPdf() {
     const QByteArray pageOne =
         "/Tag << /MCID 0 >> BDC\n"
@@ -173,9 +198,34 @@ QByteArray taggedPdf() {
     objects.append(qMakePair(14, QByteArray("<< /Type /StructElem /S /Span /P 11 0 R /K 1 >>")));
     objects.append(qMakePair(15, QByteArray("<< /Type /StructElem /S /TD /P 13 0 R "
                                              "/Pg 5 0 R /K 3 >>")));
-    // 页眉：按约定不搬。
+    // 页眉：按「每页重复」的语义写出去，不混进正文流。
     objects.append(qMakePair(16, QByteArray("<< /Type /StructElem /S /Head /P 9 0 R "
                                              "/Pg 5 0 R /K 4 >>")));
+    return buildPdf(objects);
+}
+
+// 一份「有东西搬不过去」的标签文档：正文是一段正常文字。
+//
+// 搬不过去靠**排版参数**触发（测试里把首行缩进设得比可用宽度还大），
+// 不是靠造一份怪内容：layoutParagraph 在这种参数下会明确失败，
+// 这一段就搬不过去，会进「丢弃清单」，门禁也会因此拦住写回。
+QByteArray droppablePdf() {
+    const QByteArray pageContent =
+        "/Tag << /MCID 0 >> BDC\n"
+        "BT /F1 12 Tf 40 250 Td (A paragraph that does not fit into the new page) Tj ET\n"
+        "EMC";
+
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append(qMakePair(1, QByteArray("<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R >>")));
+    objects.append(qMakePair(2, QByteArray("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")));
+    objects.append(qMakePair(3, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] "
+                                            "/Resources << /Font << /F1 5 0 R >> >> "
+                                            "/Contents 4 0 R /StructParents 0 >>")));
+    objects.append(qMakePair(4, streamObject(pageContent)));
+    objects.append(qMakePair(5, QByteArray("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")));
+    objects.append(qMakePair(6, QByteArray("<< /Type /StructTreeRoot /K [8 0 R] >>")));
+    objects.append(qMakePair(8, QByteArray("<< /Type /StructElem /S /Document /P 6 0 R /K [9 0 R] >>")));
+    objects.append(qMakePair(9, QByteArray("<< /Type /StructElem /S /P /P 8 0 R /Pg 3 0 R /K 0 >>")));
     return buildPdf(objects);
 }
 
@@ -335,10 +385,30 @@ private slots:
     }
 
     void theRunningHeadIsNotMoved() {
+        // 这里的「不搬」指的是**不混进正文流**：页眉不是正文块，
+        // 它按「每页重复」的语义单独写到每一页上。
+        //
+        // （旧语义是「页眉整句话都不出现在新文档里」——
+        //  新语义下页眉是要搬过去的，所以那条断言已经不成立。）
         const DocumentReflowResult result = reflowTaggedDocument(taggedPdf(), defaultOptions());
         QVERIFY2(result.ok(), qPrintable(result.report.error));
-        // 页眉不搬：新文档里不该有页眉那句话。
-        QVERIFY(!textOf(result.bytes).contains(QStringLiteral("Running head")));
+        // 页眉算页眉，不算正文文字块。
+        QCOMPARE(result.report.sourceCounts.headers, 1);
+        QCOMPARE(result.report.sourceCounts.textBlocks, 3);
+        QVERIFY(result.report.outputCounts.headers >= 1);
+        QCOMPARE(result.report.outputCounts.textBlocks, 3);
+    }
+
+    void theRunningHeadIsRepeatedOnEveryPage() {
+        const DocumentReflowResult result = reflowTaggedDocument(taggedPdf(), defaultOptions());
+        QVERIFY2(result.ok(), qPrintable(result.report.error));
+        QVERIFY(result.report.outputPageCount > 0);
+        // 每一页上都有那句页眉。
+        for (int pageIndex = 0; pageIndex < result.report.outputPageCount; ++pageIndex) {
+            const QString text = textOfPage(result.bytes, pageIndex);
+            QVERIFY2(text.contains(QStringLiteral("Running head")),
+                     qPrintable(QStringLiteral("第 %1 页没有页眉：%2").arg(pageIndex).arg(text)));
+        }
     }
 
     void theReportCountsTheParagraphs() {
@@ -352,31 +422,38 @@ private slots:
     }
 
     void theDroppedListMatchesTheDroppedCount() {
+        // 全都搬过去了：丢弃清单必须是空的。
         const DocumentReflowResult result = reflowTaggedDocument(taggedPdf(), defaultOptions());
         QVERIFY2(result.ok(), qPrintable(result.report.error));
-        // 清单非空时，数量必须与清单长度一致。
-        QVERIFY(!result.report.dropped.isEmpty());
+        QVERIFY(result.report.dropped.isEmpty());
         QCOMPARE(result.report.droppedCount, result.report.dropped.size());
-        QCOMPARE(result.report.droppedCount, 3);
-        for (const aipdf::pdf::ReflowDropped& item : result.report.dropped) {
-            QVERIFY2(!item.reason.isEmpty(), "每一条丢弃都要写明原因");
-        }
+        QCOMPARE(result.report.droppedCount, 0);
     }
 
     void theDroppedListNamesWhatWasNotMoved() {
-        const DocumentReflowResult result = reflowTaggedDocument(taggedPdf(), defaultOptions());
-        QVERIFY2(result.ok(), qPrintable(result.report.error));
+        // 有一块确实搬不过去时，清单要写清楚是哪一块、为什么。
+        ReflowOptions options = defaultOptions();
+        options.paragraph.firstLineIndent = options.pageWidth;
+        const DocumentReflowResult result = reflowTaggedDocument(droppablePdf(), options);
+        QVERIFY2(!result.ok(), "搬不过去时门禁必须拦住写回");
+        QVERIFY2(result.bytes.isEmpty(), "门禁拦住时不能产出字节");
+        QVERIFY(!result.report.dropped.isEmpty());
+        QCOMPARE(result.report.droppedCount, result.report.dropped.size());
+
         QStringList tags;
         QStringList reasons;
         for (const aipdf::pdf::ReflowDropped& item : result.report.dropped) {
+            QVERIFY2(!item.reason.isEmpty(), "每一条丢弃都要写明原因");
             tags.append(item.tag);
             reasons.append(item.reason);
         }
-        QVERIFY2(tags.contains(QStringLiteral("Figure")), qPrintable(tags.join(QLatin1Char(','))));
-        QVERIFY2(tags.contains(QStringLiteral("Table")), qPrintable(tags.join(QLatin1Char(','))));
-        QVERIFY2(tags.contains(QStringLiteral("Head")), qPrintable(tags.join(QLatin1Char(','))));
-        QVERIFY2(reasons.join(QLatin1Char('\n')).contains(QStringLiteral("图片")),
+        // 搬不过去的是那一段正文（P）。
+        QVERIFY2(tags.contains(QStringLiteral("P")), qPrintable(tags.join(QLatin1Char(','))));
+        QVERIFY2(reasons.join(QLatin1Char('\n')).contains(QStringLiteral("排不进去")),
                  qPrintable(reasons.join(QLatin1Char('\n'))));
+        // 门禁的错误也要说清楚少了什么。
+        QVERIFY2(result.report.error.contains(QStringLiteral("1 个文字块")),
+                 qPrintable(result.report.error));
     }
 
     void aNarrowerPageNeedsMorePages() {
