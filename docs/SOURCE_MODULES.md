@@ -198,6 +198,32 @@ pipeline -> core 2
 `engines` 之所以多一条指向 `pipeline`，是两个引擎都直接用了 `ImagePreprocess` 做预处理；
 这条边方向正确（实现层用工具），没有回指。
 
+## 跨目录还剩两处环
+
+五个目录内部现在都是 DAG，但把它们当整体看，还有两处跨目录的环，量很小、都能指到行：
+
+```
+app  -> pdf 121   doc 52   ai 34   ocr 5   speech 8   ipc 5   tools 3
+doc  -> pdf 17    ai 4    i18n 5
+ai   -> doc 6     speech 1
+ocr  -> doc 2
+pdf  -> doc 2     i18n 9
+```
+
+- `pdf` ⇄ `doc`：`document/DocumentWriter.cpp` 引 `doc/persist/SafeSave.h`（保存时做原子写），
+  `ops/OutlineGenerator.h` 引 `doc/model/DocumentChunk.h`（大纲生成吃 doc 的分块类型）。
+  其余 17 条方向都是 `doc -> pdf`。
+- `doc` ⇄ `ai`：`index` 模块四个文件引 `ai/chat/EmbeddingProvider.h` 与
+  `ai/rag/LocalHashEmbedding.h`，而 `ai` 有 6 条反过来用 `doc` 的分块/统计类型。
+
+两处的根因是同一个：**"分块（chunk）+ 向量"这套类型没有中立归属**，doc 的索引要用 ai
+的向量接口，ai 的 RAG 要用 doc 的分块类型。可行的收法是抽一个 `collab/`（或 `kernel/`）
+放 `DocumentChunk`、`EmbeddingProvider` 这类纯接口与值类型，让 doc 和 ai 都只依赖它。
+`pdf -> doc` 那两条则更简单：`OutlineGenerator` 本质是 doc 层的大纲生成，可以挪进
+`doc/`；`SafeSave` 要么下沉成通用原子写工具，要么由调用方注入。
+
+这两处都不影响现在的构建，属于"知道在哪、下一步再动"的状态。
+
 ## 落地分三步
 
 ### P0 逻辑模块（零风险）
