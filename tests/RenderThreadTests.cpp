@@ -1,5 +1,5 @@
 #include "app/RenderThread.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QElapsedTimer>

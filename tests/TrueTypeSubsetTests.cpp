@@ -10,9 +10,9 @@
 // 另有一条端到端：转换器嵌进去的是子集后的字体，PDFium 仍能把中文抽回来、
 // 也能把字画出来（证明子集没把字形写坏）。
 #include "doc/UniversalConverter.h"
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/TextPage.h"
-#include "pdf/TrueTypeSubset.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/kernel/TextPage.h"
+#include "pdf/content/TrueTypeSubset.h"
 
 #include <QByteArray>
 #include <QFile>

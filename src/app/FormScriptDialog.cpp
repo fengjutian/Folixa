@@ -1,6 +1,6 @@
 #include "app/FormScriptDialog.h"
 
-#include "pdf/FormJsEvaluator.h"
+#include "pdf/forms/FormJsEvaluator.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>

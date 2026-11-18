@@ -18,18 +18,18 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 qt_add_executable(ScannerCaptureTests
     ${CMAKE_CURRENT_LIST_DIR}/../ScannerCaptureTests.cpp
     # ---- 被测的领域层 ----
-    ${AIPDF_REPO_ROOT}/src/pdf/ImageToPdf.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/ImageToPdf.h
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.h
     # ---- 被测的应用层（WIA 后端 + 帧源接口）----
     ${AIPDF_REPO_ROOT}/src/app/ScannerCapture.cpp
     ${AIPDF_REPO_ROOT}/src/app/ScannerCapture.h
     # ---- 读回验证用的 PDFium 适配层与它的依赖 ----
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
     ${AIPDF_REPO_ROOT}/src/i18n/Translate.h
 )
 

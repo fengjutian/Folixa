@@ -7,9 +7,9 @@
 #include "app/TextLayout.h"
 #include "doc/ChunkBuilder.h"
 #include "doc/LocalIndex.h"
-#include "pdf/Navigation.h"
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/TextPage.h"
+#include "pdf/document/Navigation.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/kernel/TextPage.h"
 
 #include "i18n/Translate.h"
 

@@ -6,8 +6,8 @@
 #include <QVector>
 
 #include "app/PageTransform.h"
-#include "pdf/Navigation.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/document/Navigation.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <memory>
 #include <vector>

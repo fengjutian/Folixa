@@ -13,8 +13,8 @@ qt_add_executable(OfdExportTests
     ${CMAKE_SOURCE_DIR}/src/doc/OfficeExport.h
     ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(OfdExportTests PRIVATE

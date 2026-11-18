@@ -17,18 +17,18 @@ endif()
 
 qt_add_executable(ExportFormatsTests
     ${CMAKE_CURRENT_LIST_DIR}/../ExportFormatsTests.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/ExportFormats.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/ExportFormats.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TextPage.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Navigation.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Navigation.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TableStructure.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TableStructure.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/convert/ExportFormats.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/convert/ExportFormats.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.h
 )
 
 target_link_libraries(ExportFormatsTests PRIVATE

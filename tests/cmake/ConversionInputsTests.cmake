@@ -41,24 +41,24 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/doc/ConversionInputs.h
     ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/TrueTypeSubset.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/TrueTypeSubset.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/content/TrueTypeSubset.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/content/TrueTypeSubset.h
     ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/ContentStream.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/ContentStream.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/FormData.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/FormData.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/ImageToPdf.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/ImageToPdf.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/Xfdf.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/Xfdf.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/pdf/TextPage.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/content/ContentStream.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/content/ContentStream.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/forms/FormData.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/forms/FormData.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/ImageToPdf.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/ImageToPdf.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Xfdf.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Xfdf.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.h
     ${AIPDF_CONVERSION_ROOT}/src/app/ConversionInputDialog.cpp
     ${AIPDF_CONVERSION_ROOT}/src/app/ConversionInputDialog.h
     ${AIPDF_CONVERSION_ROOT}/src/i18n/Translate.h

@@ -15,12 +15,12 @@ qt_add_executable(PageTextLinesTests
     ${CMAKE_CURRENT_LIST_DIR}/../PageTextLinesTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTextLines.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTextLines.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(PageTextLinesTests PRIVATE

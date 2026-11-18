@@ -9,8 +9,8 @@
 
 qt_add_executable(SignatureWorkflowTests
     ${CMAKE_CURRENT_LIST_DIR}/../SignatureWorkflowTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SignatureWorkflow.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SignatureWorkflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureWorkflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureWorkflow.h
 )
 
 target_link_libraries(SignatureWorkflowTests PRIVATE

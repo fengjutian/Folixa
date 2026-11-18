@@ -19,10 +19,10 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 
 qt_add_executable(RichMedia3dTests
     ${CMAKE_CURRENT_LIST_DIR}/../RichMedia3dTests.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/RichMedia3d.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/RichMedia3d.h
-    ${AIPDF_REPO_ROOT}/src/pdf/PortfolioWriter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PortfolioWriter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.h
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/PortfolioWriter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/PortfolioWriter.h
 )
 
 target_link_libraries(RichMedia3dTests PRIVATE

@@ -1,4 +1,4 @@
-#include "pdf/OcrSuspicion.h"
+#include "pdf/ops/OcrSuspicion.h"
 
 #include <QTest>
 #include <QVector>

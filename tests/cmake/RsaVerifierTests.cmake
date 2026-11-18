@@ -9,8 +9,8 @@
 
 qt_add_executable(RsaVerifierTests
     ${CMAKE_CURRENT_LIST_DIR}/../RsaVerifierTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/RsaVerifier.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/RsaVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/RsaVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/RsaVerifier.h
 )
 
 target_link_libraries(RsaVerifierTests PRIVATE

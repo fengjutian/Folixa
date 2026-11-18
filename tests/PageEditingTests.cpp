@@ -9,10 +9,10 @@
 
 #include "app/AnnotationController.h"
 #include "app/PdfPageOperations.h"
-#include "pdf/FormFieldWriter.h"
-#include "pdf/FormScriptStore.h"
-#include "pdf/PageDecorations.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/forms/FormFieldWriter.h"
+#include "pdf/forms/FormScriptStore.h"
+#include "pdf/content/PageDecorations.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QColor>
 #include <QRectF>

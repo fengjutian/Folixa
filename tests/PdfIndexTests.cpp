@@ -7,7 +7,7 @@
 #include "doc/ChunkBuilder.h"
 #include "doc/DocumentChunk.h"
 #include "doc/LocalIndex.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QEventLoop>

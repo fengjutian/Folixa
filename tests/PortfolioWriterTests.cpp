@@ -1,4 +1,4 @@
-#include "pdf/PortfolioWriter.h"
+#include "pdf/convert/PortfolioWriter.h"
 
 #include <QFile>
 #include <QHash>

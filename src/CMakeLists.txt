@@ -155,96 +155,96 @@ qt_add_executable(AiPdfEditor WIN32
     ipc/WorkerClient.h
     ipc/IpcProtocol.cpp
     ipc/IpcProtocol.h
-    pdf/PdfiumAdapter.cpp
-    pdf/PdfiumAdapter.h
-    pdf/ContentStream.cpp
-    pdf/ContentStream.h
-    pdf/TrueTypeSubset.cpp
-    pdf/TrueTypeSubset.h
-    pdf/TextReflow.cpp
-    pdf/TextReflow.h
-    pdf/TableStructure.cpp
-    pdf/TableStructure.h
-    pdf/TableIntegration.cpp
-    pdf/Annotation.cpp
-    pdf/Annotation.h
-    pdf/AnnotationDictionary.h
-    pdf/Xfdf.h
-    pdf/AnnotationSummary.h
-    pdf/SoundFormat.h
-    pdf/PageDecorations.h
-    pdf/FormData.h
-    pdf/FormFieldWriter.h
-    pdf/FormJsEvaluator.h
-    pdf/FormTemplateStore.h
-    pdf/FormScriptStore.h
-    pdf/BarcodeEncoder.h
-    pdf/FormToolSettings.h
-    pdf/FormDesignParser.h
-    pdf/PageAnnotsInjector.h
-    pdf/PageAnnotsInjector.cpp
-    pdf/OutlineWriter.h
-    pdf/OutlineWriter.cpp
-    pdf/FormData.cpp
-    pdf/FormFieldWriter.cpp
-    pdf/FormJsEvaluator.cpp
-    pdf/FormTemplateStore.cpp
-    pdf/FormScriptStore.cpp
-    pdf/BarcodeEncoder.cpp
-    pdf/FormToolSettings.cpp
-    pdf/FormDesignParser.cpp
-    pdf/DocumentProperties.cpp
-    pdf/DocumentProperties.h
-    pdf/OutlineGenerator.cpp
-    pdf/OutlineGenerator.h
-    pdf/OutlineEditor.cpp
-    pdf/OutlineEditor.h
-    pdf/PageSplitPlanner.cpp
-    pdf/PageSplitPlanner.h
-    pdf/Redaction.cpp
-    pdf/Redaction.h
-    pdf/BatchReplace.cpp
-    pdf/BatchReplace.h
-    pdf/SpellChecker.cpp
-    pdf/SpellChecker.h
-    pdf/SignatureInspector.cpp
-    pdf/SignatureInspector.h
-    pdf/TagTreeWriter.cpp
-    pdf/TagTreeWriter.h
-    pdf/AnnotationShapes.cpp
-    pdf/AnnotationShapes.h
-    pdf/DocumentReflow.cpp
-    pdf/DocumentReflow.h
-    pdf/RichMedia3d.cpp
-    pdf/RichMedia3d.h
-    pdf/XfaSupport.cpp
-    pdf/XfaSupport.h
-    pdf/PdfUaChecker.cpp
-    pdf/PdfUaChecker.h
+    pdf/kernel/PdfiumAdapter.cpp
+    pdf/kernel/PdfiumAdapter.h
+    pdf/content/ContentStream.cpp
+    pdf/content/ContentStream.h
+    pdf/content/TrueTypeSubset.cpp
+    pdf/content/TrueTypeSubset.h
+    pdf/content/TextReflow.cpp
+    pdf/content/TextReflow.h
+    pdf/content/TableStructure.cpp
+    pdf/content/TableStructure.h
+    pdf/content/TableIntegration.cpp
+    pdf/annot/Annotation.cpp
+    pdf/annot/Annotation.h
+    pdf/annot/AnnotationDictionary.h
+    pdf/annot/Xfdf.h
+    pdf/annot/AnnotationSummary.h
+    pdf/annot/SoundFormat.h
+    pdf/content/PageDecorations.h
+    pdf/forms/FormData.h
+    pdf/forms/FormFieldWriter.h
+    pdf/forms/FormJsEvaluator.h
+    pdf/forms/FormTemplateStore.h
+    pdf/forms/FormScriptStore.h
+    pdf/forms/BarcodeEncoder.h
+    pdf/forms/FormToolSettings.h
+    pdf/forms/FormDesignParser.h
+    pdf/annot/PageAnnotsInjector.h
+    pdf/annot/PageAnnotsInjector.cpp
+    pdf/ops/OutlineWriter.h
+    pdf/ops/OutlineWriter.cpp
+    pdf/forms/FormData.cpp
+    pdf/forms/FormFieldWriter.cpp
+    pdf/forms/FormJsEvaluator.cpp
+    pdf/forms/FormTemplateStore.cpp
+    pdf/forms/FormScriptStore.cpp
+    pdf/forms/BarcodeEncoder.cpp
+    pdf/forms/FormToolSettings.cpp
+    pdf/forms/FormDesignParser.cpp
+    pdf/document/DocumentProperties.cpp
+    pdf/document/DocumentProperties.h
+    pdf/ops/OutlineGenerator.cpp
+    pdf/ops/OutlineGenerator.h
+    pdf/ops/OutlineEditor.cpp
+    pdf/ops/OutlineEditor.h
+    pdf/ops/PageSplitPlanner.cpp
+    pdf/ops/PageSplitPlanner.h
+    pdf/security/Redaction.cpp
+    pdf/security/Redaction.h
+    pdf/ops/BatchReplace.cpp
+    pdf/ops/BatchReplace.h
+    pdf/ops/SpellChecker.cpp
+    pdf/ops/SpellChecker.h
+    pdf/security/SignatureInspector.cpp
+    pdf/security/SignatureInspector.h
+    pdf/compliance/TagTreeWriter.cpp
+    pdf/compliance/TagTreeWriter.h
+    pdf/annot/AnnotationShapes.cpp
+    pdf/annot/AnnotationShapes.h
+    pdf/ops/DocumentReflow.cpp
+    pdf/ops/DocumentReflow.h
+    pdf/annot/RichMedia3d.cpp
+    pdf/annot/RichMedia3d.h
+    pdf/forms/XfaSupport.cpp
+    pdf/forms/XfaSupport.h
+    pdf/compliance/PdfUaChecker.cpp
+    pdf/compliance/PdfUaChecker.h
     ai/OfflineQa.cpp
     ai/OfflineQa.h
     doc/UniversalConverter.cpp
     doc/UniversalConverter.h
-    pdf/StructTreeReader.cpp
-    pdf/StructTreeReader.h
-    pdf/InvisibleTextLayer.cpp
-    pdf/InvisibleTextLayer.h
-    pdf/ParagraphFormat.cpp
-    pdf/ParagraphFormat.h
-    pdf/OptionalContent.cpp
-    pdf/OptionalContent.h
+    pdf/compliance/StructTreeReader.cpp
+    pdf/compliance/StructTreeReader.h
+    pdf/content/InvisibleTextLayer.cpp
+    pdf/content/InvisibleTextLayer.h
+    pdf/content/ParagraphFormat.cpp
+    pdf/content/ParagraphFormat.h
+    pdf/ops/OptionalContent.cpp
+    pdf/ops/OptionalContent.h
     doc/InvoiceLayout.cpp
     doc/InvoiceLayout.h
     doc/ActionWizard.cpp
     doc/ActionWizard.h
-    pdf/OcrSuspicion.cpp
-    pdf/OcrSuspicion.h
-    pdf/PortfolioWriter.cpp
-    pdf/PortfolioWriter.h
-    pdf/PreflightChecker.cpp
-    pdf/PreflightChecker.h
-    pdf/ExportFormats.cpp
-    pdf/ExportFormats.h
+    pdf/ops/OcrSuspicion.cpp
+    pdf/ops/OcrSuspicion.h
+    pdf/convert/PortfolioWriter.cpp
+    pdf/convert/PortfolioWriter.h
+    pdf/compliance/PreflightChecker.cpp
+    pdf/compliance/PreflightChecker.h
+    pdf/convert/ExportFormats.cpp
+    pdf/convert/ExportFormats.h
     doc/ZipWriter.cpp
     doc/ZipWriter.h
     doc/ConversionInputs.cpp
@@ -262,10 +262,10 @@ qt_add_executable(AiPdfEditor WIN32
     doc/SpreadsheetExport.cpp
     doc/SpreadsheetExport.h
     doc/XmlText.h
-    pdf/AnnotationToolkit.cpp
-    pdf/AnnotationToolkit.h
-    pdf/AnnotationFilter.cpp
-    pdf/AnnotationFilter.h
+    pdf/annot/AnnotationToolkit.cpp
+    pdf/annot/AnnotationToolkit.h
+    pdf/annot/AnnotationFilter.cpp
+    pdf/annot/AnnotationFilter.h
     app/ViewModes.cpp
     app/ViewModes.h
     doc/PrintTemplate.cpp
@@ -284,47 +284,47 @@ qt_add_executable(AiPdfEditor WIN32
     ai/AiContentDetection.h
     ai/AiImageGeneration.cpp
     ai/AiImageGeneration.h
-    pdf/SignatureWorkflow.cpp
-    pdf/SignatureWorkflow.h
-    pdf/SignatureVerifier.cpp
-    pdf/RsaVerifier.cpp
-    pdf/RsaVerifier.h
-    pdf/SignatureVerifier.h
-    pdf/DocumentMerger.cpp
-    pdf/DocumentMerger.h
-    pdf/NamedDestination.cpp
-    pdf/NamedDestination.h
-    pdf/PageLabels.cpp
-    pdf/PageLabels.h
-    pdf/PdfAChecker.cpp
-    pdf/PdfAChecker.h
-    pdf/FormAutoTag.cpp
-    pdf/FormAutoTag.h
-    pdf/ImageToPdf.cpp
-    pdf/ImageToPdf.h
-    pdf/DocumentComparer.cpp
-    pdf/DocumentComparer.h
-    pdf/PageDecorations.cpp
-    pdf/SoundFormat.cpp
-    pdf/AnnotationSummary.cpp
-    pdf/Xfdf.cpp
-    pdf/AnnotationDictionary.cpp
-    pdf/AppearanceStream.cpp
-    pdf/AppearanceStream.h
-    pdf/IncrementalWriter.cpp
-    pdf/IncrementalWriter.h
-    pdf/DocumentWriter.cpp
-    pdf/DocumentWriter.h
-    pdf/QpdfBackend.cpp
-    pdf/QpdfBackend.h
-    pdf/PdfSecurity.cpp
-    pdf/PdfSecurity.h
-    pdf/PdfRevisionCounter.cpp
-    pdf/PdfRevisionCounter.h
-    pdf/Navigation.cpp
-    pdf/Navigation.h
-    pdf/TextPage.cpp
-    pdf/TextPage.h
+    pdf/security/SignatureWorkflow.cpp
+    pdf/security/SignatureWorkflow.h
+    pdf/security/SignatureVerifier.cpp
+    pdf/security/RsaVerifier.cpp
+    pdf/security/RsaVerifier.h
+    pdf/security/SignatureVerifier.h
+    pdf/ops/DocumentMerger.cpp
+    pdf/ops/DocumentMerger.h
+    pdf/document/NamedDestination.cpp
+    pdf/document/NamedDestination.h
+    pdf/ops/PageLabels.cpp
+    pdf/ops/PageLabels.h
+    pdf/compliance/PdfAChecker.cpp
+    pdf/compliance/PdfAChecker.h
+    pdf/forms/FormAutoTag.cpp
+    pdf/forms/FormAutoTag.h
+    pdf/convert/ImageToPdf.cpp
+    pdf/convert/ImageToPdf.h
+    pdf/ops/DocumentComparer.cpp
+    pdf/ops/DocumentComparer.h
+    pdf/content/PageDecorations.cpp
+    pdf/annot/SoundFormat.cpp
+    pdf/annot/AnnotationSummary.cpp
+    pdf/annot/Xfdf.cpp
+    pdf/annot/AnnotationDictionary.cpp
+    pdf/annot/AppearanceStream.cpp
+    pdf/annot/AppearanceStream.h
+    pdf/document/IncrementalWriter.cpp
+    pdf/document/IncrementalWriter.h
+    pdf/document/DocumentWriter.cpp
+    pdf/document/DocumentWriter.h
+    pdf/document/QpdfBackend.cpp
+    pdf/document/QpdfBackend.h
+    pdf/security/PdfSecurity.cpp
+    pdf/security/PdfSecurity.h
+    pdf/document/PdfRevisionCounter.cpp
+    pdf/document/PdfRevisionCounter.h
+    pdf/document/Navigation.cpp
+    pdf/document/Navigation.h
+    pdf/kernel/TextPage.cpp
+    pdf/kernel/TextPage.h
     ai/ChatTypes.cpp
     ai/ChatTypes.h
     ai/CredentialStore.cpp

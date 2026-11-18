@@ -1,7 +1,7 @@
 #include "doc/UniversalConverter.h"
 
-#include "pdf/ContentStream.h"
-#include "pdf/TrueTypeSubset.h"
+#include "pdf/content/ContentStream.h"
+#include "pdf/content/TrueTypeSubset.h"
 
 #include <QHash>
 #include <QJsonDocument>
@@ -1388,7 +1388,7 @@ EmbeddedFontObjects buildEmbeddedFontObjects(const TrueTypeFont& font, const QSt
     // 字体文件：能子集化就子集化。
     //
     // 整份中文 TTF 动辄 10 MB，一页中文的 PDF 也有 10 MB——发不出去、也存不下。
-    // 子集化不动字形号，所以内容流与 ToUnicode 都不用改（见 pdf/TrueTypeSubset.h）。
+    // 子集化不动字形号，所以内容流与 ToUnicode 都不用改（见 pdf/content/TrueTypeSubset.h）。
     // 子集化不了（CFF 轮廓、字体损坏）就退回整份嵌入：文件大一点，
     // 但中文照样显示得出来——不因为省体积就把字弄丢。
     QSet<int> usedGids;

@@ -11,13 +11,13 @@
 #include "doc/ActionWizard.h"
 #include "doc/InvoiceLayout.h"
 #include "doc/UniversalConverter.h"
-#include "pdf/DocumentReflow.h"
-#include "pdf/OptionalContent.h"
-#include "pdf/ParagraphFormat.h"
-#include "pdf/PdfUaChecker.h"
-#include "pdf/RichMedia3d.h"
-#include "pdf/StructTreeReader.h"
-#include "pdf/XfaSupport.h"
+#include "pdf/ops/DocumentReflow.h"
+#include "pdf/ops/OptionalContent.h"
+#include "pdf/content/ParagraphFormat.h"
+#include "pdf/compliance/PdfUaChecker.h"
+#include "pdf/annot/RichMedia3d.h"
+#include "pdf/compliance/StructTreeReader.h"
+#include "pdf/forms/XfaSupport.h"
 
 class QCheckBox;
 class QComboBox;

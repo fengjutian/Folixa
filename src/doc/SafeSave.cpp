@@ -1,6 +1,6 @@
 #include "doc/SafeSave.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include "i18n/Translate.h"
 

@@ -1,4 +1,4 @@
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include "app/PageTransform.h"
 

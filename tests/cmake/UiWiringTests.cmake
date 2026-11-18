@@ -26,18 +26,18 @@ qt_add_executable(UiWiringTests
     ${CMAKE_SOURCE_DIR}/src/app/ConversionToolsDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/PrintToolsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PrintToolsDialog.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationToolkit.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationToolkit.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/OcrSuspicion.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OcrSuspicion.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PortfolioWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PortfolioWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PreflightChecker.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PreflightChecker.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationToolkit.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationToolkit.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OcrSuspicion.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OcrSuspicion.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/convert/PortfolioWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/convert/PortfolioWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PreflightChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PreflightChecker.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
     ${CMAKE_SOURCE_DIR}/src/doc/PrintBatch.cpp

@@ -3,9 +3,9 @@
 #include "doc/OfficeExport.h"
 #include "doc/PptxWriter.h"
 #include "doc/SpreadsheetExport.h"
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/TableStructure.h"
-#include "pdf/TextPage.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/content/TableStructure.h"
+#include "pdf/kernel/TextPage.h"
 
 #include <QRectF>
 #include <QSizeF>

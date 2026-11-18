@@ -1,6 +1,6 @@
 #include <QtTest>
 
-#include "pdf/SignatureInspector.h"
+#include "pdf/security/SignatureInspector.h"
 
 #include <QByteArray>
 #include <QFile>

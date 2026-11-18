@@ -1,6 +1,6 @@
-#include "pdf/ExportFormats.h"
+#include "pdf/convert/ExportFormats.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QList>

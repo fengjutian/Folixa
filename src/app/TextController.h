@@ -11,7 +11,7 @@
 #include "app/PageTransform.h"
 #include "app/SearchMatcher.h"
 #include "app/TextLayout.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <memory>
 

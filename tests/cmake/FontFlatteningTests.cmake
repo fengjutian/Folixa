@@ -13,12 +13,12 @@ qt_add_executable(FontFlatteningTests
     ${CMAKE_SOURCE_DIR}/src/doc/FontFlattening.h
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(FontFlatteningTests PRIVATE

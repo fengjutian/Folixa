@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pdf/PdfAChecker.h"
+#include "pdf/compliance/PdfAChecker.h"
 
 #include <QDialog>
 #include <QString>
@@ -14,7 +14,7 @@ namespace aipdf::app {
 // 一个结论码对应的中文标题。
 //
 // 为什么要在 app 层做这张表：领域层按仓库约束只给「码 + ASCII 技术细节」
-// （src/pdf/PdfAChecker.h），中文句子归界面拼。码是稳定的，文案会随语言变，
+// （src/pdf/compliance/PdfAChecker.h），中文句子归界面拼。码是稳定的，文案会随语言变，
 // 所以界面拿码查这张表，而不是拿文案去猜。
 //
 // 认不出来的码原样返回（显示成码本身），不编一句。

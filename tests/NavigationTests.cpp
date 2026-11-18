@@ -1,7 +1,7 @@
 #include "app/LinkHitTest.h"
 
 #include "app/PageTransform.h"
-#include "pdf/Navigation.h"
+#include "pdf/document/Navigation.h"
 
 #include <QTest>
 #include <QVector>

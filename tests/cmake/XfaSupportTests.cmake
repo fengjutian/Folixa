@@ -17,8 +17,8 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 
 qt_add_executable(XfaSupportTests
     ${CMAKE_CURRENT_LIST_DIR}/../XfaSupportTests.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/XfaSupport.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/XfaSupport.h
+    ${AIPDF_REPO_ROOT}/src/pdf/forms/XfaSupport.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/forms/XfaSupport.h
 )
 
 target_link_libraries(XfaSupportTests PRIVATE

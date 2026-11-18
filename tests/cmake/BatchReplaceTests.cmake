@@ -13,16 +13,16 @@
 
 qt_add_executable(BatchReplaceTests
     ${CMAKE_CURRENT_LIST_DIR}/../BatchReplaceTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BatchReplace.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BatchReplace.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/BatchReplace.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/BatchReplace.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(BatchReplaceTests PRIVATE

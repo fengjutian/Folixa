@@ -13,8 +13,8 @@
 #include "doc/EditContext.h"
 #include "doc/UndoStack.h"
 #include "app/MeasureGeometry.h"
-#include "pdf/Annotation.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <memory>
 

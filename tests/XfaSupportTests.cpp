@@ -1,4 +1,4 @@
-#include "pdf/XfaSupport.h"
+#include "pdf/forms/XfaSupport.h"
 
 #include <QByteArray>
 #include <QHash>

@@ -4,7 +4,7 @@
 // 名字空着——这些都不会抛异常，只会安静地生成一份错的表单。
 // 所以这里逐条钉住容错行为，而不是只断言"没崩"。
 
-#include "pdf/FormDesignParser.h"
+#include "pdf/forms/FormDesignParser.h"
 
 #include <QTest>
 

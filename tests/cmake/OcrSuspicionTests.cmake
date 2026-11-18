@@ -10,10 +10,10 @@
 
 qt_add_executable(OcrSuspicionTests
     ${CMAKE_CURRENT_LIST_DIR}/../OcrSuspicionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OcrSuspicion.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OcrSuspicion.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OcrSuspicion.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OcrSuspicion.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(OcrSuspicionTests PRIVATE

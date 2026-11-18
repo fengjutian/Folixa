@@ -6,8 +6,8 @@
 //   3) 文档原有的链接注释既不会被当成批注，也不会被误删。
 
 #include "app/AnnotationController.h"
-#include "pdf/Annotation.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QTest>
 

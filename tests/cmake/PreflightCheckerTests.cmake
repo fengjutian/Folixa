@@ -14,10 +14,10 @@
 
 qt_add_executable(PreflightCheckerTests
     ${CMAKE_CURRENT_LIST_DIR}/../PreflightCheckerTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PreflightChecker.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PreflightChecker.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PreflightChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PreflightChecker.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
 )
 
 target_link_libraries(PreflightCheckerTests PRIVATE

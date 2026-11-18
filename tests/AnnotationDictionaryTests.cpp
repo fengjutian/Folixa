@@ -3,7 +3,7 @@
 // 这些键是"别的阅读器怎么理解这条批注"的全部依据：没有 /L，直线就是个空矩形；
 // 没有 /LE，箭头就是一条线。而它们只能由我们的增量写入器补，所以必须逐字确认。
 
-#include "pdf/AnnotationDictionary.h"
+#include "pdf/annot/AnnotationDictionary.h"
 
 
 #include <QTest>

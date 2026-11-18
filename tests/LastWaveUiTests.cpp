@@ -16,11 +16,11 @@
 #include "doc/BlankDocument.h"
 #include "doc/DocumentChunk.h"
 #include "doc/UniversalConverter.h"
-#include "pdf/InvisibleTextLayer.h"
-#include "pdf/OptionalContent.h"
-#include "pdf/PdfUaChecker.h"
-#include "pdf/TextPage.h"
-#include "pdf/XfaSupport.h"
+#include "pdf/content/InvisibleTextLayer.h"
+#include "pdf/ops/OptionalContent.h"
+#include "pdf/compliance/PdfUaChecker.h"
+#include "pdf/kernel/TextPage.h"
+#include "pdf/forms/XfaSupport.h"
 
 #include <QApplication>
 #include <QFile>

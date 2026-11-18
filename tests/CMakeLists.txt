@@ -13,12 +13,12 @@ add_test(NAME IpcProtocolTests COMMAND IpcProtocolTests)
 
 qt_add_executable(ContentEditingTests
     ContentEditingTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
 )
 target_link_libraries(ContentEditingTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 if (AIPDF_WITH_QPDF AND qpdf_FOUND)
@@ -227,16 +227,16 @@ include(${CMAKE_SOURCE_DIR}/tests/cmake/DocumentPipelineTests.cmake)
 
 qt_add_executable(PdfiumAdapterTests
     PdfiumAdapterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
 )
 
 target_link_libraries(PdfiumAdapterTests PRIVATE
@@ -273,16 +273,16 @@ add_test(NAME PdfiumAdapterTests COMMAND PdfiumAdapterTests)
 if (AIPDF_WITH_QPDF AND qpdf_FOUND)
     qt_add_executable(PdfSecurityTests
         PdfSecurityTests.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-        ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-        ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     )
 
     target_link_libraries(PdfSecurityTests PRIVATE
@@ -361,12 +361,12 @@ add_test(NAME MouseShortcutsTests COMMAND MouseShortcutsTests)
 
 qt_add_executable(TextExtractionTests
     TextExtractionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
 )
@@ -398,8 +398,8 @@ qt_add_executable(NavigationTests
     ${CMAKE_SOURCE_DIR}/src/app/LinkHitTest.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
 )
 
 target_link_libraries(NavigationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -411,16 +411,16 @@ add_test(NAME NavigationTests COMMAND NavigationTests)
 
 qt_add_executable(PdfNavigationTests
     PdfNavigationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(PdfNavigationTests PRIVATE
@@ -457,10 +457,10 @@ qt_add_executable(AnnotationTests
     ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(AnnotationTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -472,15 +472,15 @@ add_test(NAME AnnotationTests COMMAND AnnotationTests)
 
 qt_add_executable(PdfAnnotationTests
     PdfAnnotationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
@@ -526,12 +526,12 @@ add_test(NAME PdfAnnotationTests COMMAND PdfAnnotationTests)
 
 qt_add_executable(AppearanceStreamTests
     AppearanceStreamTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(AppearanceStreamTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -545,16 +545,16 @@ add_test(NAME AppearanceStreamTests COMMAND AppearanceStreamTests)
 
 qt_add_executable(IncrementalWriterTests
     IncrementalWriterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(IncrementalWriterTests PRIVATE
@@ -579,30 +579,30 @@ add_test(NAME IncrementalWriterTests COMMAND IncrementalWriterTests)
 
 qt_add_executable(DocumentWriterTests
     DocumentWriterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(DocumentWriterTests PRIVATE
@@ -637,14 +637,14 @@ add_test(NAME DocumentWriterTests COMMAND DocumentWriterTests)
 
 qt_add_executable(PageAnnotsInjectorTests
     PageAnnotsInjectorTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(PageAnnotsInjectorTests PRIVATE
@@ -683,14 +683,14 @@ add_test(NAME AudioRecorderTests COMMAND AudioRecorderTests)
 
 qt_add_executable(FormDataTests
     FormDataTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormData.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormData.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormData.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormData.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(FormDataTests PRIVATE
@@ -711,14 +711,14 @@ add_test(NAME FormDataTests COMMAND FormDataTests)
 
 qt_add_executable(PageDecorationsTests
     PageDecorationsTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(PageDecorationsTests PRIVATE
@@ -743,8 +743,8 @@ add_test(NAME PageDecorationsTests COMMAND PageDecorationsTests)
 
 qt_add_executable(SoundFormatTests
     SoundFormatTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.h
 )
 
 target_link_libraries(SoundFormatTests PRIVATE Qt6::Core Qt6::Test)
@@ -757,12 +757,12 @@ add_test(NAME SoundFormatTests COMMAND SoundFormatTests)
 
 qt_add_executable(AnnotationSummaryTests
     AnnotationSummaryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationSummary.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationSummary.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationSummary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationSummary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(AnnotationSummaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -789,12 +789,12 @@ add_test(NAME MeasureGeometryTests COMMAND MeasureGeometryTests)
 
 qt_add_executable(XfdfTests
     XfdfTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Xfdf.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Xfdf.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Xfdf.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Xfdf.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(XfdfTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -807,12 +807,12 @@ add_test(NAME XfdfTests COMMAND XfdfTests)
 
 qt_add_executable(AnnotationDictionaryTests
     AnnotationDictionaryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(AnnotationDictionaryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -903,28 +903,28 @@ qt_add_executable(DocumentOutputTests
     DocumentOutputTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/QpdfBackend.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/IncrementalWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
 )
@@ -959,17 +959,17 @@ add_test(NAME DocumentOutputTests COMMAND DocumentOutputTests)
 
 qt_add_executable(PageEditingTests
     PageEditingTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableIntegration.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableIntegration.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
@@ -983,16 +983,16 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
 )
 
 target_link_libraries(PageEditingTests PRIVATE
@@ -1027,8 +1027,8 @@ add_test(NAME PageEditingTests COMMAND PageEditingTests)
 
 qt_add_executable(FormJsEvaluatorTests
     FormJsEvaluatorTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormJsEvaluator.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormJsEvaluator.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.h
 )
 
 target_link_libraries(FormJsEvaluatorTests PRIVATE Qt6::Core Qt6::Test)
@@ -1042,9 +1042,9 @@ add_test(NAME FormJsEvaluatorTests COMMAND FormJsEvaluatorTests)
 
 qt_add_executable(FormTemplateStoreTests
     FormTemplateStoreTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormTemplateStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormTemplateStore.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormTemplateStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormTemplateStore.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
 )
 
 target_link_libraries(FormTemplateStoreTests PRIVATE Qt6::Core Qt6::Test)
@@ -1058,8 +1058,8 @@ add_test(NAME FormTemplateStoreTests COMMAND FormTemplateStoreTests)
 
 qt_add_executable(FormScriptStoreTests
     FormScriptStoreTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormScriptStore.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
 )
 
 target_link_libraries(FormScriptStoreTests PRIVATE Qt6::Core Qt6::Test)
@@ -1082,8 +1082,8 @@ add_test(NAME FormScriptStoreTests COMMAND FormScriptStoreTests)
 
 qt_add_executable(BarcodeEncoderTests
     BarcodeEncoderTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
 )
 
 target_link_libraries(BarcodeEncoderTests PRIVATE Qt6::Core Qt6::Test)
@@ -1097,10 +1097,10 @@ add_test(NAME BarcodeEncoderTests COMMAND BarcodeEncoderTests)
 
 qt_add_executable(FormFieldWriterTests
     FormFieldWriterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
 )
 
 target_link_libraries(FormFieldWriterTests PRIVATE Qt6::Core Qt6::Test)
@@ -1112,15 +1112,15 @@ add_test(NAME FormFieldWriterTests COMMAND FormFieldWriterTests)
 
 qt_add_executable(PageOperationTests
     PageOperationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SoundFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
@@ -1194,14 +1194,14 @@ add_test(NAME DocumentIndexTests COMMAND DocumentIndexTests)
 
 qt_add_executable(PdfIndexTests
     PdfIndexTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
@@ -1243,12 +1243,12 @@ qt_add_executable(RenderThreadTests
     ${CMAKE_SOURCE_DIR}/src/app/RenderThread.h
     ${CMAKE_SOURCE_DIR}/src/app/TileCache.cpp
     ${CMAKE_SOURCE_DIR}/src/app/TileCache.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(RenderThreadTests PRIVATE
@@ -1400,14 +1400,14 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
     ${CMAKE_SOURCE_DIR}/src/ipc/WorkerClient.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/WorkerClient.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(AiPanelTests PRIVATE
@@ -1648,10 +1648,10 @@ qt_add_executable(ProposalRunnerTests
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(ProposalRunnerTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
@@ -1698,12 +1698,12 @@ qt_add_executable(FuzzTests
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
     ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(FuzzTests PRIVATE

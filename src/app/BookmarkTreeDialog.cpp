@@ -1,7 +1,7 @@
 #include "app/BookmarkTreeDialog.h"
 
 #include "i18n/Translate.h"
-#include "pdf/OutlineEditor.h"
+#include "pdf/ops/OutlineEditor.h"
 
 #include <QDialogButtonBox>
 #include <QDragEnterEvent>

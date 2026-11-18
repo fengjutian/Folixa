@@ -11,7 +11,7 @@
 #include <QDir>
 #include <QFile>
 
-#include "pdf/SignatureVerifier.h"
+#include "pdf/security/SignatureVerifier.h"
 
 using namespace aipdf::pdf;
 

@@ -10,10 +10,10 @@ qt_add_executable(BookmarkTreePanelTests
     ${CMAKE_CURRENT_LIST_DIR}/../BookmarkTreePanelTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/BookmarkTreeDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/BookmarkTreeDialog.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineEditor.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineEditor.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
 )
 
 target_link_libraries(BookmarkTreePanelTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)

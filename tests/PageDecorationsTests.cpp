@@ -4,7 +4,7 @@
 //   1. 每一页都真的多了内容（渲染像素变多）；
 //   2. 文字能进文本层（这也意味着水印会出现在搜索与复制里，是预期行为）。
 
-#include "pdf/PageDecorations.h"
+#include "pdf/content/PageDecorations.h"
 
 #include <QDir>
 #include <QImage>

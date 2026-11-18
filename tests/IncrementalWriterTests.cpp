@@ -7,10 +7,10 @@
 //   3) 可见性：同一页在补 /AP 前后的渲染差异，必须正好落在批注矩形里；
 //   4) 失败语义：找不到标记 / 外观流为空时必须明确失败，不能返回半成品。
 
-#include "pdf/Annotation.h"
-#include "pdf/AppearanceStream.h"
-#include "pdf/IncrementalWriter.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/annot/AppearanceStream.h"
+#include "pdf/document/IncrementalWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QImage>
 #include <QTest>

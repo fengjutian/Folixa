@@ -1,6 +1,6 @@
-#include "pdf/PageLabels.h"
+#include "pdf/ops/PageLabels.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QString>

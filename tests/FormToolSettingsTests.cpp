@@ -6,8 +6,8 @@
 // 设置读写用 QSettings(path, IniFormat) 落在临时目录：默认 QSettings 在 Windows 上
 // 写的是用户注册表，测试绝不能去动用户的真实设置。
 
-#include "pdf/FormToolSettings.h"
-#include "pdf/StandardFonts.h"
+#include "pdf/forms/FormToolSettings.h"
+#include "pdf/kernel/StandardFonts.h"
 
 #include <QDir>
 #include <QFile>

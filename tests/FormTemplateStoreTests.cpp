@@ -5,7 +5,7 @@
 //
 // 所有测试都用 QTemporaryDir，不碰用户真实的模板目录。
 
-#include "pdf/FormTemplateStore.h"
+#include "pdf/forms/FormTemplateStore.h"
 
 #include <QDir>
 #include <QFile>

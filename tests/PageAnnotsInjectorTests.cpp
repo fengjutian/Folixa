@@ -4,14 +4,14 @@
 // 注入后的字节要能被 PDFium 重新打开、页数不变、注释数 +1、子类型是 /Sound，
 // 并且结构能过 qpdf 校验。
 
-#include "pdf/PageAnnotsInjector.h"
+#include "pdf/annot/PageAnnotsInjector.h"
 
 #include <QDir>
 #include <QtTest>
 
 #include <fpdfview.h>
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 using aipdf::pdf::InlineAnnotationInsert;
 using aipdf::pdf::injectInlineAnnotations;

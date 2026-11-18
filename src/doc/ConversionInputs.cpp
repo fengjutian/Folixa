@@ -7,10 +7,10 @@
 #include <QXmlStreamReader>
 
 #include "doc/BlankDocument.h"
-#include "pdf/FormData.h"
-#include "pdf/ImageToPdf.h"
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/Xfdf.h"
+#include "pdf/forms/FormData.h"
+#include "pdf/convert/ImageToPdf.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/annot/Xfdf.h"
 
 namespace aipdf::doc {
 

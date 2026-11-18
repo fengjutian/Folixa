@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pdf/PdfSecurity.h"
+#include "pdf/security/PdfSecurity.h"
 
 #include <QByteArray>
 #include <QString>

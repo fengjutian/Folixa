@@ -10,7 +10,7 @@
 // 端到端验证（补进 PDF 后 PDFium 真的渲染出来）由写入层的任务负责，
 // 这里不重复。
 
-#include "pdf/AnnotationShapes.h"
+#include "pdf/annot/AnnotationShapes.h"
 
 #include <QTest>
 

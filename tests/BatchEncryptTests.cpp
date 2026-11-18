@@ -1,7 +1,7 @@
 #include "doc/BatchProcessor.h"
 
-#include "pdf/PdfSecurity.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/security/PdfSecurity.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QFile>

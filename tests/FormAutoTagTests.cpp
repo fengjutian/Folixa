@@ -17,10 +17,10 @@
 //   * 树里旧的 /Form 元素必须被**替换**掉，不能变成两份；
 //   * 结果里要说清是「新建」还是「合并」，以及保留了多少既有元素。
 
-#include "pdf/FormAutoTag.h"
+#include "pdf/forms/FormAutoTag.h"
 
-#include "pdf/FormFieldWriter.h"
-#include "pdf/StructTreeReader.h"
+#include "pdf/forms/FormFieldWriter.h"
+#include "pdf/compliance/StructTreeReader.h"
 
 #include <QRectF>
 #include <QTest>

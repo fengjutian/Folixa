@@ -1,6 +1,6 @@
-#include "pdf/DocumentReflow.h"
+#include "pdf/ops/DocumentReflow.h"
 
-#include "pdf/StructTreeReader.h"
+#include "pdf/compliance/StructTreeReader.h"
 
 #include <QTest>
 

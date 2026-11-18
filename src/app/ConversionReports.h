@@ -3,9 +3,9 @@
 #include <QString>
 #include <QVector>
 
-#include "pdf/OcrSuspicion.h"
-#include "pdf/PortfolioWriter.h"
-#include "pdf/PreflightChecker.h"
+#include "pdf/ops/OcrSuspicion.h"
+#include "pdf/convert/PortfolioWriter.h"
+#include "pdf/compliance/PreflightChecker.h"
 
 namespace aipdf::app {
 

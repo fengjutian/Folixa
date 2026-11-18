@@ -2,7 +2,7 @@
 
 #include "app/PageTransform.h"
 #include "app/TextLayout.h"
-#include "pdf/TextPage.h"
+#include "pdf/kernel/TextPage.h"
 
 #include <algorithm>
 

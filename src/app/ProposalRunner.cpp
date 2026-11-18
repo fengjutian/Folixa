@@ -2,7 +2,7 @@
 
 #include "doc/PageCommand.h"
 #include "doc/UndoStack.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 #include "i18n/Translate.h"
 

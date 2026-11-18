@@ -1,6 +1,6 @@
 #include "app/PageTextLines.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QTest>
 

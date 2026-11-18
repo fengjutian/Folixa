@@ -10,8 +10,8 @@
 // /EmbeddedFile 流 + /Names 树，再在页面上挂一个 /FileAttachment 批注。
 // payload 用一段可识别的 ASCII 串，好比对了。
 
-#include "pdf/PdfSecurity.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/security/PdfSecurity.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QDir>

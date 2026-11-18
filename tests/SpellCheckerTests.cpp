@@ -3,7 +3,7 @@
 // 断言的重点是「位置对得上」：start/length 必须真的指向原文里的那个词，
 // 否则界面上的波浪线会画在错的地方，单元测试也就没意义了。
 
-#include "pdf/SpellChecker.h"
+#include "pdf/ops/SpellChecker.h"
 
 #include <QDir>
 #include <QFile>

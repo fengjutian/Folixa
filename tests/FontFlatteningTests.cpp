@@ -13,7 +13,7 @@
 
 #include "doc/BlankDocument.h"
 #include "doc/FontFlattening.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 using aipdf::doc::FlattenOptions;
 

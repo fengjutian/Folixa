@@ -1,9 +1,9 @@
-#include "pdf/OutlineGenerator.h"
+#include "pdf/ops/OutlineGenerator.h"
 
 #include "doc/ChunkBuilder.h"
-#include "pdf/Navigation.h"
-#include "pdf/OutlineWriter.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/document/Navigation.h"
+#include "pdf/ops/OutlineWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QTest>

@@ -3,7 +3,7 @@
 // 这一条要证明的是"批注不是我们的私货"：导出成 XFDF 再导回来，类型、位置、
 // 颜色、正文、顶点、笔画都不能变。只要有一项丢了，用户换一个审阅工具就会丢数据。
 
-#include "pdf/Xfdf.h"
+#include "pdf/annot/Xfdf.h"
 
 #include <QTest>
 

@@ -22,34 +22,34 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/app/LastWaveBridge.h
     ${CMAKE_SOURCE_DIR}/src/app/LastWavePanels.cpp
     ${CMAKE_SOURCE_DIR}/src/app/LastWavePanels.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/InvisibleTextLayer.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/InvisibleTextLayer.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ParagraphFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ParagraphFormat.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/OptionalContent.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OptionalContent.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfUaChecker.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfUaChecker.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/XfaSupport.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/XfaSupport.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/RichMedia3d.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/RichMedia3d.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentReflow.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentReflow.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TagTreeWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TagTreeWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/InvisibleTextLayer.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/InvisibleTextLayer.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ParagraphFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ParagraphFormat.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OptionalContent.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OptionalContent.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PdfUaChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/PdfUaChecker.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/XfaSupport.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/XfaSupport.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/RichMedia3d.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/RichMedia3d.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentReflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.h
     ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TrueTypeSubset.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TrueTypeSubset.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
     ${CMAKE_SOURCE_DIR}/src/doc/ActionWizard.cpp

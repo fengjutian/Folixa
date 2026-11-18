@@ -4,7 +4,7 @@
 #include <QString>
 #include <QStringList>
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 class QPrinter;
 

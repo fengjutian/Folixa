@@ -1,4 +1,4 @@
-#include "pdf/FormScriptStore.h"
+#include "pdf/forms/FormScriptStore.h"
 
 #include <QByteArray>
 #include <QTest>

@@ -15,8 +15,8 @@
 
 qt_add_executable(SignatureInspectorTests
     ${CMAKE_CURRENT_LIST_DIR}/../SignatureInspectorTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SignatureInspector.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SignatureInspector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureInspector.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureInspector.h
 )
 
 target_link_libraries(SignatureInspectorTests PRIVATE

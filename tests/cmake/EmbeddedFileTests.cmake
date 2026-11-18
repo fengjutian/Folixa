@@ -13,16 +13,16 @@
 
 qt_add_executable(EmbeddedFileTests
     ${CMAKE_CURRENT_LIST_DIR}/../EmbeddedFileTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 target_link_libraries(EmbeddedFileTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test ${AIPDF_PDFIUM_LIBRARY})
 target_include_directories(EmbeddedFileTests PRIVATE ${CMAKE_SOURCE_DIR}/src ${AIPDF_PDFIUM_INCLUDE_DIR})

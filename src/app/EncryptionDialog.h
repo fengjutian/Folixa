@@ -1,7 +1,7 @@
 #pragma once
 
 #include "i18n/Translate.h"
-#include "pdf/PdfSecurity.h"
+#include "pdf/security/PdfSecurity.h"
 
 #include <QDialog>
 

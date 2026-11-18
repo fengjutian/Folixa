@@ -11,8 +11,8 @@
 // 夹具：scripts/generate-test-pdfs.py 生成的 text.pdf。
 // 遮盖区域不写死坐标——先 extractText() 拿到真实字符盒，再挑一行有字的矩形。
 
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/Redaction.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/security/Redaction.h"
 
 #include <QDir>
 #include <QImage>

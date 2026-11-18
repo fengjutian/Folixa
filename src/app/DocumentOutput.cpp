@@ -1,6 +1,6 @@
 #include "app/DocumentOutput.h"
 
-#include "pdf/DocumentWriter.h"
+#include "pdf/document/DocumentWriter.h"
 
 #include "i18n/Translate.h"
 

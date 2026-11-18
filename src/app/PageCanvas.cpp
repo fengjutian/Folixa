@@ -12,7 +12,7 @@
 #include "app/AnnotationController.h"
 #include "app/InkGeometry.h"
 #include "app/MouseShortcuts.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 #include <QApplication>
 #include <QContextMenuEvent>

@@ -13,8 +13,8 @@
 #include "doc/EditCommand.h"
 #include "doc/PageCommand.h"
 #include "doc/SafeSave.h"
-#include "pdf/Annotation.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QTemporaryDir>

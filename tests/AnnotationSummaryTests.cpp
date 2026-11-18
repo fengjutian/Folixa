@@ -3,7 +3,7 @@
 // 摘要要贴进邮件、要打印，所以两件事必须钉死：正文里的 HTML 特殊字符要转义
 // （否则表格结构被打断），以及按页排序（否则审阅顺序是乱的）。
 
-#include "pdf/AnnotationSummary.h"
+#include "pdf/annot/AnnotationSummary.h"
 
 #include <QTest>
 

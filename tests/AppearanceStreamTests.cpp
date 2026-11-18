@@ -8,8 +8,8 @@
 // 端到端验证（补进 PDF 后 PDFium 真的渲染出来）在 1.3.0 的写入层落地时补上，
 // 届时用真实文档跑，不再依赖测试里的临时补丁器。
 
-#include "pdf/Annotation.h"
-#include "pdf/AppearanceStream.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/annot/AppearanceStream.h"
 
 #include <QBuffer>
 #include <QTest>

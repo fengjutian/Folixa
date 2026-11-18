@@ -1,4 +1,4 @@
-#include "pdf/ParagraphFormat.h"
+#include "pdf/content/ParagraphFormat.h"
 
 #include <QTest>
 

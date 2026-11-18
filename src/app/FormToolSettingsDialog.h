@@ -3,7 +3,7 @@
 #include <QDialog>
 #include <QColor>
 
-#include "pdf/FormToolSettings.h"
+#include "pdf/forms/FormToolSettings.h"
 
 class QComboBox;
 class QDoubleSpinBox;

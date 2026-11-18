@@ -43,7 +43,7 @@ QSizeF pageSizeInPoints(PageSize size, PageOrientation orientation);
 // 返回可用的 PDF 字节；失败返回空字节，并把原因（中文）写进 error。
 //
 // 这一层自己拼 PDF 字节，不借 PDFium：PDFium 的接口不是线程安全的
-// （见 src/pdf/PdfiumAdapter.cpp 开头的说明），本程序所有 PDFium 调用
+// （见 src/pdf/kernel/PdfiumAdapter.cpp 开头的说明），本程序所有 PDFium 调用
 // 都串在同一把进程级锁上，而那把锁没有对外接口；doc 层再开一个
 // PDFium 调用点就等于绕过它，可能踩坏 PDFium 的共享状态。
 // 空白页的结构本来就极简，自己拼能把依赖留在 Qt Core 这一层。

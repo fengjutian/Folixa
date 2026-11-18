@@ -8,8 +8,8 @@
 // 夹具里的文字会随生成脚本调整而变，断言就会飘。
 // 夹具（text.pdf）只用来验证「真实文件改完仍然读得出来」这一条。
 
-#include "pdf/BatchReplace.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/ops/BatchReplace.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QFile>

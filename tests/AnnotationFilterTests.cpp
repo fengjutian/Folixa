@@ -1,4 +1,4 @@
-#include "pdf/AnnotationFilter.h"
+#include "pdf/annot/AnnotationFilter.h"
 
 #include <QTest>
 

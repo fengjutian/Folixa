@@ -14,18 +14,18 @@
 
 qt_add_executable(DocumentMergerTests
     ${CMAKE_CURRENT_LIST_DIR}/../DocumentMergerTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentMerger.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/DocumentMerger.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentMerger.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentMerger.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
 )
 
 target_link_libraries(DocumentMergerTests PRIVATE

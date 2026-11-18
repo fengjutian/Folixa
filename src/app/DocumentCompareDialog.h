@@ -1,7 +1,7 @@
 #pragma once
 
 #include "i18n/Translate.h"
-#include "pdf/DocumentComparer.h"
+#include "pdf/ops/DocumentComparer.h"
 
 #include <QDialog>
 #include <QString>

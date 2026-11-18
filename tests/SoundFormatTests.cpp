@@ -3,7 +3,7 @@
 // 声音批注的关键不是"能不能存"，而是"存进去的字节阅读器能不能放"：
 // PDF 的 /Sound 要裸 PCM，把 WAV 容器整个塞进去放出来就是噪音。
 
-#include "pdf/SoundFormat.h"
+#include "pdf/annot/SoundFormat.h"
 
 #include <QTest>
 

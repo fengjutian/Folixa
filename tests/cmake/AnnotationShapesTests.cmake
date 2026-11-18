@@ -13,8 +13,8 @@
 
 qt_add_executable(AnnotationShapesTests
     ${CMAKE_CURRENT_LIST_DIR}/../AnnotationShapesTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationShapes.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationShapes.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationShapes.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationShapes.h
 )
 
 target_link_libraries(AnnotationShapesTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

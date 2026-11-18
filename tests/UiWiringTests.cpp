@@ -3,10 +3,10 @@
 #include "app/ConversionToolsDialog.h"
 #include "app/PrintToolsDialog.h"
 #include "app/RibbonBar.h"
-#include "pdf/AnnotationToolkit.h"
-#include "pdf/OcrSuspicion.h"
-#include "pdf/PortfolioWriter.h"
-#include "pdf/PreflightChecker.h"
+#include "pdf/annot/AnnotationToolkit.h"
+#include "pdf/ops/OcrSuspicion.h"
+#include "pdf/convert/PortfolioWriter.h"
+#include "pdf/compliance/PreflightChecker.h"
 
 #include <QApplication>
 #include <QDir>

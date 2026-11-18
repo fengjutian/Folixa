@@ -9,9 +9,9 @@
 // 最后一例是落盘往返：改出来的层级必须真的能写进 PDF 并读回来，
 // 否则界面上的"降级/升级"就只是个幻觉。
 
-#include "pdf/OutlineEditor.h"
-#include "pdf/OutlineWriter.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/ops/OutlineEditor.h"
+#include "pdf/ops/OutlineWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QStringList>

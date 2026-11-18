@@ -1,6 +1,6 @@
-#include "pdf/InvisibleTextLayer.h"
+#include "pdf/content/InvisibleTextLayer.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QTest>
 

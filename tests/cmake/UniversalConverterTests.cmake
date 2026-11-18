@@ -23,18 +23,18 @@ qt_add_executable(UniversalConverterTests
     ${CMAKE_CURRENT_LIST_DIR}/../UniversalConverterTests.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TrueTypeSubset.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TrueTypeSubset.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/TrueTypeSubset.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/TrueTypeSubset.h
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/ContentStream.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/ContentStream.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TextPage.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/ContentStream.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/ContentStream.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(UniversalConverterTests PRIVATE

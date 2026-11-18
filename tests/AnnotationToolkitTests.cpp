@@ -1,4 +1,4 @@
-#include "pdf/AnnotationToolkit.h"
+#include "pdf/annot/AnnotationToolkit.h"
 
 #include <QSet>
 #include <QTest>

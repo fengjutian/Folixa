@@ -4,7 +4,7 @@
 // 码集切换漏了切换符，都不会报错，只会安静地生成一张废图。
 // 所以这里对着标准表的已知向量逐段比对图案，而不是只断言"没崩"。
 
-#include "pdf/BarcodeEncoder.h"
+#include "pdf/forms/BarcodeEncoder.h"
 
 #include <QTest>
 

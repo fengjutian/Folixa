@@ -10,7 +10,7 @@
 
 #include <QtTest>
 
-#include "pdf/RsaVerifier.h"
+#include "pdf/security/RsaVerifier.h"
 
 using namespace aipdf::pdf;
 

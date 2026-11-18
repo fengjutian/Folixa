@@ -8,8 +8,8 @@
 
 qt_add_executable(SpellCheckerTests
     ${CMAKE_CURRENT_LIST_DIR}/../SpellCheckerTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SpellChecker.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/SpellChecker.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/SpellChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/SpellChecker.h
 )
 
 target_link_libraries(SpellCheckerTests PRIVATE Qt6::Core Qt6::Test)

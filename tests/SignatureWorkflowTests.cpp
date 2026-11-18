@@ -9,7 +9,7 @@
 
 #include <QtTest>
 
-#include "pdf/SignatureWorkflow.h"
+#include "pdf/security/SignatureWorkflow.h"
 
 using namespace aipdf::pdf;
 

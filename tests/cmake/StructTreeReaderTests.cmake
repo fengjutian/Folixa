@@ -14,10 +14,10 @@
 
 qt_add_executable(StructTreeReaderTests
     ${CMAKE_CURRENT_LIST_DIR}/../StructTreeReaderTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
 )
 
 target_link_libraries(StructTreeReaderTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

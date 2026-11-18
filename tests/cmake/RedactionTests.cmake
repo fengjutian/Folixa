@@ -10,14 +10,14 @@
 
 qt_add_executable(RedactionTests
     ${CMAKE_CURRENT_LIST_DIR}/../RedactionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Redaction.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Redaction.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/Redaction.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/Redaction.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 target_link_libraries(RedactionTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test ${AIPDF_PDFIUM_LIBRARY})
 target_include_directories(RedactionTests PRIVATE ${CMAKE_SOURCE_DIR}/src ${AIPDF_PDFIUM_INCLUDE_DIR})

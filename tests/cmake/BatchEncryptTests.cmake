@@ -21,16 +21,16 @@ if (AIPDF_WITH_QPDF AND qpdf_FOUND)
         ${CMAKE_CURRENT_LIST_DIR}/../BatchEncryptTests.cpp
         ${AIPDF_REPO_ROOT}/src/doc/BatchProcessor.cpp
         ${AIPDF_REPO_ROOT}/src/doc/BatchProcessor.h
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfSecurity.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfSecurity.h
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfRevisionCounter.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfRevisionCounter.h
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.h
-        ${AIPDF_REPO_ROOT}/src/pdf/Annotation.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/Annotation.h
-        ${AIPDF_REPO_ROOT}/src/pdf/TextPage.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/TextPage.h
+        ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.h
+        ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.h
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+        ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
     )
 
     target_link_libraries(BatchEncryptTests PRIVATE

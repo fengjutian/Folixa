@@ -1,4 +1,4 @@
-#include "pdf/PdfUaChecker.h"
+#include "pdf/compliance/PdfUaChecker.h"
 
 #include <QHash>
 #include <QSet>

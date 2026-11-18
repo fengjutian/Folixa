@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVector>
 
-#include "pdf/FormScriptStore.h"
+#include "pdf/forms/FormScriptStore.h"
 
 class QComboBox;
 class QPlainTextEdit;

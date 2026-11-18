@@ -25,7 +25,7 @@
 
 #include "app/SystemCjkFont.h"
 #include "i18n/Translate.h"
-#include "pdf/ParagraphFormat.h"
+#include "pdf/content/ParagraphFormat.h"
 
 namespace aipdf::app {
 

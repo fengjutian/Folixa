@@ -3,7 +3,7 @@
 // 这些脚本是 PDF 文件里带来的，既不能崩，也不能悄悄算错：
 // 语法不认识要报错，除零要报错，"1"+1 和 "1"-1 的差别要保住。
 
-#include "pdf/FormJsEvaluator.h"
+#include "pdf/forms/FormJsEvaluator.h"
 
 #include <QTest>
 

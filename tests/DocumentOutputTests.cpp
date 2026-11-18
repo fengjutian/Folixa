@@ -9,9 +9,9 @@
 // documentForOutput() 那条路——先补 /AP 再重开，而不是直接画内存里的文档。
 
 #include "app/DocumentOutput.h"
-#include "pdf/Annotation.h"
-#include "pdf/IncrementalWriter.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/document/IncrementalWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QImage>

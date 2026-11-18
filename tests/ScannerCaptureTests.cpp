@@ -1,6 +1,6 @@
 #include "app/ScannerCapture.h"
-#include "pdf/ImageToPdf.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/convert/ImageToPdf.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QImage>

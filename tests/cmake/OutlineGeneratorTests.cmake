@@ -4,18 +4,18 @@
 
 qt_add_executable(OutlineGeneratorTests
     ${CMAKE_CURRENT_LIST_DIR}/../OutlineGeneratorTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineGenerator.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineGenerator.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/OutlineWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineGenerator.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineGenerator.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h

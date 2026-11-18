@@ -3,7 +3,7 @@
 #include <QVector>
 
 #include "doc/EditContext.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 namespace aipdf::app {
 

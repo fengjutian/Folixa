@@ -205,7 +205,7 @@ QVector<TextExportLine> buildTextLines(const pdf::TextPage& text) {
     // 注意 Qt 的 QRectF 约定：top() 是**较小的** y，bottom() 是较大的 y；
     // 而 PDF 的 y 向上，页面上方是较大的 y。所以这里按 box.bottom() 排
     // （那才是 PDF 的上边）。弄反了整页的上下都会颠倒，
-    // 同一个坑在 pdf/TextPage.h 开头也写着。
+    // 同一个坑在 pdf/kernel/TextPage.h 开头也写着。
     std::sort(chars.begin(), chars.end(),
               [](const pdf::TextChar& left, const pdf::TextChar& right) {
                   if (left.box.bottom() != right.box.bottom()) {

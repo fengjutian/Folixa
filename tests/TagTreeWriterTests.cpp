@@ -1,6 +1,6 @@
-#include "pdf/TagTreeWriter.h"
+#include "pdf/compliance/TagTreeWriter.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QImage>

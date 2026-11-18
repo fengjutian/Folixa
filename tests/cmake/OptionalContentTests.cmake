@@ -12,14 +12,14 @@
 
 qt_add_executable(OptionalContentTests
     ${CMAKE_CURRENT_LIST_DIR}/../OptionalContentTests.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/OptionalContent.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/OptionalContent.h
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/PdfiumAdapter.h
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/Annotation.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/Annotation.h
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/TextPage.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/TextPage.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/ops/OptionalContent.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/ops/OptionalContent.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/annot/Annotation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/annot/Annotation.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/kernel/TextPage.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(OptionalContentTests PRIVATE

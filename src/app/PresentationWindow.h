@@ -5,7 +5,7 @@
 #include <QImage>
 #include <QWidget>
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 namespace aipdf::app {
 

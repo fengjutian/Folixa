@@ -17,8 +17,8 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 
 qt_add_executable(PdfUaCheckerTests
     ${CMAKE_CURRENT_LIST_DIR}/../PdfUaCheckerTests.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfUaChecker.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfUaChecker.h
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.h
 )
 
 target_link_libraries(PdfUaCheckerTests PRIVATE

@@ -10,7 +10,7 @@
 // 字体文件的确定性测试。
 
 #include "doc/UniversalConverter.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QString>

@@ -5,7 +5,7 @@
 #include <QThread>
 #include <QWaitCondition>
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 namespace aipdf::app {
 

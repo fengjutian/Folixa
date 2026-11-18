@@ -3,11 +3,11 @@
 // 这一层最容易出的错是"漏补"——保存成功、文件合法、批注却在外单位置集体消失。
 // 所以每条断言都盯着「补了几条」和「补了之后渲染有没有变化」，而不是"没报错"。
 
-#include "pdf/Annotation.h"
-#include "pdf/DocumentWriter.h"
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/PdfSecurity.h"
-#include "pdf/QpdfBackend.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/document/DocumentWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/security/PdfSecurity.h"
+#include "pdf/document/QpdfBackend.h"
 
 #include <QBuffer>
 #include <QFile>

@@ -1,4 +1,4 @@
-#include "pdf/DocumentComparer.h"
+#include "pdf/ops/DocumentComparer.h"
 
 #include "app/DocumentCompareDialog.h"
 

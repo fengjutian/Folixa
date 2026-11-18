@@ -1,6 +1,6 @@
-#include "pdf/NamedDestination.h"
+#include "pdf/document/NamedDestination.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QFile>

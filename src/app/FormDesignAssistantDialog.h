@@ -5,7 +5,7 @@
 #include <QString>
 #include <QVector>
 
-#include "pdf/FormDesignParser.h"
+#include "pdf/forms/FormDesignParser.h"
 
 class QLabel;
 class QPlainTextEdit;

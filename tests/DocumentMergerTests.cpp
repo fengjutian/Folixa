@@ -1,6 +1,6 @@
-#include "pdf/DocumentMerger.h"
+#include "pdf/ops/DocumentMerger.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QFile>
 #include <QHash>

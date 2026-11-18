@@ -3,7 +3,7 @@
 // 这两条通路的失败很难被用户察觉：CSV 少一列、引号没转义、FDF 反斜杠没还原，
 // 结果都是"值悄悄变了"，而不是报错。
 
-#include "pdf/FormData.h"
+#include "pdf/forms/FormData.h"
 
 #include <QTest>
 

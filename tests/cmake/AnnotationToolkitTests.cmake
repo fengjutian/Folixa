@@ -14,8 +14,8 @@ get_filename_component(AIPDF_ANNOTATION_TOOLKIT_ROOT
 # 这一组是纯领域层：不碰 PDFium、不碰 qpdf、不需要 PDF 夹具。
 qt_add_executable(AnnotationToolkitTests
     ${CMAKE_CURRENT_LIST_DIR}/../AnnotationToolkitTests.cpp
-    ${AIPDF_ANNOTATION_TOOLKIT_ROOT}/src/pdf/AnnotationToolkit.cpp
-    ${AIPDF_ANNOTATION_TOOLKIT_ROOT}/src/pdf/AnnotationToolkit.h
+    ${AIPDF_ANNOTATION_TOOLKIT_ROOT}/src/pdf/annot/AnnotationToolkit.cpp
+    ${AIPDF_ANNOTATION_TOOLKIT_ROOT}/src/pdf/annot/AnnotationToolkit.h
 )
 
 target_link_libraries(AnnotationToolkitTests PRIVATE Qt6::Core Qt6::Test)

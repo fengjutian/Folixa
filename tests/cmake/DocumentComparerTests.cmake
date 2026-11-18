@@ -19,14 +19,14 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 
 qt_add_executable(DocumentComparerTests
     ${CMAKE_CURRENT_LIST_DIR}/../DocumentComparerTests.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentComparer.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentComparer.h
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentComparer.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentComparer.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
     ${AIPDF_REPO_ROOT}/src/app/DocumentCompareDialog.cpp
     ${AIPDF_REPO_ROOT}/src/app/DocumentCompareDialog.h
     ${AIPDF_REPO_ROOT}/src/app/Language.cpp

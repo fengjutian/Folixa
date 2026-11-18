@@ -11,24 +11,24 @@ endif()
 
 qt_add_executable(TrueTypeSubsetTests
     ${CMAKE_CURRENT_LIST_DIR}/../TrueTypeSubsetTests.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TrueTypeSubset.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TrueTypeSubset.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/ContentStream.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/ContentStream.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TrueTypeSubset.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TrueTypeSubset.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/ContentStream.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/ContentStream.h
     ${AIPDF_SOURCE_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_SOURCE_ROOT}/src/doc/UniversalConverter.h
     ${AIPDF_SOURCE_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_SOURCE_ROOT}/src/doc/BlankDocument.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TextPage.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Navigation.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/Navigation.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TableStructure.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/TableStructure.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.h
 )
 
 target_link_libraries(TrueTypeSubsetTests PRIVATE

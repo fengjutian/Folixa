@@ -8,8 +8,8 @@
 //
 // 断言的形状：枚举要能说清「凭什么算这一类」，清理要能说清「勾了哪类就只动哪类」。
 
-#include "pdf/PdfSecurity.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/security/PdfSecurity.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QDir>

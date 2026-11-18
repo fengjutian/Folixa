@@ -1,4 +1,4 @@
-#include "pdf/PreflightChecker.h"
+#include "pdf/compliance/PreflightChecker.h"
 
 #include <QFile>
 #include <QHash>

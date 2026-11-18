@@ -6,7 +6,7 @@
 #include "doc/AnnotationModel.h"
 #include "doc/EditCommand.h"
 #include "doc/UndoStack.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

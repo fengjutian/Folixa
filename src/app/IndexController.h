@@ -2,7 +2,7 @@
 
 #include "doc/LocalIndex.h"
 
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QObject>
 #include <QString>

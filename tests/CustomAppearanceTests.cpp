@@ -10,9 +10,9 @@
 // 几何与内容流本身由 pdf::AnnotationShapes 负责，那一层有自己的专项单测
 // （tests/AnnotationShapesTests.cpp），这里不重复测，只测「接上去以后对不对」。
 
-#include "pdf/Annotation.h"
-#include "pdf/AnnotationShapes.h"
-#include "pdf/AppearanceStream.h"
+#include "pdf/annot/Annotation.h"
+#include "pdf/annot/AnnotationShapes.h"
+#include "pdf/annot/AppearanceStream.h"
 
 #include <QJsonObject>
 #include <QTest>

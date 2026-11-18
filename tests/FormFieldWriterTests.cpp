@@ -9,9 +9,9 @@
 // 夹具全部手写：这里不依赖 qpdf（默认不开），也不依赖 PDFium 的输出，
 // 这样交叉引用流那种"没有 trailer 关键字"的形态才能被真正覆盖到。
 
-#include "pdf/BarcodeEncoder.h"
-#include "pdf/FormFieldWriter.h"
-#include "pdf/StandardFonts.h"
+#include "pdf/forms/BarcodeEncoder.h"
+#include "pdf/forms/FormFieldWriter.h"
+#include "pdf/kernel/StandardFonts.h"
 
 #include <QRectF>
 #include <QTest>

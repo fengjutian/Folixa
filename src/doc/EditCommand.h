@@ -4,7 +4,7 @@
 #include <QString>
 
 #include "doc/EditContext.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 #include <memory>
 

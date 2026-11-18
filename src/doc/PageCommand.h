@@ -5,7 +5,7 @@
 #include <QVector>
 
 #include "doc/EditCommand.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 #include <memory>
 

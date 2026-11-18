@@ -1,6 +1,6 @@
-﻿#include "pdf/PdfiumAdapter.h"
+﻿#include "pdf/kernel/PdfiumAdapter.h"
 
-#include "pdf/FormFieldWriter.h"
+#include "pdf/forms/FormFieldWriter.h"
 
 #include <QDir>
 #include <QFileInfo>

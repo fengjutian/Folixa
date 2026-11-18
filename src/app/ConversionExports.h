@@ -8,8 +8,8 @@
 #include "doc/FontFlattening.h"
 #include "doc/OfdExport.h"
 #include "doc/OfficeExport.h"
-#include "pdf/ExportFormats.h"
-#include "pdf/TextPage.h"
+#include "pdf/convert/ExportFormats.h"
+#include "pdf/kernel/TextPage.h"
 
 namespace aipdf::app {
 

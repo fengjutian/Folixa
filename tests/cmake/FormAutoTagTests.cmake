@@ -11,19 +11,19 @@
 
 qt_add_executable(FormAutoTagTests
     ${CMAKE_CURRENT_LIST_DIR}/../FormAutoTagTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormAutoTag.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormAutoTag.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormFieldWriter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAutoTag.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAutoTag.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
     # FormFieldWriter 里条码域要用到 encodeCode128：不带这两个文件链接不过。
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/BarcodeEncoder.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/StructTreeReader.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/compliance/StructTreeReader.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
 )
 
 target_link_libraries(FormAutoTagTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

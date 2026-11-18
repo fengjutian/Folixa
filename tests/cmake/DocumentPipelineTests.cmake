@@ -31,54 +31,54 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 qt_add_executable(DocumentPipelineTests
     ${CMAKE_CURRENT_LIST_DIR}/../DocumentPipelineTests.cpp
     # ---- PDFium 适配层与它的依赖 ----
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfiumAdapter.h
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/Annotation.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TextPage.h
-    ${AIPDF_REPO_ROOT}/src/pdf/Navigation.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/Navigation.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TableStructure.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TableStructure.h
-    ${AIPDF_REPO_ROOT}/src/pdf/ContentStream.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/ContentStream.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
+    ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TableStructure.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TableStructure.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.h
     # ---- 流水线主流程涉及的领域层模块 ----
-    ${AIPDF_REPO_ROOT}/src/pdf/PreflightChecker.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PreflightChecker.h
-    ${AIPDF_REPO_ROOT}/src/pdf/OptionalContent.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/OptionalContent.h
-    ${AIPDF_REPO_ROOT}/src/pdf/InvisibleTextLayer.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/InvisibleTextLayer.h
-    ${AIPDF_REPO_ROOT}/src/pdf/StructTreeReader.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/StructTreeReader.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TagTreeWriter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TagTreeWriter.h
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfUaChecker.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PdfUaChecker.h
-    ${AIPDF_REPO_ROOT}/src/pdf/NamedDestination.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/NamedDestination.h
-    ${AIPDF_REPO_ROOT}/src/pdf/PageLabels.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PageLabels.h
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentMerger.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentMerger.h
-    ${AIPDF_REPO_ROOT}/src/pdf/ExportFormats.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/ExportFormats.h
-    ${AIPDF_REPO_ROOT}/src/pdf/PortfolioWriter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/PortfolioWriter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PreflightChecker.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PreflightChecker.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/OptionalContent.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/OptionalContent.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/InvisibleTextLayer.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/InvisibleTextLayer.h
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.h
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/TagTreeWriter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/TagTreeWriter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.h
+    ${AIPDF_REPO_ROOT}/src/pdf/document/NamedDestination.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/document/NamedDestination.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/PageLabels.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/PageLabels.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentMerger.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentMerger.h
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/ExportFormats.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/ExportFormats.h
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/PortfolioWriter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/PortfolioWriter.h
     # ---- 分支流程涉及的领域层模块 ----
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentReflow.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/DocumentReflow.h
-    ${AIPDF_REPO_ROOT}/src/pdf/ParagraphFormat.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/ParagraphFormat.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TextReflow.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TextReflow.h
-    ${AIPDF_REPO_ROOT}/src/pdf/RichMedia3d.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/RichMedia3d.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ParagraphFormat.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ParagraphFormat.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TextReflow.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TextReflow.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.h
     ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.h
-    ${AIPDF_REPO_ROOT}/src/pdf/TrueTypeSubset.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/TrueTypeSubset.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TrueTypeSubset.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/TrueTypeSubset.h
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.h
     ${AIPDF_REPO_ROOT}/src/ai/OfflineQa.cpp

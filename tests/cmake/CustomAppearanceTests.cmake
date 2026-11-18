@@ -11,12 +11,12 @@
 
 qt_add_executable(CustomAppearanceTests
     ${CMAKE_CURRENT_LIST_DIR}/../CustomAppearanceTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationShapes.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationShapes.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/AppearanceStream.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationShapes.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationShapes.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
 )
 
 target_link_libraries(CustomAppearanceTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

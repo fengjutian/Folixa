@@ -9,8 +9,8 @@ get_filename_component(AIPDF_ANNOTATION_FILTER_ROOT
 
 qt_add_executable(AnnotationFilterTests
     ${CMAKE_CURRENT_LIST_DIR}/../AnnotationFilterTests.cpp
-    ${AIPDF_ANNOTATION_FILTER_ROOT}/src/pdf/AnnotationFilter.cpp
-    ${AIPDF_ANNOTATION_FILTER_ROOT}/src/pdf/AnnotationFilter.h
+    ${AIPDF_ANNOTATION_FILTER_ROOT}/src/pdf/annot/AnnotationFilter.cpp
+    ${AIPDF_ANNOTATION_FILTER_ROOT}/src/pdf/annot/AnnotationFilter.h
 )
 
 target_link_libraries(AnnotationFilterTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

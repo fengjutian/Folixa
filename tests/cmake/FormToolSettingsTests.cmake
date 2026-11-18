@@ -5,8 +5,8 @@
 
 qt_add_executable(FormToolSettingsTests
     ${CMAKE_CURRENT_LIST_DIR}/../FormToolSettingsTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormToolSettings.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/FormToolSettings.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormToolSettings.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormToolSettings.h
 )
 target_link_libraries(FormToolSettingsTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 target_include_directories(FormToolSettingsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

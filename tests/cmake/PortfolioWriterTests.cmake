@@ -10,8 +10,8 @@
 
 qt_add_executable(PortfolioWriterTests
     ${CMAKE_CURRENT_LIST_DIR}/../PortfolioWriterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PortfolioWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PortfolioWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/convert/PortfolioWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/convert/PortfolioWriter.h
 )
 
 target_link_libraries(PortfolioWriterTests PRIVATE

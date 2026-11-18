@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pdf/Navigation.h"
+#include "pdf/document/Navigation.h"
 
 #include <QDialog>
 #include <QPoint>

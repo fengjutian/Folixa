@@ -10,9 +10,9 @@
 // 必须重新打开文件、渲染页面或读文本层，看到结果才算数。
 // 界面上的"合并/拆分/加水印"都是这条通路，测试要守住的就是它。
 
-#include "pdf/PageDecorations.h"
-#include "pdf/PageSplitPlanner.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/content/PageDecorations.h"
+#include "pdf/ops/PageSplitPlanner.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>
 #include <QFile>

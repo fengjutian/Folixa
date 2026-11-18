@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVector>
 
-#include "pdf/TextPage.h"
+#include "pdf/kernel/TextPage.h"
 
 namespace aipdf::app {
 

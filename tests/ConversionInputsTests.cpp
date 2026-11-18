@@ -14,7 +14,7 @@
 
 #include "app/ConversionInputDialog.h"
 #include "doc/ConversionInputs.h"
-#include "pdf/PdfiumAdapter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>
 #include <QClipboard>

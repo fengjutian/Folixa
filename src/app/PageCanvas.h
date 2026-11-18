@@ -13,7 +13,7 @@
 #include "app/TileCache.h"
 #include "app/MeasureGeometry.h"
 #include "app/ViewModes.h"
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 #include "i18n/Translate.h"
 
 class QMouseEvent;

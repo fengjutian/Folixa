@@ -13,10 +13,10 @@
 
 qt_add_executable(ParagraphFormatTests
     ${CMAKE_CURRENT_LIST_DIR}/../ParagraphFormatTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ParagraphFormat.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/ParagraphFormat.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ParagraphFormat.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/ParagraphFormat.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.h
 )
 
 target_link_libraries(ParagraphFormatTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

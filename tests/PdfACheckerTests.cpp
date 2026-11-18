@@ -1,4 +1,4 @@
-#include "pdf/PdfAChecker.h"
+#include "pdf/compliance/PdfAChecker.h"
 
 #include <QByteArray>
 #include <QHash>

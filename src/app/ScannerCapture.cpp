@@ -1,6 +1,6 @@
 #include "app/ScannerCapture.h"
 
-#include "pdf/ImageToPdf.h"
+#include "pdf/convert/ImageToPdf.h"
 
 #include <QComboBox>
 #include <QCloseEvent>

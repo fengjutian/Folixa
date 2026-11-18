@@ -1,4 +1,4 @@
-#include "pdf/StructTreeReader.h"
+#include "pdf/compliance/StructTreeReader.h"
 
 #include <QElapsedTimer>
 #include <QTest>

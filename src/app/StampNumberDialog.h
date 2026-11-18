@@ -3,7 +3,7 @@
 #include <QDialog>
 #include <QString>
 
-#include "pdf/AnnotationToolkit.h"
+#include "pdf/annot/AnnotationToolkit.h"
 
 class QComboBox;
 class QLabel;

@@ -5,7 +5,7 @@
 #include <QVector>
 
 #include "app/PageTransform.h"
-#include "pdf/Navigation.h"
+#include "pdf/document/Navigation.h"
 
 namespace aipdf::app {
 

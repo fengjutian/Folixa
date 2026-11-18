@@ -1,6 +1,6 @@
-#include "pdf/RichMedia3d.h"
+#include "pdf/annot/RichMedia3d.h"
 
-#include "pdf/PortfolioWriter.h"
+#include "pdf/convert/PortfolioWriter.h"
 
 #include <QColor>
 #include <QTest>

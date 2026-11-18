@@ -10,18 +10,18 @@
 
 qt_add_executable(PageAssemblyTests
     ${CMAKE_CURRENT_LIST_DIR}/../PageAssemblyTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageSplitPlanner.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageSplitPlanner.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PageDecorations.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/TextPage.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/PageSplitPlanner.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/PageSplitPlanner.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )
 
 target_link_libraries(PageAssemblyTests PRIVATE

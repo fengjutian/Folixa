@@ -1,5 +1,5 @@
-#include "pdf/PdfiumAdapter.h"
-#include "pdf/OutlineWriter.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+#include "pdf/ops/OutlineWriter.h"
 
 #include <QTest>
 #include <QVector>

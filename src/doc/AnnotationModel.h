@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QVector>
 
-#include "pdf/Annotation.h"
+#include "pdf/annot/Annotation.h"
 
 namespace aipdf::doc {
 
