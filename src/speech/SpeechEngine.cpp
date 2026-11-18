@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QTimer>
 
@@ -20,10 +21,17 @@ namespace {
 // 协议（每行一条，UTF-8）：
 //   stdin ：「词序号 词内容的 base64(UTF-8)」
 //   stdout：「W 词序号」（开始朗读该词）/「D」（读完）/「E 错误码」
+//
+// 另外两种模式：
+//   -Mode probe  →「P 音色个数」
+//   -Mode list   →「V 音色名的 base64 空格 语言标签」，一行一个音色
 const char* const kScriptTemplate = R"PS(
 param(
     [string]$Mode = 'speak',
-    [string]$Lang = ''
+    [string]$Lang = '',
+    [string]$Voice = '',
+    [int]$Rate = 0,
+    [int]$Volume = 100
 )
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
@@ -48,7 +56,26 @@ if ($voices.Count -eq 0) {
     exit 0
 }
 
-if ($Lang -ne '') {
+if ($Mode -eq 'list') {
+    foreach ($voice in $voices) {
+        $encoded = [Convert]::ToBase64String(
+            [System.Text.Encoding]::UTF8.GetBytes($voice.VoiceInfo.Name))
+        Send-Line ('V ' + $encoded + ' ' + $voice.VoiceInfo.Culture.Name)
+    }
+    exit 0
+}
+
+if ($Voice -ne '') {
+    $picked = $false
+    foreach ($voice in $voices) {
+        if ($voice.VoiceInfo.Name -eq $Voice) {
+            $synth.SelectVoice($voice.VoiceInfo.Name)
+            $picked = $true
+            break
+        }
+    }
+    # 指定了音色但系统里没有：不要整个罢工，退回按语言自动挑。
+} elseif ($Lang -ne '') {
     foreach ($voice in $voices) {
         if ($voice.VoiceInfo.Culture.Name -like ($Lang + '-*')) {
             $synth.SelectVoice($voice.VoiceInfo.Name)
@@ -56,6 +83,9 @@ if ($Lang -ne '') {
         }
     }
 }
+
+if ($Rate -ne 0) { $synth.Rate = $Rate }
+if ($Volume -ne 100) { $synth.Volume = $Volume }
 
 if ($Mode -eq 'probe') {
     Send-Line ('P ' + $voices.Count)
@@ -219,8 +249,66 @@ SpeechEngine::SupportInfo SpeechEngine::probeSupport() {
     return info;
 }
 
-bool SpeechEngine::ensureScript() {
-    if (!scriptPath_.isEmpty() && QFileInfo::exists(scriptPath_)) {
+QVector<SpeechVoice> SpeechEngine::availableVoices() {
+    // 探测要起一次子进程，比 isSupported() 慢，结果缓存起来只查一次。
+    static const QVector<SpeechVoice> voices = probeVoices();
+    return voices;
+}
+
+QVector<SpeechVoice> SpeechEngine::probeVoices() {
+    QVector<SpeechVoice> voices;
+
+    const QString shell = findPowerShell();
+    if (shell.isEmpty()) {
+        return voices;
+    }
+
+    QTemporaryDir probeDir;
+    if (!probeDir.isValid()) {
+        return voices;
+    }
+    const QString scriptPath = probeDir.filePath(QStringLiteral("aipdf-speech-list.ps1"));
+    if (!writeScriptFile(scriptPath)) {
+        return voices;
+    }
+
+    QProcess probe;
+    probe.start(shell,
+                {QStringLiteral("-NoProfile"), QStringLiteral("-NoLogo"),
+                 QStringLiteral("-NonInteractive"), QStringLiteral("-ExecutionPolicy"),
+                 QStringLiteral("Bypass"), QStringLiteral("-File"),
+                 QDir::toNativeSeparators(scriptPath), QStringLiteral("-Mode"),
+                 QStringLiteral("list")});
+    if (!probe.waitForStarted(10000)) {
+        return voices;
+    }
+    if (!probe.waitForFinished(20000)) {
+        probe.kill();
+        probe.waitForFinished(2000);
+        return voices;
+    }
+
+    const QString output = QString::fromUtf8(probe.readAllStandardOutput());
+    for (const QString& raw : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+        const QString line = raw.trimmed();
+        if (!line.startsWith(QLatin1String("V "))) {
+            continue;
+        }
+        const QStringList parts = line.mid(2).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.isEmpty()) {
+            continue;
+        }
+        SpeechVoice voice;
+        voice.name = QString::fromUtf8(QByteArray::fromBase64(parts.first().toLatin1()));
+        voice.culture = parts.size() > 1 ? parts.at(1) : QString();
+        if (!voice.name.isEmpty()) {
+            voices.append(voice);
+        }
+    }
+    return voices;
+}
+
+bool SpeechEngine::ensureScript() {    if (!scriptPath_.isEmpty() && QFileInfo::exists(scriptPath_)) {
         return true;
     }
     if (!scriptDir_) {
@@ -264,6 +352,17 @@ void SpeechEngine::speak(const QString& text) {
     if (!lang.isEmpty()) {
         args << QStringLiteral("-Lang") << lang;
     }
+    // 音色与语速音量：指定了音色就不按语言自动挑（脚本里 Voice 优先）。
+    const SpeechSettings settings = normalizeSpeechSettings(settings_);
+    if (!settings.voice.isEmpty()) {
+        args << QStringLiteral("-Voice") << settings.voice;
+    }
+    if (settings.rate != 0) {
+        args << QStringLiteral("-Rate") << QString::number(settings.rate);
+    }
+    if (settings.volume != 100) {
+        args << QStringLiteral("-Volume") << QString::number(settings.volume);
+    }
 
     if (process_->state() != QProcess::NotRunning) {
         terminateProcess();
@@ -277,6 +376,14 @@ void SpeechEngine::stop() {
 
 bool SpeechEngine::isSpeaking() const {
     return speaking_;
+}
+
+void SpeechEngine::setSettings(const SpeechSettings& settings) {
+    settings_ = normalizeSpeechSettings(settings);
+}
+
+SpeechSettings SpeechEngine::settings() const {
+    return settings_;
 }
 
 void SpeechEngine::handleProcessStarted() {

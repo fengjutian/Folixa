@@ -6,6 +6,7 @@
 #include <QString>
 #include <QVector>
 
+#include "speech/SpeechSettings.h"
 #include "speech/SpeechText.h"
 
 #include <memory>
@@ -50,6 +51,18 @@ public:
     void stop();
     bool isSpeaking() const;
 
+    // 朗读设置：音色、语速、音量。
+    //
+    // 设置在下次朗读时生效（子进程是每场朗读起一个的）。
+    void setSettings(const SpeechSettings& settings);
+    SpeechSettings settings() const;
+
+    // 系统里装了哪些音色（只列可用的）。
+    //
+    // 探测要起一次子进程，比 isSupported() 慢，所以结果在进程内缓存。
+    // 系统没装语音时返回空列表，不报错。
+    static QVector<SpeechVoice> availableVoices();
+
 signals:
     // 第 index 个词开始朗读（index 与 splitIntoWords 的下标一致）。
     void wordStarted(int index, const QString& word);
@@ -63,6 +76,7 @@ private:
     };
 
     static SupportInfo probeSupport();
+    static QVector<SpeechVoice> probeVoices();
     static QString findPowerShell();
 
     bool ensureScript();
@@ -87,6 +101,8 @@ private:
     QByteArray outputBuffer_;
     QByteArray errorBuffer_;
     bool speaking_ = false;
+    // 朗读设置（音色/语速/音量）。默认按文本语言自动挑音色。
+    SpeechSettings settings_;
 };
 
 }  // namespace aipdf::speech

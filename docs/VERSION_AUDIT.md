@@ -374,6 +374,7 @@
 | 真 .pptx | `ai::deckToPptx`：用仓库自有的 `doc::zip::Writer` 打包 OOXML 演示文稿（`[Content_Types].xml` / `presentation.xml` / 母版 / 版式 / 主题 / 每页 slide + rels / 演讲者备注 notesSlide）；页面是**显式坐标的文本框**（不走占位符继承，少一层就可能跑到 0,0） | `OfficePackageTests` 11 条（部件齐全、标题与要点对得上、备注挂回对应页、空 deck 返回空字节） |
 | 真 .xlsx | `doc::rowsToXlsx`：OOXML 工作簿（工作簿 + 工作表 + 样式），单元格用 inlineStr（不建 sharedStrings，少一处能出错的连接关系） | `OfficePackageTests`（表头与 CSV 一致、值里的 `&` `<` 正确转义、控制字符被丢掉、回车以 `&#xD;` 保留、非法工作表名被收拾干净） |
 | 独立校验 | 样例写到构建目录后交给 `scripts/verify-office-packages.py`：用 **Python 标准库 zipfile** 重新解包（不依赖本仓库的 zip 写入器），装了 python-pptx / openpyxl 再让**真实现**打开一次 | ctest `OfficePackageVerifyTests`（依赖 `OfficePackageTests` 先跑） |
+| 负例对照 | 把 OOXML 的控制字符处理弄坏（不再丢弃 XML 1.0 不允许的控制字符），`xlsxDropsControlCharacters` 当场变红；恢复后复绿 | `OfficePackageTests` |
 | 界面接线 | 「生成 PPT」对话框的主按钮改成「存为 PPTX」（Markdown 留作次要选项）；「表单到工作表」按扩展名写 .xlsx 或 .csv | Ribbon 命令 `form.toWorksheet` 提示文案同步 |
 | 零新依赖 | 复用仓库既有的 `doc::zip::Writer`（DOCX / OFD 用的就是它），只新增一个共享的 XML 转义头 `doc/XmlText.h` | `docs/DEPENDENCY_POLICY.md` 未变 |
 

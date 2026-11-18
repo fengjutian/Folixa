@@ -17,7 +17,7 @@ tab,group,command,status,capability,note
 文件,导出与工具,PDF优化,partial,H8,Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的；**没有 PDF/A 合规认证**
 文件,导出与工具,索引,aligned,—,本地分块索引与检索
 文件,导出与工具,动作向导,partial,D9,动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**当前文档上真正落地的是「打开文件 / 加水印（只支持页面正中）/ 加页码（右下角、从 1 起）/ 结束」**，其余步骤如实报「动作向导还没有接这一步」，不假装成功；每步失败显示领域层给的中文原因。**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard`，`ActionWizardTests` 31 条）
-文件,导出与工具,皮肤,aligned,—,主题切换：浅色/夜间/护眼/高对比，Ribbon 有入口；`ReadingSchemeTests` 兜底
+文件,导出与工具,皮肤,aligned,—,界面主题浅色/暗色/跟随系统（设置 → 外观 → 主题，保存后立即生效）+ 阅读配色浅色/夜间/护眼/高对比（视图菜单）；弹窗带半透明蒙层；`ReadingSchemeTests` 6 条、`ThemeTests` 7 条、`ModalScrimTests` 4 条
 文件,最近文档,最近文档,aligned,—,显示文件名/路径/时间
 文件,最近文档,云文档,na,—,没有云盘接入
 文件,最近文档,添加一个位置,na,—,同上

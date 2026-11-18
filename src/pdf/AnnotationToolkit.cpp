@@ -692,6 +692,127 @@ QString insertSymbolIntoText(const QString& text, int position, const SymbolEntr
     return text.left(index) + symbol + text.mid(index);
 }
 
+// ---------------------------------------------------------------
+// 编号图章
+// ---------------------------------------------------------------
+
+namespace {
+
+// 序号转字母（1 → A，26 → Z，27 → AA）。
+//
+// 用的是"双基 26"（bijective base-26）：每一位都从 1 起算，
+// 所以没有"第 0 个字母"这回事，26 之后自然进位成 AA。
+QString alphaLabel(int value, bool upperCase) {
+    if (value <= 0) {
+        return QString();
+    }
+    QString result;
+    while (value > 0) {
+        const int digit = (value - 1) % 26;
+        result.prepend(QChar(upperCase ? ('A' + digit) : ('a' + digit)));
+        value = (value - 1) / 26;
+    }
+    return result;
+}
+
+}  // namespace
+
+QString formatStampNumber(const StampNumberOptions& options, int index) {
+    const int offset = qMax(0, index);
+    const int start = options.start < 1 ? 1 : options.start;
+    // 序号用 long long 算：超过两亿个图章的场景不存在，
+    // 但越界了也不能让整串文字变成乱码，所以夹一下上限。
+    const long long value = static_cast<long long>(start) + offset;
+
+    QString body;
+    switch (options.style) {
+    case StampNumberStyle::UpperAlpha:
+        body = alphaLabel(static_cast<int>(qMin<long long>(value, 26LL * 26 * 26)), true);
+        break;
+    case StampNumberStyle::LowerAlpha:
+        body = alphaLabel(static_cast<int>(qMin<long long>(value, 26LL * 26 * 26)), false);
+        break;
+    case StampNumberStyle::Arabic:
+    default: {
+        body = QString::number(value);
+        // 补零只对数字有意义：字母形式下 "007" 那种写法没人看得懂。
+        if (options.digits > 0) {
+            body = body.rightJustified(options.digits, QLatin1Char('0'));
+        }
+        break;
+    }
+    }
+    if (body.isEmpty()) {
+        body = QStringLiteral("1");
+    }
+    return options.prefix + body + options.suffix;
+}
+
+StampNumberSequence::StampNumberSequence(const StampNumberOptions& options) : options_(options) {}
+
+void StampNumberSequence::setOptions(const StampNumberOptions& options) {
+    options_ = options;
+    issued_ = 0;
+}
+
+const StampNumberOptions& StampNumberSequence::options() const {
+    return options_;
+}
+
+QString StampNumberSequence::next() {
+    const QString label = formatStampNumber(options_, issued_);
+    ++issued_;
+    return label;
+}
+
+int StampNumberSequence::issued() const {
+    return issued_;
+}
+
+void StampNumberSequence::reset() {
+    issued_ = 0;
+}
+
+// ---------------------------------------------------------------
+// 保持工具选择
+// ---------------------------------------------------------------
+
+void ToolRetentionSet::setRetained(const QString& toolId, bool retained) {
+    if (toolId.isEmpty()) {
+        return;
+    }
+    const int index = tools_.indexOf(toolId);
+    if (retained) {
+        if (index < 0) {
+            tools_.append(toolId);
+        }
+        return;
+    }
+    if (index >= 0) {
+        tools_.remove(index);
+    }
+}
+
+bool ToolRetentionSet::isRetained(const QString& toolId) const {
+    return tools_.contains(toolId);
+}
+
+QVector<QString> ToolRetentionSet::retainedTools() const {
+    return tools_;
+}
+
+bool ToolRetentionSet::isEmpty() const {
+    return tools_.isEmpty();
+}
+
+void ToolRetentionSet::clear() {
+    tools_.clear();
+}
+
+bool ToolRetentionSet::keepsAfterPlacement(const QString& toolId) const {
+    return isRetained(toolId);
+}
+
 void ContinuousAnnotationMode::activate(const QString& toolId, bool repeatLastPlacement) {
     if (toolId.isEmpty()) {
         // 没有工具就谈不上连续。

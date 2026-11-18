@@ -297,6 +297,9 @@
   **命令矩阵 5 行由 partial 升到 aligned**：4 条「生成 PPT」（AI生成 / 主题生成 /
   文档生成 / 大纲生成）+ 1 条「表单到工作表」；对齐 172 → **177** 条，
   部分 75 → **70** 条，对齐率 62.3% → **64.1%**。
+  **负例对照**：把 OOXML 的控制字符处理弄坏（不再丢弃 XML 1.0 不允许的控制字符），
+  `OfficePackageTests::xlsxDropsControlCharacters` 当场变红；恢复后复绿 ——
+  说明这条不变量是被用例钉住的，不是靠文档自证。
 - 2026-11-17 第十二轮（wave10：**I3 语言包的用户侧安装 / 切换 / 缺包引导**）：
   I3 欠账里欠的是「语言包是构建期打进 Qt 资源的，用户侧没有安装引导」。
   现在语言包有**用户级可写目录**（`%LOCALAPPDATA%\AI PDF Editor Project\AI PDF Editor\translations`），

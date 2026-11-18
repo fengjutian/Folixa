@@ -9,10 +9,12 @@ namespace aipdf::pdf {
 // 注释工具箱（Annotation Toolkit）
 // ===============================================================
 //
-// 三个"往批注里放东西"的小工具的领域层：
+// 五个"往批注里放东西"的小工具的领域层：
 //   1. 会计计算器 —— 用户敲一串算式，我们算出结果并整理成能贴进批注的文本；
 //   2. 符号面板   —— 一张常用符号表，以及符号变成批注文本的规则；
-//   3. 连续批注   —— 记住"这个工具还开着"，让用户连着标几十个点。
+//   3. 编号图章   —— 数字/字母图章的编号规则与计数器；
+//   4. 保持工具选择 —— 逐工具记住"放完别退回选择态"；
+//   5. 连续批注   —— 记住"这个工具还开着"，让用户连着标几十个点。
 //
 // 这一层只负责算东西：不碰文档、不碰界面、不建控件。
 // 界面拿到的是算好的字符串与状态，剩下的（怎么弹面板、怎么插进批注框）
@@ -110,6 +112,106 @@ QString formatSymbolForAnnotation(const SymbolEntry& entry, bool includeName = f
 // position 超出范围时按"末尾"处理：界面给的光标位置偶尔会越界，
 // 越界就当追加，**不能把用户已经写的内容弄丢**。
 QString insertSymbolIntoText(const QString& text, int position, const SymbolEntry& entry);
+
+// ---------------------------------------------------------------
+// 编号图章（数字图章 / 字母图章）
+// ---------------------------------------------------------------
+
+// 编号图章的编号形式。
+//
+// 为什么要有三种：审阅时最常见的两种批注是「第几页第几条」——
+// 一边用阿拉伯数字（1、2、3），一边用字母（A、B、C），
+// 用户自己挑，我们只管把序号写对。
+enum class StampNumberStyle {
+    Arabic,     // 1, 2, 3
+    UpperAlpha, // A, B, C（超过 Z 接着 AA、AB）
+    LowerAlpha, // a, b, c
+};
+
+// 编号图章的选项。
+//
+// 为什么前缀后缀放在选项里：图章上常写「第 3 号」或者「No.3」，
+// 这些字样每次都一样，属于设置而不是每次输入的内容。
+struct StampNumberOptions {
+    StampNumberStyle style = StampNumberStyle::Arabic;
+    // 起始序号。1 表示从 1 开始。
+    int start = 1;
+    // 补零位数（0 表示不补）。例如 3 位时 1 → "001"。
+    // 字母形式下这个设置没有意义，直接忽略。
+    int digits = 0;
+    // 前缀与后缀，例如 "第" 与 "号"。
+    QString prefix;
+    QString suffix;
+};
+
+// 把序号写成图章上的文字。
+//
+// index 是**从 0 开始的偏移量**（第 0 个就是起始序号那个）。
+// 起始序号小于 1 时按 1 处理；偏移为负时按 0 处理。
+QString formatStampNumber(const StampNumberOptions& options, int index);
+
+// 编号图章的计数器：每放一个图章自动取下一个编号。
+//
+// 为什么计数器在领域层而不是界面层：编号要连着排，
+// 中间弹一次对话框或者切一次工具都不该让编号重来。
+class StampNumberSequence {
+public:
+    StampNumberSequence() = default;
+    explicit StampNumberSequence(const StampNumberOptions& options);
+
+    // 换选项（并把计数归零）：换了样式还接着旧编号会让人看不懂。
+    void setOptions(const StampNumberOptions& options);
+    const StampNumberOptions& options() const;
+
+    // 取下一个编号的文字（计数 +1）。永不返回空串。
+    QString next();
+
+    // 已经发出过几个编号。
+    int issued() const;
+
+    // 计数归零，选项保留。
+    void reset();
+
+private:
+    StampNumberOptions options_;
+    int issued_ = 0;
+};
+
+// ---------------------------------------------------------------
+// 保持工具选择
+// ---------------------------------------------------------------
+
+// 记住"哪些工具在放完之后保持激活"。
+//
+// 与 ContinuousAnnotationMode 的分工：
+//   * ContinuousAnnotationMode 是**全局**的连续批注（开一次，所有工具一起连着放）；
+//   * ToolRetentionSet 是**逐工具**的（"矩形保持选中，箭头放完就退"）。
+//
+// 逐工具才是实际干活时想要的粒度：标完一串矩形顺手切走，
+// 但批注还得一个个点。
+class ToolRetentionSet {
+public:
+    // 标记或不标记某个工具。toolId 为空串时什么都不做。
+    void setRetained(const QString& toolId, bool retained);
+
+    // 某个工具是否被标记为"放完保持"。
+    bool isRetained(const QString& toolId) const;
+
+    // 被标记的工具（按标记顺序）。
+    QVector<QString> retainedTools() const;
+
+    bool isEmpty() const;
+
+    // 全部清掉。
+    void clear();
+
+    // 放完某个工具后调用：它被标记为保持 → true（调用方别回到选择态）。
+    bool keepsAfterPlacement(const QString& toolId) const;
+
+private:
+    // 保序去重的工具列表：界面上的顺序要跟用户标记的顺序一致。
+    QVector<QString> tools_;
+};
 
 // ---------------------------------------------------------------
 // 连续批注模式

@@ -544,7 +544,7 @@ QString replaceMappedColors(const QString& text, const QRegularExpression& patte
         last = match.capturedEnd();
     }
     chunks.append(text.mid(last));
-    return chunks.join();
+    return chunks.join(QString());
 }
 
 }  // namespace
@@ -580,7 +580,7 @@ QString darkStyleSheet() {
             last = match.capturedEnd();
         }
         chunks.append(sheet.mid(last));
-        sheet = chunks.join();
+        sheet = chunks.join(QString());
     }
 
     // 第二步：表面色（背景、描边、滚动条）。
