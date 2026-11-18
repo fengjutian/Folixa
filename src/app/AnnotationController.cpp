@@ -49,6 +49,9 @@ namespace {
 // /Vertices、/InkList、/Measure）与附件/声音本体 PDFium 都没有读接口，
 // 读回来只有包围盒。把它们塞进模型再重写，等于把原始数据写坏 —— 所以不接管，
 // 让它们原样留在文档里（PDFium 仍然会渲染），只是面板里看不到。
+//
+// 图章也不接管：本程序把 FreeText 写成 /Stamp（见 annotationTypeToPdfium），
+// 读回来时两者分不开；接管 Stamp 会把原来的文本框按图章重写。
 bool isRoundTrippable(pdf::AnnotationType type) {
     switch (type) {
     case pdf::AnnotationType::Highlight:
@@ -58,7 +61,6 @@ bool isRoundTrippable(pdf::AnnotationType type) {
     case pdf::AnnotationType::Note:
     case pdf::AnnotationType::Square:
     case pdf::AnnotationType::Ellipse:
-    case pdf::AnnotationType::Stamp:
         return true;
     default:
         return false;

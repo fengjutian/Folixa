@@ -170,6 +170,22 @@ void trace(const QString& message) {
     }
 }
 
+// 读走子进程已经产出的输出，只保留尾部。
+//
+// 为什么必须在等待过程中读：QProcess 的管道缓冲区只有几十 KB，子进程写满
+// 之后会阻塞在 write() 上、永远不退出；如果父进程只 waitForFinished()、
+// 等退出后再 readAll()，双方就互等（经典死锁）。只保留尾部是为了不让一个
+// 话痨子进程把内存吃光，同时也足够给用户看错误原因。
+void drainProcessOutput(QProcess& process, QByteArray* sink, int maxBytes = 256 * 1024) {
+    if (sink == nullptr) {
+        return;
+    }
+    sink->append(process.readAll());
+    if (sink->size() > maxBytes) {
+        sink->remove(0, sink->size() - maxBytes);
+    }
+}
+
 // 命令栏与页面页统一的图标：SVG 资源，18px（20px 画布按 0.9 缩）。
 //
 // 禁用态自己画：QSvgIconEngine 不保证按 QIcon::Disabled 变灰，
@@ -5197,15 +5213,18 @@ void MainWindow::digitallySignDocument() {
         QMessageBox::warning(this, tr("数字签名"), tr("无法启动 pyHanko。"));
         return;
     }
+    QByteArray processOutput;
     while (process.state() != QProcess::NotRunning && !progress.wasCanceled()) {
         process.waitForFinished(100);
+        drainProcessOutput(process, &processOutput);
         QApplication::processEvents();
     }
     if (process.state() != QProcess::NotRunning) {
         process.kill();
         process.waitForFinished(3000);
     }
-    QString report = QString::fromUtf8(process.readAll()).trimmed();
+    drainProcessOutput(process, &processOutput);
+    QString report = QString::fromUtf8(processOutput).trimmed();
     if (progress.wasCanceled()) {
         QFile::remove(output);
         statusBar()->showMessage(tr("数字签名已取消。"), 4000);
@@ -5235,12 +5254,27 @@ void MainWindow::verifyDigitalSignatures() {
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
     process.start(command.program, command.arguments);
-    if (!process.waitForStarted(5000) || !process.waitForFinished(120000)) {
-        process.kill();
-        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程启动失败或超时。"));
+    if (!process.waitForStarted(5000)) {
+        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程启动失败。"));
         return;
     }
-    const QString report = QString::fromUtf8(process.readAll()).trimmed();
+    // 边等边读：pyhanko validate 的输出可能超过管道缓冲区，只等不读会死锁。
+    QByteArray verifyOutput;
+    QElapsedTimer verifyTimer;
+    verifyTimer.start();
+    while (process.state() != QProcess::NotRunning && verifyTimer.elapsed() < 120000) {
+        process.waitForFinished(100);
+        drainProcessOutput(process, &verifyOutput);
+        QApplication::processEvents();
+    }
+    if (process.state() != QProcess::NotRunning) {
+        process.kill();
+        process.waitForFinished(3000);
+        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程超时。"));
+        return;
+    }
+    drainProcessOutput(process, &verifyOutput);
+    const QString report = QString::fromUtf8(verifyOutput).trimmed();
     if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
         QMessageBox::information(this, tr("签名验证通过"), report);
     } else {
@@ -5309,20 +5343,22 @@ void MainWindow::convertDocument(ConversionKind kind) {
     }
     QElapsedTimer elapsed;
     elapsed.start();
+    QByteArray diagnostics;
     while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 10 * 60 * 1000 &&
            !progress.wasCanceled()) {
         process.waitForFinished(100);
+        drainProcessOutput(process, &diagnostics);
         QApplication::processEvents();
     }
     if (process.state() != QProcess::NotRunning) {
         process.kill();
         process.waitForFinished(3000);
     }
+    drainProcessOutput(process, &diagnostics);
     if (progress.wasCanceled()) {
         statusBar()->showMessage(tr("转换已取消。"), 4000);
         return;
     }
-    const QByteArray diagnostics = process.readAll();
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
         !QFileInfo(plan.expectedOutput).isFile() || QFileInfo(plan.expectedOutput).size() == 0) {
         QString detail = QString::fromLocal8Bit(diagnostics).trimmed();
@@ -5380,15 +5416,18 @@ void MainWindow::batchConvertOfd() {
         process.start(converter, {input, output});
         QElapsedTimer elapsed;
         elapsed.start();
+        QByteArray outputBuffer;
         while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 120000 &&
                !progress.wasCanceled()) {
             process.waitForFinished(100);
+            drainProcessOutput(process, &outputBuffer);
             QApplication::processEvents();
         }
         if (process.state() != QProcess::NotRunning) {
             process.kill();
             process.waitForFinished(3000);
         }
+        drainProcessOutput(process, &outputBuffer);
         if (!progress.wasCanceled() && process.exitStatus() == QProcess::NormalExit &&
             process.exitCode() == 0 && QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
             ++converted;

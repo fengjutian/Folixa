@@ -6,6 +6,7 @@
 #include "ocr/OcrTextUtils.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QHash>
 #include <QImage>
@@ -161,17 +162,36 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
         result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "powershell 启动失败");
         return result;
     }
-    if (!process.waitForFinished(120'000)) {
+    // 边等边读：识别结果 JSON 可能超过管道缓冲区，只等不读会死锁；
+    // 同时让取消能在识别过程中生效。
+    QByteArray outputData;
+    QByteArray errorData;
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 120'000) {
+        process.waitForFinished(100);
+        outputData += process.readAllStandardOutput();
+        errorData += process.readAllStandardError();
+        if (cancelled_.load()) {
+            process.kill();
+            process.waitForFinished(2000);
+            result.cancelled = true;
+            return result;
+        }
+    }
+    if (process.state() != QProcess::NotRunning) {
         process.kill();
         process.waitForFinished(2000);
         result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine", "识别超时");
         return result;
     }
+    outputData += process.readAllStandardOutput();
+    errorData += process.readAllStandardError();
     if (cancelled_.load()) {
         result.cancelled = true;
         return result;
     }
-    const QString output = QString::fromUtf8(process.readAllStandardOutput());
+    const QString output = QString::fromUtf8(outputData);
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         // 脚本失败时会把原因写成一行 JSON：优先用它，
         // stderr 在中文控制台上会被代码页搅成乱码。
@@ -193,7 +213,7 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
                 }
             }
         }
-        const QString stderrText = QString::fromUtf8(process.readAllStandardError()).trimmed();
+        const QString stderrText = QString::fromUtf8(errorData).trimmed();
         result.error = stderrText.isEmpty()
                            ? i18n::tr("aipdf::ocr::WindowsOcrEngine", "系统 OCR 退出码 %1")
                                  .arg(process.exitCode())

@@ -7,6 +7,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QHash>
 #include <QImage>
@@ -157,19 +158,39 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
         result.error = i18n::tr("aipdf::ocr::TesseractCliEngine", "tesseract 启动失败");
         return result;
     }
-    if (!process.waitForFinished(timeoutMs_)) {
+    // 边等边读：TSV 输出很容易超过管道缓冲区（几百行文字就够了），
+    // 只 waitForFinished 再 readAll 会让 tesseract 阻塞在 write 上、双方互等。
+    // 顺便在等待过程中响应取消，不必等满整个超时。
+    QByteArray stdoutData;
+    QByteArray stderrData;
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (process.state() != QProcess::NotRunning && elapsed.elapsed() < timeoutMs_) {
+        process.waitForFinished(100);
+        stdoutData += process.readAllStandardOutput();
+        stderrData += process.readAllStandardError();
+        if (cancelled_.load()) {
+            process.kill();
+            process.waitForFinished(2000);
+            result.cancelled = true;
+            return result;
+        }
+    }
+    if (process.state() != QProcess::NotRunning) {
         process.kill();
         process.waitForFinished(2000);
         result.error =
             i18n::tr("aipdf::ocr::TesseractCliEngine", "识别超时（%1 ms）").arg(timeoutMs_);
         return result;
     }
+    stdoutData += process.readAllStandardOutput();
+    stderrData += process.readAllStandardError();
     if (cancelled_.load()) {
         result.cancelled = true;
         return result;
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-        const QString stderrText = QString::fromUtf8(process.readAllStandardError()).trimmed();
+        const QString stderrText = QString::fromUtf8(stderrData).trimmed();
         result.error = stderrText.isEmpty()
                            ? i18n::tr("aipdf::ocr::TesseractCliEngine", "tesseract 退出码 %1")
                                  .arg(process.exitCode())
@@ -177,7 +198,7 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
         return result;
     }
 
-    const QString tsv = QString::fromUtf8(process.readAllStandardOutput());
+    const QString tsv = QString::fromUtf8(stdoutData);
     return parseTsv(tsv, job.pageIndex, input.size(), job.pageSize);
 }
 
