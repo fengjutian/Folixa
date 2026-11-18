@@ -19,6 +19,7 @@
 #include "app/WiringActions.h"
 #include "app/SettingsDialog.h"
 #include "app/SignatureDialog.h"
+#include "app/BookmarkTreeDialog.h"
 #include "app/FormScriptDialog.h"
 #include "app/FormToolSettingsDialog.h"
 #include "app/FormDesignAssistantDialog.h"
@@ -1690,6 +1691,9 @@ void MainWindow::buildUi() {
     connect(indentBookmarkAction, &QAction::triggered, this, &MainWindow::indentBookmark);
     QAction* outdentBookmarkAction = bookmarkMenu->addAction(tr("书签升级（变成同级）"));
     connect(outdentBookmarkAction, &QAction::triggered, this, &MainWindow::outdentBookmark);
+    // 树视图改层级：升级/降级一次只能挪一条，拖拽可以随手把整棵树摆好。
+    QAction* editBookmarkHierarchyAction = bookmarkMenu->addAction(tr("编辑书签层级"));
+    connect(editBookmarkHierarchyAction, &QAction::triggered, this, &MainWindow::editBookmarkHierarchy);
     bookmarkButton->setMenu(bookmarkMenu);
     bookmarkButton->setPopupMode(QToolButton::MenuButtonPopup);
     addRibbonCommand(navigationEditGroup, "自动创建书签", "按标题样式生成书签", ":/icons/bookmark.svg",
@@ -5192,6 +5196,35 @@ void MainWindow::outdentBookmark() {
         bookmarkList_->setCurrentRow(parentRow + 1);
     }
     statusBar()->showMessage(tr("书签已升级"), 3000);
+}
+
+// 用树视图改书签层级。
+//
+// 为什么单独一个对话框：导航面板里那列书签是**扁平列表**，
+// 扁平列表看不出层级，想挪一条只能一条条"降级/升级"慢慢试。
+// 树视图把层级直接摆出来，拖一下就换位置。
+//
+// 为什么改完才写回：拖拽是连续操作，每拖一次就存一次盘既慢又没法反悔。
+// 对话框里改的是副本，点「应用」才写回文档，点「取消」什么都不发生。
+void MainWindow::editBookmarkHierarchy() {
+    PdfView* view = currentView();
+    if (view == nullptr) return;
+    const std::vector<pdf::OutlineItem> outline = view->outline();
+    if (outline.empty()) {
+        QMessageBox::information(this, tr("编辑书签层级"), tr("这份文档还没有书签。"));
+        return;
+    }
+    BookmarkTreeDialog dialog(outline, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    QString error;
+    if (!view->replaceOutline(dialog.outline(), &error)) {
+        QMessageBox::warning(this, tr("编辑书签层级"), error);
+        return;
+    }
+    refreshOutline(view);
+    statusBar()->showMessage(tr("书签层级已更新"), 3000);
 }
 
 // 切到导航栏的某一页并把它显示出来。

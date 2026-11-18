@@ -41,6 +41,40 @@ bool removeAtCursor(std::vector<OutlineItem>* items, int target, int* cursor) {
     return false;
 }
 
+// 路径 → 该路径上的节点所在的"孩子列表"。
+// 路径为空 → 顶层列表本身（相当于虚拟根节点的孩子列表）。
+// 路径上任何一格越界返回 nullptr。
+std::vector<OutlineItem>* childListAt(std::vector<OutlineItem>* items,
+                                       const std::vector<int>& path) {
+    if (items == nullptr) {
+        return nullptr;
+    }
+    if (path.empty()) {
+        return items;
+    }
+    std::vector<OutlineItem>* level = items;
+    for (std::size_t depth = 0; depth < path.size(); ++depth) {
+        if (path[depth] < 0 || path[depth] >= static_cast<int>(level->size())) {
+            return nullptr;
+        }
+        level = &(*level)[path[depth]].children;
+    }
+    return level;
+}
+
+// 路径 a 是不是路径 b 的前缀（b 以 a 开头）。
+bool isPrefixOf(const std::vector<int>& a, const std::vector<int>& b) {
+    if (a.size() > b.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // 路径就是把"每层里的第几个"依次记下来。
 // 递归失败时把自己压进去的那一格弹掉，所以失败时 path 会自动回到空。
 bool pathAtCursor(const std::vector<OutlineItem>& items, int target, int* cursor,
@@ -246,6 +280,74 @@ bool OutlineEditor::outdent(std::vector<OutlineItem>* items, int flatIndex) {
     OutlineItem item = parent.children[itemIndex];
     parent.children.erase(parent.children.begin() + itemIndex);
     grand->insert(grand->begin() + parentIndex + 1, std::move(item));
+    return true;
+}
+
+bool OutlineEditor::reparent(std::vector<OutlineItem>* items, int flatIndex,
+                             const std::vector<int>& newParentPath, int insertIndex) {
+    if (items == nullptr || flatIndex < 0) {
+        return false;
+    }
+
+    std::vector<int> movedPath;
+    if (!pathAt(*items, flatIndex, &movedPath) || movedPath.empty()) {
+        return false;
+    }
+
+    // 成环检查：新父节点是自己或自己的后代时搬过去会让树变成环。
+    // 后代路径一定以自己的路径开头（多出来的几格是往下的层数），
+    // 所以只需比对前缀。
+    if (isPrefixOf(movedPath, newParentPath)) {
+        return false;
+    }
+
+    // 拆成"它住在哪个列表里"和"它在那个列表里的第几格"。
+    const std::vector<int> sourcePath(movedPath.begin(), movedPath.end() - 1);
+    const int sourceIndex = movedPath.back();
+
+    // 目标父节点的路径要按"摘除"调整一次：被摘掉的书签会让同一层里
+    // 排在它后面的兄弟整体前移一格。
+    //
+    // 只有当目标路径与摘除发生在**同一条链**上时，目标路径上对应
+    // 那一层的下标才会跟着动；否则两棵树各在各的层，互不影响。
+    std::vector<int> targetPath = newParentPath;
+    const int sourceDepth = static_cast<int>(sourcePath.size());
+    if (sourceDepth < static_cast<int>(targetPath.size()) &&
+        isPrefixOf(sourcePath, targetPath)) {
+        if (targetPath[sourceDepth] > sourceIndex) {
+            targetPath[sourceDepth] -= 1;
+        }
+    }
+
+    // 插入位置同理：只有当"要插入的那个列表"正是"被摘除的那个列表"
+    // （也就是搬到自己原来的父节点底下）时，下标才会前移。
+    int targetIndex = insertIndex;
+    if (sourceDepth == static_cast<int>(targetPath.size()) && sourcePath == targetPath &&
+        targetIndex > sourceIndex) {
+        targetIndex -= 1;
+    }
+
+    // 摘除：搬的是**整条书签**，连同它自己的子树一起搬。
+    std::vector<OutlineItem>* source = childListAt(items, sourcePath);
+    if (source == nullptr || sourceIndex < 0 || sourceIndex >= static_cast<int>(source->size())) {
+        return false;
+    }
+    OutlineItem moved = std::move((*source)[sourceIndex]);
+    source->erase(source->begin() + sourceIndex);
+
+    // 目标列表要在摘除**之后**再解析：摘除会把同层后面的兄弟往前挪，
+    // 提前拿到的指针会指向已经搬走的地方。
+    std::vector<OutlineItem>* target = childListAt(items, targetPath);
+    if (target == nullptr) {
+        // 目标解析不出来：放回原位，树保持原样。
+        source->insert(source->begin() + sourceIndex, std::move(moved));
+        return false;
+    }
+    if (targetIndex < 0 || targetIndex > static_cast<int>(target->size())) {
+        target->push_back(std::move(moved));
+    } else {
+        target->insert(target->begin() + targetIndex, std::move(moved));
+    }
     return true;
 }
 

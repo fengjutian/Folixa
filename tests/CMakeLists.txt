@@ -275,6 +275,8 @@ if (AIPDF_WITH_QPDF AND qpdf_FOUND)
         PdfSecurityTests.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
         ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
         ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp
@@ -567,6 +569,8 @@ qt_add_executable(DocumentWriterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
@@ -889,6 +893,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/pdf/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/DocumentWriter.h
@@ -1687,6 +1693,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentStatisticsTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DocumentPropertiesTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineGeneratorTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineEditorTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BookmarkTreePanelTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PdfRevisionCounterTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PageAssemblyTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/RedactionTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbeddedFileTests.cmake)

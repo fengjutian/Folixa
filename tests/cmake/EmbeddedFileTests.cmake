@@ -15,6 +15,8 @@ qt_add_executable(EmbeddedFileTests
     ${CMAKE_CURRENT_LIST_DIR}/../EmbeddedFileTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfSecurity.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/PdfRevisionCounter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/Annotation.cpp

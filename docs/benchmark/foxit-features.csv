@@ -25,7 +25,7 @@ tab,group,command,status,capability,note
 全局,导航,选择,aligned,—,文本选择/复制/双击选词
 主页,捕获,截图,partial,—,只有整窗截图（grab()），无区域框选
 主页,捕获,剪贴板,partial,H9,与「转换|输入|从剪贴板」是同一实现、同一入口 handler（Ribbon「从剪贴板」（`convert.fromClipboard`）），图片与富文本现在都能转（原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG）；**入口位置不对口**：本项目把入口放在「转换」页，捕获组里没有剪贴板按钮，照着福昕的「主页 → 捕获 → 剪贴板」找过来的人会找不到；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去）
-主页,导航,书签,aligned,B3,浏览跳转 + 新建/改名/删除 + 排序与层级编辑；有专项单测
+主页,导航,书签,aligned,B3,浏览跳转 + 新建/改名/删除 + 排序与层级编辑；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测
 主页,显示,缩放,aligned,A6,25%–400% + 适应宽度/页面
 主页,显示,页面适合,aligned,A6,适合宽度与适合页面
 主页,显示,重排,partial,A8,整篇重排已实现：Ribbon「按新页宽重排」入口已启用（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
@@ -87,7 +87,7 @@ tab,group,command,status,capability,note
 编辑,插入,添加文章框,aligned,—,多行正文框可插入并落盘
 编辑,链接,添加链接,aligned,E4,网址链接与页内跳转都能写盘
 编辑,链接,网络链接,aligned,E4,可加外链，并能自动识别文本中的网页链接
-编辑,导航,书签,aligned,B3,新建/改名/删除/排序/层级编辑都可点；有专项单测
+编辑,导航,书签,aligned,B3,新建/改名/删除/排序/层级编辑都可点；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测
 编辑,导航,自动创建书签,partial,B3,按字高比正文大的行判定标题并生成大纲；有专项单测；不读标签树，误判风险仍在
 编辑,导航,交叉引用,partial,—,插入指向书签的引用文字并可点跳转；目标要手工挑，不会自动识别「见第 N 页」这类引用
 编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
@@ -122,11 +122,11 @@ tab,group,command,status,capability,note
 注释,标注,文件,aligned,C8,文件附件批注
 注释,标注,打字机,aligned,C4,自由文本
 注释,标注,文本框,aligned,C4,带边框的 FreeText
-注释,标注,注释框,aligned,C5,callout 箭头框：两段式交互（先拖注释框，再点箭头尖），PDF 无 callout Subtype 故用 Square+自定义 /AP；有界面入口与专项单测（`AnnotationShapesTests` 17 条、`CustomAppearanceTests` 12 条）
+注释,标注,注释框,aligned,C5,callout 箭头框：两段式交互（先拖注释框，再点箭头尖），PDF 无 callout Subtype 故用 Square+自定义 /AP；有界面入口与专项单测（`AnnotationShapesTests` 16 条、`CustomAppearanceTests` 12 条）
 注释,绘图,绘图,aligned,C5,矩形/椭圆/线/箭头/多边形/云线
 注释,绘图,铅笔,aligned,C6,墨迹与整笔擦除
 注释,绘图,橡皮,aligned,C6,整笔删除
-注释,高亮工具,区域高亮,aligned,—,区域高亮：Polygon + 自定义 /AP（带 /ExtGState 半透明），屏幕显示与文件外观一致；自交轮廓被拒；`AnnotationShapesTests` 17 条 + `CustomAppearanceTests` 12 条
+注释,高亮工具,区域高亮,aligned,—,区域高亮：Polygon + 自定义 /AP（带 /ExtGState 半透明），屏幕显示与文件外观一致；自交轮廓被拒；`AnnotationShapesTests` 16 条 + `CustomAppearanceTests` 12 条
 注释,高亮工具,搜索&高亮,aligned,B9,搜索结果高亮与跳转
 注释,测量,测量,aligned,C9,距离/周长/面积 + 比例尺
 注释,测量,会计计算器,aligned,—,会计计算器：输入算式（含百分比）求值，可把结果插入当前页成文本批注，**非法表达式显示具体错误原因**；`pdf::AnnotationToolkit`，`AnnotationToolkitTests`
@@ -144,16 +144,16 @@ tab,group,command,status,capability,note
 注释,工具,批注模式,aligned,—,连续批注模式：开关式；开时放完批注保持工具激活，关时放完回选择态；墨迹/橡皮/声音/附件等会越用越歪的工具仍放完即退；`pdf::ContinuousAnnotationMode`，`AnnotationToolkitTests`
 视图,阅读,阅读模式,partial,A4,专注模式隐藏面板；没有全屏沉浸阅读
 视图,阅读,重排,partial,A8,整篇重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
-视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,显示,视觉模式,aligned,A9,夜间/护眼/高对比四套配色，QSettings 持久化，Ribbon 有切换入口；有专项单测（`ReadingSchemeTests`）
-视图,显示,文本查看器,aligned,—,纯文本查看器：可看本页或整篇，词间空格保留；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,显示,文本查看器,aligned,—,纯文本查看器：可看本页或整篇，词间空格保留；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,显示,旋转视图,aligned,A7,90° 步进并记忆
-视图,显示,切换标尺,aligned,—,标尺：横竖两杆，刻度锚在当前页绝对坐标，单位可切点/毫米/英寸；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,显示,切换标尺,aligned,—,标尺：横竖两杆，刻度锚在当前页绝对坐标，单位可切点/毫米/英寸；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,布局,单页,aligned,A4,连续单页
 视图,布局,双页,aligned,A4,对开
 视图,布局,连续,aligned,A3,连续滚动 + 瓦片渲染
-视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 24 条）
-视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 24 条）
+视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 22 条）
+视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
 视图,朗读,朗读,partial,J4,逐词朗读并逐词高亮；有专项单测；依赖系统语音合成，无音色/语速可调，长文逐词合成较慢
 视图,比较,比较,partial,L7,文档比较已实现，两层结果并排给：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ 可选的像素级视觉比对（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关）：渲染成位图逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；默认关闭（渲染慢）；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`DocumentCompareOptions::autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（结果里的 `alignmentMode` / `alignmentNote` 会说清用的哪种）；**仍不做版面结构分析**（不比较版面块级 / 表格级结构差异，只到文字块与像素层）；`DocumentComparerTests` 26 条
@@ -182,7 +182,7 @@ tab,group,command,status,capability,note
 保护,密文,马赛克,aligned,G4,区域像素化并删相交对象，文字层读不到该区域；有专项单测
 保护,密文,擦除,aligned,G4,删相交对象，文字层读不到；页面其余仍是矢量文字；有专项单测
 保护,密文,保护密文,aligned,G4,整页位图化落实标记，页面失去文字层；有专项单测
-保护,隐私,隐藏数据,partial,G3,「清理隐藏信息」逐项勾选（`pdf::enumerateHiddenData` 列 16 类隐藏数据与各自条数，`pdf::sanitizeHiddenDataSelective` 只清勾选的类，界面 `app::HiddenDataDialog`）：**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变；加密文档给打开密码即可枚举与逐项清理，清理后仍保持加密（枚举与清理都吃 password；写出器保留原加密；复验用同一个密码）；批注级与字段级 `/AA` 动作各成一类（`annotation-actions` / `field-actions`），可分别清理；批处理也能用源文件密码处理加密文件（`batch.sourcePassword`）；**增量历史计数在内嵌 PDF 时偏大**（内层 PDF 的 %%EOF 被数进来，重写仍会拍平）；`HiddenDataInventoryTests` 19 条 + `EmbeddedFileTests` 13 条 + `DocumentWriterTests` 18 条
+保护,隐私,隐藏数据,partial,G3,「清理隐藏信息」逐项勾选（`pdf::enumerateHiddenData` 列 16 类隐藏数据与各自条数，`pdf::sanitizeHiddenDataSelective` 只清勾选的类，界面 `app::HiddenDataDialog`）：**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变；加密文档给打开密码即可枚举与逐项清理，清理后仍保持加密（枚举与清理都吃 password；写出器保留原加密；复验用同一个密码）；批注级与字段级 `/AA` 动作各成一类（`annotation-actions` / `field-actions`），可分别清理；批处理也能用源文件密码处理加密文件（`batch.sourcePassword`）；增量历史计数改走文档自己的 xref 链（内层 PDF 的 %%EOF 不会被数进来）；`HiddenDataInventoryTests` 18 条 + `EmbeddedFileTests` 12 条 + `DocumentWriterTests` 16 条 + `PdfRevisionCounterTests` 9 条
 保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；PDF 解析仍在主进程
 保护,文档,限制访问,partial,G1,AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建
 保护,文档,批量加密,aligned,G9,批量加密已实现：选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件；源文件本身已加密时，用源文件密码解开旧的再按新设置加密（`doc::makeEncryptStep` 的 sourcePassword），没有源文件密码就明确失败而不是产出谁也读不了的文件
@@ -191,14 +191,14 @@ tab,group,command,status,capability,note
 保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
 保护,签名,签名&认证,partial,G5,PKCS#12 证书签名走随包 pyHanko
 保护,签名,时间戳文档,partial,G7,时间戳地址透传给 pyHanko
-保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 15 条 + `RsaVerifierTests` 14 条
+保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 13 条 + `RsaVerifierTests` 14 条
 电子签章,签署,对外签署,na,—,云端电子签平台
 电子签章,签署,对内签署,na,—,同上
 电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；无对外平台
 电子签章,签章,骑缝章,aligned,G5,骑缝章有入口与实现
 电子签章,签署,邀请他人签署,na,—,需要服务端
 电子签章,签章,签章,partial,G5,手写或导入签章并盖到页面
-电子签章,流程,签署流程,aligned,—,签署流程面板：标题/发起人/签署人增删/开始签署/标记已签/拒签/跳过/完成/中止，流程与签署人状态一律取自领域层；`SignatureWorkflowTests` 36 条
+电子签章,流程,签署流程,aligned,—,签署流程面板：标题/发起人/签署人增删/开始签署/标记已签/拒签/跳过/完成/中止，流程与签署人状态一律取自领域层；`SignatureWorkflowTests` 34 条
 电子签章,流程,签署报告,aligned,—,签署报告：buildReport().toPlainText()，可复制到剪贴板或导出为文本文件；同上单测兜底
 电子签章,流程,签署记录,aligned,—,签署记录：按 events() 顺序显示时间/谁/做了什么/说明；同上单测兜底
 电子签章,服务,分享反馈,na,—,平台功能

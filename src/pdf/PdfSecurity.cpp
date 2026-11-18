@@ -1,5 +1,7 @@
 #include "pdf/PdfSecurity.h"
 
+#include "pdf/PdfRevisionCounter.h"
+
 #include <QRandomGenerator>
 #include <QSet>
 #include <QStringList>
@@ -214,17 +216,6 @@ struct HiddenDataCounts {
     int xfa = 0;
     int signatures = 0;
 };
-
-// 数一个字节串里某个标记出现的次数。
-int countMarker(const QByteArray& bytes, const char* marker) {
-    int count = 0;
-    int index = bytes.indexOf(marker);
-    while (index >= 0) {
-        ++count;
-        index = bytes.indexOf(marker, index + 1);
-    }
-    return count;
-}
 
 // 名称树里的条目数。
 //
@@ -618,11 +609,13 @@ HiddenDataCounts collectHiddenDataCounts(QPDF& pdf, const QByteArray& rawBytes) 
         ++counts.metadataStreams;
     }
 
-    // incremental-history：原始字节里 %%EOF 的个数减一。
+    // incremental-history：这份文档自己的修订数减一。
     //
-    // 依据：被增量更新过的 PDF，每多一版就多一个 %%EOF。
-    // 已知偏差：把整份 PDF 当附件嵌进来时，内层 PDF 的 %%EOF 也会被数到。
-    counts.incrementalHistory = qMax(0, countMarker(rawBytes, "%%EOF") - 1);
+    // 依据：被增量更新过的 PDF，每多一版就多一节 xref。
+    // 为什么不能数字节里的 %%EOF：把整份 PDF 当附件嵌进来时，内层 PDF 的
+    // %%EOF 也在字节里，会被多算一截。改走文档自己的 xref 链（/Prev），
+    // 内层 PDF 的偏移在这个坐标系里是乱的，走不到它们。
+    counts.incrementalHistory = qMax(0, countPdfRevisions(rawBytes) - 1);
 
     // embedded-files / scripts：名称树里的条目数。
     const QPDFObjectHandle names = root.getKey("/Names");
@@ -765,7 +758,7 @@ QVector<HiddenDataCategory> buildCategories(const HiddenDataCounts& counts) {
     add(category_id::kMetadata, counts.metadata,
         QStringLiteral("trailer /Info entries: %1").arg(counts.metadata));
     add(category_id::kIncrementalHistory, counts.incrementalHistory,
-        QStringLiteral("extra revisions (%%EOF markers - 1): %1").arg(counts.incrementalHistory));
+        QStringLiteral("extra revisions (xref chain - 1): %1").arg(counts.incrementalHistory));
     add(category_id::kEmbeddedFiles, counts.embeddedFiles,
         QStringLiteral("/Names /EmbeddedFiles entries: %1").arg(counts.embeddedFiles));
     add(category_id::kFileAttachments, counts.fileAttachments,

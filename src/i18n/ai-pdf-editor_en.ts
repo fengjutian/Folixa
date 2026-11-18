@@ -5801,6 +5801,18 @@ Write them into the document?</translation>
     </context>
     <context>
         <name>aipdf::app::MainWindow</name>
+        <message>
+            <source>编辑书签层级</source>
+            <translation>Edit bookmark hierarchy</translation>
+        </message>
+        <message>
+            <source>这份文档还没有书签。</source>
+            <translation>This document has no bookmarks yet.</translation>
+        </message>
+        <message>
+            <source>书签层级已更新</source>
+            <translation>Bookmark hierarchy updated</translation>
+        </message>
         <message><source>CSV 文件 (*.csv)</source><translation>CSV files (*.csv)</translation></message>
         <message><source>OFD 批量转换</source><translation>Batch OFD Conversion</translation></message>
         <message><source>OFD 文件 (*.ofd *.OFD)</source><translation>OFD files (*.ofd *.OFD)</translation></message>
@@ -7589,6 +7601,61 @@ Notes: %1</translation></message>
         <message>
             <source>源文件打开密码（目录里有加密文件时填）</source>
             <translation>Source file password (fill it in when the folder contains encrypted files)</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::BookmarkTreeDialog</name>
+        <message>
+            <source>编辑书签层级</source>
+            <translation>Edit bookmark hierarchy</translation>
+        </message>
+        <message>
+            <source>拖动书签可以改层级：拖到条目中间变成它的子节点，拖到条目上缘或下缘排在它前面或后面，拖到空白处放到顶层。</source>
+            <translation>Drag bookmarks to change the hierarchy: drop on the middle of an item to make it a child of that item, on its top or bottom edge to place it before or after it, and on empty space to move it to the top level.</translation>
+        </message>
+        <message>
+            <source>书签</source>
+            <translation>Bookmark</translation>
+        </message>
+        <message>
+            <source>跳转到</source>
+            <translation>Go to</translation>
+        </message>
+        <message>
+            <source>把书签拖到新的位置即可改层级。</source>
+            <translation>Drag a bookmark to a new position to change the hierarchy.</translation>
+        </message>
+        <message>
+            <source>应用</source>
+            <translation>Apply</translation>
+        </message>
+        <message>
+            <source>取消</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>第 %1 页</source>
+            <translation>Page %1</translation>
+        </message>
+        <message>
+            <source>没有目标</source>
+            <translation>No target</translation>
+        </message>
+        <message>
+            <source>放到顶层</source>
+            <translation>Move to top level</translation>
+        </message>
+        <message>
+            <source>变成「%1」的子节点</source>
+            <translation>Make it a child of “%1”</translation>
+        </message>
+        <message>
+            <source>排在「%1」前面</source>
+            <translation>Place it before “%1”</translation>
+        </message>
+        <message>
+            <source>排在「%1」后面</source>
+            <translation>Place it after “%1”</translation>
         </message>
     </context>
 </TS>

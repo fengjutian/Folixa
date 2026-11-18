@@ -316,6 +316,38 @@ QByteArray buildRichPdf() {
                       static_cast<int>(buffer->getSize()));
 }
 
+// 造一份「里面嵌了一份 PDF」的文档。
+//
+// 内层 PDF 自带 %%EOF 与 startxref：旧的「数字节里的 %%EOF」实现会把它
+// 当成一次增量更新，于是增量历史多报一截。这份文档自己只有一节 xref，
+// 增量历史就该是 0。
+QByteArray buildPdfWithEmbeddedPdf() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    if (source.isEmpty()) {
+        return {};
+    }
+    QPDF pdf;
+    pdf.processMemoryFile("embedded-pdf-source.pdf", source.constData(),
+                          static_cast<size_t>(source.size()));
+    const QPDFEFStreamObjectHelper efStream =
+        QPDFEFStreamObjectHelper::createEFStream(pdf, source.toStdString());
+    const QPDFFileSpecObjectHelper fileSpec =
+        QPDFFileSpecObjectHelper::createFileSpec(pdf, "inner.pdf", efStream);
+    QPDFEmbeddedFileDocumentHelper::get(pdf).replaceEmbeddedFile("inner.pdf", fileSpec);
+
+    QPDFWriter writer(pdf);
+    writer.setOutputMemory();
+    writer.setCompressStreams(false);
+    writer.setObjectStreamMode(qpdf_o_disable);
+    writer.write();
+    std::unique_ptr<Buffer> buffer(writer.getBuffer());
+    if (!buffer || buffer->getSize() == 0) {
+        return {};
+    }
+    return QByteArray(reinterpret_cast<const char*>(buffer->getBuffer()),
+                      static_cast<int>(buffer->getSize()));
+}
+
 // 给一份 PDF 追加一次增量更新。
 //
 // 增量更新会在文件末尾接上新一版的对象 + 新的 xref + trailer（/Prev 指向上一版）。
@@ -468,6 +500,7 @@ private slots:
     void unselectedEmbeddedFilesSurvive();
     void unselectedFileAttachmentsSurvive();
     void incrementalHistoryIsDetectedAndFlattened();
+    void embeddedPdfIsNotCountedAsIncrementalHistory();
     void emptyInputIsRejected();
     void brokenInputIsRejected();
     void missingQpdfIsReported();
@@ -714,6 +747,24 @@ void HiddenDataInventoryTests::incrementalHistoryIsDetectedAndFlattened() {
     QCOMPARE(countFor(enumerateHiddenData(cleaned), QStringLiteral("incremental-history")), 0);
     QVERIFY2(!cleaned.contains(kOriginalTitle), "旧修订的内容还留在字节里");
     QVERIFY2(markerSurvives(cleaned, kRevisedTitle), "新修订的内容不该被弄丢");
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// 文档里嵌了一份 PDF：内层的 %%EOF 不算增量历史。
+void HiddenDataInventoryTests::embeddedPdfIsNotCountedAsIncrementalHistory() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray bytes = buildPdfWithEmbeddedPdf();
+    QVERIFY2(!bytes.isEmpty(), "造不出嵌了 PDF 的夹具");
+    // 字节里确实有不止一个 %%EOF：外层一份、内层一份。
+    QVERIFY2(bytes.count("%%EOF") >= 2, "内层 PDF 的 %%EOF 没进字节，夹具没造对");
+
+    QString error;
+    const QVector<HiddenDataCategory> categories = enumerateHiddenData(bytes, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    // 但这份文档自己只有一节 xref：增量历史是 0，不是 1。
+    QCOMPARE(countFor(categories, QStringLiteral("incremental-history")), 0);
 #else
     QSKIP("本次构建没有启用 qpdf");
 #endif

@@ -49,6 +49,20 @@ public:
     // 进入时 path 会被清空重填；行号越界返回 false，path 保持为空。
     static bool pathAt(const std::vector<OutlineItem>& items, int flatIndex, std::vector<int>* path);
 
+    // 换父节点：把摊平后的第 flatIndex 个节点搬到 newParentPath 节点下面。
+    //
+    // newParentPath 是**新父节点**的路径；空路径表示搬到顶层（追加到顶层列表末尾）。
+    // insertIndex 指定在新父节点（或顶层）这一层里的插入位置；-1 表示追加到末尾。
+    //
+    // 边界：
+    //   - 不能搬进自己的子树（那会成环）：新父节点是自己或自己的后代时返回 false；
+    //   - 路径不存在时返回 false，树保持原样。
+    //   - 搬的是**整条书签**：连同它自己的子树一起搬。
+    static bool reparent(std::vector<OutlineItem>* items,
+                         int flatIndex,
+                         const std::vector<int>& newParentPath,
+                         int insertIndex = -1);
+
     // 层级：顶层 0、子节点 1、孙节点 2……行号越界返回 -1。
     static int levelAt(const std::vector<OutlineItem>& items, int flatIndex);
 

@@ -63,6 +63,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/PdfAPreflightPanel.h
     app/HiddenDataDialog.cpp
     app/HiddenDataDialog.h
+    app/BookmarkTreeDialog.cpp
+    app/BookmarkTreeDialog.h
     app/OneNoteExporter.cpp
     app/OneNoteExporter.h
     app/PresentationLoop.cpp
@@ -288,6 +290,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/QpdfBackend.h
     pdf/PdfSecurity.cpp
     pdf/PdfSecurity.h
+    pdf/PdfRevisionCounter.cpp
+    pdf/PdfRevisionCounter.h
     pdf/Navigation.cpp
     pdf/Navigation.h
     pdf/TextPage.cpp

@@ -184,6 +184,8 @@ private:
     void moveBookmarkDown();
     void indentBookmark();
     void outdentBookmark();
+    // 用树视图改书签层级：拖拽改层级，改完整体写回文档。
+    void editBookmarkHierarchy();
     // 书签结构编辑的公共准备：取选中书签的行号、整棵大纲与它在大纲树里的路径。
     // 失败时已经给过用户提示，这里返回 false。
     bool currentBookmarkContext(std::vector<pdf::OutlineItem>* outline, int* row,
