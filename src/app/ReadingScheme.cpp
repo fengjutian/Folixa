@@ -59,15 +59,12 @@ void applyScheme(QApplication& application, ReadingScheme scheme) {
     const QColor backdrop = backdropColor(scheme);
     // 画布底色走 QPalette::Mid：PageCanvas 直接用它画页面周围的底色，
     // 不必在画布里再写一套配色判断。
+    //
+    // 这里只动 Mid，不动 Window / Text / Base：
+    // 那些是**界面**的颜色，归「界面主题」管。两边都写的话，
+    // 深色界面 + 浅色阅读配色会把窗口底冲回浅灰，
+    // 深色界面 + 夜间阅读配色则会把控件底冲成另一套深灰。
     palette.setColor(QPalette::Mid, backdrop);
-    palette.setColor(QPalette::Window, backdrop);
-    if (isDarkScheme(scheme)) {
-        // 深色底上原来的灰字会看不清，文字与基色一起翻过来。
-        palette.setColor(QPalette::Text, QColor(0xE6, 0xE8, 0xEC));
-        palette.setColor(QPalette::WindowText, QColor(0xE6, 0xE8, 0xEC));
-        palette.setColor(QPalette::Base, QColor(0x25, 0x28, 0x2E));
-        palette.setColor(QPalette::Text, QColor(0xE6, 0xE8, 0xEC));
-    }
     application.setPalette(palette);
 }
 

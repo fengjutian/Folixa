@@ -1,6 +1,7 @@
 #include "app/PageCanvas.h"
 
 #include "app/ReadingScheme.h"
+#include "app/Theme.h"
 
 #include "app/RenderThread.h"
 #include "app/Language.h"
@@ -34,6 +35,26 @@ namespace {
 constexpr double kPageSpacing = 20.0;
 constexpr double kPageMargin = 24.0;
 constexpr int kPrefetchPages = 1;
+
+// 阅读区底色。
+//
+// 显式选了夜间 / 护眼 / 高对比的，用它自己那套底色；
+// 「浅色」跟随界面主题——深色界面下还用浅灰底的话，
+// 窗口中间会横着一道亮带，跟整个界面拧着。
+QColor canvasBackdrop(theme::ReadingScheme scheme) {
+    if (scheme == theme::ReadingScheme::Light && theme::isDarkInterface()) {
+        return QColor(0x2A, 0x2E, 0x38);
+    }
+    return theme::backdropColor(scheme);
+}
+
+// 画在阅读区底色上的文字色：底色深就用浅字，底色浅就用界面的正文色。
+QColor canvasForeground(const QColor& backdrop) {
+    if (backdrop.lightness() < 128) {
+        return QColor(0xE6, 0xE8, 0xEC);
+    }
+    return theme::interfaceTextColor();
+}
 
 // 翻页过渡的总时长（毫秒）。够短不打断阅读，够长能看出变化。
 constexpr int kTransitionDurationMs = 220;
@@ -80,8 +101,9 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     // 验收脚本靠它定位画布视口、换算屏幕坐标做拖选。
     setObjectName(QStringLiteral("pdfCanvas"));
     QPalette canvasPalette = palette();
-    canvasPalette.setColor(QPalette::Mid, QColor(QStringLiteral("#E7E8EB")));
-    canvasPalette.setColor(QPalette::Text, QColor(QStringLiteral("#52525B")));
+    // 视口底色与文字色跟随界面主题：写死颜色的话，暗色主题下画布周围会亮一块。
+    canvasPalette.setColor(QPalette::Mid, theme::surfaceColor());
+    canvasPalette.setColor(QPalette::Text, theme::interfaceTextColor());
     setPalette(canvasPalette);
     setBackgroundRole(QPalette::Mid);
     setFrameShape(QFrame::NoFrame);
@@ -296,10 +318,11 @@ void PageCanvas::goToPage(int index) {
 void PageCanvas::paintEvent(QPaintEvent* event) {
     QPainter painter(viewport());
     // 阅读区底色按配色方案走：夜间是深色、护眼是米绿、高对比是纯黑。
-    painter.fillRect(event->rect(), theme::backdropColor(readingScheme_));
+    const QColor backdrop = canvasBackdrop(readingScheme_);
+    painter.fillRect(event->rect(), backdrop);
 
     if (layout_.isEmpty()) {
-        painter.setPen(palette().color(QPalette::Text));
+        painter.setPen(canvasForeground(backdrop));
         painter.drawText(event->rect(), Qt::AlignCenter, emptyText_);
         return;
     }

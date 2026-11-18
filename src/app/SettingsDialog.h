@@ -20,6 +20,8 @@ public:
     QString languagePreference() const;
     bool navigationVisibleOnStartup() const;
     bool aiVisibleOnStartup() const;
+    // 主题（light / dark / system）。
+    QString selectedTheme() const;
 
 signals:
     void aiSettingsRequested();
@@ -35,6 +37,7 @@ private:
     void installLanguagePack();
 
     QComboBox* language_ = nullptr;
+    QComboBox* theme_ = nullptr;
     QCheckBox* navigationVisible_ = nullptr;
     QCheckBox* aiVisible_ = nullptr;
     QFontComboBox* fontFamily_ = nullptr;

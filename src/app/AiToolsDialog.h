@@ -139,6 +139,11 @@ public:
 signals:
     // 用户要把整套 PPT 存成 Markdown 文件。
     void saveMarkdownRequested(const QString& markdown);
+    // 用户要把整套 PPT 存成 **PowerPoint 演示文稿**（.pptx）。
+    //
+    // 传的是已经生成好的字节：生成放在对话框里（它最清楚「有没有内容」），
+    // 写文件放在接收方（它有主窗口与文件对话框）。
+    void savePptxRequested(const QByteArray& pptxBytes);
 
 private:
     AiToolService* service_ = nullptr;

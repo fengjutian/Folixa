@@ -87,7 +87,8 @@ private:
     void refreshForms(PdfView* view);
     void applyFormValue();
     void flattenCurrentPageForms();
-    void exportFormCsv();
+    // 「表单到工作表」：导出 Excel 工作簿（.xlsx），也保留 CSV。
+    void exportFormWorksheet();
     void importFormCsv();
     // 表单数据的 XFDF 导入导出（与批注的 XFDF 分开，避免对方软件认不得）。
     void exportFormXfdf();

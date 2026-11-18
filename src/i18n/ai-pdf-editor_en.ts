@@ -2734,6 +2734,26 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>安装语言包…</source>
             <translation>Install Language Pack…</translation>
         </message>
+        <message>
+            <source>存为 PPTX</source>
+            <translation>Save as PPTX</translation>
+        </message>
+        <message>
+            <source>PowerPoint 演示文稿 (*.pptx)</source>
+            <translation>PowerPoint presentation (*.pptx)</translation>
+        </message>
+        <message>
+            <source>导出 PPTX 失败：这一套 PPT 没有可导出的内容。</source>
+            <translation>Failed to export the PPTX: this deck has nothing to export.</translation>
+        </message>
+        <message>
+            <source>Excel 工作簿 (*.xlsx);;CSV (*.csv)</source>
+            <translation>Excel workbook (*.xlsx);;CSV (*.csv)</translation>
+        </message>
+        <message>
+            <source>把字段和值导出为 Excel 工作簿（.xlsx）</source>
+            <translation>Export the field names and values as an Excel workbook (.xlsx)</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -5748,6 +5768,7 @@ Write them into the document?</translation>
         <message><source>预览</source><translation>Preview</translation></message>
         <message><source>API 密钥</source><translation>API key</translation></message>
         <message><source>主题</source><translation>Theme</translation></message>
+        <message><source>暗色</source><translation>Dark</translation></message>
         <message><source>保存</source><translation>Save</translation></message>
         <message><source>取消</source><translation>Cancel</translation></message>
         <message><source>数据模式</source><translation>Data mode</translation></message>

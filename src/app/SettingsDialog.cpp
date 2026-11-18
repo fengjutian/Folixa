@@ -2,6 +2,7 @@
 
 #include "ai/ProviderConfig.h"
 #include "app/Language.h"
+#include "app/Theme.h"
 #include "i18n/Translate.h"
 
 #include <QApplication>
@@ -120,10 +121,21 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* appearanceForm = new QFormLayout(appearanceCard);
     appearanceForm->setContentsMargins(18, 16, 18, 16);
     appearanceForm->setSpacing(14);
-    auto* theme = new QComboBox(appearanceCard);
-    theme->setObjectName(QStringLiteral("settingsTheme"));
-    theme->addItem(tr("浅色"), QStringLiteral("light"));
-    appearanceForm->addRow(tr("主题"), theme);
+    // 主题：浅色 / 暗色 / 跟随系统。
+    //
+    // 之前这里只有「浅色」一项，而且下拉框选的值既没保存也没读回，
+    // 主窗口那边还是写死一个 "light" —— 是个改不动的死控件。
+    // 现在它存进 appearance/theme，保存后立刻生效，不用重启。
+    theme_ = new QComboBox(appearanceCard);
+    theme_->setObjectName(QStringLiteral("settingsTheme"));
+    theme_->addItem(tr("浅色"), QStringLiteral("light"));
+    theme_->addItem(tr("暗色"), QStringLiteral("dark"));
+    theme_->addItem(tr("跟随系统"), QStringLiteral("system"));
+    const QString currentTheme =
+        aipdf::app::theme::modeKey(aipdf::app::theme::currentMode());
+    const int themeIndex = theme_->findData(currentTheme);
+    theme_->setCurrentIndex(themeIndex >= 0 ? themeIndex : 0);
+    appearanceForm->addRow(tr("主题"), theme_);
     fontFamily_ = new QFontComboBox(appearanceCard);
     fontFamily_->setObjectName(QStringLiteral("settingsFontFamily"));
     fontFamily_->setCurrentFont(qApp->font());
@@ -265,6 +277,7 @@ QFont SettingsDialog::selectedFont() const {
 }
 
 QString SettingsDialog::languagePreference() const { return language_->currentData().toString(); }
+QString SettingsDialog::selectedTheme() const { return theme_->currentData().toString(); }
 bool SettingsDialog::navigationVisibleOnStartup() const { return navigationVisible_->isChecked(); }
 bool SettingsDialog::aiVisibleOnStartup() const { return aiVisible_->isChecked(); }
 

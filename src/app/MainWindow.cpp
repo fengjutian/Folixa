@@ -1,6 +1,8 @@
 #include "app/MainWindow.h"
+#include "app/ModalScrim.h"
 #include "app/RibbonBar.h"
 #include "app/ReadingScheme.h"
+#include "app/Theme.h"
 
 #include "app/Language.h"
 #include "app/TextController.h"
@@ -35,6 +37,7 @@
 #include "ipc/WorkerClient.h"
 #include "doc/EditCommand.h"
 #include "doc/RecoveryLog.h"
+#include "doc/SpreadsheetExport.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
 #include "pdf/FormData.h"
@@ -1786,8 +1789,8 @@ void MainWindow::buildUi() {
     auto* formDataGroup = ribbonBar_->addGroup(formTab, tr("数据"));
     addRibbonCommand(formDataGroup, "重置表单", "把字段恢复成默认值",
                      ":/icons/reset-form.svg", [this] { resetForms(); }, true, "form.reset");
-    addRibbonCommand(formDataGroup, "表单到工作表", "把字段和值导出为 Excel 可打开的 CSV",
-                     ":/icons/convert.svg", [this] { exportFormCsv(); }, true,
+    addRibbonCommand(formDataGroup, "表单到工作表", "把字段和值导出为 Excel 工作簿（.xlsx）",
+                     ":/icons/convert.svg", [this] { exportFormWorksheet(); }, true,
                      "form.toWorksheet");
     addRibbonCommand(formDataGroup, "导入", "从 CSV、FDF 或 XFDF 导入表单数据",
                      ":/icons/convert.svg", [this] { importFormDataDialog(); }, true, "form.import");
@@ -2709,13 +2712,15 @@ void MainWindow::buildUi() {
                 aiPanel_->openSettings();
             }
         });
-        if (dialog.exec() != QDialog::Accepted) {
+        // 带蒙层显示：弹窗之外的内容压暗，注意力才落在设置上。
+        if (aipdf::app::execWithScrim(dialog, this) != QDialog::Accepted) {
             return;
         }
         const QFont selected = dialog.selectedFont();
         qApp->setFont(selected);
+        const QString selectedTheme = dialog.selectedTheme();
         QSettings settings;
-        settings.setValue(QStringLiteral("appearance/theme"), QStringLiteral("light"));
+        settings.setValue(QStringLiteral("appearance/theme"), selectedTheme);
         settings.setValue(QStringLiteral("appearance/fontFamily"), selected.family());
         settings.setValue(QStringLiteral("appearance/fontPointSize"), selected.pointSize());
         settings.setValue(QStringLiteral("workspace/navigationVisible"),
@@ -2730,6 +2735,8 @@ void MainWindow::buildUi() {
         if (aiDock_ != nullptr && currentView() != nullptr) {
             aiDock_->setVisible(dialog.aiVisibleOnStartup());
         }
+        // 主题立刻生效：样式表与调色板当场换掉，不用重启。
+        aipdf::app::theme::applyMode(*qApp, aipdf::app::theme::modeFromKey(selectedTheme));
         statusBar()->showMessage(tr("设置已保存"), 3000);
     });
     // 不注册成 QStatusBar 的 normal widget：showMessage() 会隐藏所有 normal widget。
@@ -3169,7 +3176,7 @@ QWidget* MainWindow::createFormTab() {
     connect(formPropertiesButton_, &QPushButton::clicked, this, editSelectedFormProperties);
     connect(formTable_, &QTableWidget::cellDoubleClicked, this,
             [editSelectedFormProperties](int, int) { editSelectedFormProperties(); });
-    connect(formExportCsvButton_, &QPushButton::clicked, this, &MainWindow::exportFormCsv);
+    connect(formExportCsvButton_, &QPushButton::clicked, this, &MainWindow::exportFormWorksheet);
     connect(formImportCsvButton_, &QPushButton::clicked, this, &MainWindow::importFormCsv);
     connect(formExportFdfButton_, &QPushButton::clicked, this, [this]() {
         if (auto* view = currentView()) {
@@ -3280,22 +3287,39 @@ void MainWindow::flattenCurrentPageForms() {
     }
 }
 
-void MainWindow::exportFormCsv() {
+// 「表单到工作表」：导出 Excel 工作簿（.xlsx）。
+//
+// 默认给 .xlsx（真的是工作簿：有工作表名与单元格），也保留 CSV ——
+// 有些流程要的是纯文本两列，按扩展名决定写哪种。
+void MainWindow::exportFormWorksheet() {
     PdfView* view = currentView();
     if (view == nullptr) {
         return;
     }
-    const QString path = QFileDialog::getSaveFileName(this, tr("导出表单数据"), QString(),
-                                                      tr("CSV (*.csv)"));
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("导出表单数据"), QString(),
+        tr("Excel 工作簿 (*.xlsx);;CSV (*.csv)"));
     if (path.isEmpty()) {
         return;
+    }
+    const QVector<pdf::FormField> fields = view->formFields();
+    QByteArray bytes;
+    if (path.endsWith(QStringLiteral(".xlsx"), Qt::CaseInsensitive)) {
+        QVector<doc::SheetRow> rows;
+        rows.reserve(fields.size());
+        for (const pdf::FormField& field : fields) {
+            rows.append({field.name, field.value});
+        }
+        bytes = doc::rowsToXlsx(rows, tr("表单数据"));
+    } else {
+        bytes = pdf::formValuesToCsv(fields);
     }
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         statusBar()->showMessage(tr("写不了这个文件"), 3000);
         return;
     }
-    file.write(pdf::formValuesToCsv(view->formFields()));
+    file.write(bytes);
     file.close();
     statusBar()->showMessage(tr("已导出表单数据"), 3000);
 }
@@ -3408,7 +3432,7 @@ void MainWindow::exportFormDataDialog() {
                                                   0, false, &ok);
     if (!ok) return;
     if (choice == formats.at(0)) {
-        exportFormCsv();
+        exportFormWorksheet();
     } else if (choice == formats.at(1)) {
         view->exportFormFdfDialog();
     } else {

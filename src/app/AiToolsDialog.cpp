@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 
 #include "app/AiToolService.h"
+#include "ai/PptxExport.h"
 #include "i18n/Translate.h"
 
 namespace aipdf::app {
@@ -405,6 +406,11 @@ PptGenerationDialog::PptGenerationDialog(AiToolService* service, QWidget* parent
     auto* generateButton = buttons->addButton(i18n::tr("aipdf::app::MainWindow", "生成"), QDialogButtonBox::ActionRole);
     generateButton->setObjectName(QStringLiteral("ai.ppt.generate"));
     generateButton->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "生成"));
+    // 主按钮是「存为 PPTX」：命令叫「生成 PPT」，产出的就得是 PPT。
+    // Markdown 留作次要选项（有人要的是纯文本大纲，不是演示文稿）。
+    auto* savePptxButton = buttons->addButton(i18n::tr("aipdf::app::MainWindow", "存为 PPTX"), QDialogButtonBox::ActionRole);
+    savePptxButton->setObjectName(QStringLiteral("ai.ppt.savePptx"));
+    savePptxButton->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "存为 PPTX"));
     auto* saveButton = buttons->addButton(i18n::tr("aipdf::app::MainWindow", "存为 Markdown"), QDialogButtonBox::ActionRole);
     saveButton->setObjectName(QStringLiteral("ai.ppt.save"));
     saveButton->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "存为 Markdown"));
@@ -412,6 +418,20 @@ PptGenerationDialog::PptGenerationDialog(AiToolService* service, QWidget* parent
 
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(generateButton, &QPushButton::clicked, this, [this] { generateDeck(); });
+    connect(savePptxButton, &QPushButton::clicked, this, [this] {
+        if (!deck_.isValid()) {
+            QMessageBox::information(this, i18n::tr("aipdf::app::MainWindow", "AI 生成 PPT"),
+                                     i18n::tr("aipdf::app::MainWindow", "先生成一套 PPT。"));
+            return;
+        }
+        const QByteArray bytes = ai::deckToPptx(deck_);
+        if (bytes.isEmpty()) {
+            QMessageBox::warning(this, i18n::tr("aipdf::app::MainWindow", "AI 生成 PPT"),
+                                 i18n::tr("aipdf::app::MainWindow", "导出 PPTX 失败：这一套 PPT 没有可导出的内容。"));
+            return;
+        }
+        emit savePptxRequested(bytes);
+    });
     connect(saveButton, &QPushButton::clicked, this, [this] {
         if (markdown().isEmpty()) {
             QMessageBox::information(this, i18n::tr("aipdf::app::MainWindow", "AI 生成 PPT"), i18n::tr("aipdf::app::MainWindow", "先生成一套 PPT。"));

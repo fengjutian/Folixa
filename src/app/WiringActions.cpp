@@ -365,6 +365,22 @@ void WiringActions::pptGeneration() {
     if (view != nullptr) {
         dialog.setDocumentText(view->wholeDocumentPlainText());
     }
+    connect(&dialog, &PptGenerationDialog::savePptxRequested, this,
+            [this](const QByteArray& bytes) {
+                const QString path = QFileDialog::getSaveFileName(
+                    parentWidget_, i18n::tr("aipdf::app::MainWindow", "存为 PPTX"),
+                    QStringLiteral("ppt.pptx"),
+                    i18n::tr("aipdf::app::MainWindow", "PowerPoint 演示文稿 (*.pptx)"));
+                if (path.isEmpty()) {
+                    return;
+                }
+                QString error;
+                if (!writeFile(path, bytes, &error)) {
+                    QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "AI 生成 PPT"), error);
+                    return;
+                }
+                notify(i18n::tr("aipdf::app::MainWindow", "已保存：%1").arg(path));
+            });
     connect(&dialog, &PptGenerationDialog::saveMarkdownRequested, this,
             [this](const QString& markdown) {
                 const QString path = QFileDialog::getSaveFileName(

@@ -2,6 +2,7 @@
 
 #include "app/AiSettingsDialog.h"
 #include "app/DocumentQaController.h"
+#include "app/ModalScrim.h"
 #include "app/IndexController.h"
 #include "app/Language.h"
 #include "app/LastWaveBridge.h"
@@ -1038,7 +1039,8 @@ void AiPanel::openSettings() {
                        current.outputPricePerMillion,
                        current.timeoutMs,
                        current.dataMode);
-    if (dialog.exec() != QDialog::Accepted) {
+    // 带蒙层显示：弹窗之外的内容压暗。
+    if (aipdf::app::execWithScrim(dialog, this) != QDialog::Accepted) {
         return;
     }
 

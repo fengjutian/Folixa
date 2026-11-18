@@ -2,11 +2,68 @@
 
 #include <QApplication>
 #include <QFont>
+#include <QGuiApplication>
+#include <QRegularExpression>
 #include <QSettings>
+#include <QStyle>
+#include <QStyleHints>
 
 #include <algorithm>
 
 namespace aipdf::app::theme {
+
+namespace {
+
+// 最后一次应用的模式。
+//
+// 自绘控件（画布空状态、蒙层）要问「现在是深色还是浅色」，
+// 但它们在绘制热路径上，不能每帧去读 QSettings：这里缓存一份。
+ThemeMode g_activeMode = ThemeMode::Light;
+bool g_activeModeKnown = false;
+
+// 系统是不是深色（Windows 11 的深色模式）。
+bool systemPrefersDark() {
+    if (auto* hints = QGuiApplication::styleHints()) {
+        return hints->colorScheme() == Qt::ColorScheme::Dark;
+    }
+    return false;
+}
+
+// 当前生效的是不是暗色。
+//
+// 优先用「最后一次应用的模式」：自绘控件在绘制热路径上，
+// 不能每帧去读 QSettings；应用还没跑过 apply() 时才回退去读设置。
+bool darkActive() {
+    if (!g_activeModeKnown) {
+        return currentMode() == ThemeMode::Dark;
+    }
+    if (g_activeMode == ThemeMode::Dark) {
+        return true;
+    }
+    if (g_activeMode == ThemeMode::System) {
+        return systemPrefersDark();
+    }
+    return false;
+}
+
+// 告诉平台「这套界面是深色的」。
+//
+// Windows 11 的标题栏、原生下拉弹出层听的是系统的配色方案，
+// 不是我们的样式表：不设置的话，自绘成深色的界面外面会挂着一根白标题栏。
+//
+// setColorScheme() 是 Qt 6.8 才有的；6.5~6.7 上这份代码不生效，
+// 但界面本身仍然是深色的，只是标题栏跟着系统走。
+void applySystemColorScheme(bool dark) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    if (auto* hints = QGuiApplication::styleHints()) {
+        hints->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+    }
+#else
+    Q_UNUSED(dark);
+#endif
+}
+
+}  // namespace
 
 QString lightStyleSheet() {
     return QStringLiteral(R"(
@@ -314,6 +371,318 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 )");
 }
 
+// 暗色对照表：文字色。
+//
+// 只管 `color:` 后面的色值。同样是蓝，深底上的蓝字要提亮，
+// 不然 #365AA8 那种深蓝直接糊在深色底上看不见。
+QMap<QString, QString> darkTextColors() {
+    return {
+        // —— 正文与标题：浅色下的深字，在深色下反过来 ——
+        {"#202A3A", "#E8EAEE"},      // 正文
+        {"#27272A", "#E4E7EC"},      // 选中标签、输入框文字
+        {"#18181B", "#F2F4F7"},      // 标题类文字
+        {"#1B2432", "#E8EAEE"},      // 品牌字
+        {"#39475D", "#C2C9D4"},      // AI 快捷动作文字
+        {"#344156", "#C2C9D4"},      // AI 快捷动作文字
+        {"#465267", "#B9C1CD"},      // 次级文字
+        {"#4A576E", "#A5AEBC"},      // 命令栏文字
+        {"#5A6779", "#A5AEBC"},      // 标签文字
+        {"#596579", "#A5AEBC"},      // AI 按钮文字
+        {"#52525B", "#A8B0BE"},      // 状态栏文字
+        {"#67748A", "#8E98A8"},      // AI 副标题
+        {"#6C7890", "#8E98A8"},      // AI 副标题
+        {"#7C8799", "#8E98A8"},      // AI 说明文字
+        {"#7C8AA5", "#8E98A8"},      // 欢迎页副标题
+        {"#8792A3", "#8E98A8"},      // 次要说明文字
+        {"#8A95A8", "#7E8899"},      // AI 服务商标签
+        {"#94A0B4", "#7E8899"},      // 最近文档路径
+        {"#98A2B3", "#7C8697"},      // Ribbon 分组标题、欢迎页分组说明
+        {"#9AA3B4", "#737D8D"},      // 空状态提示
+        {"#9AA5B8", "#737D8D"},      // 欢迎页脚注
+        {"#AAB2C0", "#5C6472"},      // 禁用文字
+        {"#A1A1AA", "#5C6472"},      // 纯图标按钮禁用文字
+        {"#B4BDCB", "#646C7A"},      // 禁用文字
+        {"#B7C1D2", "#6B7382"},      // 最近文档箭头
+        {"#B8C0CC", "#646C7A"},      // Ribbon 禁用文字
+        // —— 主色文字：深底上的蓝字要提亮 ——
+        {"#365AA8", "#8FB4FF"},
+        {"#3555B7", "#8FB4FF"},
+        {"#3159B8", "#8FB4FF"},
+        {"#2F4FA8", "#8FB4FF"},
+        {"#24499D", "#8FB4FF"},
+        {"#2E4E93", "#8FB4FF"},
+        // —— 状态色 ——
+        {"#D1434F", "#FF7A85"},      // 危险标签文字
+        {"#C0562F", "#E0805A"},      // 取消按钮文字
+        // —— 白字：主色按钮上的白字在暗色下也必须是白的 ——
+        {"#FFFFFF", "#FFFFFF"},
+    };
+}
+
+// 暗色对照表：表面色。
+//
+// 管背景、描边、滚动条这些「不是文字」的色值。
+//
+// 分组按「这张颜色在界面里扮演什么角色」，不按色相：
+// 同一个蓝色可能既是选中底也是 hover 底，角色不同，给法就不同。
+//
+// 主色在这张表里是**压深**的（#4169C1 → #3E63BE）：
+// 深色主题里按钮底本来就暗，再用亮蓝就压不住上面的白字了。
+QMap<QString, QString> darkSurfaceColors() {
+    return {
+        // —— 表面：浅色下的白与浅灰，在暗色下换成三档深灰 ——
+        {"#FFFFFF", "#1D2027"},      // 面板、菜单、输入框、卡片
+        {"#FAFAFB", "#1A1D23"},      // 命令栏、状态栏、导航轨、设置卡片
+        {"#F7F7F8", "#191C22"},      // 设置导航列表
+        {"#F8F9FB", "#232730"},      // AI 次级按钮
+        {"#FBFCFE", "#20242B"},      // 停靠面板标题
+        {"#FAFAFD", "#1A1D23"},      // AI 快捷动作禁用底
+        {"#F7F8FB", "#191C22"},      // 缩略图列表底
+        {"#F6F8FB", "#191C22"},      // AI 面板底
+        {"#F5F7FA", "#22262E"},      // AI 范围按钮底
+        {"#F3F4F6", "#15171C"},      // 窗口底
+        {"#EFF2F8", "#242832"},      // 最近文档分隔线
+        {"#F0F0F2", "#232730"},      // 搜索框底
+        {"#ECECEF", "#2A2E38"},      // 搜索框 hover 底
+        {"#F5F8FD", "#262B36"},      // 按钮 hover 底
+        {"#F7F8FA", "#1F232B"},      // 按钮禁用底
+        {"#FAFBFD", "#1F232B"},      // 工具栏按钮禁用底
+        {"#EEEFF2", "#262A33"},      // 纯图标按钮 hover 底
+        {"#EAF0F8", "rgba(120,140,180,0.14)"},  // 导航轨 hover
+        {"#F7F9FC", "rgba(120,140,180,0.12)"},  // Ribbon 标签 hover
+        {"#F2F6FD", "rgba(76,123,232,0.14)"},    // AI 命令按钮底
+        {"#F1F4FF", "rgba(76,123,232,0.14)"},    // 菜单选中
+        {"#F2F6FC", "rgba(76,123,232,0.14)"},    // AI 命令按钮 hover
+        {"#F1F5FC", "rgba(76,123,232,0.16)"},    // AI 摘要按钮 hover
+        {"#F3F7FC", "rgba(76,123,232,0.16)"},    // AI 快捷动作 hover
+        {"#EEF3FC", "rgba(76,123,232,0.16)"},    // 主色淡底
+        {"#EDF2FC", "rgba(76,123,232,0.16)"},    // 最近文档行 pressed
+        {"#E8F0FB", "rgba(76,123,232,0.14)"},    // AI 命令按钮 hover
+        {"#EAF1FF", "rgba(76,123,232,0.18)"},    // AI 范围按钮选中
+        {"#EEF3FF", "rgba(76,123,232,0.20)"},    // 工具栏 / 缩略图选中
+        {"#EEF2FF", "rgba(76,123,232,0.20)"},    // 缩略图选中
+        {"#E9F0FB", "rgba(76,123,232,0.24)"},    // 按钮 pressed
+        {"#E8EFFB", "rgba(76,123,232,0.24)"},    // 命令栏按钮 pressed
+        {"#E7EEF9", "rgba(76,123,232,0.24)"},    // Ribbon 命令 pressed
+        {"#E5EDF9", "rgba(76,123,232,0.26)"},    // AI 快捷动作 primary hover
+
+        // —— 描边：浅灰描边在深色下要比底色亮一档，否则边界消失 ——
+        {"#E4E4E7", "#2C313B"},      // 通用细描边
+        {"#E3E7EE", "#2E333D"},      // 控件描边
+        {"#E3E8F0", "#2C313B"},      // AI 卡片描边
+        {"#E0E5ED", "#2E333D"},      // AI 设置按钮描边
+        {"#DCE3EC", "#2E333D"},      // AI 摘要按钮描边
+        {"#DFE6F0", "#2C313B"},      // AI 快捷动作描边
+        {"#C9D5E6", "#39404E"},      // AI 输入区描边
+        {"#CBD2DE", "#3A404C"},      // 输入框描边、滚动条滑块
+        {"#D4D4D8", "#353A44"},      // 搜索框 hover 描边
+        {"#E6EAF2", "#262B34"},      // 菜单栏描边
+        {"#E8ECF3", "#272C35"},      // 文档工具栏描边
+        {"#E8EBF0", "#262B34"},      // Ribbon 分组描边
+        {"#EDF0F5", "#272C35"},      // 导航面板描边
+        {"#E4EAF5", "#2C313B"},      // 标签关闭按钮 hover
+        {"#EEECF6", "#262A33"},      // AI 快捷动作禁用描边
+        {"#EEF1F6", "#272C35"},      // 工具栏按钮禁用描边
+        {"#D9DEE7", "#2A2F38"},      // Ribbon 描边
+        {"#D5DCE8", "#3C4250"},      // Ribbon 滚动条滑块
+        {"#D9E3F2", "#33405C"},      // 选中态描边
+        {"#D9E3FA", "#33405C"},      // 选中态描边
+        {"#DCE5F2", "#33405C"},      // Ribbon 命令 hover 描边
+        {"#DCE7F7", "#33405C"},      // 状态栏按钮 hover
+        {"#CBD8EA", "#3C4E7A"},      // Ribbon 命令 pressed 描边
+        {"#C3D0F3", "#3C4E7A"},      // 按钮 hover 描边
+        {"#9FB4EF", "#4E67A6"},      // 按钮 pressed 描边
+        {"#B9CBEA", "rgba(76,123,232,0.42)"},   // AI 按钮描边
+        {"#C4D3EA", "rgba(76,123,232,0.42)"},   // AI 按钮 hover 描边
+        {"#CAD7EA", "rgba(76,123,232,0.42)"},   // AI 按钮 hover 描边
+        {"#B8CAE6", "rgba(76,123,232,0.48)"},   // AI primary hover 描边
+        {"#DCE7FF", "rgba(76,123,232,0.35)"},   // 输入框选中文本底
+
+        // —— 主色（当底色用）：深色主题里要压深，白字才压得住 ——
+        {"#4169C1", "#3E63BE"},      // 主色底
+        {"#365AA8", "#4A72CC"},      // 主色 hover 底、描边
+        {"#3159B8", "#4A72CC"},      // 主色 hover 底
+        {"#2E4E93", "#2F4F9E"},      // 主色 pressed 底
+        {"#5277E8", "#5B87F5"},      // 聚焦描边
+
+        // —— 状态色 ——
+        {"#FDECEE", "rgba(255,122,133,0.14)"},   // 危险标签底
+        {"#FFF3F0", "rgba(224,128,90,0.12)"},    // 取消按钮底
+
+        // —— 滚动条 hover 滑块（同时也是一处文字色，两张表里都有） ——
+        {"#8792A3", "#59606E"},      // 滚动条滑块 hover
+
+        // —— 半透明叠加：AI 快捷卡片 ——
+        {"rgba(255,255,255,252)", "rgba(30,34,42,0.94)"},
+    };
+}
+
+namespace {
+
+// 把 text 里所有命中 pattern 的色值按 map 替换。
+//
+// 命中但 map 里没有的色值原样保留——这正是「漏登记」的兜底：
+// 宁可留一条亮边，也不要把颜色换成一个不相干的色值。
+QString replaceMappedColors(const QString& text, const QRegularExpression& pattern,
+                            const QMap<QString, QString>& map) {
+    QRegularExpressionMatchIterator matches = pattern.globalMatch(text);
+    QStringList chunks;
+    int last = 0;
+    while (matches.hasNext()) {
+        const QRegularExpressionMatch match = matches.next();
+        chunks.append(text.mid(last, match.capturedStart() - last));
+        chunks.append(map.value(match.captured(), match.captured()));
+        last = match.capturedEnd();
+    }
+    chunks.append(text.mid(last));
+    return chunks.join();
+}
+
+}  // namespace
+
+QString darkStyleSheet() {
+    // 文字色先换成占位符。
+    //
+    // 必须占位：文字色的暗色值（比如保持白色的 #FFFFFF）会被下一步的
+    // 表面色替换再换一遍，白字就变成了深色字。
+    static const QRegularExpression textColorPattern(
+        QStringLiteral("(?<![\\w-])(color:\\s*)(#[0-9A-Fa-f]{6})"));
+    static const QRegularExpression hexPattern(QStringLiteral("#[0-9A-Fa-f]{6}"));
+    static const QRegularExpression rgbaPattern(QStringLiteral("rgba\\([^)]*\\)"));
+
+    const QMap<QString, QString> textColors = darkTextColors();
+    const QMap<QString, QString> surfaceColors = darkSurfaceColors();
+
+    QString sheet = lightStyleSheet();
+
+    // 第一步：文字色 → 占位符。
+    QStringList placeholders;
+    {
+        QRegularExpressionMatchIterator matches = textColorPattern.globalMatch(sheet);
+        QStringList chunks;
+        int last = 0;
+        while (matches.hasNext()) {
+            const QRegularExpressionMatch match = matches.next();
+            chunks.append(sheet.mid(last, match.capturedStart() - last));
+            const QString hex = match.captured(2);
+            const QString placeholder = QStringLiteral("\x01%1\x02").arg(placeholders.size());
+            placeholders.append(textColors.value(hex, hex));
+            chunks.append(match.captured(1) + placeholder);
+            last = match.capturedEnd();
+        }
+        chunks.append(sheet.mid(last));
+        sheet = chunks.join();
+    }
+
+    // 第二步：表面色（背景、描边、滚动条）。
+    sheet = replaceMappedColors(sheet, hexPattern, surfaceColors);
+    sheet = replaceMappedColors(sheet, rgbaPattern, surfaceColors);
+
+    // 第三步：文字色归位。
+    for (int index = 0; index < placeholders.size(); ++index) {
+        sheet.replace(QStringLiteral("\x01%1\x02").arg(index), placeholders.at(index));
+    }
+    return sheet;
+}
+
+QPalette lightPalette() {
+    QPalette palette = QApplication::style()->standardPalette();
+    // 明确钉住与样式表一致的颜色。
+    //
+    // 不钉住的话：系统是深色时 standardPalette() 给的是深色底，
+    // 浅色界面就会「白底黑控件」地花掉；钉住之后浅色主题在任何系统下都一样。
+    palette.setColor(QPalette::Window, QColor(0xF3, 0xF4, 0xF6));
+    palette.setColor(QPalette::WindowText, QColor(0x20, 0x2A, 0x3A));
+    palette.setColor(QPalette::Base, QColor(0xFF, 0xFF, 0xFF));
+    palette.setColor(QPalette::AlternateBase, QColor(0xF7, 0xF8, 0xFA));
+    palette.setColor(QPalette::Text, QColor(0x20, 0x2A, 0x3A));
+    palette.setColor(QPalette::Button, QColor(0xFF, 0xFF, 0xFF));
+    palette.setColor(QPalette::ButtonText, QColor(0x20, 0x2A, 0x3A));
+    palette.setColor(QPalette::Highlight, QColor(0x41, 0x69, 0xC1));
+    palette.setColor(QPalette::HighlightedText, QColor(0xFF, 0xFF, 0xFF));
+    palette.setColor(QPalette::ToolTipBase, QColor(0xFF, 0xFF, 0xFF));
+    palette.setColor(QPalette::ToolTipText, QColor(0x20, 0x2A, 0x3A));
+    palette.setColor(QPalette::Link, QColor(0x36, 0x5A, 0xA8));
+    palette.setColor(QPalette::PlaceholderText, QColor(0x98, 0xA2, 0xB3));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0xAA, 0xB2, 0xC0));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0xAA, 0xB2, 0xC0));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0xAA, 0xB2, 0xC0));
+    return palette;
+}
+
+QPalette darkPalette() {
+    QPalette palette = QApplication::style()->standardPalette();
+    palette.setColor(QPalette::Window, QColor(0x15, 0x17, 0x1C));
+    palette.setColor(QPalette::WindowText, QColor(0xE8, 0xEA, 0xEE));
+    palette.setColor(QPalette::Base, QColor(0x23, 0x27, 0x30));
+    palette.setColor(QPalette::AlternateBase, QColor(0x1D, 0x20, 0x27));
+    palette.setColor(QPalette::Text, QColor(0xE8, 0xEA, 0xEE));
+    palette.setColor(QPalette::Button, QColor(0x1D, 0x20, 0x27));
+    palette.setColor(QPalette::ButtonText, QColor(0xE8, 0xEA, 0xEE));
+    palette.setColor(QPalette::BrightText, QColor(0xFF, 0x7A, 0x85));
+    palette.setColor(QPalette::Light, QColor(0x2A, 0x2F, 0x38));
+    palette.setColor(QPalette::Midlight, QColor(0x24, 0x28, 0x32));
+    palette.setColor(QPalette::Mid, QColor(0x1A, 0x1D, 0x23));
+    palette.setColor(QPalette::Dark, QColor(0x12, 0x14, 0x19));
+    palette.setColor(QPalette::Shadow, QColor(0x0B, 0x0D, 0x10));
+    palette.setColor(QPalette::Highlight, QColor(0x3A, 0x4C, 0x7A));
+    palette.setColor(QPalette::HighlightedText, QColor(0xF2, 0xF4, 0xF7));
+    palette.setColor(QPalette::ToolTipBase, QColor(0x24, 0x28, 0x32));
+    palette.setColor(QPalette::ToolTipText, QColor(0xE8, 0xEA, 0xEE));
+    palette.setColor(QPalette::Link, QColor(0x8F, 0xB4, 0xFF));
+    palette.setColor(QPalette::LinkVisited, QColor(0xB3, 0x9D, 0xFF));
+    palette.setColor(QPalette::PlaceholderText, QColor(0x7E, 0x88, 0x99));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0x5C, 0x64, 0x72));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0x5C, 0x64, 0x72));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0x5C, 0x64, 0x72));
+    return palette;
+}
+
+QColor interfaceTextColor() {
+    return darkActive() ? QColor(0xE8, 0xEA, 0xEE) : QColor(0x20, 0x2A, 0x3A);
+}
+
+QColor surfaceColor() {
+    return darkActive() ? QColor(0x1D, 0x20, 0x27) : QColor(0xFF, 0xFF, 0xFF);
+}
+
+bool isDarkInterface() {
+    return darkActive();
+}
+
+QString modeKey(ThemeMode mode) {
+    switch (mode) {
+        case ThemeMode::Dark:
+            return QStringLiteral("dark");
+        case ThemeMode::System:
+            return QStringLiteral("system");
+        case ThemeMode::Light:
+            break;
+    }
+    return QStringLiteral("light");
+}
+
+ThemeMode modeFromKey(const QString& key) {
+    if (key == QLatin1String("dark")) {
+        return ThemeMode::Dark;
+    }
+    if (key == QLatin1String("system")) {
+        return ThemeMode::System;
+    }
+    return ThemeMode::Light;
+}
+
+ThemeMode currentMode() {
+    QSettings settings;
+    return modeFromKey(
+        settings.value(QStringLiteral("appearance/theme"), QStringLiteral("light")).toString());
+}
+
+void setCurrentMode(ThemeMode mode) {
+    QSettings settings;
+    settings.setValue(QStringLiteral("appearance/theme"), modeKey(mode));
+}
+
 void apply(QApplication& application) {
     QSettings settings;
     const QString family = settings.value(QStringLiteral("appearance/fontFamily"),
@@ -322,7 +691,26 @@ void apply(QApplication& application) {
     QFont font(family);
     font.setPointSize(std::clamp(pointSize, 8, 24));
     application.setFont(font);
-    application.setStyleSheet(lightStyleSheet());
+    applyMode(application, currentMode());
+}
+
+void applyMode(QApplication& application, ThemeMode mode) {
+    g_activeMode = mode;
+    g_activeModeKnown = true;
+
+    const bool dark = mode == ThemeMode::Dark ||
+                      (mode == ThemeMode::System && systemPrefersDark());
+
+    // 先告诉平台用哪套配色，再读调色板：
+    // 顺序反了读到的还是系统原来那套。
+    applySystemColorScheme(dark);
+
+    QPalette palette = dark ? darkPalette() : lightPalette();
+    // 画布周围的底色归「阅读配色」管（它写的是 QPalette::Mid），
+    // 主题切换不能把它冲掉。
+    palette.setColor(QPalette::Mid, application.palette().color(QPalette::Mid));
+    application.setPalette(palette);
+    application.setStyleSheet(dark ? darkStyleSheet() : lightStyleSheet());
 }
 
 }  // namespace aipdf::app::theme

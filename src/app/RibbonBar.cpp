@@ -1,4 +1,5 @@
 ﻿#include "app/RibbonBar.h"
+#include "app/Theme.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -105,11 +106,12 @@ int RibbonBar::appendPage() {
     scroll->setWidget(page);
     // 滚动区的 viewport 默认按 QPalette::Base 自绘灰底，会盖住 Ribbon 的白底。
     // 必须在 setWidget() 之后再设：setWidget 会重置 viewport 的调色板。
+    // 底色取当前主题的面板色：写死白色的话，暗色主题下这里会亮一块。
     page->setAutoFillBackground(false);
     scroll->viewport()->setBackgroundRole(QPalette::Base);
     QPalette viewportPalette = scroll->viewport()->palette();
-    viewportPalette.setColor(QPalette::Base, QColor(0xFF, 0xFF, 0xFF));
-    viewportPalette.setColor(QPalette::Window, QColor(0xFF, 0xFF, 0xFF));
+    viewportPalette.setColor(QPalette::Base, theme::surfaceColor());
+    viewportPalette.setColor(QPalette::Window, theme::surfaceColor());
     scroll->viewport()->setPalette(viewportPalette);
     scroll->viewport()->setAutoFillBackground(true);
 

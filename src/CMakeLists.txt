@@ -14,6 +14,8 @@ qt_add_executable(AiPdfEditor WIN32
     i18n/Translate.h
     app/Theme.cpp
     app/Theme.h
+    app/ModalScrim.cpp
+    app/ModalScrim.h
     app/ReadingScheme.cpp
     app/ReadingScheme.h
     app/BrandMark.cpp
@@ -238,6 +240,9 @@ qt_add_executable(AiPdfEditor WIN32
     doc/OfdExport.h
     doc/OfficeExport.cpp
     doc/OfficeExport.h
+    doc/SpreadsheetExport.cpp
+    doc/SpreadsheetExport.h
+    doc/XmlText.h
     pdf/AnnotationToolkit.cpp
     pdf/AnnotationToolkit.h
     app/ViewModes.cpp
@@ -250,6 +255,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/BlankDocument.h
     ai/PptGeneration.cpp
     ai/PptGeneration.h
+    ai/PptxExport.cpp
+    ai/PptxExport.h
     ai/AiNarration.cpp
     ai/AiNarration.h
     ai/AiContentDetection.cpp

@@ -173,7 +173,7 @@ tab,group,command,status,capability,note
 表单,计算,计算次序,aligned,F3,按 AcroForm /CO 次序执行计算脚本，可调序并写回
 表单,设计,添加工具提示,aligned,F5,域属性可填提示，表单面板有提示列
 表单,填写,重置表单,aligned,F2,恢复字段默认值；没有默认值的清空
-表单,数据,表单到工作表,partial,F4,导出 Excel 可打开的 CSV，不是 xlsx
+表单,数据,表单到工作表,aligned,F4,导出真正的 Excel 工作簿（.xlsx：工作表名 + 单元格，Office Open XML 打包），也保留 CSV；`doc::rowsToXlsx`，`OfficePackageTests` 11 条
 表单,数据,导入,aligned,F4,CSV/FDF/XFDF 都可用
 表单,数据,导出,aligned,F4,CSV/FDF/XFDF 都可用
 表单,脚本,JavaScript,aligned,F3,内置 JS 子集求值器，可写脚本并把结果写回字段
@@ -271,7 +271,7 @@ AI助手,朗读,智能朗读,aligned,J4,AI 智能朗读：自动取正文、清�
 AI助手,检测,AI内容检测,aligned,—,AI 内容检测：自动带入选区文字（无选区则当前页正文），输出判定与置信度，**模型解析失败时显示「无法判断」而不是编一个结论**；`ai::AiContentDetection`，`AiContentDetectionTests`
 AI助手,生成,生成图像,aligned,—,文生图：提示词 / 反向提示词 / 画风 / 尺寸 / 张数 1–4，生成后可直接插成图片批注；**需配置 Provider 密钥，没密钥直接报错，不做离线兜底**；`ai::AiImageGeneration`，`AiImageGenerationTests`
 AI助手,生成,AI总结生图,aligned,—,总结配图：先取当前页正文生成要点列表，再逐条生成配图并插入；走同一套 Provider 通路（需密钥）；`ai::AiImageGeneration`，`AiImageGenerationTests`
-AI助手,生成,AI生成PPT,partial,—,生成 PPT：结构与内容由模型生成，**导出格式是 Markdown 文本，不是 .pptx 文件**；页数 1–30；`ai::PptGeneration`，`PptGenerationTests`
-AI助手,生成,主题生成PPT,partial,—,主题生成 PPT：模型自己拟大纲与内容（`PptSource::Topic`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`
-AI助手,生成,文档生成PPT,partial,—,文档生成 PPT：从已有正文提炼成幻灯片大纲（`PptSource::Document`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`
-AI助手,生成,大纲生成PPT,partial,—,大纲生成 PPT：把用户给的大纲排成 PPT 结构（`PptSource::Outline`）；导出为 Markdown，不是 .pptx；`PptGenerationTests`
+AI助手,生成,AI生成PPT,aligned,—,生成 PPT：结构与内容由模型生成，**导出真正的 .pptx**（Office Open XML 演示文稿：标题、要点、演讲者备注齐全，PowerPoint / WPS / LibreOffice 都能打开）；Markdown 作为次要选项保留；页数 1–30；`ai::PptGeneration` + `ai::deckToPptx`，`PptGenerationTests` + `OfficePackageTests` 11 条
+AI助手,生成,主题生成PPT,aligned,—,主题生成 PPT：模型自己拟大纲与内容（`PptSource::Topic`）；**导出真正的 .pptx**（Office Open XML 演示文稿，标题 / 要点 / 演讲者备注齐全）；`PptGenerationTests` + `OfficePackageTests` 11 条
+AI助手,生成,文档生成PPT,aligned,—,文档生成 PPT：从已有正文提炼成幻灯片大纲（`PptSource::Document`）；**导出真正的 .pptx**（Office Open XML 演示文稿，标题 / 要点 / 演讲者备注齐全）；`PptGenerationTests` + `OfficePackageTests` 11 条
+AI助手,生成,大纲生成PPT,aligned,—,大纲生成 PPT：把用户给的大纲排成 PPT 结构（`PptSource::Outline`）；**导出真正的 .pptx**（Office Open XML 演示文稿，标题 / 要点 / 演讲者备注齐全）；`PptGenerationTests` + `OfficePackageTests` 11 条
