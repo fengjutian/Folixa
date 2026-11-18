@@ -30,6 +30,7 @@ class PageAnnotsInjectorTests : public QObject {
 private slots:
     void injectsSoundAnnotationIntoPage();
     void injectsInternalPageLink();
+    void ignoresBracketsInsideStrings();
     void rejectsNonPdf();
 };
 
@@ -96,6 +97,36 @@ void PageAnnotsInjectorTests::injectsInternalPageLink() {
         }
     }
     QVERIFY2(found, "注入的内部页面链接没有指向第 3 页");
+}
+
+void PageAnnotsInjectorTests::ignoresBracketsInsideStrings() {
+    // 回归：/Annots 里已有批注的 /Contents 字符串包含 ']' 时，找数组结尾
+    // 不能把字符串里的 ']' 当结构符号，否则新批注会被插进字符串中间。
+    auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    const QByteArray bytes = opened.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+
+    InlineAnnotationInsert first;
+    first.pageIndex = 0;
+    first.dictionary =
+        "<< /Type /Annot /Subtype /Text /Rect [30 30 50 50] "
+        "/Contents (第一部分 ] 第二部分) /NM (fixture-string-bracket) >>";
+    const auto firstResult = injectInlineAnnotations(bytes, {first});
+    QVERIFY2(firstResult.ok, qPrintable(firstResult.error));
+
+    InlineAnnotationInsert second;
+    second.pageIndex = 0;
+    second.dictionary =
+        "<< /Type /Annot /Subtype /Text /Rect [60 60 80 80] /Contents (second) >>";
+    const auto secondResult = injectInlineAnnotations(firstResult.bytes, {second});
+    QVERIFY2(secondResult.ok, qPrintable(secondResult.error));
+
+    const auto reopened = openDocumentFromBytes(secondResult.bytes);
+    QVERIFY2(reopened.document.isValid(), "含 ']' 的字符串把 /Annots 写坏了");
+    const auto page = reopened.document.page(0);
+    QVERIFY(page.has_value());
+    QVERIFY2(page->annotations().size() >= 2, "第二次注入的批注没有出现在页面上");
 }
 
 void PageAnnotsInjectorTests::rejectsNonPdf() {

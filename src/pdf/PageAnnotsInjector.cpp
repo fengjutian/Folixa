@@ -1,5 +1,6 @@
 #include "pdf/PageAnnotsInjector.h"
 
+#include <QHash>
 #include <QVector>
 
 #include <algorithm>
@@ -70,8 +71,18 @@ QVector<ObjectSpan> scanObjects(const QByteArray& pdf) {
 // 找到页面对象（按文档顺序的第 index 个 /Type /Page）。
 bool findPageObject(const QByteArray& pdf, const QVector<ObjectSpan>& objects, int pageIndex,
                     ObjectSpan* out) {
+    // 同一个对象号可能有多个版本（增量更新会追加新版本，旧版本仍在文件里）。
+    // 只认最后一个版本：按字节顺序取第一个会把新批注写进已经被取代的旧对象，
+    // 阅读器按 xref 读到的是新对象，看起来就是“批注没写进去”。
+    QHash<int, qsizetype> latestBodyEnd;
+    for (const ObjectSpan& object : objects) {
+        latestBodyEnd.insert(object.number, object.bodyEnd);
+    }
     int seen = 0;
     for (const ObjectSpan& object : objects) {
+        if (latestBodyEnd.value(object.number) != object.bodyEnd) {
+            continue;  // 旧版本
+        }
         const QByteArray body = pdf.mid(object.bodyBegin, object.bodyEnd - object.bodyBegin);
         if (!body.contains("/Type")) {
             continue;

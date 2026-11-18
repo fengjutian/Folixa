@@ -37,9 +37,10 @@ $ErrorActionPreference = 'Stop'
 # 模块 -> 文件基名（不含扩展名）。基名必须覆盖 src/pdf 下的全部文件，
 # 脚本会先做完整性校验，缺一个就不动手。
 $Modules = [ordered]@{
-    'core'       = 'PdfiumAdapter DocumentOpen DocumentWriter IncrementalWriter QpdfBackend PdfRevisionCounter Navigation NamedDestination TextPage DocumentProperties StandardFonts'
-    'content'    = 'ContentStream TextReflow TableStructure TableIntegration ParagraphFormat TrueTypeSubset AppearanceStream InvisibleTextLayer PageDecorations'
-    'annot'      = 'Annotation AnnotationDictionary AnnotationFilter AnnotationShapes AnnotationSummary AnnotationToolkit Xfdf SoundFormat PageAnnotsInjector RichMedia3d'
+    'kernel'     = 'PdfiumAdapter TextPage StandardFonts'
+    'document'   = 'DocumentOpen DocumentWriter IncrementalWriter QpdfBackend PdfRevisionCounter DocumentProperties Navigation NamedDestination'
+    'content'    = 'ContentStream TextReflow TableStructure TableIntegration ParagraphFormat TrueTypeSubset InvisibleTextLayer PageDecorations'
+    'annot'      = 'Annotation AnnotationDictionary AnnotationFilter AnnotationShapes AnnotationSummary AnnotationToolkit AppearanceStream Xfdf SoundFormat PageAnnotsInjector RichMedia3d'
     'forms'      = 'FormData FormFieldWriter FormJsEvaluator FormScriptStore FormTemplateStore FormToolSettings FormDesignParser FormAutoTag BarcodeEncoder XfaSupport'
     'security'   = 'PdfSecurity SignatureVerifier SignatureInspector SignatureWorkflow RsaVerifier Redaction'
     'compliance' = 'PdfAChecker PdfUaChecker PreflightChecker TagTreeWriter StructTreeReader'

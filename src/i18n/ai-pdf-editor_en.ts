@@ -8300,6 +8300,18 @@ Notes: %1</translation></message>
             <source>%1 已经打开了</source>
             <translation>%1 is already open</translation>
         </message>
+        <message>
+            <source>上一张图片还在生成，请等它完成再试。</source>
+            <translation>The previous image is still being generated; please wait for it to finish.</translation>
+        </message>
+        <message>
+            <source>签名验证进程启动失败。</source>
+            <translation>The signature verification process could not be started.</translation>
+        </message>
+        <message>
+            <source>签名验证进程超时。</source>
+            <translation>The signature verification process timed out.</translation>
+        </message>
     </context>
     <context>
         <name>aipdf::app::PdfView</name>
@@ -8342,6 +8354,17 @@ If you need to keep the signatures, do not modify and save this file again after
         <message>
             <source>插入失败，文档已恢复到操作前。</source>
             <translation>Insert failed; the document was restored to its previous state.</translation>
+        </message>
+        <message>
+            <source>第 %1 页渲染失败：页面内容可能已损坏</source>
+            <translation>Page %1 failed to render; its content may be damaged</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::pdf::IncrementalWriter</name>
+        <message>
+            <source>文档已加密：增量写入不支持加密文件</source>
+            <translation>The document is encrypted; incremental writing does not support encrypted files</translation>
         </message>
     </context>
     <context>
