@@ -2730,22 +2730,19 @@ void MainWindow::buildUi() {
         // 按钮，隐藏后面板也会改变画布偏移、拖垮依赖坐标的验收用例。
         // 收起形态的宽度问题由 setNavigationExpanded 负责。
         //
-        // 但欢迎页例外：syncTabBar 已经把它收起来了（没有文档时那一列什么都点不动）。
-        // QMainWindow 首次 show() 还会把构造期隐藏的 dock 重新摆出来，所以这里不是
-        // 「不要 show」而是「按欢迎页的决定再收一次」。
-        if (navHiddenForWelcome_) {
-            trace(QStringLiteral("dbg startup hide for welcome"));
+        // 工作台例外：那一列没有文档可指，一进来就该是收起的。
+        // 判断要按「当前停在哪一页」而不是按 syncTabBar 留下的标记——
+        // 标记只在 dock 本来可见时才置位，用户上次关过导航栏（设置里
+        // navigationVisible=false）时它是 false，这里就会把 dock 重新 show 出来，
+        // 于是工作台左边凭空多出一条点不出结果的图标轨。
+        if (isWorkspaceCurrent()) {
+            navHiddenForWelcome_ = true;
             navigationDock_->hide();
         } else {
-            trace(QStringLiteral("dbg startup show nav"));
             navigationDock_->show();
         }
-        QTimer::singleShot(1500, this, [this] {
-            trace(QStringLiteral("dbg settled dockVisible=%1 pagesVisible=%2 navHidden=%3")
-                      .arg(navigationDock_->isVisible())
-                      .arg(navigationPages_->isVisible())
-                      .arg(navHiddenForWelcome_));
-        });
+        // QMainWindow 首次 show() 会把构造期隐藏的 dock 重新摆出来，
+        // 所以收起动作放在 show 之后；展开态也一并收回图标轨。
         setNavigationExpanded(false);
         positionFloatingUi();
     });
@@ -3034,9 +3031,6 @@ void MainWindow::syncTabBar() {
     // 工作台上会一直保持「看着能按」的样子。
     updatePageActionState();
     if (onWorkspace) {
-        trace(QStringLiteral("dbg sync workspace hidden=%1 pagesVisible=%2")
-                  .arg(navigationDock_->isHidden())
-                  .arg(navigationPages_->isVisible()));
         // 用 isHidden() 而不是 isVisible()：窗口还没 show 的时候 dock 已经是
         // 「请求显示但实际不可见」，isVisible() 会给 false，收起就漏掉了。
         if (!navigationDock_->isHidden()) {
@@ -3046,7 +3040,6 @@ void MainWindow::syncTabBar() {
         // 展开态也要一起收回「图标轨」：只 hide 不收起的话，dock 下次露面
         // 会把整页面板（含空缩略图与页面按钮）带回来。
         setNavigationExpanded(false);
-        trace(QStringLiteral("dbg sync workspace hiddenAfter=%1").arg(navigationDock_->isHidden()));
     } else if (navHiddenForWelcome_) {
         navHiddenForWelcome_ = false;
         navigationDock_->setVisible(navigationUserVisible_);
