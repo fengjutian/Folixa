@@ -1732,22 +1732,26 @@ void MainWindow::buildUi() {
 
     auto* formRecognitionGroup = ribbonBar_->addGroup(formTab, tr("识别"));
     addRibbonCommand(formRecognitionGroup, "表单自动识别", "扫描并列出文档中的 AcroForm 字段",
-                     ":/icons/search.svg", showFormsPanel, true, "form.recognize");
+                     ":/icons/form-recognize.svg", showFormsPanel, true, "form.recognize");
     addRibbonCommand(formRecognitionGroup, "设计助手", "用一句描述生成表单字段设计",
-                     ":/icons/form.svg", [this] { designFormWithAssistant(); }, true,
+                     ":/icons/form-assistant.svg", [this] { designFormWithAssistant(); }, true,
                      "form.assistant");
     addRibbonCommand(formRecognitionGroup, "工具提示", "在表单面板里查看字段的名称、类型、值与提示",
-                     ":/icons/form.svg", showFormsPanel, true, "form.tooltip");
+                     ":/icons/tooltip.svg", showFormsPanel, true, "form.tooltip");
 
     auto* formFieldGroup = ribbonBar_->addGroup(formTab, tr("建域"));
-    const struct { const char* label; const char* kind; } fieldCommands[] = {
-        {"文本域", "text"}, {"复选框", "checkbox"}, {"单选按钮", "radio"},
-        {"组合框", "combo"}, {"列表框", "list"}, {"按钮", "button"},
-        {"条形码", "barcode"},
+    const struct { const char* label; const char* kind; const char* icon; } fieldCommands[] = {
+        {"文本域", "text", ":/icons/text-field.svg"},
+        {"复选框", "checkbox", ":/icons/checkbox-field.svg"},
+        {"单选按钮", "radio", ":/icons/radio-field.svg"},
+        {"组合框", "combo", ":/icons/combo-field.svg"},
+        {"列表框", "list", ":/icons/list-field.svg"},
+        {"按钮", "button", ":/icons/button-field.svg"},
+        {"条形码", "barcode", ":/icons/barcode-field.svg"},
     };
     for (const auto& command : fieldCommands) {
         addRibbonCommand(formFieldGroup, command.label, "在当前页创建 AcroForm 字段",
-                         placeholderIcon(tr(command.label)), [this, kind = command.kind] {
+                         QString::fromLatin1(command.icon), [this, kind = command.kind] {
             if (auto* view = currentView()) {
                 view->createFormFieldDialog(QString::fromLatin1(kind));
             }
@@ -1756,20 +1760,20 @@ void MainWindow::buildUi() {
 
     auto* formTemplateGroup = ribbonBar_->addGroup(formTab, tr("模板"));
     addRibbonCommand(formTemplateGroup, "保存页面模板", "把当前页的表单域存成可复用的模板",
-                     ":/icons/pages.svg", [this] { saveFormTemplate(); }, true,
+                     ":/icons/template-save.svg", [this] { saveFormTemplate(); }, true,
                      "form.pageTemplate.save");
     addRibbonCommand(formTemplateGroup, "套用页面模板", "按模板在当前页创建表单域",
-                     ":/icons/pages.svg", [this] { applyFormTemplate(); }, true,
+                     ":/icons/template-apply.svg", [this] { applyFormTemplate(); }, true,
                      "form.pageTemplate.apply");
     addRibbonCommand(formTemplateGroup, "编辑静态 XFA", "PDFium 不提供 XFA 编辑引擎",
-                     ":/icons/form.svg", [] {}, false, "form.xfa");
+                     ":/icons/xfa.svg", [] {}, false, "form.xfa");
     addRibbonCommand(formTemplateGroup, "计算次序", "调整并执行各字段的计算脚本",
-                     ":/icons/form.svg", [this] { showFormCalculationOrder(); }, true,
+                     ":/icons/calculation-order.svg", [this] { showFormCalculationOrder(); }, true,
                      "form.calculationOrder");
 
     auto* formDataGroup = ribbonBar_->addGroup(formTab, tr("数据"));
     addRibbonCommand(formDataGroup, "重置表单", "把字段恢复成默认值",
-                     ":/icons/form.svg", [this] { resetForms(); }, true, "form.reset");
+                     ":/icons/reset-form.svg", [this] { resetForms(); }, true, "form.reset");
     addRibbonCommand(formDataGroup, "表单到工作表", "把字段和值导出为 Excel 可打开的 CSV",
                      ":/icons/convert.svg", [this] { exportFormCsv(); }, true,
                      "form.toWorksheet");
