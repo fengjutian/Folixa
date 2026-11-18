@@ -100,8 +100,11 @@ void PageAnnotsInjectorTests::injectsInternalPageLink() {
 }
 
 void PageAnnotsInjectorTests::ignoresBracketsInsideStrings() {
-    // 回归：/Annots 里已有批注的 /Contents 字符串包含 ']' 时，找数组结尾
-    // 不能把字符串里的 ']' 当结构符号，否则新批注会被插进字符串中间。
+    // 回归（两件事）：
+    // 1. /Annots 里已有批注的 /Contents 字符串包含 ']' 时，找数组结尾不能把
+    //    字符串里的 ']' 当结构符号，否则新批注会被插进字符串中间；
+    // 2. 增量更新后第 1 页的新版本在文件末尾，页面顺序不能因此错位——否则第二次
+    //    注入会写到第 2 页上，看起来就是“第二次注入的批注没出现”。
     auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
     QVERIFY(opened.document.isValid());
     const QByteArray bytes = opened.document.serialize();
@@ -127,6 +130,11 @@ void PageAnnotsInjectorTests::ignoresBracketsInsideStrings() {
     const auto page = reopened.document.page(0);
     QVERIFY(page.has_value());
     QVERIFY2(page->annotations().size() >= 2, "第二次注入的批注没有出现在页面上");
+
+    // 第一次注入只动了第 1 页，第 2 页必须还是干净的（防止页面序号错位）。
+    const auto secondPage = reopened.document.page(1);
+    QVERIFY(secondPage.has_value());
+    QVERIFY2(secondPage->annotations().isEmpty(), "批注被写到了第 2 页");
 }
 
 void PageAnnotsInjectorTests::rejectsNonPdf() {

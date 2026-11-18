@@ -1,6 +1,7 @@
 #include "pdf/annot/PageAnnotsInjector.h"
 
 #include <QHash>
+#include <QSet>
 #include <QVector>
 
 #include <algorithm>
@@ -71,17 +72,15 @@ QVector<ObjectSpan> scanObjects(const QByteArray& pdf) {
 // 找到页面对象（按文档顺序的第 index 个 /Type /Page）。
 bool findPageObject(const QByteArray& pdf, const QVector<ObjectSpan>& objects, int pageIndex,
                     ObjectSpan* out) {
-    // 同一个对象号可能有多个版本（增量更新会追加新版本，旧版本仍在文件里）。
-    // 只认最后一个版本：按字节顺序取第一个会把新批注写进已经被取代的旧对象，
-    // 阅读器按 xref 读到的是新对象，看起来就是“批注没写进去”。
-    QHash<int, qsizetype> latestBodyEnd;
+    // 页面顺序按「对象号第一次出现的位置」定，不能按字节位置直接数：
+    // 增量更新会把某一页的新版本追加到文件末尾，如果先按版本过滤再数页数，
+    // 第 1 页的新版本就跑到第 2 页后面去了，pageIndex 会整体错位
+    //（曾经把第 1 页的批注写到第 2 页上，表现为“第二次注入的批注没出现”）。
+    QVector<int> pageOrder;
+    QSet<int> counted;
     for (const ObjectSpan& object : objects) {
-        latestBodyEnd.insert(object.number, object.bodyEnd);
-    }
-    int seen = 0;
-    for (const ObjectSpan& object : objects) {
-        if (latestBodyEnd.value(object.number) != object.bodyEnd) {
-            continue;  // 旧版本
+        if (counted.contains(object.number)) {
+            continue;  // 同一个对象号的后续版本不参与排序
         }
         const QByteArray body = pdf.mid(object.bodyBegin, object.bodyEnd - object.bodyBegin);
         if (!body.contains("/Type")) {
@@ -92,13 +91,33 @@ bool findPageObject(const QByteArray& pdf, const QVector<ObjectSpan>& objects, i
         if (!isPage || isPages) {
             continue;
         }
-        if (seen == pageIndex) {
-            *out = object;
-            return true;
-        }
-        ++seen;
+        counted.insert(object.number);
+        pageOrder.append(object.number);
     }
-    return false;
+    if (pageIndex < 0 || pageIndex >= pageOrder.size()) {
+        return false;
+    }
+
+    // 同一个对象号可能有多个版本（增量更新会追加新版本，旧版本仍在文件里）。
+    // 写回时必须用最后一个版本：写进已被取代的旧对象，阅读器按 xref 读到的是
+    // 新对象，看起来就是“批注没写进去”。
+    const int target = pageOrder.at(pageIndex);
+    bool found = false;
+    ObjectSpan latest;
+    for (const ObjectSpan& object : objects) {
+        if (object.number != target) {
+            continue;
+        }
+        if (!found || object.bodyEnd > latest.bodyEnd) {
+            latest = object;
+            found = true;
+        }
+    }
+    if (!found) {
+        return false;
+    }
+    *out = latest;
+    return true;
 }
 
 // 在 [from, to) 里找与 '[' 匹配的 ']'。
