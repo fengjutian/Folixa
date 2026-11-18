@@ -161,7 +161,11 @@
     </context>
     <context>
         <name>aipdf::ai::ProviderConfig</name>
-        <message>
+                <message>
+            <source>不认识这个服务商，请重新选择</source>
+            <translation>This provider is not recognised, please pick another one</translation>
+        </message>
+<message>
             <source>单价不能是负数</source>
             <translation>The unit price cannot be negative</translation>
         </message>
@@ -177,7 +181,11 @@
             <source>服务地址里没有主机名</source>
             <translation>The service URL has no host name</translation>
         </message>
-        <message>
+                <message>
+            <source>本地模型要写上模型名（例如 qwen2.5:7b，要和你 ollama list 里的一致）</source>
+            <translation>A local model needs the model name (for example qwen2.5:7b, matching your ollama list)</translation>
+        </message>
+<message>
             <source>模型名不能为空</source>
             <translation>The model name cannot be empty</translation>
         </message>
@@ -190,7 +198,42 @@
             <translation>The timeout cannot be less than 1 second</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::ai::ProviderPreset</name>
+        <message>
+            <source>演示模式（本地生成，不联网）</source>
+            <translation>Demo mode (local generation, offline)</translation>
+        </message>
+        <message>
+            <source>MiniMax</source>
+            <translation>MiniMax</translation>
+        </message>
+        <message>
+            <source>DeepSeek</source>
+            <translation>DeepSeek</translation>
+        </message>
+        <message>
+            <source>Qwen（阿里云百炼）</source>
+            <translation>Qwen (Alibaba Cloud Bailian)</translation>
+        </message>
+        <message>
+            <source>Kimi（月之暗面）</source>
+            <translation>Kimi (Moonshot AI)</translation>
+        </message>
+        <message>
+            <source>Ollama（本机模型）</source>
+            <translation>Ollama (local model)</translation>
+        </message>
+        <message>
+            <source>自定义 OpenAI 兼容服务</source>
+            <translation>Custom OpenAI-compatible service</translation>
+        </message>
+        <message>
+            <source>未知的服务商</source>
+            <translation>Unknown provider</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::app::AiPanel</name>
         <message>
             <source>%1 · %2</source>
@@ -388,7 +431,11 @@
             <source>无法核实：%1</source>
             <translation>Unverified: %1</translation>
         </message>
-        <message>
+                <message>
+            <source>本地模型 · 文档内容不出本机（回答由本机模型生成）</source>
+            <translation>Local model · document content never leaves this machine (the answer comes from the local model)</translation>
+        </message>
+<message>
             <source>本地模式 · 文档内容不出本机（回答由本地演示模型生成）</source>
             <translation>Local mode · Document content never leaves this device (answers come from the local demo model)</translation>
         </message>
@@ -566,7 +613,11 @@
             <source>OpenAI 兼容（云端模型）</source>
             <translation>OpenAI-compatible (cloud model)</translation>
         </message>
-        <message>
+                <message>
+            <source>任何 OpenAI 兼容服务：地址和模型都由你填。</source>
+            <translation>Any OpenAI-compatible service: you fill in the endpoint and the model.</translation>
+        </message>
+<message>
             <source>保存</source>
             <translation>Save</translation>
         </message>
@@ -586,7 +637,15 @@
             <source>只发送当前页、选区或检索到的几块；发送前会显示范围。</source>
             <translation>Only the current page, selection, or retrieved chunks are sent; the scope is shown first.</translation>
         </message>
+                <message>
+            <source>在 DeepSeek 开放平台创建密钥；模型可用 deepseek-chat 与 deepseek-reasoner。</source>
+            <translation>Create the key on the DeepSeek platform; models include deepseek-chat and deepseek-reasoner.</translation>
+        </message>
         <message>
+            <source>国内账号用这个地址；海外账号把地址换成 https://api.minimax.io/v1。</source>
+            <translation>This endpoint serves mainland-China accounts; for overseas accounts use https://api.minimax.io/v1 instead.</translation>
+        </message>
+<message>
             <source>密钥保存在 Windows 凭据管理器里，不写进配置文件。</source>
             <translation>The key is stored in Windows Credential Manager, not in the configuration file.</translation>
         </message>
@@ -594,11 +653,19 @@
             <source>数据模式</source>
             <translation>Data mode</translation>
         </message>
-        <message>
+                <message>
+            <source>文档内容一律不出本机：云端服务商会退回演示模型，本机模型（如 Ollama）照常可用。</source>
+            <translation>Document content never leaves this machine: cloud providers fall back to demo mode, local models (such as Ollama) keep working.</translation>
+        </message>
+<message>
             <source>文档内容一律不出本机；即使配了密钥也只用本地演示模型。</source>
             <translation>Document content never leaves this device; even with a key, only the local demo model is used.</translation>
         </message>
-        <message>
+                <message>
+            <source>月之暗面开放平台创建密钥；模型可用 moonshot-v1-8k、32k、128k 与 kimi-k2。</source>
+            <translation>Create the key on the Moonshot platform; models include moonshot-v1-8k, 32k, 128k and kimi-k2.</translation>
+        </message>
+<message>
             <source>服务商</source>
             <translation>Provider</translation>
         </message>
@@ -610,7 +677,15 @@
             <source>本地（文档内容不出本机）</source>
             <translation>Local (document content stays on this device)</translation>
         </message>
+                <message>
+            <source>本机模型不需要密钥，文档内容不会离开这台机器。</source>
+            <translation>Local models need no key, and document content never leaves this machine.</translation>
+        </message>
         <message>
+            <source>本机模型，不需要密钥，文档内容不出本机；模型名要和 ollama list 里一致。</source>
+            <translation>Local model: no key needed, document content stays on this machine; the model name must match the one shown by ollama list.</translation>
+        </message>
+<message>
             <source>模型</source>
             <translation>Model</translation>
         </message>
@@ -622,7 +697,11 @@
             <source>演示模式不会联网，密钥与地址都不需要。</source>
             <translation>Demo mode never goes online; no key or endpoint is needed.</translation>
         </message>
-        <message>
+                <message>
+            <source>演示模式只在本地生成示例回答，不联网、不发送文档。</source>
+            <translation>Demo mode only assembles sample answers locally; it never goes online and sends no document.</translation>
+        </message>
+<message>
             <source>演示模式（本地生成，不联网）</source>
             <translation>Demo mode (local generation, offline)</translation>
         </message>
@@ -661,6 +740,10 @@
         <message>
             <source>选定页面（只送勾选的页）</source>
             <translation>Selected pages (send only checked pages)</translation>
+        </message>
+        <message>
+            <source>阿里云百炼的兼容模式，密钥在百炼控制台创建。</source>
+            <translation>Alibaba Cloud Bailian compatibility mode; create the key in the Bailian console.</translation>
         </message>
     </context>
     <context>
@@ -4831,7 +4914,11 @@ Write them into the document?</translation>
             <source>发送</source>
             <translation>Send</translation>
         </message>
-        <message>
+                <message>
+            <source>发送之前</source>
+            <translation>Before sending</translation>
+        </message>
+<message>
             <source>发送到云端之前</source>
             <translation>Before Sending to the Cloud</translation>
         </message>
@@ -4847,7 +4934,11 @@ Write them into the document?</translation>
             <source>本地（不发送）</source>
             <translation>Local (not sent)</translation>
         </message>
-        <message>
+                <message>
+            <source>本地（内容不出本机）</source>
+            <translation>Local (content stays on this machine)</translation>
+        </message>
+<message>
             <source>涉及页：第 %1 页</source>
             <translation>Pages involved: %1</translation>
         </message>
@@ -4863,7 +4954,11 @@ Write them into the document?</translation>
             <source>这次请求会离开本机</source>
             <translation>This request will leave this device</translation>
         </message>
-        <message>
+                <message>
+            <source>这次请求的目标在本机</source>
+            <translation>This request targets this machine</translation>
+        </message>
+<message>
             <source>选定页面</source>
             <translation>Selected pages</translation>
         </message>
@@ -5816,7 +5911,15 @@ Write them into the document?</translation>
         <message><source>Folixa · AI PDF Editor</source><translation>Folixa · AI PDF Editor</translation></message>
         <message><source>Folixa · 专注阅读，也为文档智能留出空间</source><translation>Folixa · Focused reading with room for document intelligence</translation></message>
         <message><source>PDF 渲染、文本索引和搜索默认在本机完成。只有执行云端 AI 功能时，才会按所选数据模式发送内容。</source><translation>PDF rendering, text indexing, and search run locally by default. Content is sent only when using cloud AI features, according to the selected data mode.</translation></message>
-        <message><source>专注于 PDF 阅读、编辑、检索与受控 AI 协作。</source><translation>Focused on PDF reading, editing, retrieval, and controlled AI collaboration.</translation></message>
+                <message>
+            <source>不需要（本机模型）</source>
+            <translation>Not needed (local model)</translation>
+        </message>
+        <message>
+            <source>不需要</source>
+            <translation>Not needed</translation>
+        </message>
+<message><source>专注于 PDF 阅读、编辑、检索与受控 AI 协作。</source><translation>Focused on PDF reading, editing, retrieval, and controlled AI collaboration.</translation></message>
         <message><source>了解文档内容如何在本地与 AI 服务之间流转。</source><translation>Learn how document content moves between your device and AI services.</translation></message>
         <message><source>关于</source><translation>About</translation></message>
         <message><source>启动时显示左侧导航栏</source><translation>Show the left navigation panel at startup</translation></message>

@@ -59,11 +59,14 @@ private:
     void applyProviderPreset();
     // 数据模式下方的说明：每种模式会把什么送出去。
     void updateDataModeHint();
+    // 服务商下方的说明：这个服务商怎么用、密钥在哪拿。
+    void updateProviderHint();
 
     QComboBox* providerCombo_ = nullptr;
     // 数据策略：本地 / 片段云端 / 选定页面。
     QComboBox* dataModeCombo_ = nullptr;
     QLabel* dataModeHint_ = nullptr;
+    QLabel* providerHint_ = nullptr;
     QLineEdit* baseUrlEdit_ = nullptr;
     QLineEdit* modelEdit_ = nullptr;
     QLineEdit* apiKeyEdit_ = nullptr;

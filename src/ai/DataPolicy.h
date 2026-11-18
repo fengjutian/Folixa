@@ -41,6 +41,11 @@ DataMode dataModeFromId(const QString& id, bool* ok = nullptr);
 bool mayUseCloud(DataMode mode);
 
 // 规则本身：纯函数，可单测，不依赖界面与 IPC。
-PolicyDecision evaluate(DataMode mode, const DataScope& scope);
+//
+// staysOnThisMachine：这次请求的终点就在本机（Ollama 这类本地模型）。
+// 这种情况下内容根本没离开这台机器，「本地模式」那条禁令没有意义，
+// 规模上限等其余规则照旧生效。
+PolicyDecision evaluate(DataMode mode, const DataScope& scope,
+                        bool staysOnThisMachine = false);
 
 }  // namespace aipdf::ai

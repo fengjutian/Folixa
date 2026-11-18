@@ -3,6 +3,7 @@
 #include "ai/ChatTypes.h"
 #include "ai/ProviderConfig.h"
 #include "ai/ProviderFactory.h"
+#include "ai/ProviderPreset.h"
 #include "ipc/IpcProtocol.h"
 
 #include <QCoreApplication>
@@ -144,6 +145,10 @@ void WorkerServer::handleMessage(QLocalSocket* socket, const QJsonObject& reques
              {"model", config.model},
              {"demo", demo},
              {"data_mode", aipdf::ai::dataModeId(config.effectiveDataMode())},
+             // 目标是不是就在本机（Ollama 这类本机模型）。
+             // 界面靠它区分「本地模式 → 回答来自本机模型」与「本地模式 → 退回演示模型」：
+             // 两者都说「不出本机」，但回答的来路完全不同。
+             {"local_endpoint", aipdf::ai::isLoopbackUrl(config.baseUrl)},
              {"input_price_per_million", config.inputPricePerMillion},
              {"output_price_per_million", config.outputPricePerMillion}})));
         return;

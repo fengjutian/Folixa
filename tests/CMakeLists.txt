@@ -1267,6 +1267,8 @@ qt_add_executable(AiProviderTests
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
@@ -1360,6 +1362,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
@@ -1434,6 +1438,8 @@ qt_add_executable(DataPolicyTests
     ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
@@ -1453,6 +1459,14 @@ endif()
 aipdf_deploy_qt_runtime(DataPolicyTests)
 
 add_test(NAME DataPolicyTests COMMAND DataPolicyTests)
+
+# ------------------------------------------------- AI 服务商预设 ----
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProviderPresetTests.cmake)
+
+# ------------------------------------------------- 本机模型请求链路 ----
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OllamaProviderTests.cmake)
 
 # ------------------------------------------------- 提示注入防护 ----
 

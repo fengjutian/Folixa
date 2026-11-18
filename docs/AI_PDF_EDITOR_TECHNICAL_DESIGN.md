@@ -282,6 +282,33 @@ public:
 
 `ModelRouter` 根据隐私策略、模型能力、上下文长度、费用和可用性选择 Provider。API 密钥存储在 Windows Credential Manager，不得保存在普通配置文件或日志中。
 
+### 9.1 当前已接入的服务商（2026-11）
+
+已接入的服务商事实集中在 `src/ai/ProviderPreset.h` 一张表里：界面下拉框、默认地址与模型、
+要不要密钥、主程序与 Worker 的判断都读它，不再各写一份。
+
+| id | 显示名 | 默认地址 | 默认模型 | 密钥 |
+|---|---|---|---|---|
+| `demo` | 演示模式 | 无（不联网） | 无 | 不要 |
+| `minimax` | MiniMax | `https://api.minimaxi.com/v1`（海外 `api.minimax.io/v1`） | `MiniMax-M3.1-Flash` | 要 |
+| `deepseek` | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 要 |
+| `qwen` | Qwen（阿里云百炼） | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | 要 |
+| `kimi` | Kimi（月之暗面） | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | 要 |
+| `ollama` | Ollama（本机模型） | `http://127.0.0.1:11434/v1` | 由用户按 `ollama list` 填 | **不要** |
+| `openai` | 自定义 OpenAI 兼容服务 | 由用户填 | 由用户填 | 要 |
+
+规则：
+
+- 除演示模式与自定义服务外，云端服务商**没有密钥就不联网**——宁可退回演示模型，
+  也不因为配置没填全就把文档发出去。
+- **地址指向本机（`127.0.0.1` / `localhost` / `::1`）时不需要密钥**，也不受「本地模式」
+  那条禁令约束：内容根本没离开这台机器，拦它没有意义。
+  这条判定是机械保证（`ai::isLoopbackUrl`），不依赖界面上的按钮状态。
+- 本机模型的模型名不预置：装了什么只有用户自己知道，程序不猜。
+- 认不出来的服务商 id 一律回退到演示模式，绝不拿空地址去联网。
+
+回归用例见 `tests/ProviderPresetTests.cpp`（14 条），守住地址、密钥规则与本地模式例外。
+
 ## 10. AI 工具调用
 
 允许模型调用的工具必须是白名单、强类型和可审计的：

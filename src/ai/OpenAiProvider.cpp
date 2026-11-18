@@ -106,6 +106,10 @@ QString OpenAiProvider::displayName() const {
 }
 
 bool OpenAiProvider::isConfigured() const {
+    // 本机模型（Ollama）没有密钥也算配好了：地址与模型齐了就能发。
+    if (settings_.apiKeyOptional) {
+        return !settings_.baseUrl.isEmpty() && !settings_.model.isEmpty();
+    }
     return !settings_.apiKey.isEmpty() && !settings_.baseUrl.isEmpty();
 }
 

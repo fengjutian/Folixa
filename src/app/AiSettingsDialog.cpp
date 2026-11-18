@@ -2,6 +2,7 @@
 
 #include "app/Language.h"
 #include "ai/ProviderConfig.h"
+#include "ai/ProviderPreset.h"
 #include "i18n/Translate.h"
 
 #include <QCheckBox>
@@ -16,16 +17,13 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 
+#include <optional>
+
 namespace aipdf::app {
 
 namespace {
 
 constexpr auto kProviderDemo = "demo";
-constexpr auto kProviderMiniMax = "minimax";
-constexpr auto kProviderDeepSeek = "deepseek";
-constexpr auto kProviderQwen = "qwen";
-constexpr auto kProviderKimi = "kimi";
-constexpr auto kProviderOpenAi = "openai";
 
 }  // namespace
 
@@ -48,16 +46,22 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
 
     providerCombo_ = new QComboBox(this);
     providerCombo_->setObjectName(QStringLiteral("aiSettingsProvider"));
-    providerCombo_->addItem(QString(), QString::fromLatin1(kProviderDemo));
-    providerCombo_->addItem(QStringLiteral("MiniMax"), QString::fromLatin1(kProviderMiniMax));
-    providerCombo_->addItem(QStringLiteral("DeepSeek"), QString::fromLatin1(kProviderDeepSeek));
-    providerCombo_->addItem(QStringLiteral("Qwen"), QString::fromLatin1(kProviderQwen));
-    providerCombo_->addItem(QStringLiteral("Kimi"), QString::fromLatin1(kProviderKimi));
-    providerCombo_->addItem(QString(), QString::fromLatin1(kProviderOpenAi));
+    // 下拉框的内容由预设表生成：界面里不再另写一份服务商清单，
+    // 否则加一家服务商就得改两个地方，迟早对不上。
+    for (const ai::ProviderPreset& preset : ai::providerPresets()) {
+        providerCombo_->addItem(QString(), preset.id);
+    }
     texts_.bind([this] {
-        providerCombo_->setItemText(0, tr("演示模式（本地生成，不联网）"));
-        providerCombo_->setItemText(5, tr("自定义 OpenAI 兼容服务"));
+        for (int index = 0; index < providerCombo_->count(); ++index) {
+            providerCombo_->setItemText(
+                index,
+                ai::providerDisplayName(providerCombo_->itemData(index).toString()));
+        }
     });
+
+    providerHint_ = new QLabel(this);
+    providerHint_->setObjectName(QStringLiteral("aiSettingsProviderHint"));
+    providerHint_->setWordWrap(true);
 
     // 数据策略（v0.12.0）：决定文档内容能不能离开本机、离开多少。
     dataModeCombo_ = new QComboBox(this);
@@ -123,6 +127,7 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     };
     addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "服务商"),
                  providerCombo_);
+    form->addRow(QString(), providerHint_);
     addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "数据模式"),
                  dataModeCombo_);
     form->addRow(QString(), dataModeHint_);
@@ -171,10 +176,16 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(providerCombo_, &QComboBox::currentIndexChanged, this, [this](int) {
         applyProviderPreset();
         updateEnabledState();
+        updateProviderHint();
     });
     connect(dataModeCombo_, &QComboBox::currentIndexChanged, this,
             [this](int) { updateDataModeHint(); });
+    // 地址改成指向本机时，「要不要密钥」要跟着变：
+    // 否则用户填了一个本机地址，密钥框还亮着，看着像必须填。
+    connect(baseUrlEdit_, &QLineEdit::textChanged, this,
+            [this](const QString&) { updateEnabledState(); });
     updateDataModeHint();
+    updateProviderHint();
     // 切换语言后常驻文案就地重译，随模式变化的说明重新算一遍。
     connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
             this, &AiSettingsDialog::retranslateUi);
@@ -183,6 +194,7 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
 void AiSettingsDialog::retranslateUi() {
     texts_.retranslate();
     updateDataModeHint();
+    updateProviderHint();
     updateEnabledState();
 }
 
@@ -217,7 +229,8 @@ void AiSettingsDialog::updateDataModeHint() {
     }
     const QString mode = dataModeCombo_->currentData().toString();
     if (mode == QLatin1String("local")) {
-        dataModeHint_->setText(tr("文档内容一律不出本机；即使配了密钥也只用本地演示模型。"));
+        dataModeHint_->setText(
+            tr("文档内容一律不出本机：云端服务商会退回演示模型，本机模型（如 Ollama）照常可用。"));
     } else if (mode == QLatin1String("pages")) {
         dataModeHint_->setText(tr("只发送你在预览里确认过的页；发送前会显示页码与字数。"));
     } else {
@@ -226,11 +239,15 @@ void AiSettingsDialog::updateDataModeHint() {
 }
 
 void AiSettingsDialog::updateEnabledState() {
-    const bool cloud = providerCombo_->currentData().toString() != QLatin1String(kProviderDemo);
+    const QString provider = providerCombo_->currentData().toString();
+    const bool cloud = provider != QLatin1String(kProviderDemo);
+    // 本机地址上的模型不需要密钥：把密钥框灰掉，
+    // 别让用户以为必须填一个其实用不上的密钥。
+    const bool needsKey = cloud && ai::providerRequiresApiKey(provider, baseUrl());
     baseUrlEdit_->setEnabled(cloud);
     modelEdit_->setEnabled(cloud);
-    apiKeyEdit_->setEnabled(cloud);
-    clearKeyBox_->setEnabled(cloud && hasKey_);
+    apiKeyEdit_->setEnabled(needsKey);
+    clearKeyBox_->setEnabled(needsKey && hasKey_);
     inputPrice_->setEnabled(cloud);
     outputPrice_->setEnabled(cloud);
     timeout_->setEnabled(cloud);
@@ -239,25 +256,56 @@ void AiSettingsDialog::updateEnabledState() {
         keyHint_->setText(tr("演示模式不会联网，密钥与地址都不需要。"));
         return;
     }
+    if (!needsKey) {
+        keyHint_->setText(tr("本机模型不需要密钥，文档内容不会离开这台机器。"));
+        return;
+    }
     keyHint_->setText(hasKey_
         ? tr("凭据管理器里已经存了这个服务商的密钥；留空表示不修改。")
         : tr("还没有存过密钥。演示模式会在没有密钥时自动接管。"));
 }
 
-void AiSettingsDialog::applyProviderPreset() {
+void AiSettingsDialog::updateProviderHint() {
+    if (providerHint_ == nullptr) {
+        return;
+    }
     const QString provider = providerCombo_->currentData().toString();
-    if (provider == QLatin1String(kProviderMiniMax)) {
-        baseUrlEdit_->setText(QStringLiteral("https://api.minimax.chat/v1"));
-        modelEdit_->setText(QStringLiteral("MiniMax-Text-01"));
-    } else if (provider == QLatin1String(kProviderDeepSeek)) {
-        baseUrlEdit_->setText(QStringLiteral("https://api.deepseek.com"));
-        modelEdit_->setText(QStringLiteral("deepseek-chat"));
-    } else if (provider == QLatin1String(kProviderQwen)) {
-        baseUrlEdit_->setText(QStringLiteral("https://dashscope.aliyuncs.com/compatible-mode/v1"));
-        modelEdit_->setText(QStringLiteral("qwen-plus"));
-    } else if (provider == QLatin1String(kProviderKimi)) {
-        baseUrlEdit_->setText(QStringLiteral("https://api.moonshot.cn/v1"));
-        modelEdit_->setText(QStringLiteral("moonshot-v1-8k"));
+    if (provider == QLatin1String("demo")) {
+        providerHint_->setText(tr("演示模式只在本地生成示例回答，不联网、不发送文档。"));
+    } else if (provider == QLatin1String("minimax")) {
+        providerHint_->setText(
+            tr("国内账号用这个地址；海外账号把地址换成 https://api.minimax.io/v1。"));
+    } else if (provider == QLatin1String("deepseek")) {
+        providerHint_->setText(
+            tr("在 DeepSeek 开放平台创建密钥；模型可用 deepseek-chat 与 deepseek-reasoner。"));
+    } else if (provider == QLatin1String("qwen")) {
+        providerHint_->setText(tr("阿里云百炼的兼容模式，密钥在百炼控制台创建。"));
+    } else if (provider == QLatin1String("kimi")) {
+        providerHint_->setText(
+            tr("月之暗面开放平台创建密钥；模型可用 moonshot-v1-8k、32k、128k 与 kimi-k2。"));
+    } else if (provider == QLatin1String("ollama")) {
+        providerHint_->setText(
+            tr("本机模型，不需要密钥，文档内容不出本机；模型名要和 ollama list 里一致。"));
+    } else {
+        providerHint_->setText(tr("任何 OpenAI 兼容服务：地址和模型都由你填。"));
+    }
+}
+
+void AiSettingsDialog::applyProviderPreset() {
+    const std::optional<ai::ProviderPreset> preset =
+        ai::findProviderPreset(providerCombo_->currentData().toString());
+    if (!preset.has_value()) {
+        return;
+    }
+    if (!preset->baseUrl.isEmpty()) {
+        baseUrlEdit_->setText(preset->baseUrl);
+    }
+    if (!preset->model.isEmpty()) {
+        modelEdit_->setText(preset->model);
+    } else if (preset->runsLocally) {
+        // 本机模型不预置模型名：装了什么模型只有用户自己知道。
+        // 留着上一个服务商的模型名只会让请求打到一个不存在的模型上。
+        modelEdit_->clear();
     }
 }
 

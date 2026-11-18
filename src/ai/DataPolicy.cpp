@@ -41,10 +41,14 @@ bool mayUseCloud(DataMode mode) {
     return mode != DataMode::LocalOnly;
 }
 
-PolicyDecision evaluate(DataMode mode, const DataScope& scope) {
+PolicyDecision evaluate(DataMode mode, const DataScope& scope, bool staysOnThisMachine) {
     PolicyDecision decision;
 
-    if (mode == DataMode::LocalOnly) {
+    // 「本地模式」拦的是「把文档内容发到本机之外」。
+    // 终点就在本机的模型（Ollama 这类）内容根本没离开这台机器，
+    // 这条禁令对它没有意义，拦了只会让用户选了本地模型却用不上。
+    // 其余规则（规模上限、空内容）照旧生效。
+    if (mode == DataMode::LocalOnly && !staysOnThisMachine) {
         decision.allowed = false;
         decision.reason =
             i18n::tr("aipdf::ai::DataPolicy", "本地模式：文档内容不会离开本机");

@@ -1,6 +1,7 @@
 #include "ai/ProviderConfig.h"
 
 #include "ai/CredentialStore.h"
+#include "ai/ProviderPreset.h"
 
 #include "i18n/Translate.h"
 
@@ -11,6 +12,8 @@
 #include <QJsonObject>
 #include <QStandardPaths>
 #include <QUrl>
+
+#include <optional>
 
 namespace aipdf::ai {
 
@@ -128,8 +131,12 @@ QString ProviderConfig::validationError(const ProviderConfig& config) {
     if (config.providerId.trimmed().isEmpty()) {
         return i18n::tr("aipdf::ai::ProviderConfig", "没有选服务商");
     }
+    const std::optional<ProviderPreset> preset = findProviderPreset(config.providerId);
+    if (!preset.has_value()) {
+        return i18n::tr("aipdf::ai::ProviderConfig", "不认识这个服务商，请重新选择");
+    }
     // 演示模式不联网，地址、模型、密钥都不需要。
-    if (config.providerId == QLatin1String("demo")) {
+    if (preset->id == QLatin1String("demo")) {
         return QString();
     }
     const QString url = config.baseUrl.trimmed();
@@ -147,6 +154,11 @@ QString ProviderConfig::validationError(const ProviderConfig& config) {
         return i18n::tr("aipdf::ai::ProviderConfig", "服务地址里没有主机名");
     }
     if (config.model.trimmed().isEmpty()) {
+        if (preset->runsLocally) {
+            // 本机模型不预置模型名：装了什么模型只有用户自己知道。
+            return i18n::tr("aipdf::ai::ProviderConfig",
+                            "本地模型要写上模型名（例如 qwen2.5:7b，要和你 ollama list 里的一致）");
+        }
         return i18n::tr("aipdf::ai::ProviderConfig", "模型名不能为空");
     }
     if (config.timeoutMs < 1000) {

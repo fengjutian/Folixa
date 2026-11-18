@@ -19,6 +19,9 @@ struct UploadPreview {
     int charCount = 0;
     QVector<int> pages;   // 1 起的页号，去重升序
     PolicyDecision decision;
+    // 目标是不是就在本机（Ollama 这类本机模型）。
+    // 是的话内容根本没离开这台机器，界面不能说「这次请求会离开本机」。
+    bool staysOnThisMachine = false;
 };
 
 // 从 baseUrl 里取主机名；解析失败返回空串。

@@ -34,6 +34,11 @@ public:
         QString model = QStringLiteral("gpt-4o-mini");
         // API 密钥。
         QString apiKey;
+        // 这个服务商要不要密钥。
+        //
+        // 本机跑的模型（Ollama）不要：密钥为空也照样能发，
+        // 但地址与模型必须写全——否则连的是哪儿都不确定。
+        bool apiKeyOptional = false;
         // 单次请求的超时（毫秒）。
         int timeoutMs = 60'000;
         // 最多重试几次（不含第一次）。

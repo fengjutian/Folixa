@@ -15,6 +15,7 @@
 #include "ai/OfflineQa.h"
 #include "ai/ProviderConfig.h"
 #include "ai/ProviderFactory.h"
+#include "ai/ProviderPreset.h"
 #include "ai/UploadPreview.h"
 #include "ipc/WorkerClient.h"
 #include "i18n/Translate.h"
@@ -450,6 +451,7 @@ void AiPanel::setWorkerClient(ipc::WorkerClient* client) {
                     providerModel_ = payload.value("model").toString();
                     providerMode_ = mode;
                     providerDemo_ = demo;
+                    providerLocalEndpoint_ = payload.value("local_endpoint").toBool();
                     refreshStatusLabel();
                     trace(QStringLiteral("ai provider mode=%1 demo=%2")
                               .arg(mode.isEmpty() ? QStringLiteral("unknown") : mode)
@@ -1090,7 +1092,7 @@ void AiPanel::openSettings() {
     // 这里立刻把新的服务商状态拉回来显示。
     refreshProviderStatus();
     appendMessage(tr("<div class='scope'>▸ 已更新 AI 服务设置：%1</div>")
-                      .arg(updated.providerId.toHtmlEscaped()));
+                      .arg(ai::providerDisplayName(updated.providerId).toHtmlEscaped()));
 }
 
 void AiPanel::finishDocumentQa() {
@@ -1266,12 +1268,17 @@ QString AiPanel::providerDisplayName() const {
     if (providerMode_ == QLatin1String("local")) {
         // 本地模式比「没配密钥」更强：这里不是降级，而是策略。
         // 只写「演示模式」会让用户以为配了密钥就能发出去。
+        if (providerLocalEndpoint_) {
+            // 本机模型（Ollama 这类）：内容没出过这台机器，
+            // 回答也不是演示模型拼的——写错会让用户以为白等了。
+            return tr("本地模型 · 文档内容不出本机（回答由本机模型生成）");
+        }
         return tr("本地模式 · 文档内容不出本机（回答由本地演示模型生成）");
     }
     if (providerDemo_) {
         return tr("演示模式（未配置密钥）· 回答由本地拼出，不会发到网络");
     }
-    return tr("%1 · %2").arg(providerName_, providerModel_);
+    return tr("%1 · %2").arg(ai::providerDisplayName(providerName_), providerModel_);
 }
 
 void AiPanel::refreshStatusLabel() {

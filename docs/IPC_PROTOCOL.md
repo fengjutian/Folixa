@@ -71,12 +71,17 @@ leave the request marked as running forever.
 | `system.health` | Verify protocol and Worker readiness |
 | `system.shutdown` | Ask the Worker to acknowledge and exit |
 | `ai.echo` | Development-only streaming-path placeholder |
-| `ai.provider.status` | Report the active Provider: id, model, demo flag, prices |
+| `ai.provider.status` | Report the active Provider: id, model, demo flag, data mode, local-endpoint flag, prices |
 | `ai.chat.stream` | Start a streaming chat; replies with `status: "streaming"` then events |
 | `ai.chat.cancel` | Cancel the in-flight stream identified by `payload.target` |
 
 `system.health` returns `status`, `protocol_version` and `worker_version` in the payload.
 `system.shutdown` returns `status: "stopping"` and the Worker exits after the frame is flushed.
+
+`ai.provider.status` returns `provider`, `model`, `demo`, `data_mode`, `local_endpoint`,
+`input_price_per_million` and `output_price_per_million`. `local_endpoint` is true when the
+configured endpoint points at this machine (Ollama and other local models): the panel uses it
+to say whether a local-mode answer comes from a real local model or from the demo fallback.
 
 Unknown operations return `operation_not_supported`. Protocol version mismatches return `protocol_version_unsupported`.
 

@@ -1,6 +1,7 @@
 #include "app/SettingsDialog.h"
 
 #include "ai/ProviderConfig.h"
+#include "ai/ProviderPreset.h"
 #include "app/Language.h"
 #include "app/Theme.h"
 #include "i18n/Translate.h"
@@ -262,12 +263,22 @@ void SettingsDialog::installLanguagePack() {
     }
 }
 
-void SettingsDialog::refreshAiSummary() {    const ai::ProviderConfig config = ai::ProviderConfig::load();
-    aiProviderValue_->setText(config.providerId == QStringLiteral("demo") ? tr("演示模式")
-                                                                          : config.providerId);
+void SettingsDialog::refreshAiSummary() {
+    const ai::ProviderConfig config = ai::ProviderConfig::load();
+    aiProviderValue_->setText(ai::providerDisplayName(config.providerId));
     aiModelValue_->setText(config.model.isEmpty() ? tr("未设置") : config.model);
     aiDataModeValue_->setText(dataModeLabel(config.effectiveDataMode()));
-    aiCredentialValue_->setText(config.hasCredential() ? tr("已安全保存") : tr("未设置"));
+    // 本机模型没有密钥这回事：显示「不需要」比显示「未设置」准确，
+    // 「未设置」会让人以为漏配了。
+    const bool needsKey =
+        ai::providerRequiresApiKey(config.providerId, config.baseUrl);
+    if (!needsKey) {
+        aiCredentialValue_->setText(config.providerId == QLatin1String("demo")
+                                        ? tr("不需要")
+                                        : tr("不需要（本机模型）"));
+    } else {
+        aiCredentialValue_->setText(config.hasCredential() ? tr("已安全保存") : tr("未设置"));
+    }
 }
 
 QFont SettingsDialog::selectedFont() const {

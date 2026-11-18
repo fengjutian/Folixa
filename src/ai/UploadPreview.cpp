@@ -1,5 +1,7 @@
 #include "ai/UploadPreview.h"
 
+#include "ai/ProviderPreset.h"
+
 #include <QUrl>
 
 #include <algorithm>
@@ -19,7 +21,9 @@ UploadPreview buildUploadPreview(const ProviderConfig& config,
     preview.host = hostFromBaseUrl(config.baseUrl);
     preview.chunkCount = scope.chunkCount;
     preview.charCount = scope.charCount;
-    preview.decision = evaluate(preview.mode, scope);
+    // 地址指向本机时内容不出本机，本地模式不该把它拦下来。
+    preview.staysOnThisMachine = isLoopbackUrl(config.baseUrl);
+    preview.decision = evaluate(preview.mode, scope, preview.staysOnThisMachine);
 
     std::sort(pages.begin(), pages.end());
     pages.erase(std::unique(pages.begin(), pages.end()), pages.end());

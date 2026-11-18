@@ -16,13 +16,13 @@ namespace {
 const char* modeLabelSource(ai::DataMode mode) {
     switch (mode) {
     case ai::DataMode::LocalOnly:
-        return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "本地（不发送）");
+        return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "本地（内容不出本机）");
     case ai::DataMode::SelectedChunks:
         return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "片段云端");
     case ai::DataMode::SelectedPages:
         return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "选定页面");
     }
-    return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "本地（不发送）");
+    return QT_TRANSLATE_NOOP("aipdf::app::UploadPreviewDialog", "本地（内容不出本机）");
 }
 
 }  // namespace
@@ -30,7 +30,12 @@ const char* modeLabelSource(ai::DataMode mode) {
 UploadPreviewDialog::UploadPreviewDialog(const ai::UploadPreview& preview, QWidget* parent)
     : QDialog(parent), preview_(preview) {
     setObjectName(QStringLiteral("uploadPreviewDialog"));
-    texts_.bind([this] { setWindowTitle(tr("发送到云端之前")); });
+    // 目标在本机时不能说「会离开本机」：本机模型的内容根本没出过这台机器，
+    // 说错了会让用户以为自己的文档发出去了。
+    const bool local = preview_.staysOnThisMachine;
+    texts_.bind([this, local] {
+        setWindowTitle(local ? tr("发送之前") : tr("发送到云端之前"));
+    });
     setModal(true);
 
     auto* layout = new QVBoxLayout(this);
@@ -39,7 +44,9 @@ UploadPreviewDialog::UploadPreviewDialog(const ai::UploadPreview& preview, QWidg
 
     auto* title = new QLabel(this);
     title->setObjectName(QStringLiteral("uploadPreviewTitle"));
-    texts_.bind([this, title] { title->setText(tr("这次请求会离开本机")); });
+    texts_.bind([this, title, local] {
+        title->setText(local ? tr("这次请求的目标在本机") : tr("这次请求会离开本机"));
+    });
     layout->addWidget(title);
 
     auto* target = new QLabel(this);

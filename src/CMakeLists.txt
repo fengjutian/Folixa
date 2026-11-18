@@ -320,6 +320,8 @@ qt_add_executable(AiPdfEditor WIN32
     ai/CredentialStore.h
     ai/ProviderConfig.cpp
     ai/ProviderConfig.h
+    ai/ProviderPreset.cpp
+    ai/ProviderPreset.h
     ai/ProviderSelection.cpp
     ai/ProviderSelection.h
     ai/UploadPreview.cpp

@@ -9,12 +9,16 @@
 //
 // 所以这条链路必须有本地就能跑的守卫。
 #include "app/AiPanel.h"
+#include "app/AiSettingsDialog.h"
 #include "app/UploadPreviewDialog.h"
 #include "ai/UploadPreview.h"
 
 #include <QAbstractButton>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
 #include <QTextBrowser>
@@ -50,6 +54,11 @@ private slots:
     // 上传预览（v0.12.0）：发送前把「发什么、发到哪、多少」念给用户看。
     void uploadPreviewShowsTargetSizeAndPages();
     void uploadPreviewCancelIsTheDefaultButton();
+
+    // 服务商下拉框（2026-11）：DeepSeek / Kimi / Qwen / MiniMax / Ollama 要真的能选。
+    void providerComboOffersSupportedProviders();
+    void ollamaSelectionNeedsNoApiKey();
+    void localModelPreviewDoesNotClaimItLeavesTheMachine();
 };
 
 void AiPanelTests::scopeStartsOnCurrentPage() {
@@ -170,6 +179,67 @@ void AiPanelTests::uploadPreviewCancelIsTheDefaultButton() {
     QVERIFY(send != nullptr);
     QVERIFY(cancel->isDefault());
     QVERIFY(!send->isDefault());
+}
+
+void AiPanelTests::providerComboOffersSupportedProviders() {
+    // 下拉框的内容由预设表生成：这几家必须都在，用户才选得到。
+    AiSettingsDialog dialog;
+    auto* combo = findWidget<QComboBox>(&dialog, QStringLiteral("aiSettingsProvider"));
+    QVERIFY(combo != nullptr);
+    for (const QString& id : {QStringLiteral("demo"), QStringLiteral("minimax"),
+                              QStringLiteral("deepseek"), QStringLiteral("qwen"),
+                              QStringLiteral("kimi"), QStringLiteral("ollama"),
+                              QStringLiteral("openai")}) {
+        QVERIFY2(combo->findData(id) >= 0, qPrintable(QStringLiteral("下拉框里没有：%1").arg(id)));
+    }
+    // 每一项都要有显示名，不能是空白行。
+    for (int index = 0; index < combo->count(); ++index) {
+        QVERIFY2(!combo->itemText(index).trimmed().isEmpty(),
+                 qPrintable(QStringLiteral("第 %1 项没有名字").arg(index)));
+    }
+}
+
+void AiPanelTests::ollamaSelectionNeedsNoApiKey() {
+    AiSettingsDialog dialog;
+    auto* combo = findWidget<QComboBox>(&dialog, QStringLiteral("aiSettingsProvider"));
+    auto* baseUrl = findWidget<QLineEdit>(&dialog, QStringLiteral("aiSettingsBaseUrl"));
+    auto* model = findWidget<QLineEdit>(&dialog, QStringLiteral("aiSettingsModel"));
+    auto* apiKey = findWidget<QLineEdit>(&dialog, QStringLiteral("aiSettingsApiKey"));
+    auto* clearKey = findWidget<QCheckBox>(&dialog, QStringLiteral("aiSettingsClearKey"));
+    QVERIFY(combo != nullptr);
+    QVERIFY(baseUrl != nullptr);
+    QVERIFY(model != nullptr);
+    QVERIFY(apiKey != nullptr);
+    QVERIFY(clearKey != nullptr);
+
+    combo->setCurrentIndex(combo->findData(QStringLiteral("ollama")));
+    // 本机模型：地址指向本机，密钥用不上，模型名由用户按 ollama list 填。
+    QCOMPARE(baseUrl->text(), QStringLiteral("http://127.0.0.1:11434/v1"));
+    QVERIFY(model->text().isEmpty());
+    QVERIFY(!apiKey->isEnabled());
+    QVERIFY(!clearKey->isEnabled());
+
+    // 切回云端服务商，密钥框要重新可用：不然用户填不了密钥。
+    combo->setCurrentIndex(combo->findData(QStringLiteral("deepseek")));
+    QVERIFY(apiKey->isEnabled());
+    QCOMPARE(baseUrl->text(), QStringLiteral("https://api.deepseek.com"));
+    QCOMPARE(model->text(), QStringLiteral("deepseek-chat"));
+}
+
+void AiPanelTests::localModelPreviewDoesNotClaimItLeavesTheMachine() {
+    // 本机模型的内容没出过这台机器，预览不能说「会离开本机」。
+    ai::UploadPreview preview;
+    preview.host = QStringLiteral("127.0.0.1");
+    preview.chunkCount = 1;
+    preview.charCount = 100;
+    preview.decision.allowed = true;
+    preview.staysOnThisMachine = true;
+    UploadPreviewDialog dialog(preview);
+
+    QLabel* title = findWidget<QLabel>(&dialog, QStringLiteral("uploadPreviewTitle"));
+    QVERIFY(title != nullptr);
+    QVERIFY2(title->text().contains(QStringLiteral("本机")), qPrintable(title->text()));
+    QVERIFY(!title->text().contains(QStringLiteral("离开本机")));
 }
 
 QTEST_MAIN(AiPanelTests)

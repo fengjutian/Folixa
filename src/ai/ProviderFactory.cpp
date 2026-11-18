@@ -3,6 +3,7 @@
 #include "ai/CredentialStore.h"
 #include "ai/MockProvider.h"
 #include "ai/OpenAiProvider.h"
+#include "ai/ProviderPreset.h"
 
 namespace aipdf::ai {
 
@@ -16,11 +17,15 @@ std::unique_ptr<ModelProvider> createProvider(const ProviderConfig& config) {
     // 它不会出现在任何日志、轨迹或 IPC 帧里。
     const QString apiKey =
         CredentialStore::load(CredentialStore::targetNameFor(config.providerId));
-    if (!apiKey.isEmpty()) {
+    // 本机模型（Ollama）不需要密钥：密钥为空照样能发。
+    const bool keyOptional =
+        !providerRequiresApiKey(config.providerId, config.baseUrl);
+    if (!apiKey.isEmpty() || keyOptional) {
         OpenAiProvider::Settings settings;
         settings.baseUrl = config.baseUrl;
         settings.model = config.model;
         settings.apiKey = apiKey;
+        settings.apiKeyOptional = keyOptional;
         settings.timeoutMs = config.timeoutMs;
         return std::make_unique<OpenAiProvider>(settings);
     }

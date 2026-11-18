@@ -217,6 +217,9 @@ private:
     QString providerModel_;
     QString providerMode_;
     bool providerDemo_ = false;
+    // 目标是不是就在本机（Ollama 这类本机模型）。
+    // 本地模式下：它决定状态行说「回答由本机模型生成」还是「退回演示模型」。
+    bool providerLocalEndpoint_ = false;
     // 最近一次用量：费用行要能按新语言重算。
     bool usageKnown_ = false;
     int lastInputTokens_ = 0;

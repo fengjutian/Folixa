@@ -271,7 +271,7 @@
 | 布局 | 连续 | ✅ | A3 | 连续滚动 + 瓦片渲染 |
 | 交互 | 自动滚动 | ✅ | — | 自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 22 条） |
 | 交互 | 页面过渡 | ✅ | — | 页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 22 条） |
-| AI | 助手 | 🟨 | L2 | AI 面板可总结/解释当前页与选区；需配置 Provider |
+| AI | 助手 | 🟨 | L2 | AI 面板可总结/解释当前页与选区；需配置 Provider：**内置 DeepSeek / Kimi / Qwen / MiniMax 与本机 Ollama**（OpenAI 兼容；预设表 `ai::ProviderPreset` 是唯一来源）；本机模型不需要密钥、且在「本地模式」下照常可用；`ProviderPresetTests` 14 条 + `OllamaProviderTests` 2 条 |
 | 朗读 | 朗读 | ✅ | J4 | 逐词朗读并逐词高亮；朗读设置可调音色 / 语速 / 音量；依赖系统语音合成，长文逐词合成较慢；`speech::SpeechSettings`，`SpeechEngineTests` |
 | 比较 | 比较 | 🟨 | L7 | 文档比较已实现，两层结果并排给：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ 可选的像素级视觉比对（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关）：渲染成位图逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；默认关闭（渲染慢）；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`DocumentCompareOptions::autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（结果里的 `alignmentMode` / `alignmentNote` 会说清用的哪种）；**仍不做版面结构分析**（不比较版面块级 / 表格级结构差异，只到文字块与像素层）；`DocumentComparerTests` 26 条 |
 | 统计 | 字数统计 | ✅ | — | 总字数/字符数/页数/标题数 + 每页分布；有专项单测 |
