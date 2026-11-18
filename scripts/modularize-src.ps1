@@ -35,7 +35,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('pdf', 'ai', 'doc', 'app')]
+    [ValidateSet('pdf', 'ai', 'doc', 'app', 'ocr')]
     [string]$Area = 'pdf',
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Apply
@@ -82,6 +82,11 @@ $Maps = @{
         'panels'      = 'AiPanel AttachmentPanel IndexPanel LastWavePanels PdfAPreflightPanel SearchPanel'
         'dialogs'     = 'AccessibilityWizard AiSettingsDialog AiToolsDialog AnnotationToolboxDialog BookmarkTreeDialog ConversionInputDialog ConversionToolsDialog DocumentCompareDialog EditProposalDialog EncryptionDialog FormDesignAssistantDialog FormScriptDialog FormToolSettingsDialog HiddenDataDialog PrintToolsDialog ReadingOptionsDialog RegionPicker SettingsDialog SignatureDialog StampNumberDialog UploadPreviewDialog'
         'util'        = 'BatchRename BlankPageDetector ConversionExports ConversionReports SearchMatcher ShareUtils'
+    }
+    ocr = [ordered]@{
+        'core'     = 'OcrTypes OcrEngine OcrGeometry OcrTextUtils'
+        'pipeline' = 'OcrService ImagePreprocess ScannedPageDetector OcrChunkBridge'
+        'engines'  = 'TesseractCliEngine WindowsOcrEngine OcrEngineFactory'
     }
 }
 
@@ -184,8 +189,14 @@ foreach ($file in Get-ChildItem $areaDir -File | Where-Object { $sourceExts -con
     $module = $Owner[$file.BaseName]
     $dest = Join-Path (Join-Path $areaDir $module) $file.Name
     if ($inGit) {
-        git -C $Root mv -- $file.FullName $dest 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "git mv 失败：$($file.Name)" }
+        # 仓库里可能跑着自动提交，偶尔会占住 .git/index.lock；重试几十次再放弃。
+        $ok = $false
+        for ($try = 1; $try -le 40; $try++) {
+            git -C $Root mv -- $file.FullName $dest 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Start-Sleep -Milliseconds 250
+        }
+        if (-not $ok) { throw "git mv 失败（重试 40 次）：$($file.Name)" }
     } else {
         Move-Item -LiteralPath $file.FullName -Destination $dest
     }
