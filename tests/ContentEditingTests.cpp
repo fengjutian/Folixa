@@ -1,6 +1,6 @@
 #include "pdf/content/ContentStream.h"
 #include "pdf/content/TextReflow.h"
-#include "pdf/content/TableStructure.h"
+#include "pdf/kernel/TableStructure.h"
 
 #include <QtTest>
 

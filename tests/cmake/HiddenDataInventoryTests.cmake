@@ -19,8 +19,8 @@ qt_add_executable(HiddenDataInventoryTests
     ${CMAKE_CURRENT_LIST_DIR}/../HiddenDataInventoryTests.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.h
-    ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfRevisionCounter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfRevisionCounter.h
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
     ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp

@@ -27,8 +27,8 @@ qt_add_executable(ExportFormatsTests
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TableStructure.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TableStructure.h
 )
 
 target_link_libraries(ExportFormatsTests PRIVATE

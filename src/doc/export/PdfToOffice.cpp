@@ -4,7 +4,7 @@
 #include "doc/export/PptxWriter.h"
 #include "doc/export/SpreadsheetExport.h"
 #include "pdf/kernel/PdfiumAdapter.h"
-#include "pdf/content/TableStructure.h"
+#include "pdf/kernel/TableStructure.h"
 #include "pdf/kernel/TextPage.h"
 
 #include <QRectF>

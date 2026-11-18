@@ -38,8 +38,8 @@ qt_add_executable(PdfToOfficeTests
     ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TextPage.h
-    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.cpp
-    ${AIPDF_SOURCE_ROOT}/src/pdf/content/TableStructure.h
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TableStructure.cpp
+    ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/TableStructure.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/document/Navigation.h
 )

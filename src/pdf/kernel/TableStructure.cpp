@@ -1,4 +1,4 @@
-#include "pdf/content/TableStructure.h"
+#include "pdf/kernel/TableStructure.h"
 
 #include <algorithm>
 #include <cmath>

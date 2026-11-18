@@ -39,8 +39,8 @@ qt_add_executable(DocumentPipelineTests
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
     ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/document/Navigation.h
-    ${AIPDF_REPO_ROOT}/src/pdf/content/TableStructure.cpp
-    ${AIPDF_REPO_ROOT}/src/pdf/content/TableStructure.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TableStructure.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TableStructure.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.h
     # ---- 流水线主流程涉及的领域层模块 ----

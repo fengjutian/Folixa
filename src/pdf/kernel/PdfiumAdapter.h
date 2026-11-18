@@ -7,9 +7,8 @@
 #include <QVector>
 
 #include "pdf/annot/Annotation.h"
-#include "pdf/document/Navigation.h"
 #include "pdf/kernel/TextPage.h"
-#include "pdf/content/TableStructure.h"
+#include "pdf/kernel/TableStructure.h"
 
 #include <memory>
 #include <optional>
@@ -405,7 +404,7 @@ bool annotationTypeFromPdfium(int subtype, AnnotationType* out);
 // 256 MiB 会把这类文档直接挡在门外（打开时给出「文件过大」）。
 //
 // 内存代价已经消掉了：打开按**路径**进行，文件留在磁盘上，
-// PDFium 按需读块，内存占用不再与文件大小同量级（见 pdf/document/DocumentOpen.h）。
+// PDFium 按需读块，内存占用不再与文件大小同量级（见 pdf/kernel/DocumentOpen.h）。
 // 真正防住渲染爆炸的是下面两个像素上限，它们与文件大小无关，不会被这次放宽带松。
 inline constexpr qint64 kMaxPdfFileSizeBytes = 2LL * 1024 * 1024 * 1024;
 inline constexpr int kMaxRenderPixelDimension = 8192;

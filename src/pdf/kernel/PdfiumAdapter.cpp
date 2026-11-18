@@ -1,5 +1,5 @@
 #include "pdf/kernel/PdfiumAdapter.h"
-#include "pdf/document/DocumentOpen.h"
+#include "pdf/kernel/DocumentOpen.h"
 #include <QImage>
 #include <QPainter>
 #include <QPolygonF>

@@ -163,8 +163,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/content/TrueTypeSubset.h
     pdf/content/TextReflow.cpp
     pdf/content/TextReflow.h
-    pdf/content/TableStructure.cpp
-    pdf/content/TableStructure.h
+    pdf/kernel/TableStructure.cpp
+    pdf/kernel/TableStructure.h
     pdf/content/TableIntegration.cpp
     pdf/annot/Annotation.cpp
     pdf/annot/Annotation.h
@@ -319,8 +319,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/document/QpdfBackend.h
     pdf/security/PdfSecurity.cpp
     pdf/security/PdfSecurity.h
-    pdf/document/PdfRevisionCounter.cpp
-    pdf/document/PdfRevisionCounter.h
+    pdf/kernel/PdfRevisionCounter.cpp
+    pdf/kernel/PdfRevisionCounter.h
     pdf/document/Navigation.cpp
     pdf/document/Navigation.h
     pdf/kernel/TextPage.cpp

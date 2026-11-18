@@ -1,4 +1,4 @@
-#include "pdf/document/PdfRevisionCounter.h"
+#include "pdf/kernel/PdfRevisionCounter.h"
 
 #include <QByteArray>
 #include <QSet>

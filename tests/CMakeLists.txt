@@ -17,8 +17,8 @@ qt_add_executable(ContentEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TextReflow.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.h
 )
 target_link_libraries(ContentEditingTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 if (AIPDF_WITH_QPDF AND qpdf_FOUND)
@@ -275,8 +275,8 @@ if (AIPDF_WITH_QPDF AND qpdf_FOUND)
         PdfSecurityTests.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
-        ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
-        ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.cpp
+        ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.h
         ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
         ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
         ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
@@ -584,8 +584,8 @@ qt_add_executable(DocumentWriterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
@@ -908,8 +908,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/PdfSecurity.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
@@ -967,8 +967,8 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/PageDecorations.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TableIntegration.cpp
     ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.h

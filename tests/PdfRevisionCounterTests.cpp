@@ -8,7 +8,7 @@
 //   - classic xref 表与 xref 流两种写法都要走通；
 //   - 解析不出来时返回 0，不编数。
 
-#include "pdf/document/PdfRevisionCounter.h"
+#include "pdf/kernel/PdfRevisionCounter.h"
 
 #include <QByteArray>
 #include <QTest>

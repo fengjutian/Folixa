@@ -24,8 +24,8 @@ qt_add_executable(DocumentMergerTests
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TableStructure.h
 )
 
 target_link_libraries(DocumentMergerTests PRIVATE

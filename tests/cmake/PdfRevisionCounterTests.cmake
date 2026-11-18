@@ -5,8 +5,8 @@
 
 qt_add_executable(PdfRevisionCounterTests
     ${CMAKE_CURRENT_LIST_DIR}/../PdfRevisionCounterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.cpp
-    ${CMAKE_SOURCE_DIR}/src/pdf/document/PdfRevisionCounter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfRevisionCounter.h
 )
 
 target_link_libraries(PdfRevisionCounterTests PRIVATE Qt6::Core Qt6::Test)

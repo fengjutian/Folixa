@@ -1,6 +1,6 @@
 #include "pdf/security/PdfSecurity.h"
 
-#include "pdf/document/PdfRevisionCounter.h"
+#include "pdf/kernel/PdfRevisionCounter.h"
 
 #include <QRandomGenerator>
 #include <QSet>

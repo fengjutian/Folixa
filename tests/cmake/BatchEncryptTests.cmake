@@ -23,8 +23,8 @@ if (AIPDF_WITH_QPDF AND qpdf_FOUND)
         ${AIPDF_REPO_ROOT}/src/doc/batch/BatchProcessor.h
         ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.cpp
         ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.h
-        ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.cpp
-        ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.h
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfRevisionCounter.cpp
+        ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfRevisionCounter.h
         ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
         ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
         ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
