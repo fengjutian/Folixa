@@ -1,9 +1,12 @@
 #pragma once
 
 #include <QByteArray>
+#include <QSizeF>
 #include <QString>
 #include <QStringList>
 #include <QVector>
+
+#include "doc/export/OfficeMedia.h"
 
 namespace aipdf::doc::pptx {
 
@@ -23,6 +26,16 @@ struct Slide {
     QStringList bullets;
     // 演讲者备注，可空（空备注就不生成 notesSlide 部件）。
     QString notes;
+    // 这一页对应的 **PDF 页面尺寸**（点）。
+    //
+    // 幻灯片是 16:9，PDF 页面多半是 A4，两者比例不同：
+    // 图片与表格要按这个尺寸做**等比缩放 + 居中映射**，否则会飞出版面。
+    // 留空就按 A4 处理。
+    QSizeF pageSizePoints = QSizeF(595.0, 842.0);
+    // 这一页上的图片（坐标是 PDF user space 的点，写入时换算成 EMU）。
+    QVector<office::ImagePlacement> images;
+    // 这一页上的表格（坐标是 PDF user space 的点，写入时换算成 EMU）。
+    QVector<office::TableGrid> tables;
 };
 
 // 一整套幻灯片。
@@ -46,11 +59,19 @@ struct Deck {
 //   ppt/notesMasters/notesMaster1.xml (+ _rels)
 //   ppt/slides/slideN.xml (+ _rels)
 //   ppt/notesSlides/notesSlideN.xml (+ _rels)   —— 该页有备注才有这一对
+//   ppt/media/imageN.png                       —— 该页有图片才有这些
 //
 // 页面版式：16:9，标题在上、要点在下，全部用**显式坐标的文本框**，
 // 不走占位符继承 —— 占位符的位置来自母版与版式，少一层就可能跑到 0,0。
 //
 // 空 deck（没有页）返回空数组：调用方要能区分「导出失败」与「没有内容」。
 QByteArray deckToPptx(const Deck& deck);
+
+// 带图片的打包：media 里的图片会写成 ppt/media/imageN.png，
+// 并在对应幻灯片的 _rels 里分配关系号（rId）。
+//
+// media 的编号必须是**包级全局连续**的：ppt/media/ 是整个包共用的目录，
+// 按页从 1 重来会撞名（一页的图会覆盖另一页的图）。
+QByteArray deckToPptx(const Deck& deck, const office::MediaSet& media);
 
 }  // namespace aipdf::doc::pptx

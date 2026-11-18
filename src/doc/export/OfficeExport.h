@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVector>
 
+#include "doc/export/OfficeMedia.h"
 #include "pdf/kernel/TextPage.h"
 
 namespace aipdf::doc {
@@ -57,8 +58,8 @@ struct ExportResult {
 
 // 把一页文本导成指定格式。
 //
-// 只导出**文本层**：图片、表格结构、批注都不会进导出结果，
-// 各格式能保住什么见 exportCapability()。
+// 这一条是**纯文字**的快捷路径：输入只有文本层，所以产出里也只有文字。
+// 要带图片与表格，走 exportPagesTo 的整篇那条（带内容与媒体集合的重载）。
 //
 // pageSizePt 是页面尺寸（点），只影响 Word 的页面设置（sectPr），
 // 其余格式忽略它。
@@ -117,6 +118,84 @@ struct TextExportLine {
 //   - 字符的垂直中心与当前行中心的差不超过 0.6 倍字高时算同一行；
 //   - 行内相邻字符的水平间隙超过 0.2 倍字高时，中间补一个空格
 //     （PDF 的文字流里词与词之间常常没有任何标记）。
+//
+// 双栏页面会被**按栏拆开**（见 buildTextBands）：左右两栏同基线的文字
+// 不会被并成同一行。
 QVector<TextExportLine> buildTextLines(const pdf::TextPage& text);
+
+// ---------------------------------------------------------------------------
+// 分带：双栏页面为什么要拆
+// ---------------------------------------------------------------------------
+//
+// 一页 PDF 的正文可能是**两段并排的独立文字流**（双栏）。它们有两个特点：
+//   1. 同一基线上，左栏的字与右栏的字**不是同一句话**；
+//   2. 每栏自己是从上到下连续排下去的。
+//
+// 按「整页一行行」来读，左右两栏会被并成一行（串行）；按「整页一张表」
+// 来认，两栏正文会被误判成一张两列的表。
+//
+// 所以先把页面按**竖直的空白带**切成若干「带」：
+//   - 通栏带（横跨整页的标题、跨页宽的表格）；
+//   - 每个正文栏一条带。
+// 每条带单独归行、单独认表：两栏正文各归各位，跨栏的表格也不会被拆散。
+struct TextBand {
+    // 带里的行（从上到下）。
+    QVector<TextExportLine> lines;
+    // 带的横向范围（点）。
+    double left = 0.0;
+    double right = 0.0;
+    // 带的纵向范围（点）。
+    //
+    // 上下沿用的是 **PDF 的上下**：bottom 是较小的 y（页面上偏下），
+    // top 是较大的 y（页面上偏上）——与 QRectF 的约定正好相反。
+    double bottom = 0.0;
+    double top = 0.0;
+    // 是不是通栏（横跨整页宽度）。
+    bool fullWidth = true;
+};
+
+// 把一页的字符重建成若干条带。
+//
+// 单栏页面只有一条通栏带（与 buildTextLines 的结果一致）。
+// 双栏页面是「通栏带（标题）+ 各栏 + 通栏带（跨栏内容）」。
+QVector<TextBand> buildTextBands(const pdf::TextPage& text);
+
+// 一个落位（图片、表格）属于哪条带。
+//
+// 带的纵向范围是首尾相接的（通栏带占区域上下，栏带占区域本身），
+// 横向范围互不重叠，所以「先按纵向找到一层，再按横向找到那一栏」。
+// 找不到就退到纵向最近的那条带。
+int bandIndexForPoint(const QVector<TextBand>& bands, double x, double y);
+
+// ---------------------------------------------------------------------------
+// 导出用的「一页内容」
+// ---------------------------------------------------------------------------
+
+// 一页里可导出的内容：文字带、图片、表格。
+//
+// 三样东西放在一起，是因为它们要按**页面上的位置**交错排进正文；
+// 分开传就没法排序了。
+struct OfficePageContent {
+    // 文字带（按阅读顺序：通栏在前，各栏随后）。
+    QVector<TextBand> bands;
+    // 图片落位（坐标是 PDF user space 的点）。
+    QVector<office::ImagePlacement> images;
+    // 表格（坐标是 PDF user space 的点）。
+    QVector<office::TableGrid> tables;
+
+    // 这一页的全部文字行（各带依次拼接）。
+    QVector<TextExportLine> allLines() const;
+};
+
+// 把**整篇**文档导成指定格式，带图片与表格。
+//
+// 与上面那两条的区别：那两条只有文字（`exportPageTo` 那一族本来就是
+// 「把一页的文本层变成另一种格式」的工具）；这一条会把 media 里的图片
+// 写成包里的独立部件，并在正文里引用，表格也写成真正的表格对象。
+//
+// media 是**整个包共用**的一份媒体集合：编号在包内全局连续，
+// 不能按页从 1 重来（两页各一张图会撞名，一页的图会覆盖另一页的）。
+ExportResult exportPagesTo(ExportFormat format, const QVector<OfficePageContent>& contents,
+                            const QSizeF& pageSizePt, const office::MediaSet& media);
 
 }  // namespace aipdf::doc

@@ -124,6 +124,10 @@ public slots:
     void rotateLeft();
     void setZoom(double factor);
     void goToPage(int index);
+    // 文档比较的「引用定位」：翻到那一页，并选中原型里的对象。
+    //
+    // userRect 是 PDF user space 里的矩形（左下原点、未应用 /Rotate）。
+    void goToBlock(int pageIndex, const QRectF& userRect);
 
     // 排布方式：单页长卷 / 双页对开 / 双页(封面单独一行)。
     void setLayoutMode(PageLayout::LayoutMode mode);

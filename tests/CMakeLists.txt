@@ -1512,6 +1512,8 @@ qt_add_executable(OcrTests
     OcrTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.h
     ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ScannedPageDetector.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ScannedPageDetector.h
 )
@@ -1806,3 +1808,28 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AiImageGenerationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignatureWorkflowTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignatureVerifierTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AccessibilityWizardTests.cmake)
+
+# 欠账整改批次（2026-11-18）：这几组是 A8 / A12 / H5 / J5-J7 / L7 的专项测试。
+# 先按片段文件是否存在挂上 —— 片段由各自的实现任务落地，落地后自动生效；
+# 集成收口时会把这些 EXISTS 判断去掉，改成无条件 include。
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PageObjectModelTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PageObjectModelTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ReflowWriteBackTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ReflowWriteBackTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerticalWritingTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerticalWritingTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LayoutDiffTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/LayoutDiffTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticTagWriterTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticTagWriterTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/UaGeneratorTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UaGeneratorTests.cmake)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficeImagesTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficeImagesTests.cmake)
+endif()

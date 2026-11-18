@@ -1131,7 +1131,11 @@
             <source>字体…</source>
             <translation>Font…</translation>
         </message>
-        <message>
+                <message>
+            <source>这条差异在新文里，当前打开的是原文，页面跳不过去。</source>
+            <translation>This difference is in the new document; the open document is the original, so the page cannot be jumped to.</translation>
+        </message>
+<message>
             <source>选择界面字体</source>
             <translation>Choose interface font</translation>
         </message>
@@ -7251,7 +7255,27 @@ Notes: %1</translation></message>
 </context>
     <context>
         <name>aipdf::app::DocumentCompareDialog</name>
-            <message>
+                    <message>
+            <source>块 %1 为新增块</source>
+            <translation>Block %1 is a new block</translation>
+        </message>
+        <message>
+            <source>块 %1 已删除</source>
+            <translation>Block %1 was deleted</translation>
+        </message>
+        <message>
+            <source>块 %1 从页 %2 %3 移到页 %4 %5</source>
+            <translation>Block %1 moved from page %2 %3 to page %4 %5</translation>
+        </message>
+        <message>
+            <source>换图</source>
+            <translation>Image replaced</translation>
+        </message>
+        <message>
+            <source>删除块</source>
+            <translation>Deleted block</translation>
+        </message>
+<message>
                 <source>插入</source>
                 <translation>Inserted</translation>
             </message>
@@ -7263,7 +7287,15 @@ Notes: %1</translation></message>
                 <source>修改</source>
                 <translation>Modified</translation>
             </message>
-            <message>
+                    <message>
+            <source>文字改写</source>
+            <translation>Text rewritten</translation>
+        </message>
+        <message>
+            <source>新增块</source>
+            <translation>New block</translation>
+        </message>
+<message>
                 <source>新增页</source>
                 <translation>Page added</translation>
             </message>
@@ -7283,7 +7315,55 @@ Notes: %1</translation></message>
                 <source>新文：</source>
                 <translation>Revised:</translation>
             </message>
-            <message>
+                    <message>
+            <source>版面差异：共 %1 处（移动 %2 处、换图 %3 处、表格结构变化 %4 处、块新增 %5 处、块删除 %6 处）。</source>
+            <translation>Layout differences: %1 in total (%2 moved, %3 images replaced, %4 table structure changes, %5 new blocks, %6 deleted blocks).</translation>
+        </message>
+        <message>
+            <source>版面差异：%1</source>
+            <translation>Layout differences: %1</translation>
+        </message>
+        <message>
+            <source>表格第 %1 行第 %2 列已改写</source>
+            <translation>Row %1, column %2 of the table was rewritten</translation>
+        </message>
+        <message>
+            <source>表格列数由 %1 变为 %2</source>
+            <translation>Table columns changed from %1 to %2</translation>
+        </message>
+        <message>
+            <source>表格行数由 %1 变为 %2</source>
+            <translation>Table rows changed from %1 to %2</translation>
+        </message>
+        <message>
+            <source>此块文字已改写</source>
+            <translation>The text of this block was rewritten</translation>
+        </message>
+        <message>
+            <source>此位置的图片已被替换</source>
+            <translation>The image at this position was replaced</translation>
+        </message>
+        <message>
+            <source>表格单元格改写</source>
+            <translation>Table cell rewritten</translation>
+        </message>
+        <message>
+            <source>表格列变化</source>
+            <translation>Table columns changed</translation>
+        </message>
+        <message>
+            <source>表格行变化</source>
+            <translation>Table rows changed</translation>
+        </message>
+        <message>
+            <source>移动</source>
+            <translation>Moved</translation>
+        </message>
+        <message>
+            <source>版面差异</source>
+            <translation>Layout differences</translation>
+        </message>
+<message>
                 <source>选一份旧版本的 PDF</source>
                 <translation>Choose an older PDF version</translation>
             </message>

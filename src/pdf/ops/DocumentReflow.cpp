@@ -3,23 +3,28 @@
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/compliance/TagTreeWriter.h"
 
+#include "i18n/Translate.h"
+
+#include <QHash>
 #include <QSet>
 
+#include <algorithm>
+#include <cmath>
 #include <functional>
-
-#ifdef AIPDF_WITH_QPDF
-#include <qpdf/Buffer.hh>
-#include <qpdf/QPDF.hh>
-#include <qpdf/QPDFObjectHandle.hh>
-#include <qpdf/QPDFWriter.hh>
-
-#include <exception>
-#include <memory>
+#include <limits>
+#include <mutex>
 #include <vector>
-#endif
+
+#include <fpdf_edit.h>
+#include <fpdf_save.h>
+#include <fpdfview.h>
 
 namespace aipdf::pdf {
 namespace {
+
+// ---------------------------------------------------------------------------
+// 标签树的判定
+// ---------------------------------------------------------------------------
 
 // 块级标签：这些元素整体算一段。
 //
@@ -39,58 +44,26 @@ bool isBlockTag(const QString& tag) {
     return tags.contains(tag);
 }
 
+// 页眉页脚：内容块，但角色是页眉／页脚。
+bool isRunningHeadTag(const QString& tag) {
+    return tag == QLatin1String("Head") || tag == QLatin1String("Foot");
+}
+
+// 内容块：块级标签 + 页眉页脚。
+//
+// 「内容块」是**计数的单位**：同一个内容块里的文字算一块。
+// 页眉页脚也算内容块（它们有文字、也要计数），只是角色不同。
+bool isContentBlockTag(const QString& tag) {
+    return isBlockTag(tag) || isRunningHeadTag(tag);
+}
+
 // 标题类标签：排版时用粗体，和正文区分开。
 bool isHeadingTag(const QString& tag) {
     return tag.size() == 2 && tag.at(0) == QLatin1Char('H') && tag.at(1) >= QLatin1Char('1') &&
            tag.at(1) <= QLatin1Char('6');
 }
 
-// 纯结构容器：它们本身不是内容，只是把内容组织起来。
-//
-// 这类元素不进「丢弃清单」——把 Document 报成「丢了内容」是荒唐的。
-bool isPureStructureTag(const QString& tag) {
-    static const QSet<QString> tags = {
-        QStringLiteral("Document"),   QStringLiteral("DocumentFragment"),
-        QStringLiteral("Part"),       QStringLiteral("Sect"),
-        QStringLiteral("Div"),        QStringLiteral("Art"),
-        QStringLiteral("UL"),         QStringLiteral("OL"),
-        QStringLiteral("DL"),         QStringLiteral("TOC"),
-        QStringLiteral("TOCI"),       QStringLiteral("Index"),
-        QStringLiteral("RB"),         QStringLiteral("RT"),
-        QStringLiteral("RP"),         QStringLiteral("WT"),
-        QStringLiteral("WP"),         QStringLiteral("Form"),
-        QStringLiteral("Link"),       QStringLiteral("Reference"),
-        QStringLiteral("Annot"),      QStringLiteral("Artifact"),
-        QStringLiteral("TR"),         QStringLiteral("THead"),
-        QStringLiteral("TBody"),      QStringLiteral("TFoot")
-    };
-    return tags.contains(tag);
-}
-
-// 图形/表格容器：里面装的是搬不走的内容，必须如实报出来。
-bool isGraphicContainerTag(const QString& tag) {
-    return tag == QLatin1String("Figure") || tag == QLatin1String("Table");
-}
-
-// 页眉页脚：按约定不搬。
-bool isRunningHeadTag(const QString& tag) {
-    return tag == QLatin1String("Head") || tag == QLatin1String("Foot");
-}
-
-// 一个正文块（段落）。
-struct Block {
-    QString tag;
-    QString text;
-    int pageIndex = -1;
-    bool heading = false;
-    // 文字里有标准 14 号字体表示不了的字符（会被写成 '?'）。
-    bool hasUnrepresentableChars = false;
-};
-
 // 粗体字体族名。
-//
-// 为什么直接拼 "-Bold"：标准 14 号字体里粗体就叫 "Helvetica-Bold"，
-// 这是 PDF 里现成的字体，拼出来的名字在别的阅读器上也认得。
 QString boldFamily(const QString& family) {
     const QString base = family.trimmed().isEmpty() ? QStringLiteral("Helvetica") : family.trimmed();
     if (base.contains(QStringLiteral("Bold"))) return base;
@@ -105,11 +78,17 @@ bool hasUnrepresentableChars(const QString& text) {
     return false;
 }
 
+// 把标准 14 号字体表示不了的字符换成 '?'（与内容流那条路的口径一致）。
+QString toLatin1Placeholder(const QString& text) {
+    QString result;
+    result.reserve(text.size());
+    for (const QChar ch : text) {
+        result.append(ch.unicode() > 0xFF ? QLatin1Char('?') : ch);
+    }
+    return result;
+}
+
 // 一行的大致高度。
-//
-// 为什么要估：换页之前得知道「这一页还放不放得下一行」。
-// 真实行高由 pdf::layoutParagraph 用字体度量算，这里估得略保守一点
-// （宁可早换一页，也不要让排版函数在最后一厘米上失败）。
 double estimatedLineHeight(const ParagraphFormat& format) {
     const double fontHeight = format.fontSize * 1.25;
     if (format.lineSpacingMode == LineSpacingMode::Fixed) {
@@ -118,169 +97,578 @@ double estimatedLineHeight(const ParagraphFormat& format) {
     return qMax(fontHeight, format.fontSize * format.lineSpacing);
 }
 
-// 从标签树里挑出正文块。
-//
-// 规则（报告里也会体现）：
-//   * 块级标签（P、H1-H6、LI、TD…）整体算一段；文字从它自己与子孙里收，
-//     遇到嵌套的块级元素就停手（那一段自己算）。
-//   * Figure、Table 这类装着搬不走的内容的元素，记进「丢弃清单」。
-//   * Head、Foot（页眉页脚）不搬，记进「丢弃清单」。
-//   * 纯结构容器（Document、Div、Sect…）不算内容，也不记丢弃。
-//   * 其它标签：有文字就算一段；没文字就不算内容，也不记丢弃。
-QVector<Block> collectBlocks(const StructTreeReport& tree, QVector<ReflowDropped>* dropped) {
-    const QVector<StructElement>& elements = tree.elements;
-    const int count = elements.size();
-    if (count == 0) return {};
+// ---------------------------------------------------------------------------
+// 文字块的归属索引
+// ---------------------------------------------------------------------------
 
-    // 子元素表（标签树是按先序排列的，parentIndex 指回父元素）。
+// 从标签树整理「文字块归属索引」。
+//
+// 口径：一个 MCID 属于**最近的内容块祖先**（P、H1、TD…，以及 Head/Foot）。
+// 为什么要找祖先而不是直接用 MCID 所在的那个元素：标签树里段落下面常挂 Span，
+// 一个段落会被拆成好几个 Span。按最细的元素算，一段正文会被数成好几块，
+// 而重排结果里它仍然是一段（一个块），两边对不上，门禁就会误报。
+PageTextBlockIndex buildBlockIndex(const StructTreeReport& tree) {
+    PageTextBlockIndex index;
+    const int count = tree.elements.size();
+    if (count == 0) return index;
+
+    // 子元素表（标签树按先序排列，parentIndex 指回父元素）。
     QVector<QVector<int>> children(count);
     for (int i = 0; i < count; ++i) {
-        const int parent = elements.at(i).parentIndex;
+        const int parent = tree.elements.at(i).parentIndex;
         if (parent >= 0 && parent < count) children[parent].append(i);
     }
 
-    // 某个元素上面有没有块级祖先。
-    //
-    // 用 fill 而不是「QVector<char>(count, 0)」：后者在 GCC 13 上会触发一条
-    // -Wstringop-overflow 误报（Qt 的批量填充实现在展开后边界算不出来）。
-    QVector<char> hasBlockAncestor;
-    hasBlockAncestor.fill(0, count);
+    // 每个元素的内容块祖先（自己就是内容块时，祖先就是自己）。
+    QVector<int> owner(count, -1);
     for (int i = 0; i < count; ++i) {
-        int parent = elements.at(i).parentIndex;
+        if (isContentBlockTag(tree.elements.at(i).tag)) {
+            owner[i] = i;
+            continue;
+        }
+        int parent = tree.elements.at(i).parentIndex;
         while (parent >= 0 && parent < count) {
-            if (isBlockTag(elements.at(parent).tag)) {
-                hasBlockAncestor[i] = 1;
+            if (isContentBlockTag(tree.elements.at(parent).tag)) {
+                owner[i] = parent;
                 break;
             }
-            parent = elements.at(parent).parentIndex;
+            parent = tree.elements.at(parent).parentIndex;
         }
     }
 
-    QVector<char> consumed;
-    consumed.fill(0, count);
-
-    // 收集一个块里的文字（自己的 + 后代的，遇嵌套块级元素停手）。
-    std::function<void(int, QString*)> gather = [&](int index, QString* out) {
-        *out += elements.at(index).text;
-        for (const int child : children.at(index)) {
-            if (isBlockTag(elements.at(child).tag)) continue;
-            gather(child, out);
+    // 收集一个内容块里的 MCID 与文字（遇到嵌套的内容块就停手）。
+    std::function<void(int, QVector<int>*, QString*)> gather = [&](int elementIndex,
+                                                                    QVector<int>* mcids,
+                                                                    QString* text) {
+        const StructElement& element = tree.elements.at(elementIndex);
+        mcids->append(element.mcids);
+        if (!element.text.isEmpty()) *text += element.text;
+        for (const int child : children.at(elementIndex)) {
+            if (isContentBlockTag(tree.elements.at(child).tag)) continue;
+            gather(child, mcids, text);
         }
     };
 
-    // 标记整棵子树已经处理过。
-    std::function<void(int)> markConsumed = [&](int index) {
-        consumed[index] = 1;
-        for (const int child : children.at(index)) {
-            markConsumed(child);
-        }
-    };
-
-    QVector<Block> blocks;
+    QSet<int> done;
     for (int i = 0; i < count; ++i) {
-        if (consumed[i]) continue;
-        const StructElement& element = elements.at(i);
-        const QString tag = element.tag;
+        if (!isContentBlockTag(tree.elements.at(i).tag)) continue;
+        if (done.contains(i)) continue;
+        done.insert(i);
 
-        if (isBlockTag(tag)) {
-            QString text;
-            gather(i, &text);
-            markConsumed(i);
-            text = text.trimmed();
-            if (text.isEmpty()) {
-                ReflowDropped item;
-                item.tag = tag;
-                item.reason = QStringLiteral("这个元素里没有可重排的文字");
-                item.pageIndex = element.pageIndex;
-                item.detail = element.alt;
-                dropped->append(item);
-                continue;
-            }
-            Block block;
-            block.tag = tag;
-            block.text = text;
-            block.pageIndex = element.pageIndex;
-            block.heading = isHeadingTag(tag);
-            block.hasUnrepresentableChars = hasUnrepresentableChars(text);
-            blocks.append(block);
-            continue;
+        QVector<int> mcids;
+        QString text;
+        gather(i, &mcids, &text);
+
+        const QString tag = tree.elements.at(i).tag;
+        PageTextRole role = PageTextRole::Body;
+        if (tag == QLatin1String("Head")) {
+            role = PageTextRole::Header;
+        } else if (tag == QLatin1String("Foot")) {
+            role = PageTextRole::Footer;
         }
 
-        if (isGraphicContainerTag(tag)) {
-            ReflowDropped item;
-            item.tag = tag;
-            item.reason = (tag == QLatin1String("Figure"))
-                              ? QStringLiteral("图片元素没有重排，图形搬不到新页面上")
-                              : QStringLiteral("表格的表格结构没有保留，单元格文字按独立段落重排");
-            item.pageIndex = element.pageIndex;
-            item.detail = element.alt;
-            dropped->append(item);
-            continue;
+        const int blockKey = i;
+        while (index.blockRoles.size() <= blockKey) index.blockRoles.append(PageTextRole::Body);
+        while (index.blockTexts.size() <= blockKey) index.blockTexts.append(QString());
+        while (index.blockTags.size() <= blockKey) index.blockTags.append(QString());
+        index.blockRoles[blockKey] = role;
+        index.blockTexts[blockKey] = text;
+        index.blockTags[blockKey] = tag;
+
+        for (const int mcid : mcids) {
+            index.mcidToBlock.insert(
+                PageTextBlockIndex::mcidKey(tree.elements.at(i).pageIndex, mcid), blockKey);
         }
-
-        if (isRunningHeadTag(tag)) {
-            ReflowDropped item;
-            item.tag = tag;
-            item.reason = QStringLiteral("页眉页脚没有搬过来");
-            item.pageIndex = element.pageIndex;
-            item.detail = element.alt;
-            dropped->append(item);
-            continue;
-        }
-
-        if (isPureStructureTag(tag)) continue;
-
-        // 其它标签：有文字才算一段。
-        // 已经在某个块里被收走的（Span 之类）不再单独算，否则会重复。
-        const QString text = element.text.trimmed();
-        if (text.isEmpty() || hasBlockAncestor[i]) continue;
-        markConsumed(i);
-        Block block;
-        block.tag = tag;
-        block.text = text;
-        block.pageIndex = element.pageIndex;
-        block.heading = isHeadingTag(tag);
-        block.hasUnrepresentableChars = hasUnrepresentableChars(text);
-        blocks.append(block);
     }
-    return blocks;
+    return index;
 }
 
-// 新文档的一页：内容流 + 这一页上各段落的矩形（打标签时用）。
-struct OutputPage {
-    QByteArray content;
-    QVector<QRectF> regions;
+// ---------------------------------------------------------------------------
+// 排版
+// ---------------------------------------------------------------------------
+
+// 排好的一段（一个内容块在某一页上的部分）。
+struct LayoutChunk {
+    int pageIndex = -1;
+    QRectF bounds;
+    QVector<ParagraphLine> lines;
 };
 
-#ifdef AIPDF_WITH_QPDF
+// 排好版的一个条目。
+struct LayoutItem {
+    PageObjectKind kind = PageObjectKind::Unknown;
+    QString objectId;
+    int sourcePage = -1;
+    QRectF sourceBounds;
+    QString text;
+    bool heading = false;
+    bool hasUnrepresentableChars = false;
+    QString fontFamily;
+    // 段落 / 表格 / 图形各自的细节。
+    QVector<LayoutChunk> chunks;
+    QVector<PageTableCell> cells;
+    QVector<double> columnWidths;
+    int rowCount = 0;
+    int columnCount = 0;
+    QSizeF targetSize;
+    // 图片按「原尺寸与 DPI 换算」得到的自然尺寸（点）。
+    QSizeF naturalSize;
+    int sourceObjectIndex = -1;
+    // 结果。
+    int targetPage = -1;
+    QRectF targetBounds;
+    // 标记里的块号（写回时写进页面对象）。
+    int blockKey = -1;
+};
 
-// 源文档的页数。
-int countPages(const QByteArray& pdfBytes) {
-    QPDF source;
-    source.setSuppressWarnings(true);
-    source.processMemoryFile("reflow-source.pdf", pdfBytes.constData(),
-                             static_cast<size_t>(pdfBytes.size()));
-    return static_cast<int>(source.getAllPages().size());
+// 表格重建后每行的高度。
+double tableRowHeight(const ParagraphFormat& format) {
+    return qMax(format.fontSize * 1.8, 14.0);
 }
 
-// 读源文档的文档属性（/Info），抄到新文档上。
+// 新页面的版面几何。
+struct LayoutGeometry {
+    double pageWidth = 0.0;
+    double pageHeight = 0.0;
+    double marginTop = 0.0;
+    double marginBottom = 0.0;
+    double contentLeft = 0.0;
+    double contentRight = 0.0;
+    double contentBottom = 0.0;
+    double contentTop = 0.0;
+    ParagraphFormat paragraph;
+};
+
+// ---------------------------------------------------------------------------
+// PDFium 写回
+// ---------------------------------------------------------------------------
+
+// 内存输出缓冲：FPDF_FILEWRITE 的写入回调往这里追加。
 //
-// 为什么抄：重排出来的还是同一份文档，标题与作者不该丢。
-QPDFObjectHandle readInfo(const QByteArray& pdfBytes) {
-    QPDF source;
-    source.setSuppressWarnings(true);
-    source.processMemoryFile("reflow-source.pdf", pdfBytes.constData(),
-                             static_cast<size_t>(pdfBytes.size()));
-    return source.getTrailer().getKey("/Info");
+// FPDF_FILEWRITE 没有用户数据字段（只有 version 与 WriteBlock），
+// 所以缓冲指针只能走文件级静态变量（与 pdf::PdfiumAdapter 同样的做法）。
+struct MemoryWriter {
+    QByteArray data;
+};
+
+MemoryWriter* g_reflowMemoryTarget = nullptr;
+
+int writeReflowMemory(FPDF_FILEWRITE* self, const void* data, unsigned long size) {
+    if (g_reflowMemoryTarget == nullptr || data == nullptr) {
+        return 0;
+    }
+    g_reflowMemoryTarget->data.append(static_cast<const char*>(data), static_cast<qsizetype>(size));
+    return 1;
 }
 
-// 文本串的值（UTF-8）。
-QString textOf(const QPDFObjectHandle& handle) {
-    if (!handle.isString()) return QString();
-    return QString::fromUtf8(handle.getUTF8Value().c_str());
+// 写回时的上下文。
+struct WriteContext {
+    FPDF_DOCUMENT document = nullptr;
+    LayoutGeometry geometry;
+    // 标记里的块号（一个内容块一个号）。
+    int blockCounter = 0;
+    QString error;
+};
+
+// 往一页里放一段文字，并打上「这一段属于第几块」的标记。
+bool insertTextRun(WriteContext& context, FPDF_PAGE page, const QString& text, double x,
+                    double baseline, double fontSize, const QString& fontFamily, int blockKey,
+                    PageTextRole role) {
+    if (text.isEmpty()) return true;
+    FPDF_PAGEOBJECT object = FPDFPageObj_NewTextObj(
+        context.document, fontFamily.toLatin1().constData(), static_cast<float>(fontSize));
+    if (object == nullptr) {
+        context.error = i18n::tr("aipdf::pdf::DocumentReflow", "PDFium 建不出文字对象");
+        return false;
+    }
+    const QString latin1 = toLatin1Placeholder(text);
+    FPDFText_SetText(object,
+                     reinterpret_cast<FPDF_WIDESTRING>(const_cast<ushort*>(latin1.utf16())));
+    FPDFPageObj_Transform(object, 1.0, 0.0, 0.0, 1.0, x, baseline);
+    if (!FPDFPage_InsertObject(page, object)) {
+        FPDFPageObj_Destroy(object);
+        context.error = i18n::tr("aipdf::pdf::DocumentReflow", "文字对象放不进页面");
+        return false;
+    }
+    // 标记：写进文件里的块身份。重新打开还在——门禁靠它把重排结果的
+    // 文字块和源文档的文字块对上（实测：标记随保存重开存活，且不带 /MCID，
+    // 所以后面打标签那一步不会把它摘掉）。
+    FPDF_PAGEOBJECTMARK mark = FPDFPageObj_AddMark(object, kReflowBlockMark);
+    if (mark != nullptr) {
+        FPDFPageObjMark_SetIntParam(context.document, object, mark, kReflowBlockParam, blockKey);
+        FPDFPageObjMark_SetIntParam(context.document, object, mark, kReflowRoleParam,
+                                    static_cast<int>(role));
+    }
+    return true;
 }
 
-#endif  // AIPDF_WITH_QPDF
+// 往一页里画一个矩形边框（表格线）。
+bool insertBorderRect(WriteContext& context, FPDF_PAGE page, const QRectF& rect, double lineWidth) {
+    FPDF_PAGEOBJECT border = FPDFPageObj_CreateNewRect(
+        static_cast<float>(rect.left()), static_cast<float>(rect.bottom()),
+        static_cast<float>(rect.width()), static_cast<float>(rect.height()));
+    if (border == nullptr) {
+        context.error = i18n::tr("aipdf::pdf::DocumentReflow", "PDFium 建不出表格边框");
+        return false;
+    }
+    FPDFPageObj_SetStrokeColor(border, 0, 0, 0, 255);
+    FPDFPageObj_SetStrokeWidth(border, static_cast<float>(lineWidth));
+    // 只描边、不填充：不填充才不会把单元格文字盖住。
+    FPDFPath_SetDrawMode(border, FPDF_FILLMODE_NONE, 1);
+    if (!FPDFPage_InsertObject(page, border)) {
+        FPDFPageObj_Destroy(border);
+        context.error = i18n::tr("aipdf::pdf::DocumentReflow", "表格边框放不进页面");
+        return false;
+    }
+    return true;
+}
+
+// 页面对象的定位键：「页号|页内下标」。
+QString objectKey(int pageIndex, int objectIndex) {
+    return QStringLiteral("%1|%2").arg(pageIndex).arg(objectIndex);
+}
+
+// 把排好的版面写进文档（就地改页），产出新的 PDF 字节。
+//
+// 为什么用 PDFium 就地改页，而不是 qpdf 另建一份：
+//   * 矢量图形（路径对象）在 PDFium 里是**对象**，能直接搬到另一页；
+//     qpdf 那边只有内容流里的画线指令，搬不过去。
+//   * 图片对象自带图像数据，PDFium 搬对象时图像跟着走，不用重新编码。
+//   * 不用 IncrementalWriter：它只认经典 xref 表与直接对象，
+//     遇对象流 / xref 流 / 加密文件直接失败，不能拿来做整篇重排。
+QByteArray writeReflowedDocument(const QByteArray& sourceBytes, QVector<LayoutItem>& items,
+                                  const QVector<LayoutItem>& headers,
+                                  const QVector<LayoutItem>& footers, int pageCount,
+                                  const LayoutGeometry& geometry,
+                                  QVector<QVector<TaggedRegion>>* regions, QString* error) {
+    detail::ensurePageObjectModelPdfiumReady();
+    std::lock_guard<std::recursive_mutex> lock(detail::pageObjectModelPdfiumMutex());
+
+    FPDF_DOCUMENT document = FPDF_LoadMemDocument(sourceBytes.constData(),
+                                                  static_cast<int>(sourceBytes.size()), nullptr);
+    if (document == nullptr) {
+        *error = i18n::tr("aipdf::pdf::DocumentReflow", "PDFium 打不开这份 PDF，重排失败");
+        return {};
+    }
+
+    WriteContext context;
+    context.document = document;
+    context.geometry = geometry;
+
+    // ---- 第一步：把页面上的对象取下来 ----
+    // 文字对象直接销毁（正文要重新排版）；图片与矢量先拿着，等下搬到新页上。
+    //
+    // **关键**：PDFium 的改页状态挂在页面句柄上——句柄一关（FPDF_ClosePage），
+    // 这一页的改动就没了（内容流不会重建）。所以这里把所有页面句柄都留着，
+    // 直到内容流生成完再关。
+    QHash<QString, FPDF_PAGEOBJECT> movable;
+    const int sourcePageCount = FPDF_GetPageCount(document);
+    QVector<FPDF_PAGE> pageHandles;
+    for (int pageIndex = 0; pageIndex < sourcePageCount; ++pageIndex) {
+        FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
+        if (page == nullptr) continue;
+        pageHandles.append(page);
+        const int objectCount = FPDFPage_CountObjects(page);
+        QVector<FPDF_PAGEOBJECT> handles;
+        for (int index = 0; index < objectCount; ++index) {
+            FPDF_PAGEOBJECT object = FPDFPage_GetObject(page, index);
+            if (object != nullptr) handles.append(object);
+        }
+        for (int index = 0; index < handles.size(); ++index) {
+            FPDF_PAGEOBJECT object = handles.at(index);
+            if (!FPDFPage_RemoveObject(page, object)) continue;
+            const int type = FPDFPageObj_GetType(object);
+            if (type == FPDF_PAGEOBJ_TEXT) {
+                FPDFPageObj_Destroy(object);
+                continue;
+            }
+            movable.insert(objectKey(pageIndex, index), object);
+        }
+    }
+
+    // ---- 第二步：把页数调成重排后的页数 ----
+    // 多余的页删掉（它们上面的对象已经在上一步取下来了）；
+    // 不够的页新建。
+    for (int pageIndex = sourcePageCount - 1; pageIndex >= pageCount; --pageIndex) {
+        FPDFPage_Delete(document, pageIndex);
+        if (pageIndex < pageHandles.size() && pageHandles.at(pageIndex) != nullptr) {
+            // 页面已被删掉，句柄不能再用，也不能关（关它等于把状态还原）。
+            pageHandles[pageIndex] = nullptr;
+        }
+    }
+    for (int pageIndex = sourcePageCount; pageIndex < pageCount; ++pageIndex) {
+        FPDF_PAGE added = FPDFPage_New(document, pageIndex, geometry.pageWidth, geometry.pageHeight);
+        if (added == nullptr) {
+            *error = i18n::tr("aipdf::pdf::DocumentReflow", "新页面建不出来");
+            FPDF_CloseDocument(document);
+            return {};
+        }
+        pageHandles.append(added);
+    }
+
+    // ---- 第三步：把每页的尺寸改成新页宽 ----
+    for (int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+        if (pageIndex >= pageHandles.size() || pageHandles.at(pageIndex) == nullptr) continue;
+        FPDF_PAGE page = pageHandles.at(pageIndex);
+        FPDFPage_SetMediaBox(page, 0.0F, 0.0F, static_cast<float>(geometry.pageWidth),
+                              static_cast<float>(geometry.pageHeight));
+        FPDFPage_SetCropBox(page, 0.0F, 0.0F, static_cast<float>(geometry.pageWidth),
+                            static_cast<float>(geometry.pageHeight));
+    }
+
+    // ---- 第四步：把内容摆到新页上 ----
+    regions->resize(pageCount);
+    for (int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+        (*regions)[pageIndex].clear();
+    }
+    int regionOrder = 0;
+
+    // 页眉页脚：每页一份。
+    QVector<int> headerBlockKeys;
+    for (const LayoutItem& header : headers) {
+        headerBlockKeys.append(context.blockCounter++);
+    }
+    QVector<int> footerBlockKeys;
+    for (const LayoutItem& footer : footers) {
+        footerBlockKeys.append(context.blockCounter++);
+    }
+
+    for (int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+        if (pageIndex >= pageHandles.size() || pageHandles.at(pageIndex) == nullptr) continue;
+        FPDF_PAGE page = pageHandles.at(pageIndex);
+
+        // 页眉在上、页脚在下：放在页边距里，不占正文的位置。
+        for (int index = 0; index < headers.size(); ++index) {
+            const LayoutItem& header = headers.at(index);
+            const double baseline =
+                geometry.pageHeight - qMax(4.0, geometry.marginTop * 0.45);
+            if (!insertTextRun(context, page, header.text, geometry.contentLeft, baseline,
+                               geometry.paragraph.fontSize, geometry.paragraph.fontFamily,
+                               headerBlockKeys.at(index), PageTextRole::Header)) {
+                *error = context.error;
+                FPDF_CloseDocument(document);
+                return {};
+            }
+            TaggedRegion region;
+            region.rect = QRectF(geometry.contentLeft, baseline - geometry.paragraph.fontSize,
+                                  geometry.contentRight - geometry.contentLeft,
+                                  geometry.paragraph.fontSize * 1.2);
+            region.order = regionOrder++;
+            (*regions)[pageIndex].append(region);
+        }
+        for (int index = 0; index < footers.size(); ++index) {
+            const LayoutItem& footer = footers.at(index);
+            const double baseline = qMax(4.0, geometry.marginBottom * 0.45);
+            if (!insertTextRun(context, page, footer.text, geometry.contentLeft, baseline,
+                               geometry.paragraph.fontSize, geometry.paragraph.fontFamily,
+                               footerBlockKeys.at(index), PageTextRole::Footer)) {
+                *error = context.error;
+                FPDF_CloseDocument(document);
+                return {};
+            }
+            TaggedRegion region;
+            region.rect = QRectF(geometry.contentLeft, baseline - geometry.paragraph.fontSize,
+                                  geometry.contentRight - geometry.contentLeft,
+                                  geometry.paragraph.fontSize * 1.2);
+            region.order = regionOrder++;
+            (*regions)[pageIndex].append(region);
+        }
+    }
+
+    for (LayoutItem& item : items) {
+        if (item.chunks.isEmpty()) continue;
+        item.blockKey = context.blockCounter++;
+        for (const LayoutChunk& chunk : item.chunks) {
+            if (chunk.pageIndex >= pageHandles.size() ||
+                pageHandles.at(chunk.pageIndex) == nullptr) {
+                continue;
+            }
+            FPDF_PAGE page = pageHandles.at(chunk.pageIndex);
+            bool ok = true;
+            if (item.kind == PageObjectKind::Text) {
+                for (const ParagraphLine& line : chunk.lines) {
+                    if (!insertTextRun(context, page, line.text, line.x, line.baseline.y(),
+                                       line.fontSize, item.fontFamily, item.blockKey,
+                                       PageTextRole::Body)) {
+                        ok = false;
+                        break;
+                    }
+                }
+            } else if (item.kind == PageObjectKind::Table) {
+                // 表格：先画格子，再把单元格文字写进去。
+                const int rows = qMax(1, item.rowCount);
+                const int columns = qMax(1, item.columnCount);
+                const double rowHeight = tableRowHeight(geometry.paragraph);
+                QVector<double> columnLeft(columns, 0.0);
+                double offset = chunk.bounds.left();
+                for (int column = 0; column < columns; ++column) {
+                    columnLeft[column] = offset;
+                    offset += item.columnWidths.value(column, 0.0);
+                }
+                for (int row = 0; row < rows; ++row) {
+                    for (int column = 0; column < columns; ++column) {
+                        const double left = columnLeft.value(column, chunk.bounds.left());
+                        const double width = item.columnWidths.value(column, 0.0);
+                        const double bottom =
+                            chunk.bounds.bottom() + row * rowHeight;
+                        const QRectF cell(left, bottom, width, rowHeight);
+                        if (!insertBorderRect(context, page, cell, 0.5)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) break;
+                }
+                if (ok) {
+                    for (const PageTableCell& cell : item.cells) {
+                        const double left = columnLeft.value(cell.column, chunk.bounds.left());
+                        // 行序要翻过来：网格识别的行 0 是**最上面**一行，
+                        // 而边框是从下往上摆的（行 0 是最下面一行）。
+                        // 不翻的话，单元格文字会跑到表格外面去，
+                        // 甚至和正文撞在同一条基线上（表格就认不出来了）。
+                        const int rowFromBottom = rows - 1 - cell.row;
+                        const double baseline = chunk.bounds.bottom() +
+                                               rowFromBottom * rowHeight + rowHeight * 0.3;
+                        const QString text = cell.text;
+                        if (text.isEmpty()) continue;
+                        if (!insertTextRun(context, page, text, left + 2.0, baseline,
+                                           geometry.paragraph.fontSize,
+                                           geometry.paragraph.fontFamily,
+                                           context.blockCounter++, PageTextRole::Body)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 图片与矢量：把原对象搬到新位置。
+                FPDF_PAGEOBJECT handle =
+                    movable.take(objectKey(item.sourcePage, item.sourceObjectIndex));
+                if (handle == nullptr) {
+                    *error = i18n::tr("aipdf::pdf::DocumentReflow",
+                                       "第 %1 页上的图形对象找不到了，搬不过去")
+                                 .arg(item.sourcePage + 1);
+                    FPDF_CloseDocument(document);
+                    return {};
+                }
+                const QRectF source = item.sourceBounds;
+                const QRectF target = chunk.bounds;
+                const double scaleX =
+                    source.width() > 0.0 ? target.width() / source.width() : 1.0;
+                const double scaleY =
+                    source.height() > 0.0 ? target.height() / source.height() : 1.0;
+                FPDFPageObj_Transform(handle, scaleX, 0.0, 0.0, scaleY,
+                                      target.left() - source.left() * scaleX,
+                                      target.bottom() - source.bottom() * scaleY);
+                if (!FPDFPage_InsertObject(page, handle)) {
+                    FPDFPageObj_Destroy(handle);
+                    *error = i18n::tr("aipdf::pdf::DocumentReflow", "图形对象放不进新页面");
+                    FPDF_CloseDocument(document);
+                    return {};
+                }
+            }
+            if (!ok) {
+                *error = context.error;
+                FPDF_CloseDocument(document);
+                return {};
+            }
+            if (item.kind != PageObjectKind::Image && item.kind != PageObjectKind::Vector) {
+                TaggedRegion region;
+                region.rect = chunk.bounds;
+                region.order = regionOrder++;
+                (*regions)[chunk.pageIndex].append(region);
+            }
+        }
+        // 目标位置：第一个块所在的页与所有块的外框。
+        item.targetPage = item.chunks.first().pageIndex;
+        QRectF target;
+        for (const LayoutChunk& chunk : item.chunks) {
+            target = target.isNull() ? chunk.bounds : target.united(chunk.bounds);
+        }
+        item.targetBounds = target;
+    }
+
+    // 没搬上的图形对象：销毁（门禁会因此发现「少了对象」并拦住写回）。
+    for (auto it = movable.begin(); it != movable.end(); ++it) {
+        FPDFPageObj_Destroy(it.value());
+    }
+
+    // ---- 第五步：生成内容流并序列化 ----
+    for (int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+        if (pageIndex >= pageHandles.size() || pageHandles.at(pageIndex) == nullptr) continue;
+        FPDFPage_GenerateContent(pageHandles.at(pageIndex));
+    }
+    for (int pageIndex = 0; pageIndex < pageHandles.size(); ++pageIndex) {
+        if (pageHandles.at(pageIndex) == nullptr) continue;
+        FPDF_ClosePage(pageHandles.at(pageIndex));
+    }
+
+    MemoryWriter writer;
+    g_reflowMemoryTarget = &writer;
+    FPDF_FILEWRITE fileWrite = {};
+    fileWrite.version = 1;
+    fileWrite.WriteBlock = &writeReflowMemory;
+    const FPDF_BOOL saved = FPDF_SaveAsCopy(document, &fileWrite, 0);
+    g_reflowMemoryTarget = nullptr;
+    FPDF_CloseDocument(document);
+
+    if (!saved || writer.data.isEmpty()) {
+        *error = i18n::tr("aipdf::pdf::DocumentReflow", "PDFium 没有写出重排后的 PDF");
+        return {};
+    }
+    return writer.data;
+}
+
+// 门禁用的说明：少了哪一类、少了几个。
+QString describeMissing(PageObjectKind kind, int count) {
+    switch (kind) {
+    case PageObjectKind::Text:
+        return i18n::tr("aipdf::pdf::DocumentReflow", "%1 个文字块").arg(count);
+    case PageObjectKind::Image:
+        return i18n::tr("aipdf::pdf::DocumentReflow", "%1 个图片对象").arg(count);
+    case PageObjectKind::Vector:
+        return i18n::tr("aipdf::pdf::DocumentReflow", "%1 个矢量图形").arg(count);
+    case PageObjectKind::Table:
+        return i18n::tr("aipdf::pdf::DocumentReflow", "%1 个表格").arg(count);
+    default:
+        return i18n::tr("aipdf::pdf::DocumentReflow", "%1 个对象").arg(count);
+    }
+}
+
+// 页眉／页脚按「每页重复」写出去，个数本来就对不上，
+// 所以门禁比的是**文字还在不在**。
+//
+// 比之前先做同样的「标准 14 号字体替换」：页眉里若有 Latin-1 之外的字符，
+// 写出去时会被换成 '?'，不统一口径就会误报「页眉丢了」。
+QStringList missingRunningHeadTexts(const DocumentObjectModel& source,
+                                     const DocumentObjectModel& output, PageObjectKind kind) {
+    QStringList missing;
+    const QStringList candidates = distinctTextsOfKind(output, kind);
+    for (const QString& text : distinctTextsOfKind(source, kind)) {
+        const QString wanted = toLatin1Placeholder(text).trimmed();
+        bool found = false;
+        for (const QString& candidate : candidates) {
+            if (toLatin1Placeholder(candidate).trimmed() == wanted) {
+                found = true;
+                break;
+            }
+        }
+        if (found) continue;
+        missing.append(kind == PageObjectKind::Header
+                           ? i18n::tr("aipdf::pdf::DocumentReflow", "页眉「%1」").arg(wanted)
+                           : i18n::tr("aipdf::pdf::DocumentReflow", "页脚「%1」").arg(wanted));
+    }
+    return missing;
+}
+
+// 条目里是不是已经有同样的文字（页眉去重用）。
+bool containsSameText(const QVector<LayoutItem>& items, const QString& text) {
+    const QString wanted = toLatin1Placeholder(text).trimmed();
+    for (const LayoutItem& item : items) {
+        if (toLatin1Placeholder(item.text).trimmed() == wanted) return true;
+    }
+    return false;
+}
 
 }  // namespace
 
@@ -316,256 +704,383 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
         return result;
     }
 
-    // 源文档页数：能用 qpdf 就数真的，否则退回标签树里出现过的最大页码。
-    int sourcePages = 0;
-#ifdef AIPDF_WITH_QPDF
-    try {
-        sourcePages = countPages(pdfBytes);
-    } catch (const std::exception&) {
-        sourcePages = 0;
-    }
-#endif
-    if (sourcePages <= 0) {
-        for (const StructElement& element : tree.elements) {
-            sourcePages = qMax(sourcePages, element.pageIndex + 1);
-        }
-    }
-    result.report.sourcePageCount = sourcePages;
-
-    // ---- 第二步：挑出正文块 ----
-    QVector<ReflowDropped> dropped;
-    const QVector<Block> blocks = collectBlocks(tree, &dropped);
-    result.report.blockCount = blocks.size();
-    if (blocks.isEmpty()) {
-        result.report.dropped = dropped;
-        result.report.droppedCount = dropped.size();
-        result.report.error = QStringLiteral("标签树里没有可重排的正文（可能只有图片或表格外壳）");
+    // ---- 第二步：读页面对象模型 ----
+    // 这一步给出「原文档里有什么、各多少」，后面写回时的门禁就是拿它对比的。
+    const PageTextBlockIndex blockIndex = buildBlockIndex(tree);
+    QString modelError;
+    const DocumentObjectModel sourceModel = readPageObjectModel(pdfBytes, blockIndex, &modelError);
+    if (!sourceModel.ok()) {
+        result.report.error = modelError;
         return result;
     }
+    result.report.sourcePageCount = sourceModel.pageCount;
+    result.report.sourceCounts = sourceModel.counts;
 
-    // ---- 页面几何 ----
-    const double pageWidth = options.pageWidth;
-    const double pageHeight =
+    // ---- 第三步：页面几何 ----
+    LayoutGeometry geometry;
+    geometry.pageWidth = options.pageWidth;
+    geometry.pageHeight =
         options.pageHeight > 0.0 ? options.pageHeight : options.pageWidth * 1.41421356;
-    const double contentLeft = options.marginLeft;
-    const double contentRight = pageWidth - options.marginRight;
-    const double contentWidth = contentRight - contentLeft;
+    geometry.marginTop = options.marginTop;
+    geometry.marginBottom = options.marginBottom;
+    geometry.contentLeft = options.marginLeft;
+    geometry.contentRight = options.pageWidth - options.marginRight;
+    const double contentWidth = geometry.contentRight - geometry.contentLeft;
     if (contentWidth <= 0.0) {
         result.report.error = QStringLiteral("左右页边距之和已经不小于新页宽，没有可用的排版宽度");
         return result;
     }
-    const double contentBottom = options.marginBottom;
-    const double contentTop = pageHeight - options.marginTop;
-    const double contentHeight = contentTop - contentBottom;
+    geometry.contentBottom = options.marginBottom;
+    geometry.contentTop = geometry.pageHeight - options.marginTop;
+    const double contentHeight = geometry.contentTop - geometry.contentBottom;
     if (contentHeight <= 0.0) {
         result.report.error = QStringLiteral("上下页边距之和已经不小于新页高，没有可用的排版高度");
         return result;
     }
+    geometry.paragraph = options.paragraph;
 
-    // ---- 第三步：逐段排到新页宽上 ----
-    QVector<OutputPage> pages;
-    OutputPage current;
-    double cursor = contentBottom;  // 还能放文字的最低 y（PDF 的 y 向上为正）
-    int reflowed = 0;
-
-    for (const Block& block : blocks) {
-        ParagraphFormat format = options.paragraph;
-        if (block.heading) format.fontFamily = boldFamily(options.paragraph.fontFamily);
-        const double lineHeight = estimatedLineHeight(format);
-        QString remaining = block.text;
-
-        while (!remaining.isEmpty()) {
-            const double available = contentTop - cursor;
-            if (available < lineHeight) {
-                // 这一页放不下了 → 换页。
-                pages.append(current);
-                current = OutputPage();
-                cursor = contentBottom;
-                continue;
+    // ---- 第四步：把条目按阅读顺序排到新页上 ----
+    // 条目来自页面对象模型：正文块、表格、图片与矢量。
+    // 页眉页脚不在正文流里（它们每页重复）。
+    QVector<LayoutItem> items;
+    QVector<LayoutItem> headers;
+    QVector<LayoutItem> footers;
+    for (const PageObject& object : sourceModel.objects) {
+        LayoutItem item;
+        item.kind = object.kind;
+        item.objectId = object.id;
+        item.sourcePage = object.pageIndex;
+        item.sourceBounds = object.bounds;
+        item.text = object.text;
+        item.sourceObjectIndex = object.sourceObjectIndex;
+        item.cells = object.cells;
+        item.rowCount = object.rowCount;
+        item.columnCount = object.columnCount;
+        item.naturalSize = object.naturalSize;
+        item.fontFamily = options.paragraph.fontFamily;
+        if (object.kind == PageObjectKind::Text) {
+            // 标题用粗体：靠标签树里这个块的标签判断。
+            const int key = object.sourceBlockKey;
+            if (key >= 0 && key < blockIndex.blockTags.size()) {
+                item.heading = isHeadingTag(blockIndex.blockTags.at(key));
             }
-            const QRectF box(contentLeft, cursor, contentWidth, available);
-            const ParagraphPlan plan = layoutParagraph(remaining, box, format);
-            if (!plan.ok()) {
-                // 排不进去：如果这一页还很空，是参数问题（宽度不够放一个字）；
-                // 否则是这一页只剩一点空间，换一页就好。
-                if (available >= lineHeight * 2.0) {
-                    ReflowDropped item;
-                    item.tag = block.tag;
-                    item.reason = QStringLiteral("这一段在新页宽下排不进去：%1").arg(plan.error);
-                    item.pageIndex = block.pageIndex;
-                    dropped.append(item);
+            if (item.heading) item.fontFamily = boldFamily(options.paragraph.fontFamily);
+            item.hasUnrepresentableChars = hasUnrepresentableChars(item.text);
+            items.append(item);
+        } else if (object.kind == PageObjectKind::Table ||
+                   object.kind == PageObjectKind::Image ||
+                   object.kind == PageObjectKind::Vector) {
+            items.append(item);
+        } else if (object.kind == PageObjectKind::Header) {
+            // 页眉去重：源文档每页都有一份同样的页眉，
+            // 收集时只留一份（按文字去重），写回时每页放一份。
+            // 不去重的话，两页的文档会在每一页上叠两份同样的页眉。
+            if (!containsSameText(headers, object.text)) headers.append(item);
+        } else if (object.kind == PageObjectKind::Footer) {
+            if (!containsSameText(footers, object.text)) footers.append(item);
+        }
+    }
+    // 阅读顺序：先按页，再按位置（从上往下）。
+    //
+    // 注意用 **bottom()** 排序而不是 top()：本仓库的 PDF user space 是
+    // 左下原点、y 向上为正，QRectF 的 top() 是**小**的 y（页面更下面），
+    // bottom() 才是大的 y（页面更上面）。用 top() 排会把上下关系排反，
+    // 重叠的对象（比如表格边框与表格本身）就会摆错位置。
+    std::sort(items.begin(), items.end(), [](const LayoutItem& left, const LayoutItem& right) {
+        if (left.sourcePage != right.sourcePage) return left.sourcePage < right.sourcePage;
+        if (!qFuzzyCompare(left.sourceBounds.bottom() + 1.0, right.sourceBounds.bottom() + 1.0)) {
+            return left.sourceBounds.bottom() > right.sourceBounds.bottom();
+        }
+        return left.sourceBounds.left() < right.sourceBounds.left();
+    });
+
+    result.report.blockCount = items.size();
+    if (items.isEmpty()) {
+        result.report.error = QStringLiteral("标签树里没有可重排的正文（可能只有图片或表格外壳）");
+        return result;
+    }
+
+    // 排版：逐个条目往上摆。
+    double cursor = geometry.contentBottom;
+    int pageIndex = 0;
+    int reflowed = 0;
+    int degraded = 0;
+    QVector<ReflowDropped> dropped;
+
+    auto startNewPage = [&]() {
+        ++pageIndex;
+        cursor = geometry.contentBottom;
+    };
+
+    for (LayoutItem& item : items) {
+        if (item.kind == PageObjectKind::Text) {
+            // 段落：重新断行。排不下的部分挪到下一页。
+            ParagraphFormat format = options.paragraph;
+            format.fontFamily = item.fontFamily;
+            const double lineHeight = estimatedLineHeight(format);
+            QString remaining = item.text;
+            bool failed = false;
+            while (!remaining.isEmpty()) {
+                const double available = geometry.contentTop - cursor;
+                if (available < lineHeight) {
+                    startNewPage();
+                    continue;
+                }
+                const QRectF box(geometry.contentLeft, cursor, contentWidth, available);
+                const ParagraphPlan plan = layoutParagraph(remaining, box, format);
+                if (!plan.ok() || plan.remainingText == remaining) {
+                    ReflowDropped itemDropped;
+                    itemDropped.tag = QStringLiteral("P");
+                    itemDropped.reason = i18n::tr("aipdf::pdf::DocumentReflow",
+                                                   "这一段在新页宽下排不进去：%1")
+                                              .arg(plan.ok() ? QStringLiteral("一行都排不下")
+                                                             : plan.error);
+                    itemDropped.pageIndex = item.sourcePage;
+                    dropped.append(itemDropped);
+                    failed = true;
                     break;
                 }
-                pages.append(current);
-                current = OutputPage();
-                cursor = contentBottom;
+                LayoutChunk chunk;
+                chunk.pageIndex = pageIndex;
+                chunk.bounds = plan.bounds;
+                chunk.lines = plan.lines;
+                item.chunks.append(chunk);
+                cursor += plan.bounds.height();
+                remaining = plan.remainingText;
+                if (remaining.isEmpty()) {
+                    cursor += options.paragraphSpacing;
+                } else {
+                    startNewPage();
+                }
+            }
+            if (failed) continue;
+            ++reflowed;
+            if (item.hasUnrepresentableChars) ++degraded;
+        } else if (item.kind == PageObjectKind::Table) {
+            // 表格：按行列重建，画边框，再把单元格文字写进去。
+            const int rows = qMax(1, item.rowCount);
+            const int columns = qMax(1, item.columnCount);
+            const double rowHeight = tableRowHeight(options.paragraph);
+            const double tableHeight = rows * rowHeight;
+            if (geometry.contentTop - cursor < tableHeight) {
+                startNewPage();
+            }
+            if (geometry.contentTop - cursor < tableHeight) {
+                ReflowDropped itemDropped;
+                itemDropped.tag = QStringLiteral("Table");
+                itemDropped.reason = i18n::tr("aipdf::pdf::DocumentReflow",
+                                               "这张表在新页宽下放不下一整页，没能搬过去");
+                itemDropped.pageIndex = item.sourcePage;
+                dropped.append(itemDropped);
                 continue;
             }
-            if (plan.remainingText == remaining) {
-                // 一行都没排进去：再循环下去会死循环，如实记成丢弃。
-                ReflowDropped item;
-                item.tag = block.tag;
-                item.reason = QStringLiteral("这一段在新页宽下排不进任何一行");
-                item.pageIndex = block.pageIndex;
-                dropped.append(item);
-                break;
+            // 列宽：按原表格各列的宽度比例分摊新页宽。
+            QVector<double> sourceWidths(columns, 0.0);
+            for (const PageTableCell& cell : item.cells) {
+                if (cell.column < 0 || cell.column >= columns) continue;
+                sourceWidths[cell.column] += cell.bounds.width();
             }
-            current.content += buildParagraphContentStream(plan, QStringLiteral("F1"));
-            current.regions.append(plan.bounds);
-            cursor += plan.bounds.height();
-            remaining = plan.remainingText;
-            if (remaining.isEmpty()) {
-                cursor += options.paragraphSpacing;
-            } else {
-                pages.append(current);
-                current = OutputPage();
-                cursor = contentBottom;
+            double sourceTotal = 0.0;
+            for (const double width : sourceWidths) sourceTotal += width;
+            item.columnWidths = QVector<double>(columns, contentWidth / columns);
+            if (sourceTotal > 0.0) {
+                for (int column = 0; column < columns; ++column) {
+                    item.columnWidths[column] =
+                        contentWidth * sourceWidths.at(column) / sourceTotal;
+                }
             }
-        }
-        ++reflowed;
-    }
-    if (!current.content.isEmpty() || pages.isEmpty()) {
-        pages.append(current);
-    }
-
-    result.report.reflowedBlockCount = reflowed;
-    result.report.outputPageCount = pages.size();
-    result.report.dropped = dropped;
-    result.report.droppedCount = dropped.size();
-    for (const Block& block : blocks) {
-        if (block.hasUnrepresentableChars) ++result.report.degradedBlockCount;
-    }
-    if (result.report.degradedBlockCount > 0) {
-        result.report.notes.append(
-            QStringLiteral("有 %1 段包含标准 14 号字体表示不了的字符，排版时按仓库既有做法写成 '?' 占位符")
-                .arg(result.report.degradedBlockCount));
-    }
-
-#ifndef AIPDF_WITH_QPDF
-    result.report.error = QStringLiteral("本次构建没有启用 qpdf，写不了重排后的 PDF");
-    return result;
-#else
-    // ---- 第四步：写成新 PDF ----
-    try {
-        QPDF pdf;
-        pdf.emptyPDF();
-        QPDFObjectHandle root = pdf.getRoot();
-        QPDFObjectHandle pagesDict = root.getKey("/Pages");
-        if (!pagesDict.isDictionary()) {
-            result.report.error = QStringLiteral("qpdf 建出来的空 PDF 没有页树");
-            return result;
-        }
-        if (!pagesDict.isIndirect()) {
-            // 页树必须是间接对象：每个页的 /Parent 都要指回它。
-            pagesDict = pdf.makeIndirectObject(pagesDict);
-            root.replaceKey("/Pages", pagesDict);
-        }
-
-        QPDFObjectHandle font = QPDFObjectHandle::newDictionary();
-        font.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
-        font.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type1"));
-        font.replaceKey("/BaseFont", QPDFObjectHandle::newName("/Helvetica"));
-        const QPDFObjectHandle fontRef = pdf.makeIndirectObject(font);
-
-        std::vector<QPDFObjectHandle> pageRefs;
-        for (const OutputPage& outputPage : pages) {
-            QPDFObjectHandle contentStream = QPDFObjectHandle::newStream(
-                &pdf, std::string(outputPage.content.constData(),
-                                  static_cast<size_t>(outputPage.content.size())));
-            const QPDFObjectHandle contentRef = pdf.makeIndirectObject(contentStream);
-
-            QPDFObjectHandle fonts = QPDFObjectHandle::newDictionary();
-            fonts.replaceKey("/F1", fontRef);
-            QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
-            resources.replaceKey("/Font", fonts);
-
-            QPDFObjectHandle page = QPDFObjectHandle::newDictionary();
-            page.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
-            page.replaceKey("/Parent", pagesDict);
-            page.replaceKey("/MediaBox",
-                            QPDFObjectHandle::newArray(std::vector<QPDFObjectHandle>{
-                                QPDFObjectHandle::newInteger(0),
-                                QPDFObjectHandle::newInteger(0),
-                                QPDFObjectHandle::newInteger(static_cast<long long>(pageWidth)),
-                                QPDFObjectHandle::newInteger(static_cast<long long>(pageHeight)),
-                            }));
-            page.replaceKey("/Resources", resources);
-            page.replaceKey("/Contents", contentRef);
-            pageRefs.push_back(pdf.makeIndirectObject(page));
-        }
-        pagesDict.replaceKey("/Kids", QPDFObjectHandle::newArray(pageRefs));
-        pagesDict.replaceKey("/Count",
-                             QPDFObjectHandle::newInteger(static_cast<long long>(pageRefs.size())));
-
-        // 文档属性：把源文档的标题与作者抄过来。
-        const QPDFObjectHandle sourceInfo = readInfo(pdfBytes);
-        if (sourceInfo.isDictionary()) {
-            QPDFObjectHandle info = QPDFObjectHandle::newDictionary();
-            const QString title = textOf(sourceInfo.getKey("/Title"));
-            const QString author = textOf(sourceInfo.getKey("/Author"));
-            const QString subject = textOf(sourceInfo.getKey("/Subject"));
-            if (!title.isEmpty()) {
-                info.replaceKey("/Title", QPDFObjectHandle::newUnicodeString(title.toUtf8().constData()));
-            }
-            if (!author.isEmpty()) {
-                info.replaceKey("/Author", QPDFObjectHandle::newUnicodeString(author.toUtf8().constData()));
-            }
-            if (!subject.isEmpty()) {
-                info.replaceKey("/Subject", QPDFObjectHandle::newUnicodeString(subject.toUtf8().constData()));
-            }
-            if (!info.getKeys().empty()) {
-                pdf.getTrailer().replaceKey("/Info", pdf.makeIndirectObject(info));
-            }
-        }
-
-        QPDFWriter writer(pdf);
-        writer.setObjectStreamMode(qpdf_o_disable);
-        writer.setOutputMemory();
-        writer.write();
-        std::unique_ptr<Buffer> buffer(writer.getBuffer());
-        if (!buffer || buffer->getSize() == 0) {
-            result.report.error = QStringLiteral("qpdf 没有写出重排后的 PDF");
-            return result;
-        }
-        QByteArray written(reinterpret_cast<const char*>(buffer->getBuffer()),
-                           static_cast<qsizetype>(buffer->getSize()));
-
-        // ---- 第五步：给新文档重新打标签 ----
-        // 源文档是带标签的，输出也应该是：否则「重排」把可访问性弄丢了。
-        // 打标签失败不致命（结构还在），但要如实写进报告。
-        QVector<QVector<TaggedRegion>> regions;
-        for (const OutputPage& outputPage : pages) {
-            QVector<TaggedRegion> pageRegions;
-            for (int i = 0; i < outputPage.regions.size(); ++i) {
-                TaggedRegion region;
-                region.rect = outputPage.regions.at(i);
-                region.order = i;
-                pageRegions.append(region);
-            }
-            regions.append(pageRegions);
-        }
-        QString tagError;
-        const QByteArray tagged = writeTaggedStructure(written, regions, &tagError);
-        if (!tagError.isEmpty() || tagged.isEmpty()) {
-            result.report.notes.append(QStringLiteral("新文档没能重新打上标签：%1")
-                                           .arg(tagError.isEmpty() ? QStringLiteral("未知原因") : tagError));
+            LayoutChunk chunk;
+            chunk.pageIndex = pageIndex;
+            chunk.bounds = QRectF(geometry.contentLeft, cursor, contentWidth, tableHeight);
+            item.chunks.append(chunk);
+            cursor += tableHeight + options.paragraphSpacing;
         } else {
-            written = tagged;
+            // 图片与矢量：按原尺寸搬过去；放不下就等比缩小到内容宽度。
+            QSizeF size = item.sourceBounds.size();
+            if (item.kind == PageObjectKind::Image && !item.naturalSize.isEmpty()) {
+                // 图片按「原尺寸与 DPI 换算」：像素数除以 DPI 得到物理尺寸。
+                size = item.naturalSize;
+            }
+            if (size.width() > contentWidth && size.width() > 0.0) {
+                size *= contentWidth / size.width();
+            }
+            if (geometry.contentTop - cursor < size.height()) {
+                startNewPage();
+            }
+            if (size.height() > contentHeight && contentHeight > 0.0) {
+                size *= contentHeight / size.height();
+            }
+            if (size.isEmpty()) {
+                ReflowDropped itemDropped;
+                itemDropped.tag = item.kind == PageObjectKind::Image ? QStringLiteral("Figure")
+                                                                      : QStringLiteral("Path");
+                itemDropped.reason =
+                    i18n::tr("aipdf::pdf::DocumentReflow", "这个对象没有尺寸，搬不过去");
+                itemDropped.pageIndex = item.sourcePage;
+                dropped.append(itemDropped);
+                continue;
+            }
+            LayoutChunk chunk;
+            chunk.pageIndex = pageIndex;
+            chunk.bounds = QRectF(geometry.contentLeft, cursor, size.width(), size.height());
+            item.chunks.append(chunk);
+            item.targetSize = size;
+            cursor += size.height() + options.paragraphSpacing;
         }
+    }
 
-        result.bytes = written;
+    const int totalPages = pageIndex + 1;
+    result.report.outputPageCount = totalPages;
+    result.report.reflowedBlockCount = reflowed;
+    result.report.degradedBlockCount = degraded;
+    if (degraded > 0) {
         result.report.notes.append(
-            QStringLiteral("重排后的版面与原文档不同：页数从 %1 页变成 %2 页，图形与表格结构没有保留")
-                .arg(result.report.sourcePageCount)
-                .arg(result.report.outputPageCount));
-        return result;
-    } catch (const std::exception& failure) {
-        result.report.error = QStringLiteral("写出重排后的 PDF 失败：%1")
-                                  .arg(QString::fromUtf8(failure.what()));
+            i18n::tr("aipdf::pdf::DocumentReflow",
+                     "有 %1 段包含标准 14 号字体表示不了的字符，排版时按仓库既有做法写成 '?' 占位符")
+                .arg(degraded));
+    }
+
+    // ---- 第五步：写回（PDFium 就地改页） ----
+    QVector<QVector<TaggedRegion>> regions;
+    QString writeError;
+    QByteArray written = writeReflowedDocument(pdfBytes, items, headers, footers, totalPages,
+                                               geometry, &regions, &writeError);
+    if (written.isEmpty()) {
+        result.report.error = writeError.isEmpty()
+                                  ? i18n::tr("aipdf::pdf::DocumentReflow", "重排结果写不出来")
+                                  : writeError;
         result.bytes.clear();
         return result;
     }
+
+    // ---- 第六步：给新文档重新打标签 ----
+    // 源文档是带标签的，输出也应该是：否则「重排」把可访问性弄丢了。
+    // 打标签失败不致命（结构还在），但要如实写进报告。
+#ifdef AIPDF_WITH_QPDF
+    QString tagError;
+    const QByteArray tagged = writeTaggedStructure(written, regions, &tagError);
+    if (!tagError.isEmpty() || tagged.isEmpty()) {
+        result.report.notes.append(i18n::tr("aipdf::pdf::DocumentReflow", "新文档没能重新打上标签：%1")
+                                       .arg(tagError.isEmpty() ? QStringLiteral("未知原因") : tagError));
+    } else {
+        written = tagged;
+    }
+#else
+    result.report.notes.append(
+        i18n::tr("aipdf::pdf::DocumentReflow", "本次构建没有启用 qpdf，新文档没能重新打上标签"));
 #endif
+
+    result.bytes = written;
+
+    // ---- 第七步：门禁 ----
+    // 把重排结果重新打开、重新统计一遍，和原文档的统计逐类对比。
+    // 少了一类对象就是「有内容没搬过去」——这时**不写回**。
+    QString outputModelError;
+    const DocumentObjectModel outputModel =
+        readPageObjectModel(written, PageTextBlockIndex(), &outputModelError);
+    if (!outputModel.ok()) {
+        result.report.error = i18n::tr("aipdf::pdf::DocumentReflow",
+                                        "重排结果打不开，统计不了页面对象：%1")
+                                  .arg(outputModelError);
+        result.bytes.clear();
+        return result;
+    }
+    result.report.outputCounts = outputModel.counts;
+
+    const QVector<QPair<PageObjectKind, int>> missing =
+        result.report.sourceCounts.missingComparedWith(result.report.outputCounts);
+    QStringList missingParts;
+    for (const auto& entry : missing) {
+        missingParts.append(describeMissing(entry.first, entry.second));
+    }
+    // 页眉页脚不比个数（每页重复会让个数变），比文字。
+    missingParts.append(missingRunningHeadTexts(sourceModel, outputModel, PageObjectKind::Header));
+    missingParts.append(missingRunningHeadTexts(sourceModel, outputModel, PageObjectKind::Footer));
+    if (!missingParts.isEmpty()) {
+        result.report.error = i18n::tr("aipdf::pdf::DocumentReflow", "重排后少了 %1，已阻止写回")
+                                  .arg(missingParts.join(QStringLiteral("、")));
+        result.bytes.clear();
+        return result;
+    }
+
+    // ---- 第八步：锚点计划 ----
+    ReflowPlan& plan = result.report.plan;
+    plan.sourcePageCount = result.report.sourcePageCount;
+    plan.targetPageCount = totalPages;
+    plan.sourceCounts = result.report.sourceCounts;
+    plan.targetCounts = result.report.outputCounts;
+    for (const LayoutItem& item : items) {
+        ReflowAnchor anchor;
+        anchor.objectId = item.objectId;
+        anchor.kind = item.kind;
+        anchor.sourcePage = item.sourcePage;
+        anchor.targetPage = item.targetPage;
+        anchor.sourceBounds = item.sourceBounds;
+        anchor.targetBounds = item.targetBounds;
+        anchor.summary = item.text.left(24);
+        plan.anchors.append(anchor);
+    }
+    for (int index = 0; index < headers.size(); ++index) {
+        const LayoutItem& header = headers.at(index);
+        ReflowAnchor anchor;
+        anchor.objectId = header.objectId;
+        anchor.kind = PageObjectKind::Header;
+        anchor.sourcePage = header.sourcePage;
+        anchor.targetPage = 0;
+        anchor.sourceBounds = header.sourceBounds;
+        anchor.targetBounds = QRectF(geometry.contentLeft,
+                                     geometry.pageHeight - qMax(4.0, geometry.marginTop * 0.45),
+                                     geometry.contentRight - geometry.contentLeft,
+                                     geometry.paragraph.fontSize * 1.2);
+        anchor.summary = header.text.left(24);
+        anchor.repeated = true;
+        plan.anchors.append(anchor);
+    }
+    for (int index = 0; index < footers.size(); ++index) {
+        const LayoutItem& footer = footers.at(index);
+        ReflowAnchor anchor;
+        anchor.objectId = footer.objectId;
+        anchor.kind = PageObjectKind::Footer;
+        anchor.sourcePage = footer.sourcePage;
+        anchor.targetPage = 0;
+        anchor.sourceBounds = footer.sourceBounds;
+        anchor.targetBounds = QRectF(geometry.contentLeft,
+                                     qMax(4.0, geometry.marginBottom * 0.45),
+                                     geometry.contentRight - geometry.contentLeft,
+                                     geometry.paragraph.fontSize * 1.2);
+        anchor.summary = footer.text.left(24);
+        anchor.repeated = true;
+        plan.anchors.append(anchor);
+    }
+
+    // ---- 第九步：报告里如实说明做了什么、有什么限制 ----
+    result.report.notes.append(
+        i18n::tr("aipdf::pdf::DocumentReflow",
+                 "重排后的版面与原文档不同：页数从 %1 页变成 %2 页")
+            .arg(result.report.sourcePageCount)
+            .arg(totalPages));
+    result.report.notes.append(
+        i18n::tr("aipdf::pdf::DocumentReflow",
+                 "图片 %1 个、矢量图形 %2 个、表格 %3 个已按新版面搬过去")
+            .arg(result.report.sourceCounts.images)
+            .arg(result.report.sourceCounts.vectors)
+            .arg(result.report.sourceCounts.tables));
+    if (!headers.isEmpty() || !footers.isEmpty()) {
+        result.report.notes.append(
+            i18n::tr("aipdf::pdf::DocumentReflow", "页眉 %1 处、页脚 %2 处已按每页重复放到每一页")
+                .arg(headers.size())
+                .arg(footers.size()));
+    }
+    result.report.notes.append(
+        i18n::tr("aipdf::pdf::DocumentReflow",
+                 "表格边框是新画的线，矢量图形的计数因此比原文档多"));
+    result.report.notes.append(
+        i18n::tr("aipdf::pdf::DocumentReflow",
+                 "重排不保留书签与内部链接的目标：页码变了，那些指向已经旧了"));
+
+    result.report.dropped = dropped;
+    result.report.droppedCount = dropped.size();
+    return result;
 }
 
 }  // namespace aipdf::pdf

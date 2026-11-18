@@ -3,6 +3,7 @@
 // 这两件事都不依赖识别引擎，所以能先于引擎落地并被守住：
 // 判定错了，扫描页永远不会进索引；坐标错了，引用会高亮到错误的位置。
 #include "ocr/core/OcrGeometry.h"
+#include "ocr/core/OcrTextUtils.h"
 #include "ocr/pipeline/ScannedPageDetector.h"
 
 #include <QRectF>
@@ -24,6 +25,9 @@ private slots:
     void flipsYAxis();
     void unrotatesPageRects_data();
     void unrotatesPageRects();
+    void normalizesFullWidthPunctuation();
+    void joinsOcrWordsWithoutInventingSpaces();
+    void compactsNumericSpacing();
     void clampsToPageBounds();
     void invalidSizesReturnEmpty();
 };
@@ -129,6 +133,39 @@ void OcrTests::unrotatesPageRects() {
              qPrintable(QString::number(mapped.width())));
     QVERIFY2(qAbs(mapped.height() - expected.height()) < 0.01,
              qPrintable(QString::number(mapped.height())));
+}
+
+void OcrTests::normalizesFullWidthPunctuation() {
+    // 全角 ASCII 区整段归一化成半角；中文自己的标点（。、）不动。
+    QCOMPARE(normalizePunctuation(QStringLiteral("No．04123456")), QStringLiteral("No.04123456"));
+    QCOMPARE(normalizePunctuation(QStringLiteral("ＡＢＣ１２３")), QStringLiteral("ABC123"));
+    QCOMPARE(normalizePunctuation(QStringLiteral("中文，句号。")), QStringLiteral("中文,句号。"));
+    QCOMPARE(normalizePunctuation(QStringLiteral("全角\u3000空格")), QStringLiteral("全角 空格"));
+}
+
+void OcrTests::joinsOcrWordsWithoutInventingSpaces() {
+    // 中文按字切开时不能加空格。
+    QCOMPARE(joinWords({QStringLiteral("中"), QStringLiteral("华"), QStringLiteral("人"),
+                        QStringLiteral("民"), QStringLiteral("共"), QStringLiteral("和"),
+                        QStringLiteral("国")}),
+             QStringLiteral("中华人民共和国"));
+    // 英文单词之间的空格要保留。
+    QCOMPARE(joinWords({QStringLiteral("hello"), QStringLiteral("world")}),
+             QStringLiteral("hello world"));
+    // 引擎把一串数字切成多个词：拼回去要能按原文搜到。
+    QCOMPARE(joinWords({QStringLiteral("8"), QStringLiteral("，"), QStringLiteral("640"),
+                        QStringLiteral("．"), QStringLiteral("00")}),
+             QStringLiteral("8,640.00"));
+    QCOMPARE(joinWords({QStringLiteral("No．04123456")}), QStringLiteral("No.04123456"));
+}
+
+void OcrTests::compactsNumericSpacing() {
+    QCOMPARE(compactNumericSpacing(QStringLiteral("1 234 ． 56")), QStringLiteral("1234.56"));
+    QCOMPARE(compactNumericSpacing(QStringLiteral("8 , 640 . 00")), QStringLiteral("8,640.00"));
+    QCOMPARE(compactNumericSpacing(QStringLiteral("1 234 567")), QStringLiteral("1234567"));
+    // 不该合并的：夹汉字、或右侧不是三位。
+    QCOMPARE(compactNumericSpacing(QStringLiteral("2024 年 5 月")), QStringLiteral("2024 年 5 月"));
+    QCOMPARE(compactNumericSpacing(QStringLiteral("2024 5 人")), QStringLiteral("2024 5 人"));
 }
 
 QTEST_MAIN(OcrTests)

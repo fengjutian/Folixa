@@ -29,6 +29,7 @@
 #include <QHash>
 #include <QStringDecoder>
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <mutex>
@@ -2055,6 +2056,125 @@ bool PdfPage::setTextObjectText(int index, const QString& text) {
     return FPDFPage_GenerateContent(impl_->page) != 0;
 }
 
+namespace {
+
+// PDFium 的位图 → QImage。
+//
+// **字节序是这个函数存在的全部理由**：PDFium 给回来的位图是 BGRA
+// （蓝、绿、红、alpha 四个字节依次排），而 QImage 的 32 位格式
+// （Format_ARGB32 / Format_RGB32）存的是 0xAARRGGBB 这样的数值。
+//
+// 直接 memcpy 是不是就对？取决于机器的字节序：小端机上
+// 0xAARRGGBB 在内存里恰好是 B,G,R,A，跟 PDFium 一样；大端机上就反了。
+// 与其让「对不对」取决于运行平台，不如**逐像素显式换一次**：
+// 任何机器上都对，代价只是慢一点（导出图片本来就不是热路径）。
+//
+// 顺带说明：Qt 里**没有** Format_ARGB32_BGRA 这个格式
+// （Format_RGBA8888 的内存顺序才是 R,G,B,A），所以「换个格式包一下」
+// 这条路走不通，只能自己换通道。
+QImage bitmapToImage(FPDF_BITMAP bitmap) {
+    if (bitmap == nullptr) {
+        return QImage();
+    }
+    const int width = FPDFBitmap_GetWidth(bitmap);
+    const int height = FPDFBitmap_GetHeight(bitmap);
+    const int stride = FPDFBitmap_GetStride(bitmap);
+    const auto* buffer = static_cast<const uchar*>(FPDFBitmap_GetBuffer(bitmap));
+    if (width <= 0 || height <= 0 || buffer == nullptr) {
+        return QImage();
+    }
+
+    const int format = FPDFBitmap_GetFormat(bitmap);
+    if (format == FPDFBitmap_Gray) {
+        QImage image(width, height, QImage::Format_Grayscale8);
+        for (int y = 0; y < height; ++y) {
+            std::memcpy(image.scanLine(y), buffer + y * stride, static_cast<size_t>(width));
+        }
+        return image;
+    }
+    if (format == FPDFBitmap_BGR) {
+        // 三个字节：蓝、绿、红。Qt 的 RGB888 是红、绿、蓝 —— 顺序相反，
+        // 直接 memcpy 会把红蓝弄反（实测过：红色会变成蓝色）。
+        QImage image(width, height, QImage::Format_RGB888);
+        for (int y = 0; y < height; ++y) {
+            const uchar* source = buffer + y * stride;
+            uchar* target = image.scanLine(y);
+            for (int x = 0; x < width; ++x) {
+                target[x * 3 + 0] = source[x * 3 + 2];
+                target[x * 3 + 1] = source[x * 3 + 1];
+                target[x * 3 + 2] = source[x * 3 + 0];
+            }
+        }
+        return image;
+    }
+
+    // BGRA / BGRx：四个字节，蓝、绿、红、alpha。
+    QImage image(width, height, QImage::Format_ARGB32);
+    const bool hasAlpha = format == FPDFBitmap_BGRA;
+    for (int y = 0; y < height; ++y) {
+        const uchar* source = buffer + y * stride;
+        auto* target = reinterpret_cast<QRgb*>(image.scanLine(y));
+        for (int x = 0; x < width; ++x) {
+            const uchar blue = source[x * 4 + 0];
+            const uchar green = source[x * 4 + 1];
+            const uchar red = source[x * 4 + 2];
+            // BGRx 的第四个字节是「无用」，不是 alpha：当成 alpha 会整张图全透明。
+            const uchar alpha = hasAlpha ? source[x * 4 + 3] : 255;
+            target[x] = qRgba(red, green, blue, alpha);
+        }
+    }
+    return image;
+}
+
+// 图片的落位矩形（PDF user space）。
+//
+// 顶层对象直接用 FPDFPageObj_GetBounds（图片对象的矩形已经是页面坐标）；
+// Form XObject 里的图片要再乘上 Form 的变换矩阵，否则坐标是 Form 自己
+// 那套坐标系里的，落到页面上会跑偏。
+QRectF imageBounds(FPDF_PAGEOBJECT object, const double transform[6]) {
+    float left = 0.0F;
+    float bottom = 0.0F;
+    float right = 0.0F;
+    float top = 0.0F;
+    if (!FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) {
+        return QRectF();
+    }
+    const auto mapPoint = [transform](double x, double y) {
+        return QPointF(transform[0] * x + transform[2] * y + transform[4],
+                       transform[1] * x + transform[3] * y + transform[5]);
+    };
+    QPolygonF corners;
+    corners << mapPoint(left, bottom) << mapPoint(right, bottom) << mapPoint(right, top)
+            << mapPoint(left, top);
+    return corners.boundingRect();
+}
+
+// 渲染位图的最大面积（平方点）。
+//
+// 渲染位图是按落位尺寸（点）开的，一页最大那么大。整页大图时
+// 再开一块这么大的位图只为看有没有透明，不值当。
+constexpr double kMaxRenderedAreaPoints = 4000000.0;
+
+// 图里有没有「不完全不透明」的像素。
+//
+// 用来判断图片带不带软掩码（soft mask）：带掩码的图片，背景应该是透的。
+bool hasTransparency(const QImage& image) {
+    if (image.isNull() || !image.hasAlphaChannel()) {
+        return false;
+    }
+    for (int y = 0; y < image.height(); ++y) {
+        const QRgb* line = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(line[x]) != 255) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
 bool PdfPage::replaceImageObject(int index, const QImage& image) {
     if (!impl_ || impl_->page == nullptr || image.isNull() || index < 0 ||
         index >= FPDFPage_CountObjects(impl_->page)) return false;
@@ -2084,14 +2204,11 @@ bool PdfPage::cropImageObject(int index, const QRectF& normalizedCrop) {
     if (!object || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_IMAGE) return false;
     FPDF_BITMAP bitmap = FPDFImageObj_GetBitmap(object);
     if (!bitmap) return false;
-    const int width = FPDFBitmap_GetWidth(bitmap);
-    const int height = FPDFBitmap_GetHeight(bitmap);
-    const int stride = FPDFBitmap_GetStride(bitmap);
-    const auto* buffer = static_cast<const uchar*>(FPDFBitmap_GetBuffer(bitmap));
-    QImage source(width, height, QImage::Format_ARGB32);
-    for (int y = 0; y < height; ++y)
-        std::memcpy(source.scanLine(y), buffer + y * stride, static_cast<size_t>(width) * 4);
+    const QImage source = bitmapToImage(bitmap);
     FPDFBitmap_Destroy(bitmap);
+    if (source.isNull()) return false;
+    const int width = source.width();
+    const int height = source.height();
     const QRect pixels(qFloor(crop.left() * width), qFloor(crop.top() * height),
                        qMax(1, qCeil(crop.width() * width)),
                        qMax(1, qCeil(crop.height() * height)));
@@ -2109,6 +2226,155 @@ bool PdfPage::cropImageObject(int index, const QRectF& normalizedCrop) {
         }
     }
     return replaced;
+}
+
+QVector<PdfImage> PdfPage::extractImages(double maxDpi) const {
+    QVector<PdfImage> images;
+    if (!impl_ || !impl_->page) {
+        return images;
+    }
+    const detail::PdfiumGuard guard;
+
+    // 变换矩阵：Form XObject 里的图片要用它换算回页面坐标。
+    struct Matrix {
+        double a = 1.0, b = 0.0, c = 0.0, d = 1.0, e = 0.0, f = 0.0;
+    };
+    const auto compose = [](const Matrix& parent, const FS_MATRIX& local) {
+        return Matrix{parent.a * local.a + parent.c * local.b, parent.b * local.a + parent.d * local.b,
+                      parent.a * local.c + parent.c * local.d, parent.b * local.c + parent.d * local.d,
+                      parent.a * local.e + parent.c * local.f + parent.e,
+                      parent.b * local.e + parent.d * local.f + parent.f};
+    };
+
+    // 把图片对象变成一条 PdfImage。
+    const auto take = [&](FPDF_PAGEOBJECT object, const Matrix& parent) {
+        const double transform[6] = {parent.a, parent.b, parent.c, parent.d, parent.e, parent.f};
+        const QRectF bounds = imageBounds(object, transform);
+        if (bounds.isEmpty()) {
+            return;
+        }
+
+        // 原始位图：**原生分辨率**（不含掩码，也不含矩阵）。
+        FPDF_BITMAP raw = FPDFImageObj_GetBitmap(object);
+        QImage native = raw != nullptr ? bitmapToImage(raw) : QImage();
+        if (raw != nullptr) {
+            FPDFBitmap_Destroy(raw);
+        }
+
+        // 渲染位图：按**落位尺寸**画的（72 DPI），带上了软掩码（soft mask），
+        // 也就是透明度。原生位图不带掩码。
+        //
+        // 它的大小是落位矩形（点），一页最多这么大，所以按面积设个上限：
+        // 超大页面上的整页大图不值得为了透明度再开一块这么大的位图。
+        QImage masked;
+        if (bounds.width() * bounds.height() <= kMaxRenderedAreaPoints) {
+            FPDF_BITMAP rendered =
+                FPDFImageObj_GetRenderedBitmap(impl_->document->handle, impl_->page, object);
+            if (rendered != nullptr) {
+                masked = bitmapToImage(rendered);
+                FPDFBitmap_Destroy(rendered);
+            }
+        }
+
+        // 选哪一份：
+        //   - 原生位图带透明 → 用它（分辨率高）；
+        //   - 只有渲染位图带透明（软掩码）→ 用它（保透明要紧）；
+        //   - 否则用像素多的那份（原生位图分辨率高时用它）。
+        QImage picture;
+        if (native.isNull()) {
+            picture = masked;
+        } else if (hasTransparency(masked) && !hasTransparency(native)) {
+            picture = masked;
+        } else if (masked.isNull()) {
+            picture = native;
+        } else {
+            picture = native.width() * native.height() >= masked.width() * masked.height() ? native
+                                                                                           : masked;
+        }
+        if (picture.isNull()) {
+            return;
+        }
+
+        // DPI 上限：按落位尺寸算出这张图的实际分辨率，超了就等比缩小。
+        //
+        // 为什么要有上限：600 DPI 的扫描图按原样塞进包里，一个包就能到
+        // 几百 MB（ZIP 又是 store 不压缩）。150 DPI 已经足够屏幕上看清。
+        if (maxDpi > 0.0 && bounds.width() > 0.0 && bounds.height() > 0.0) {
+            const double dpiX = picture.width() * 72.0 / bounds.width();
+            const double dpiY = picture.height() * 72.0 / bounds.height();
+            const double dpi = qMax(dpiX, dpiY);
+            if (dpi > maxDpi) {
+                const double factor = maxDpi / dpi;
+                const QSize target(qMax(1, qRound(picture.width() * factor)),
+                                   qMax(1, qRound(picture.height() * factor)));
+                picture = picture.scaled(target, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+        }
+
+        QByteArray encoded;
+        QBuffer buffer(&encoded);
+        if (!buffer.open(QIODevice::WriteOnly)) {
+            return;
+        }
+        // PNG：无损、对 alpha 友好，而且 Qt 写出来的 PNG 不带时间戳，
+        // 同样的输入永远得到同样的字节（导出结果可复现）。
+        if (!picture.save(&buffer, "PNG")) {
+            return;
+        }
+        buffer.close();
+        if (encoded.isEmpty()) {
+            return;
+        }
+
+        PdfImage image;
+        image.pageIndex = impl_->index;
+        image.bounds = bounds;
+        image.bytes = encoded;
+        image.mimeType = QStringLiteral("image/png");
+        image.pixelWidth = picture.width();
+        image.pixelHeight = picture.height();
+        images.append(image);
+    };
+
+    // 递归：顶层对象 + Form XObject 里嵌套的对象。
+    std::function<void(FPDF_PAGEOBJECT, const Matrix&)> visit;
+    visit = [&](FPDF_PAGEOBJECT object, const Matrix& parent) {
+        if (object == nullptr) {
+            return;
+        }
+        const int type = FPDFPageObj_GetType(object);
+        if (type == FPDF_PAGEOBJ_IMAGE) {
+            take(object, parent);
+            return;
+        }
+        if (type != FPDF_PAGEOBJ_FORM) {
+            return;
+        }
+        FS_MATRIX local{};
+        if (!FPDFPageObj_GetMatrix(object, &local)) {
+            local = FS_MATRIX{1, 0, 0, 1, 0, 0};
+        }
+        const Matrix childParent = compose(parent, local);
+        const int childCount = FPDFFormObj_CountObjects(object);
+        for (int child = 0; child < childCount; ++child) {
+            visit(FPDFFormObj_GetObject(object, static_cast<unsigned long>(child)), childParent);
+        }
+    };
+
+    const Matrix identity;
+    const int count = FPDFPage_CountObjects(impl_->page);
+    for (int index = 0; index < count; ++index) {
+        visit(FPDFPage_GetObject(impl_->page, index), identity);
+    }
+
+    // 按页面上的位置排序（从上到下）：导出时要按这个顺序把图片放进包里。
+    std::sort(images.begin(), images.end(), [](const PdfImage& left, const PdfImage& right) {
+        if (left.bounds.top() != right.bounds.top()) {
+            return left.bounds.top() > right.bounds.top();
+        }
+        return left.bounds.left() < right.bounds.left();
+    });
+    return images;
 }
 
 bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
@@ -2134,14 +2400,10 @@ bool PdfPage::setObjectOpacity(const QVector<int>& indexes, double opacity) {
             }
             FPDF_BITMAP bitmap = FPDFImageObj_GetBitmap(object);
             if (!bitmap) continue;
-            const int width = FPDFBitmap_GetWidth(bitmap);
-            const int height = FPDFBitmap_GetHeight(bitmap);
-            const int stride = FPDFBitmap_GetStride(bitmap);
-            const auto* buffer = static_cast<const uchar*>(FPDFBitmap_GetBuffer(bitmap));
-            QImage image(width, height, QImage::Format_ARGB32);
-            for (int y = 0; y < height; ++y)
-                std::memcpy(image.scanLine(y), buffer + y * stride, static_cast<size_t>(width) * 4);
+            QImage image = bitmapToImage(bitmap);
             FPDFBitmap_Destroy(bitmap);
+            if (image.isNull()) continue;
+            image = image.convertToFormat(QImage::Format_ARGB32);
             if (opacityMark) {
                 unsigned long sourceSize = 0;
                 if (FPDFPageObjMark_GetParamBlobValue(opacityMark, "source", nullptr, 0, &sourceSize) &&

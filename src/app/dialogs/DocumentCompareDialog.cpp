@@ -36,6 +36,84 @@ QString kindName(pdf::DiffKind kind) {
     return i18n::tr("aipdf::app::DocumentCompareDialog", "差异");
 }
 
+// 版面差异种类 → 中文名。
+//
+// 为什么单独一套：版面差异说的是「这一块被挪到哪」「这张表少了一列」，
+// 与文字差异的「这段文字变了」不是一回事，混用名字用户分不清。
+QString layoutKindName(pdf::LayoutDiffKind kind) {
+    switch (kind) {
+        case pdf::LayoutDiffKind::BlockInserted:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "新增块");
+        case pdf::LayoutDiffKind::BlockDeleted:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "删除块");
+        case pdf::LayoutDiffKind::BlockMoved:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "移动");
+        case pdf::LayoutDiffKind::ImageReplaced:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "换图");
+        case pdf::LayoutDiffKind::TextRewritten:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "文字改写");
+        case pdf::LayoutDiffKind::TableRowsChanged:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格行变化");
+        case pdf::LayoutDiffKind::TableColumnsChanged:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格列变化");
+        case pdf::LayoutDiffKind::TableCellRewritten:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格单元格改写");
+    }
+    return i18n::tr("aipdf::app::DocumentCompareDialog", "版面差异");
+}
+
+// 版面块的矩形 → "(x, y, 宽, 高)"。
+//
+// 坐标是 PDF user space（左下原点、未应用 /Rotate）；界面上只做展示，
+// 真要跳过去高亮时得由视图层换算，不能拿这里的字符串直接当显示坐标用。
+QString layoutBoundsText(const QRectF& rect) {
+    if (rect.isEmpty()) {
+        return QString();
+    }
+    return QStringLiteral("(%1, %2, %3, %4)")
+        .arg(QString::number(rect.x(), 'f', 0))
+        .arg(QString::number(rect.y(), 'f', 0))
+        .arg(QString::number(rect.width(), 'f', 0))
+        .arg(QString::number(rect.height(), 'f', 0));
+}
+
+// 一条版面差异的说明文字：说清「哪一块、挪到哪、哪张表少了几列」。
+QString layoutDetailText(const pdf::LayoutDifference& difference) {
+    switch (difference.kind) {
+        case pdf::LayoutDiffKind::BlockMoved:
+            return i18n::tr("aipdf::app::DocumentCompareDialog",
+                            "块 %1 从页 %2 %3 移到页 %4 %5")
+                .arg(difference.oldBlockIndex + 1)
+                .arg(difference.oldPageIndex + 1)
+                .arg(layoutBoundsText(difference.oldBounds))
+                .arg(difference.newPageIndex + 1)
+                .arg(layoutBoundsText(difference.newBounds));
+        case pdf::LayoutDiffKind::BlockDeleted:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "块 %1 已删除")
+                .arg(difference.oldBlockIndex + 1);
+        case pdf::LayoutDiffKind::BlockInserted:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "块 %1 为新增块")
+                .arg(difference.newBlockIndex + 1);
+        case pdf::LayoutDiffKind::ImageReplaced:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "此位置的图片已被替换");
+        case pdf::LayoutDiffKind::TextRewritten:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "此块文字已改写");
+        case pdf::LayoutDiffKind::TableRowsChanged:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格行数由 %1 变为 %2")
+                .arg(difference.oldRowCount)
+                .arg(difference.newRowCount);
+        case pdf::LayoutDiffKind::TableColumnsChanged:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格列数由 %1 变为 %2")
+                .arg(difference.oldColumnCount)
+                .arg(difference.newColumnCount);
+        case pdf::LayoutDiffKind::TableCellRewritten:
+            return i18n::tr("aipdf::app::DocumentCompareDialog", "表格第 %1 行第 %2 列已改写")
+                .arg(difference.rowIndex + 1)
+                .arg(difference.columnIndex + 1);
+    }
+    return QString();
+}
+
 }  // namespace
 
 DocumentCompareDialog::DocumentCompareDialog(QWidget* parent) : QDialog(parent) {
@@ -185,13 +263,36 @@ void DocumentCompareDialog::buildUi() {
         });
     });
 
+    // 版面差异第三张表：回答「哪一块被挪到哪」「哪张表少了一列」。
+    layoutTable_ = new QTableWidget(this);
+    layoutTable_->setObjectName(QStringLiteral("compare.layoutTable"));
+    layoutTable_->setColumnCount(5);
+    layoutTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layoutTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layoutTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    layoutTable_->verticalHeader()->setVisible(false);
+    layoutTable_->horizontalHeader()->setStretchLastSection(true);
+    texts_.bind([this] {
+        layoutTable_->setHorizontalHeaderLabels({
+            i18n::tr("aipdf::app::DocumentCompareDialog", "类型"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "页码"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "原文"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "新文"),
+            i18n::tr("aipdf::app::DocumentCompareDialog", "说明"),
+        });
+    });
+    connect(layoutTable_, &QTableWidget::cellActivated, this,
+            &DocumentCompareDialog::onLayoutTableActivated);
+
     tabs_ = new QTabWidget(this);
     tabs_->setObjectName(QStringLiteral("compare.tabs"));
     tabs_->addTab(table_, QString());
     tabs_->addTab(visualTable_, QString());
+    tabs_->addTab(layoutTable_, QString());
     texts_.bind([this] {
         tabs_->setTabText(0, i18n::tr("aipdf::app::DocumentCompareDialog", "文字差异"));
         tabs_->setTabText(1, i18n::tr("aipdf::app::DocumentCompareDialog", "视觉差异（图形）"));
+        tabs_->setTabText(2, i18n::tr("aipdf::app::DocumentCompareDialog", "版面差异"));
     });
     layout->addWidget(tabs_, 1);
 
@@ -245,6 +346,12 @@ pdf::DocumentCompareOptions DocumentCompareDialog::options() const {
 bool DocumentCompareDialog::runComparison() {
     if (table_ != nullptr) {
         table_->setRowCount(0);
+    }
+    if (visualTable_ != nullptr) {
+        visualTable_->setRowCount(0);
+    }
+    if (layoutTable_ != nullptr) {
+        layoutTable_->setRowCount(0);
     }
     lastResult_ = pdf::DocumentCompareResult();
     lastError_.clear();
@@ -324,6 +431,23 @@ bool DocumentCompareDialog::runComparison() {
             visualTable_->setItem(row, 1, new QTableWidgetItem(ratio));
             visualTable_->setItem(row, 2, new QTableWidgetItem(area));
             visualTable_->setItem(row, 3, new QTableWidgetItem(note));
+        }
+    }
+
+    // 版面差异：每条都带源与目标的页码与矩形，双击能跳过去。
+    if (layoutTable_ != nullptr) {
+        const QVector<pdf::LayoutDifference>& layoutDifferences = lastResult_.layoutDiff.differences;
+        layoutTable_->setRowCount(layoutDifferences.size());
+        for (int row = 0; row < layoutDifferences.size(); ++row) {
+            const pdf::LayoutDifference& difference = layoutDifferences.at(row);
+            const int page = difference.newPageIndex >= 0 ? difference.newPageIndex : difference.oldPageIndex;
+            const QString pageText =
+                i18n::tr("aipdf::app::DocumentCompareDialog", "第 %1 页").arg(page + 1);
+            layoutTable_->setItem(row, 0, new QTableWidgetItem(layoutKindName(difference.kind)));
+            layoutTable_->setItem(row, 1, new QTableWidgetItem(pageText));
+            layoutTable_->setItem(row, 2, new QTableWidgetItem(difference.oldText));
+            layoutTable_->setItem(row, 3, new QTableWidgetItem(difference.newText));
+            layoutTable_->setItem(row, 4, new QTableWidgetItem(layoutDetailText(difference)));
         }
     }
 
@@ -479,6 +603,27 @@ void DocumentCompareDialog::updateSummary() {
         }
     }
 
+    // 版面差异另起一句：它回答的是「哪一块挪到哪」，与文字差异、像素差异
+    // 都不是一回事，混进同一句里会看不清。
+    if (!lastResult_.layoutDiff.error.isEmpty()) {
+        text += QStringLiteral(" ");
+        text += i18n::tr("aipdf::app::DocumentCompareDialog", "版面差异：%1")
+                    .arg(lastResult_.layoutDiff.error);
+    } else if (!lastResult_.layoutDiff.differences.isEmpty()) {
+        text += QStringLiteral(" ");
+        text += i18n::tr("aipdf::app::DocumentCompareDialog",
+                         "版面差异：共 %1 处（移动 %2 处、换图 %3 处、"
+                         "表格结构变化 %4 处、块新增 %5 处、块删除 %6 处）。")
+                    .arg(lastResult_.layoutDiff.differences.size())
+                    .arg(lastResult_.layoutDiff.movedBlockCount)
+                    .arg(lastResult_.layoutDiff.imageReplacedCount)
+                    .arg(lastResult_.layoutDiff.tableRowChangeCount
+                         + lastResult_.layoutDiff.tableColumnChangeCount
+                         + lastResult_.layoutDiff.tableCellChangeCount)
+                    .arg(lastResult_.layoutDiff.insertedBlockCount)
+                    .arg(lastResult_.layoutDiff.deletedBlockCount);
+    }
+
     summary_->setText(text);
 }
 
@@ -495,6 +640,37 @@ void DocumentCompareDialog::activateDifference(int row) {
     const int page = displayPageOf(*difference);
     const QString snippet = difference->newText.isEmpty() ? difference->oldText : difference->newText;
     emit navigateToPage(page, snippet);
+}
+
+const pdf::LayoutDifference* DocumentCompareDialog::layoutDifferenceAt(int row) const {
+    if (row < 0 || row >= lastResult_.layoutDiff.differences.size()) {
+        return nullptr;
+    }
+    return &lastResult_.layoutDiff.differences.at(row);
+}
+
+int DocumentCompareDialog::layoutDifferenceRowCount() const {
+    return lastResult_.layoutDiff.differences.size();
+}
+
+QString DocumentCompareDialog::layoutAnalysisError() const {
+    return lastResult_.layoutDiff.error;
+}
+
+void DocumentCompareDialog::onLayoutTableActivated(int row, int column) {
+    Q_UNUSED(column);
+    activateLayoutDifference(row);
+}
+
+void DocumentCompareDialog::activateLayoutDifference(int row) {
+    const pdf::LayoutDifference* difference = layoutDifferenceAt(row);
+    if (difference == nullptr) {
+        return;
+    }
+    const int page = difference->newPageIndex >= 0 ? difference->newPageIndex : difference->oldPageIndex;
+    const QRectF bounds = difference->newBounds.isEmpty() ? difference->oldBounds : difference->newBounds;
+    const QString snippet = difference->newText.isEmpty() ? difference->oldText : difference->newText;
+    emit navigateToBlock(page, bounds, snippet);
 }
 
 int DocumentCompareDialog::displayPageOf(const pdf::CompareDifference& difference) {

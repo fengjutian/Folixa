@@ -3,8 +3,57 @@
 #include <QByteArray>
 #include <QSet>
 #include <QString>
+#include <QVector>
 
 namespace aipdf::pdf {
+
+// 一份字体的竖排度量（vhea / vmtx）。
+//
+// 为什么要有它：竖排不是「把横排的字转 90 度」，而是每个字在自己的字身框里
+// 站好。字身框的高度（竖排 advance）来自字体的 vmtx 表；没有这张表，
+// 排版就只能拿横排宽度凑合，标点与全角字的框宽就会错。
+//
+// 单位一律是**字体单位**（font units）；要换算成 PDF 的 1/1000 em，
+// 用 1000 / unitsPerEm。
+struct TrueTypeVerticalMetrics {
+    // 字体里到底有没有竖排度量：vhea 与 vmtx 都在、且能读出竖排 advance 才为真。
+    //
+    // **没有就是没有**：这个字段为假时，调用方应当退回「竖排默认宽度」，
+    // 不许拿横排宽度冒充，也不许编一个数出来。
+    bool hasVerticalMetrics = false;
+    // head 表里的 unitsPerEm。
+    int unitsPerEm = 0;
+    // vhea 的 ascender / descender（descender 是负数）。
+    int ascent = 0;
+    int descent = 0;
+    // vhea 的 lineGap。
+    int lineGap = 0;
+    // vhea 的 numberOfVMetrics：vmtx 里单独记录了多少个字形的竖排度量。
+    int numberOfVMetrics = 0;
+    // 字体里的字形总数（与 maxp 一致）。
+    int glyphCount = 0;
+    // 每个字形的竖排 advance（字体单位）。
+    //
+    // vmtx 里没有单独记录的字形沿用最后一条记录的 advance（TrueType 规范如此），
+    // 所以这里给的是**展开后**的完整表，调用方按字形号直接查。
+    QVector<int> advanceHeights;
+    // 失败原因（中文）。成功时为空。
+    QString error;
+
+    // 某个字形的竖排 advance（字体单位）。字形号越界时返回 0。
+    int advanceHeightForGlyph(int gid) const {
+        if (gid < 0 || gid >= advanceHeights.size()) {
+            return 0;
+        }
+        return advanceHeights.at(gid);
+    }
+};
+
+// 读一份 TrueType 字体的竖排度量（vhea / vmtx）。
+//
+// 字体里没有 vhea / vmtx 时返回的 hasVerticalMetrics 为假，error 里写明原因；
+// **不编数**：调用方据此退回默认宽度。
+TrueTypeVerticalMetrics readTrueTypeVerticalMetrics(const QByteArray& fontBytes);
 
 // 一份 TrueType 字体子集化之后的结果。
 struct TrueTypeSubsetResult {

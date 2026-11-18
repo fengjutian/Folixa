@@ -25,6 +25,31 @@ struct PdfOpenResult;
 
 enum class PageObjectType { Unknown, Text, Path, Image, Shading, Form };
 
+// 一页里的一张图片（已经编码好的字节）。
+//
+// 为什么在 pdf 层就把图片编码掉：导出层（doc 层）要的是**纯字节**，
+// 让它去解 PNG / JPEG 会把编解码器拖进领域层；反过来 pdf 层保留 QImage
+// 又会让「读一个 PDF」这件事凭空多出一份内存占用。所以约定是：
+// pdf 层负责「取出 + 编码」，doc 层只搬字节。
+struct PdfImage {
+    // 所属页的序号（0 起）。
+    int pageIndex = -1;
+    // 图片在页面上的**落位矩形**（PDF user space，左下原点）。
+    //
+    // 这与 extractText() 的字符框是同一个坐标系：不含页面 /Rotate，
+    // 也不含用户旋转。要和渲染图像对齐，上层得自己做旋转变换。
+    //
+    // 显示尺寸看这个矩形；像素尺寸只决定清晰度，**两者不是一回事**。
+    QRectF bounds;
+    // 已经编码好的图片字节（PNG）。
+    QByteArray bytes;
+    // 字节的 MIME 类型："image/png"。
+    QString mimeType;
+    // 像素尺寸（解码后位图的宽高）。
+    int pixelWidth = 0;
+    int pixelHeight = 0;
+};
+
 struct PageObjectInfo {
     int index = -1;
     PageObjectType type = PageObjectType::Unknown;
@@ -145,6 +170,18 @@ public:
     // 缺 ToUnicode 的字体会导致 unicodeMapError 为真，
     // 此时仍然会给出能映射到 Unicode 的那些字符。
     std::optional<TextPage> extractText() const;
+
+    // 提取本页的图片（顶层的图片对象，以及 Form XObject 里嵌套的图片）。
+    //
+    // 为什么要递归 Form XObject：模板页、盖章页里的图片常常画在 Form 里，
+    // 只枚举顶层对象会漏掉它们（导出的文档就会「少图」）。
+    //
+    // maxDpi 是**重采样上限**：图片的原始分辨率高于它时按比例缩小。
+    // 上限的意义是体积——600 DPI 的扫描图直接塞进包里，一个包就能到几百 MB。
+    // 传 0 或负数表示不限制（不推荐）。
+    //
+    // 返回的图片按页面上的位置排序（从上到下）；每张图的字节是 PNG。
+    QVector<PdfImage> extractImages(double maxDpi = 150.0) const;
 
     // 页面的 MediaBox（PDF user space，左下原点）。
     MediaBox mediaBox() const;

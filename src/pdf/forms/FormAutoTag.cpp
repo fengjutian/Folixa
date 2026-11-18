@@ -119,7 +119,35 @@ struct FormFieldInfo {
     QString type;                       // 字段类型（/FT，含继承）
     int pageIndex = -1;                 // 所在页（0 基）；-1 表示没找到
     QVector<QPDFObjectHandle> widgets;  // 这个域的 widget 注解
+    // 阅读顺序用的位置：页面上从上到下、从左到右念。
+    //
+    // 为什么自己算而不是用 widget 的 /Rect：/Rect 的两个 y 值是「下边、上边」
+    // （PDF 坐标，y 越大越靠上），跟界面上的「上边」不是一个东西。
+    // 这里统一成「readingTop 越大越靠上、readingLeft 越小越靠左」。
+    double readingTop = 0.0;
+    double readingLeft = 0.0;
+    bool hasPosition = false;  // 拿不到位置时，排在同页有位置的域后面
 };
+
+// widget 注解在页面上的位置（读屏顺序按它排）。
+//
+// 拿不到 /Rect 就返回 false：这时只能按收集顺序排，不能编一个位置出来。
+bool readingPositionOfWidget(const QPDFObjectHandle& widget, double* top, double* left) {
+    const QPDFObjectHandle rect = widget.getKey("/Rect");
+    if (!rect.isArray()) return false;
+    const std::vector<QPDFObjectHandle> items = rect.getArrayAsVector();
+    if (items.size() != 4) return false;
+    double values[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 4; ++i) {
+        if (!items.at(static_cast<size_t>(i)).isNumber()) return false;
+        values[i] = items.at(static_cast<size_t>(i)).getNumericValue();
+    }
+    // /Rect 是 [左 下 右 上]：下边与上边哪个大不一定（有些文件写反了），
+    // 所以取两个 y 的较大值当「上边」，取两个 x 的较小值当「左边」。
+    *top = std::max(values[1], values[3]);
+    *left = std::min(values[0], values[2]);
+    return true;
+}
 
 // 从 AcroForm 的字段树里收集终端域。
 //
@@ -384,6 +412,65 @@ void collectNumberTree(const QPDFObjectHandle& node, int depth, QSet<int>* visit
     }
 }
 
+// 在文档元素下面找「管着这一页」的 /Part 元素。
+//
+// 为什么按 /Pg 认页：/Part 元素自己写 /Pg，指的是它管的那些页。
+// 不写 /Pg 的 /Part 认不出页（页只能从父元素继承，而父元素是文档元素，
+// 文档元素本身没有 /Pg）——那种 /Part 不能当成这一页的部件。
+//
+// 找的是整棵子树：不只看文档元素的直接子节点。用户自己排好的树里，
+// /Part 可能在章节下面；找到了就复用，不再另建一个。
+QPDFObjectHandle findPartElement(const QPDFObjectHandle& parent, const QPDFObjectHandle& page,
+                                 int depth, QSet<int>* visited) {
+    if (!parent.isDictionary() || depth > kMaxTreeDepth) return QPDFObjectHandle();
+    if (parent.isIndirect()) {
+        const int id = parent.getObjectID();
+        if (visited->contains(id)) return QPDFObjectHandle();
+        visited->insert(id);
+    }
+    for (const QPDFObjectHandle& kid : kidList(parent.getKey("/K"))) {
+        if (!kid.isDictionary()) continue;
+        if (nameValue(kid, "/S") == "Part") {
+            const QPDFObjectHandle pg = kid.getKey("/Pg");
+            if (pg.isDictionary() && sameObject(pg, page)) return kid;
+        }
+        const QPDFObjectHandle found = findPartElement(kid, page, depth + 1, visited);
+        if (found.isDictionary()) return found;
+    }
+    return QPDFObjectHandle();
+}
+
+// 新建一个 /Part 元素，挂到文档元素下面。
+//
+// 为什么 /Form 要挂在 /Part 下面而不是平铺在 /Document 下面：
+// PDF/UA-1 的结构树是「文档 → 部件 → 页面内容」三层（§7.2、§7.3）。
+// 表单域属于它所在的那一页，所以它该挂在那一页的 /Part 里；
+// 平铺在 /Document 下，读屏软件就分不清这个域属于哪一页。
+QPDFObjectHandle createPartElement(QPDF& pdf, const QPDFObjectHandle& documentElement,
+                                    const QPDFObjectHandle& page) {
+    QPDFObjectHandle part = QPDFObjectHandle::newDictionary();
+    part.replaceKey("/Type", QPDFObjectHandle::newName("/StructElem"));
+    part.replaceKey("/S", QPDFObjectHandle::newName("/Part"));
+    part.replaceKey("/Pg", page);
+    part.replaceKey("/P", documentElement);
+    part = pdf.makeIndirectObject(part);
+
+    std::vector<QPDFObjectHandle> kids;
+    for (const QPDFObjectHandle& kid : kidList(documentElement.getKey("/K"))) kids.push_back(kid);
+    kids.push_back(part);
+    documentElement.replaceKey("/K", QPDFObjectHandle::newArray(kids));
+    return part;
+}
+
+// 把结构元素挂到某个父元素的 /K 末尾（父元素已有的子节点原样保留）。
+void appendChild(QPDFObjectHandle parent, const QVector<QPDFObjectHandle>& children) {
+    if (children.isEmpty()) return;
+    std::vector<QPDFObjectHandle> kids;
+    for (const QPDFObjectHandle& kid : kidList(parent.getKey("/K"))) kids.push_back(kid);
+    for (const QPDFObjectHandle& child : children) kids.push_back(child);
+    parent.replaceKey("/K", QPDFObjectHandle::newArray(kids));
+}
+
 // 数一数结构树里的 /Form 元素（写完重开校验时用）。
 int countFormElements(const QPDFObjectHandle& parent, int depth, QSet<int>* visited) {
     if (!parent.isDictionary() || depth > kMaxTreeDepth) return 0;
@@ -521,6 +608,36 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
             }
         }
 
+        // 阅读顺序：先按页，再按页面上从上到下、从左到右。
+        //
+        // 为什么要在这一步排：读屏软件按结构树里的次序念，
+        // 域的次序必须跟人眼睛扫过去的次序一致，否则填表的人会填错行。
+        // 域在 AcroForm 里的次序是**表单定义**的次序，跟页面上的位置没关系。
+        for (FormFieldInfo& field : fields) {
+            for (const QPDFObjectHandle& widget : field.widgets) {
+                double top = 0.0;
+                double left = 0.0;
+                if (!readingPositionOfWidget(widget, &top, &left)) continue;
+                field.readingTop = top;
+                field.readingLeft = left;
+                field.hasPosition = true;
+                break;
+            }
+        }
+        std::stable_sort(fields.begin(), fields.end(), [](const FormFieldInfo& left,
+                                                         const FormFieldInfo& right) {
+            if (left.pageIndex != right.pageIndex) return left.pageIndex < right.pageIndex;
+            // 找不到页的域排在最后：它们挂不到任何一页的 /Part 下面。
+            if (left.pageIndex < 0) return false;
+            if (right.pageIndex < 0) return true;
+            if (left.hasPosition != right.hasPosition) return left.hasPosition;
+            if (!left.hasPosition) return false;
+            if (std::abs(left.readingTop - right.readingTop) > 0.5) {
+                return left.readingTop > right.readingTop;  // y 越大越靠上
+            }
+            return left.readingLeft < right.readingLeft;
+        });
+
         // ---- 2. 准备标签树（合并语义）----
         //
         // 文档本来就有标签树 → 合并：树里原有的其它结构元素（/P、/H1、/Span 等）
@@ -612,8 +729,33 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
             root.replaceKey("/K", QPDFObjectHandle::newArray(rootKids));
         }
 
-        // ---- 3. 每个域写一个 /Form 元素 ----
+        // ---- 3. 每个域写一个 /Form 元素，挂到它所在那一页的 /Part 下面 ----
+        //
+        // 先给「有表单域的页」准备 /Part：有的复用（用户自己排好的），
+        // 有的新建（文档本来没有这一层的）。
+        QMap<int, QPDFObjectHandle> partOfPage;
+        int createdPartCount = 0;
+        {
+            QVector<int> pagesWithFields;
+            for (const FormFieldInfo& field : fields) {
+                if (field.pageIndex < 0 || field.pageIndex >= static_cast<int>(pages.size())) continue;
+                if (!pagesWithFields.contains(field.pageIndex)) pagesWithFields.append(field.pageIndex);
+            }
+            for (int pageIndex : pagesWithFields) {
+                const QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
+                QSet<int> findVisited;
+                QPDFObjectHandle part = findPartElement(documentElement, page, 0, &findVisited);
+                if (!part.isDictionary()) {
+                    part = createPartElement(pdf, documentElement, page);
+                    ++createdPartCount;
+                }
+                partOfPage.insert(pageIndex, part);
+            }
+        }
+
         std::vector<QPDFObjectHandle> formRefs;
+        // 页序号 → 这一页的 /Form 元素（按阅读顺序）。
+        QMap<int, QVector<QPDFObjectHandle>> formsByPage;
         struct Pending {
             int pageIndex = -1;
             QPDFObjectHandle widget;
@@ -655,10 +797,16 @@ FormAutoTagResult autoTagFormFields(const QByteArray& pdfBytes) {
             std::vector<QPDFObjectHandle> widgetRefs;
             for (const QPDFObjectHandle& widget : field.widgets) widgetRefs.push_back(widget);
             element.replaceKey("/K", QPDFObjectHandle::newArray(widgetRefs));
-            element.replaceKey("/P", documentElement);
+
+            // 挂在所属页的 /Part 下面（PDF/UA-1 §7.3：部件元素装着它管的页的内容）。
+            // 找不到所在页的域退回到文档元素下面——它不属于任何一页，
+            // 但结构树上还得有个落脚点，不能凭空消失。
+            const QPDFObjectHandle parent = partOfPage.value(field.pageIndex);
+            element.replaceKey("/P", parent.isDictionary() ? parent : documentElement);
 
             const QPDFObjectHandle elementRef = pdf.makeIndirectObject(element);
             formRefs.push_back(elementRef);
+            if (parent.isDictionary()) formsByPage[field.pageIndex].append(elementRef);
             for (const QPDFObjectHandle& widget : field.widgets) {
                 pending.append({field.pageIndex, widget, elementRef});
             }

@@ -16,6 +16,8 @@ constexpr quint32 kTagGlyf = 0x676C7966;  // 'glyf'
 constexpr quint32 kTagHhea = 0x68686561;  // 'hhea'
 constexpr quint32 kTagHmtx = 0x686D7478;  // 'hmtx'
 constexpr quint32 kTagCmap = 0x636D6170;  // 'cmap'
+constexpr quint32 kTagVhea = 0x76686561;  // 'vhea'
+constexpr quint32 kTagVmtx = 0x766D7478;  // 'vmtx'
 constexpr quint32 kTagSfnt = 0x00010000;  // TrueType 1.0
 constexpr quint32 kTagTrue = 0x74727565;  // 'true'
 constexpr quint32 kTagTtc = 0x74746366;   // 'ttcf'
@@ -263,6 +265,87 @@ QByteArray writeFontFile(quint32 version, const QVector<QPair<quint32, QByteArra
 
 }  // namespace
 
+// 读一份字体的竖排度量（vhea / vmtx）。
+//
+// 表结构（TrueType 规范）：
+//   * vhea 与 hhea 一样是 36 字节的定长表，字段顺序也一致：
+//     版本(2+2) / ascender(4) / descender(6) / lineGap(8) / …
+//     / metricDataFormat(32) / numberOfVMetrics(34)。
+//   * vmtx：前 numberOfVMetrics 个字形各占 4 字节（advanceHeight uint16 +
+//     topSideBearing int16）；剩下的字形只留 advanceHeight，
+//     **沿用最后一条记录的 advance**（规范如此），尾部的 int16 数组是 topSideBearing。
+//
+// 竖排 advance 是「字身框的高度」，不是横排宽度：中文竖排里一个字占满一个 em，
+// 标点与全角字的框高一致，所以竖排 advance 基本都是 1 em。
+TrueTypeVerticalMetrics readTrueTypeVerticalMetrics(const QByteArray& fontBytes) {
+    TrueTypeVerticalMetrics result;
+
+    FontFile font;
+    QString error;
+    if (!parseFontFile(fontBytes, &font, &error)) {
+        result.error = error;
+        return result;
+    }
+
+    const TableRecord* head = font.find(kTagHead);
+    const TableRecord* maxp = font.find(kTagMaxp);
+    const TableRecord* vhea = font.find(kTagVhea);
+    const TableRecord* vmtx = font.find(kTagVmtx);
+    if (vhea == nullptr || vmtx == nullptr) {
+        result.error = QStringLiteral("该字体没有竖排度量：缺少 vhea / vmtx 表");
+        return result;
+    }
+    if (head == nullptr || head->length < 54) {
+        result.error = QStringLiteral("字体资源无效：head 表不完整，读不出 unitsPerEm");
+        return result;
+    }
+    if (vhea->length < 36) {
+        result.error = QStringLiteral("字体资源无效：vhea 表太短，读不出竖排度量");
+        return result;
+    }
+
+    result.unitsPerEm = readU16(fontBytes, head->offset + 18);
+    if (result.unitsPerEm <= 0) {
+        result.unitsPerEm = 1000;
+    }
+    result.ascent = readS16(fontBytes, vhea->offset + 4);
+    result.descent = readS16(fontBytes, vhea->offset + 6);
+    result.lineGap = readS16(fontBytes, vhea->offset + 8);
+    result.numberOfVMetrics = readU16(fontBytes, vhea->offset + 34);
+
+    if (maxp != nullptr && maxp->length >= 6) {
+        result.glyphCount = readU16(fontBytes, maxp->offset + 4);
+    }
+    if (result.glyphCount <= 0) {
+        result.error = QStringLiteral("字体资源无效：maxp 表里没有字形数");
+        return result;
+    }
+    if (result.numberOfVMetrics <= 0 || result.numberOfVMetrics > result.glyphCount) {
+        result.error = QStringLiteral("字体资源无效：vhea 里的 numberOfVMetrics 非法");
+        return result;
+    }
+    if (vmtx->length < result.numberOfVMetrics * 4) {
+        result.error = QStringLiteral("字体资源无效：vmtx 表太短，放不下竖排度量");
+        return result;
+    }
+
+    // 前 numberOfVMetrics 个字形各自有 advanceHeight；其余沿用最后一条。
+    QVector<int> heights(result.glyphCount, 0);
+    int lastAdvance = 0;
+    for (int gid = 0; gid < result.numberOfVMetrics; ++gid) {
+        const int advance = readU16(fontBytes, vmtx->offset + gid * 4);
+        heights[gid] = advance;
+        lastAdvance = advance;
+    }
+    for (int gid = result.numberOfVMetrics; gid < result.glyphCount; ++gid) {
+        heights[gid] = lastAdvance;
+    }
+
+    result.advanceHeights = heights;
+    result.hasVerticalMetrics = true;
+    return result;
+}
+
 TrueTypeSubsetResult subsetTrueTypeFont(const QByteArray& fontBytes, const QSet<int>& usedGids) {
     TrueTypeSubsetResult result;
     result.originalBytes = fontBytes.size();
@@ -378,6 +461,9 @@ TrueTypeSubsetResult subsetTrueTypeFont(const QByteArray& fontBytes, const QSet<
     }
 
     // 其余表原样搬过去。
+    //
+    // vhea / vmtx 也在其中：子集化**不改动字形号**（没用的字形留成空壳），
+    // 所以 vmtx 里按字形号记的竖排 advance 依然对得上，不必重写。
     QVector<QPair<quint32, QByteArray>> tables;
     for (const TableRecord& record : font.tables) {
         if (record.tag == kTagGlyf || record.tag == kTagLoca || record.tag == kTagHead) {

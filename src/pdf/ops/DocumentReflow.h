@@ -6,6 +6,8 @@
 #include <QVector>
 
 #include "pdf/content/ParagraphFormat.h"
+#include "pdf/content/ReflowPlan.h"
+#include "pdf/kernel/PageObjectModel.h"
 
 namespace aipdf::pdf {
 
@@ -13,25 +15,28 @@ namespace aipdf::pdf {
 // 这个模块做什么、不做什么
 // ============================================================================
 //
-// 做：把**带结构标签**的 PDF 的正文，按一个新的页宽重新排一遍，产出一份新的 PDF。
+// 做：把**带结构标签**的 PDF 按一个新的页宽重新排一遍，产出一份新的 PDF。
 //     流程是：
 //       1. 用 pdf::readStructTree 读出既有的标签树与各结构元素的文字；
-//       2. 按结构元素的语义挑出正文段落；
-//       3. 用 pdf::layoutParagraph 把每段排到新的页宽上；
-//       4. 用 pdf::buildParagraphContentStream 生成内容流，写进新 PDF 的新页里。
+//       2. 用 pdf::readPageObjectModel 把每一页的对象结构化读出来
+//          （文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚），并给出稳定身份；
+//       3. 按新页宽排版：正文重新断行，表格按行列重建，
+//          图片与矢量按原尺寸搬过去，页眉页脚每页重复；
+//       4. 用 PDFium 就地改页写进新文档，产出新的 PDF 字节。
 //
 // 不做——这是**取舍**，不是缺陷：
-//   * **不保留原版式**。重排后页数会变，图形与表格的位置会变，
-//     页眉页脚不会搬过来。这不是「保留版式的重排」，而是
-//     「把正文按新页宽重新排一遍」。界面上必须把这句话讲清楚，
-//     否则用户会以为版面没变。
-//   * **不搬图形、表格结构、公式**。这些在标签树里是 Figure、Table
-//     之类的元素，报告里会逐个列出「没有重排」。
+//   * **不保留原版式**。重排后页数会变，图形与表格的位置会变。
+//     界面上必须把这句话讲清楚，否则用户会以为版面没变。
+//   * **不保留批注、书签与内部链接的目标**。页码变了，那些指向就旧了；
+//     报告里会写明这一点，不假装它还在。
 //   * **不处理无标签的文档**。扫描件、纯排版文档没有标签树，
 //     就没有可靠依据判断哪些是正文、哪些是页眉页脚、哪些该属于同一段。
 //     这类文档**直接拒绝**并写明原因，不用启发式硬凑一个看着像的版面。
 //
-// 报告里如实给出「丢了哪些内容」：丢了几个、丢的是什么、为什么丢。
+// **门禁**：写回之前会把重排结果重新打开、重新统计一遍，
+// 和原文档的统计逐类对比。少了一类对象（文字块 / 图片 / 矢量 / 表格），
+// 就**不写回**，并在 report.error 里写明少了什么。
+// 门禁在领域层（这个函数里），界面那条路径同样被它拦住。
 
 // 重排参数。
 struct ReflowOptions {
@@ -73,7 +78,7 @@ struct ReflowReport {
     int sourcePageCount = 0;
     // 新文档的页数。
     int outputPageCount = 0;
-    // 从标签树里识别到的正文块（段落）总数。
+    // 参与重排的正文块（段落）总数。
     int blockCount = 0;
     // 实际排进新 PDF 的段落数。
     int reflowedBlockCount = 0;
@@ -85,6 +90,12 @@ struct ReflowReport {
     //
     // 这不是「丢掉」，但也不能装作没发生：排出来的字比原文少。
     int degradedBlockCount = 0;
+    // 重排**前**的页面对象计数。
+    PageObjectCounts sourceCounts;
+    // 重排**后**的页面对象计数（门禁就是拿它和 sourceCounts 对比的）。
+    PageObjectCounts outputCounts;
+    // 锚点计划：源对象 → 目标页号与目标矩形。
+    ReflowPlan plan;
     // 中文说明（做了什么、有什么限制）。
     QStringList notes;
     // 失败原因（中文）。为空表示成功。
@@ -114,9 +125,12 @@ struct DocumentReflowResult {
 //     并在 error 里写明「没有标签树」这个事实与后果；
 //   * 新页宽不大于 0；
 //   * 页边距把可用宽度或可用高度吃光了；
-//   * 标签树里一个字的正文都没有。
+//   * 标签树里一个字的正文都没有；
+//   * **门禁没过**：重排后的对象计数比原文档少（文字块 / 图片 / 矢量 / 表格），
+//     说明有内容没搬过去。这种情况下**不写回**，error 里写明少了什么。
 //
-// 成功时 bytes 是新的 PDF，report 给出重排了多少段、丢了哪些内容。
+// 成功时 bytes 是新的 PDF，report 给出重排了多少段、搬走了多少对象、
+// 少了什么（少了就是门禁拦住了，不会出现在成功结果里）。
 DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const ReflowOptions& options);
 
 }  // namespace aipdf::pdf

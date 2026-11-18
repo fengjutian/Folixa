@@ -1755,6 +1755,18 @@ void PdfView::goToPage(int index) {
     history_.record(captureViewState());
 }
 
+void PdfView::goToBlock(int pageIndex, const QRectF& userRect) {
+    if (pageIndex < 0 || pageIndex >= document_.pageCount()) {
+        return;
+    }
+    goToPage(pageIndex);
+    if (userRect.isEmpty()) {
+        return;
+    }
+    // 选中原型里的对象：用户跳过去一眼就能看到「说的是这一块」。
+    editObjectsInRect(pageIndex, userRect);
+}
+
 app::ViewState PdfView::captureViewState() const {
     ViewState state;
     state.pageIndex = currentPage();

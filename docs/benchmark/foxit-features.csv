@@ -1,4 +1,4 @@
-tab,group,command,status,capability,note
+﻿tab,group,command,status,capability,note
 文件,文件操作,打开,aligned,—,命令行/拖放/最近文档
 文件,文件操作,创建,aligned,E7,新建空白文档：选纸张（标准/自定义）、方向与页数，落盘后按既有打开流程载入；Ribbon「文件 → 新建」；`doc::BlankDocument`，`BlankDocumentTests`
 文件,文件操作,属性,aligned,—,读 PDF 的 /Info 并可改写回；有专项单测
@@ -156,7 +156,7 @@ tab,group,command,status,capability,note
 视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider：**内置 DeepSeek / Kimi / Qwen / MiniMax 与本机 Ollama**（OpenAI 兼容；预设表 `ai::ProviderPreset` 是唯一来源）；本机模型不需要密钥、且在「本地模式」下照常可用；`ProviderPresetTests` 14 条 + `OllamaProviderTests` 2 条
 视图,朗读,朗读,aligned,J4,逐词朗读并逐词高亮；朗读设置可调音色 / 语速 / 音量；依赖系统语音合成，长文逐词合成较慢；`speech::SpeechSettings`，`SpeechEngineTests`
-视图,比较,比较,partial,L7,文档比较已实现，两层结果并排给：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ 可选的像素级视觉比对（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关）：渲染成位图逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；默认关闭（渲染慢）；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`DocumentCompareOptions::autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（结果里的 `alignmentMode` / `alignmentNote` 会说清用的哪种）；**仍不做版面结构分析**（不比较版面块级 / 表格级结构差异，只到文字块与像素层）；`DocumentComparerTests` 26 条
+视图,比较,比较,aligned,L7,文档比较已实现，三层结果并排给：① 文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）；② 版面块级比对（`pdf::compareDocumentLayout`）：逐页抽出版面块（文字段落 / 图片 / 表格 / 图形），按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，给出块级归因——哪一块从哪页哪处挪到了哪页哪处、哪张图被换掉、哪张表少了几列或多了几行；跨页移动也能归因（页级相似度跌破门槛时会在未配对的页之间再配一次）；③ 可选的像素级视觉比对（`comparePixels`，默认关，渲染慢）：逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（`alignmentMode` / `alignmentNote`）；界面新增「版面差异」页签，双击跳页并选中那一块（新文里的页跳不过去时会明说，因为当前打开的是原文）；扫描件没有文字层时不做版面分析并写明原因；批注与表单域由 PDFium 画在内容层之外，版面块枚举看不到，它们的增删由像素通路负责；`DocumentComparerTests` 28 条 + `LayoutDiffTests` 14 条。
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
 表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页

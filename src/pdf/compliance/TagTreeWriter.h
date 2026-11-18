@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QPointF>
 #include <QRectF>
 #include <QString>
 #include <QVector>
@@ -63,5 +64,163 @@ QByteArray writeTaggedStructure(const QByteArray& pdfBytes,
 // 「树里的顺序」与「MCID 顺序」是否一致（一致时就是 0,1,2,…）。
 // 没有标签树时返回空列表。
 QVector<QVector<int>> readTaggedOrder(const QByteArray& pdfBytes, QString* error = nullptr);
+
+// ---------------------------------------------------------------------------
+// 语义标签树与行级标签树共用的那部分：扫描、分配 MCID、写标记内容、建
+// /ParentTree。下面这些类型与函数是**共用件**，两个写手都走它。
+// ---------------------------------------------------------------------------
+
+// 内容流里扫描出来的一个文本显示操作符（Tj / TJ / ' / "）。
+struct ScannedTextRun {
+    // 基线起点与终点（PDF user space，左下原点）。
+    QPointF origin;
+    QPointF end;
+    // 基线的 y 坐标。
+    double baseline = 0.0;
+    // 字号（用来判断行高、是不是标题）。
+    double fontSize = 0.0;
+    // 显示出来的文字（按字体的编码还原；还原不出来时为空）。
+    QString text;
+    // 字体名里带 Bold / Black / Heavy 之类（粗体启发式）。
+    bool bold = false;
+    // 属于本页的第几条内容流。
+    int streamIndex = 0;
+    // 内容流里的先后次序（稳定排序用）。
+    int streamOrder = 0;
+};
+
+// 扫描出来的一行文字（按基线聚类得到）。
+struct ScannedTextLine {
+    // 行框（PDF user space）。y 是**下边**（PDF 的 y 向上为正）。
+    QRectF bounds;
+    // 这一行里最大的字号。
+    double fontSize = 0.0;
+    // 这一行是不是粗体。
+    bool bold = false;
+    // 这一行显示出来的文字（按显示次序拼起来）。
+    QString text;
+    // 这一行包含的文本运行下标（ScannedPage::runs 的下标）。
+    QVector<int> runIndices;
+};
+
+// 扫描出来的一处图像（内容流里用 Do 画出来的图像 XObject）。
+struct ScannedImage {
+    // 图像在页面上的位置（PDF user space）。
+    QRectF bounds;
+    // 页资源字典里的资源名（例如 /Im1）。
+    QString name;
+    // 图像 XObject 在文件里的对象号（写 /OBJR 时用；-1 表示没有）。
+    int objectId = -1;
+    int generation = 0;
+};
+
+// 一页的扫描结果。
+struct ScannedPage {
+    // 全部文本显示操作符（按内容流里的次序）。
+    QVector<ScannedTextRun> runs;
+    // 按基线聚出来的行（从上到下）。
+    QVector<ScannedTextLine> lines;
+    // 画出来的图像。
+    QVector<ScannedImage> images;
+};
+
+// 整份文档的扫描结果。
+struct ScannedDocument {
+    QVector<ScannedPage> pages;
+    int pageCount() const { return pages.size(); }
+};
+
+// 扫一份 PDF 的内容流（**只读**，不改文件）。
+//
+// 扫出来的东西：每一页的文本显示操作符（带位置、字号、文字）、
+// 按基线聚成的行、以及画出来的图像。
+// 行级标签树按「区域」归类，语义标签树按「行 / 图 / 域」归类——
+// 两边都要先有这份扫描结果，所以扫描放在共用件里。
+bool scanDocumentContent(const QByteArray& pdfBytes, ScannedDocument* out, QString* error = nullptr);
+
+// 一个对象（表单域的 widget 注解、页面上的图像 XObject）在文件里的位置。
+//
+// 为什么用对象号而不是 qpdf 的对象句柄：共用写手拿到的是纯数据计划，
+// qpdf 的对象由写手自己按对象号找回来——纯数据计划才能被测试读懂、被打印。
+struct ObjectRef {
+    // 所在页（0 基）。
+    int pageIndex = -1;
+    // 对象在文件里的对象号（间接对象）。
+    int objectId = -1;
+    // 世代号。
+    int generation = 0;
+};
+
+// 写标签树时的一个结构元素（纯数据描述）。
+struct StructElementPlan {
+    // 结构类型名（不带斜杠），例如 "Part"、"H1"。
+    QString type;
+    // /T（给人看的名字）。
+    QString title;
+    // /Alt（替代文本）。
+    QString alt;
+    // /ActualText（实际文字）。
+    QString actualText;
+    // /Lang（元素自身的语言）。
+    QString language;
+    // 所属页（0 基）；-1 表示不限定。
+    int pageIndex = -1;
+    // 继承父元素的页（不写 /Pg）：true 表示这一层不写 /Pg，由父元素决定。
+    bool inheritPage = false;
+    // 这个元素的内容来自哪些「块」（块下标 = 页内块序号）。
+    QVector<int> blockIndices;
+    // 这个元素的内容是这些注解（表单域的 widget），不是 MCID。
+    QVector<ObjectRef> annotations;
+    // 这个元素的内容是页面上的图像对象（/K 写成 /OBJR 引用）。
+    QVector<ObjectRef> objectRefs;
+    // 表头格的适用范围（/Scope）："Column" / "Row" / "Both"。空表示不写。
+    QString scope;
+    // 子元素在 StructWritePlan::elements 里的下标。
+    QVector<int> childIndices;
+    // 父元素在 StructWritePlan::elements 里的下标；-1 表示顶层。
+    int parentIndex = -1;
+};
+
+// 一次写标签树的完整计划。
+struct StructWritePlan {
+    // 结构元素。习惯上 elements[0] 是根（/Document）。
+    QVector<StructElementPlan> elements;
+    // 根元素在 elements 里的下标。
+    int rootIndex = 0;
+    // 每页的「块 → 文本运行下标」。
+    //
+    // 「块」是调用方自己的编号：行级标签树里是「区域」，
+    // 语义标签树里是「段落 / 表格 / 图 / 域」。
+    // 一个块可以跨多个文本运行；一个文本运行只属于一个块。
+    QVector<QVector<QVector<int>>> pageBlockRuns;
+    // 页的 /StructParents 键。留空就按页序从 0 连续分配。
+    QVector<int> pageStructParentKeys;
+    // 文档级补充（PDF/UA 需要的那些）。
+    QString documentLanguage;      // /Lang
+    QString documentTitle;         // /Info /Title
+    bool displayDocTitle = false;  // /DisplayDocTitle
+    bool writeTabsStructureOrder = false;  // 给每页写 /Tabs /S
+    QByteArray xmpMetadata;        // /Metadata（XMP）
+};
+
+// 按计划写标签树。
+//
+// 这就是那个**唯一的写手**：标记内容、MCID 分配、/ParentTree、结构树本身
+// 都在这里做，行级标签树与语义标签树都走它——不写两套。
+//
+// 做的四件事：
+//   * 每一页的内容流里，块里的每个文本显示操作符被包进
+//     `/Tag <</MCID n>> BDC … EMC`，n 按视觉顺序从 0 连续发号；
+//   * 计划里的每个结构元素写成 /StructElem：/S 是类型，/T /Alt /ActualText
+//     /Lang 按计划写，/K 是它的块的 MCID（表单域则是 widget 注解）；
+//   * /ParentTree 按页建：键是页的 /StructParents，值是那一页的数组，
+//     数组下标是 MCID（表单域的 widget 接在 MCID 之后）；
+//   * catalog 写 /StructTreeRoot 与 /MarkInfo，按需要写 /Lang /DisplayDocTitle
+//     /Metadata，/Info 写 /Title，页上按需要写 /Tabs /S。
+//
+// 写完会重新打开校验一次（结构有问题、有警告都算失败）。
+// 失败返回空 QByteArray，并通过 error 给出中文原因。
+QByteArray writeStructPlan(const QByteArray& pdfBytes, const StructWritePlan& plan,
+                           QString* error = nullptr);
 
 }  // namespace aipdf::pdf

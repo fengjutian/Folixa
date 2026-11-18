@@ -6,8 +6,17 @@
 #include <QTextLayout>
 #include <QTextOption>
 
+#include <cmath>
+
 namespace aipdf::pdf {
 namespace {
+
+// 竖排的默认字身框高度（1/1000 em）：字体没有竖排度量时的兜底。
+//
+// 为什么是 1 em：中文竖排里一个字占满一个 em 见方的字身框，
+// 这是排版惯例，不是编出来的数——真正的竖排度量仍然来自字体的 vmtx。
+constexpr double kVerticalDefaultWidth = 1000.0;
+
 QFont fontFor(const TextStyle& style) {
     QFont f(style.family);
     f.setPointSizeF(style.fontSize);
@@ -64,23 +73,52 @@ ReflowResult TextReflow::layoutParagraph(const QString& text, const QRectF& box,
     const QFontMetricsF metrics(fontFor(style));
     const double step = qMax(metrics.height(), style.fontSize * style.lineHeight);
     if (style.vertical) {
-        double x = box.right() - metrics.ascent();
-        double y = box.top() + metrics.ascent();
+        // 竖排：列自右向左、列内自上向下。
+        //
+        // 步进用**竖排度量**（字身框高度），不是横排宽度：
+        // 横排宽度说的是「这个字有多宽」，竖排里占的是「这个字身框有多高」，
+        // 拿横排宽度当步距，标点与全角字的竖列就会忽长忽短。
+        //
+        // 字体没有竖排度量时按竖排默认宽度（1 em）走，并如实标出降级 ——
+        // 不拿横排宽度冒充竖排宽度。
+        const bool hasVerticalMetrics = style.hasVerticalMetrics;
+        const double verticalWidthEm =
+            (hasVerticalMetrics && style.verticalDefaultWidth > 0.0)
+                ? style.verticalDefaultWidth
+                : kVerticalDefaultWidth;
+        const double glyphStep = verticalWidthEm / 1000.0 * style.fontSize;
+        const double ascent =
+            (hasVerticalMetrics && style.verticalAscent > 0.0)
+                ? style.verticalAscent / 1000.0 * style.fontSize
+                : metrics.ascent();
+        const double descent =
+            (hasVerticalMetrics && style.verticalDescent != 0.0)
+                ? std::abs(style.verticalDescent) / 1000.0 * style.fontSize
+                : std::abs(metrics.descent());
+        result.verticalMetricsDegraded = !hasVerticalMetrics;
+        double x = box.right() - ascent;
+        double y = box.top() + ascent;
         qsizetype sourceOffset = 0;
         for (const QString& grapheme : graphemes(text)) {
-            if (grapheme.trimmed().isEmpty()) continue;
-            if (y + metrics.descent() > box.bottom()) {
-                y = box.top() + metrics.ascent();
+            if (grapheme.trimmed().isEmpty()) {
+                // 空白不画，但**必须推进 sourceOffset**：
+                // 不推进的话，后面每个字对应的源串位置都会错位，
+                // consumedLength 也会少算这一段（linked frame 接着排就会接错地方）。
+                sourceOffset += grapheme.size();
+                continue;
+            }
+            if (y + descent > box.bottom()) {
+                y = box.top() + ascent;
                 x -= step;
             }
-            if (x - metrics.descent() < box.left()) {
+            if (x - descent < box.left()) {
                 result.overflow = true;
                 break;
             }
             result.lines.append({grapheme, QPointF(x, y), metrics.horizontalAdvance(grapheme),
                                  sourceOffset, grapheme.size()});
             sourceOffset += grapheme.size();
-            y += step;
+            y += glyphStep;
         }
         result.consumedLength = sourceOffset;
         result.remainingText = text.mid(sourceOffset);

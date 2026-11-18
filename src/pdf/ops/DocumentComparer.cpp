@@ -740,60 +740,18 @@ int kindOrder(DiffKind kind) {
 // 一页一页画出来再逐像素比，几百页的文档能跑上好几分钟。
 constexpr int kDefaultMaxPixelComparedPages = 200;
 
-// 「像素坐标 → PDF user space」的换算表。
+// 「像素坐标 → PDF user space」的换算表在 LayoutBlocks.h 里。
 //
-// 为什么自己算：PdfPage::render 出来的图是**应用过页面 /Rotate 之后**的，
+// 为什么共用一份：PdfPage::render 出来的图是**应用过页面 /Rotate 之后**的，
 // 而差异包围盒要报在未旋转的用户空间里（和文字块框、MediaBox 同一坐标系）。
-// 两者之间差一个旋转，不换算就会把差异框报在页面的错误位置。
-struct PixelToUserMap {
-    // 页面的有效盒子（PDF user space，左下原点）：PDFium 渲染的就是它。
-    MediaBox box;
-    // 页面自带的 /Rotate（顺时针度数）：0 / 90 / 180 / 270。
-    int rotation = 0;
-    // 一个用户空间单位对应多少像素（沿用户空间的 x / y 轴）。
-    double pixelsPerUnitX = 1.0;
-    double pixelsPerUnitY = 1.0;
-};
-
-// 图像上的一个点（像素坐标，左上原点）换算回 PDF user space。
-QPointF pixelToUser(const PixelToUserMap& map, double px, double py) {
-    const MediaBox& box = map.box;
-    switch (map.rotation) {
-        case 90:
-            // 顺时针转了 90°：用户空间的 y 变成图像的 x，用户空间的 x 变成图像的 y。
-            return {box.left + py / map.pixelsPerUnitX,
-                    box.bottom + px / map.pixelsPerUnitY};
-        case 180:
-            return {box.right - px / map.pixelsPerUnitX,
-                    box.bottom + py / map.pixelsPerUnitY};
-        case 270:
-            return {box.right - py / map.pixelsPerUnitX,
-                    box.top - px / map.pixelsPerUnitY};
-        case 0:
-        default:
-            return {box.left + px / map.pixelsPerUnitX,
-                    box.top - py / map.pixelsPerUnitY};
-    }
-}
-
-// 图像上的一个矩形换算回 PDF user space 的矩形。
-//
-// 差异像素的包围盒用的是「最后一个不同像素」的下标（闭区间），
-// 所以右边界与下边界要 +1 像素才是真正的外沿。
-QRectF rectToUserSpace(const PixelToUserMap& map, const QRect& rect) {
-    if (rect.isNull()) {
-        return {};
-    }
-    const QPointF topLeft = pixelToUser(map, rect.left(), rect.top());
-    const QPointF bottomRight = pixelToUser(map, rect.right() + 1.0, rect.bottom() + 1.0);
-    return QRectF(topLeft, bottomRight).normalized();
-}
+// 两处各写一份换算，迟早会有一处算错——
+// 版面块的高亮框与像素差异框对不上时，用户根本不知道该信哪个。
 
 // 渲染一页，并准备好像素 → 用户空间的换算表。
 bool renderForPixelCompare(const PdfPage& page,
                             double zoom,
                             QImage* image,
-                            PixelToUserMap* map,
+                            PagePixelMap* map,
                             QString* reason) {
     const QImage rendered = page.render(zoom);
     if (rendered.isNull()) {
@@ -805,15 +763,8 @@ bool renderForPixelCompare(const PdfPage& page,
         *reason = QStringLiteral("page has an empty content box");
         return false;
     }
-    map->box = box;
-    map->rotation = page.rotationDegrees();
-    if (map->rotation == 90 || map->rotation == 270) {
-        // 页面转了 90°/270°：图像的宽对应用户空间的「高」，反之亦然。
-        map->pixelsPerUnitX = static_cast<double>(rendered.height()) / box.width();
-        map->pixelsPerUnitY = static_cast<double>(rendered.width()) / box.height();
-    } else {
-        map->pixelsPerUnitX = static_cast<double>(rendered.width()) / box.width();
-        map->pixelsPerUnitY = static_cast<double>(rendered.height()) / box.height();
+    if (!buildPagePixelMap(page, rendered, map, reason)) {
+        return false;
     }
     *image = rendered;
     return true;
@@ -966,8 +917,8 @@ void comparePagesByPixels(const QByteArray& oldBytes,
 
         QImage oldImage;
         QImage newImage;
-        PixelToUserMap oldMap;
-        PixelToUserMap newMap;
+        PagePixelMap oldMap;
+        PagePixelMap newMap;
         QString oldReason;
         QString newReason;
         const bool oldRendered =
@@ -999,8 +950,8 @@ void comparePagesByPixels(const QByteArray& oldBytes,
         visual.differingPixelCount = diff.differingPixels;
         visual.sizeMismatch = diff.sizeMismatch;
         if (diff.differingPixels > 0) {
-            visual.oldBounds = rectToUserSpace(oldMap, diff.differingRect);
-            visual.newBounds = rectToUserSpace(newMap, diff.differingRect);
+            visual.oldBounds = pixelRectToUserSpace(oldMap, diff.differingRect);
+            visual.newBounds = pixelRectToUserSpace(newMap, diff.differingRect);
         }
 
         ratioSum += visual.differenceRatio;
@@ -1310,6 +1261,27 @@ bool compareDocuments(const QByteArray& oldBytes,
     // 放在文字层之后：它要用刚算出来的配对关系。
     if (options.comparePixels) {
         comparePagesByPixels(oldBytes, newBytes, options, pagePairs, result);
+    }
+
+    // 版面结构差异（块级归因）。
+    //
+    // 为什么放在最后：它自己会重新打开两份文档，与前面的文字层、
+    // 像素比对互不依赖。
+    //
+    // 为什么失败不算整次比较失败：版面分析失败只说明「这一条通路没给出结论」，
+    // 文字层与像素比对的结论仍然有效。失败原因写进 layoutDiff.error，
+    // 界面可以单独提示，不必把整次比较判死。
+    if (options.compareLayout) {
+        LayoutDiffOptions layoutOptions;
+        layoutOptions.maxBlocksPerPage = maxBlocks;
+        QString layoutError;
+        if (!compareDocumentLayout(oldBytes, newBytes, layoutOptions,
+                                   &result->layoutDiff, &layoutError)) {
+            result->layoutDiff.analyzed = false;
+            if (result->layoutDiff.error.isEmpty()) {
+                result->layoutDiff.error = layoutError;
+            }
+        }
     }
 
     // 整体相似度：配对上的页与块按相似度加权，除以两边的块数。

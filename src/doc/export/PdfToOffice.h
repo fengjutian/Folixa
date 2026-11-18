@@ -50,12 +50,19 @@ struct PptxExportResult {
     QByteArray bytes;
     // 幻灯片张数（一页 PDF 至少一张；文字太多的页会拆成「（续）」）。
     int slideCount = 0;
+    // 导出了几张图片（幻灯片里的 <p:pic> 个数）。
+    int imageCount = 0;
+    // 认出几个表格（幻灯片里的 <a:tbl> 个数）。
+    int tableCount = 0;
     // 失败原因（中文）。成功时为空。
     QString error;
 };
 
 // 把 PDF 导成演示文稿：一页一张幻灯片，标题是「第 N 页」，正文是这一页的文字。
 // 一页文字太多时拆成多张（第 N 页（续）），**不丢字**。
+//
+// 图片按页面上的纵向位置分散到对应的幻灯片上（一页多图时按位置分），
+// 表格写成真正的表格对象（<a:tbl>）。
 PptxExportResult exportPdfToPptx(const QByteArray& pdfBytes);
 
 // PDF → Word（.docx）：**整篇**。
@@ -65,11 +72,18 @@ struct WordExportResult {
     QByteArray bytes;
     // 导出了几页。
     int pageCount = 0;
+    // 导出了几张图片（正文里 <w:drawing> 的个数）。
+    int imageCount = 0;
+    // 认出几个表格（正文里 <w:tbl> 的个数）。
+    int tableCount = 0;
     // 失败原因（中文）。成功时为空。
     QString error;
 };
 
 // 把整篇 PDF 导成 Word 文档（页与页之间插分页符）。
+//
+// 图片是包里的独立部件（word/media/imageN.png），由正文里的 <w:drawing>
+// 引用；表格写成真正的表格对象（<w:tbl>）。
 WordExportResult exportPdfToWord(const QByteArray& pdfBytes);
 
 }  // namespace aipdf::doc

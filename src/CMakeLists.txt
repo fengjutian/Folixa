@@ -304,6 +304,10 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/convert/ImageToPdf.h
     pdf/ops/DocumentComparer.cpp
     pdf/ops/DocumentComparer.h
+    pdf/kernel/LayoutBlocks.cpp
+    pdf/kernel/LayoutBlocks.h
+    pdf/ops/LayoutDiff.cpp
+    pdf/ops/LayoutDiff.h
     pdf/content/PageDecorations.cpp
     pdf/annot/SoundFormat.cpp
     pdf/annot/AnnotationSummary.cpp

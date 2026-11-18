@@ -1,5 +1,7 @@
 #include "doc/export/PptxWriter.h"
 
+#include <QRectF>
+
 #include "doc/export/XmlText.h"
 #include "doc/export/ZipWriter.h"
 
@@ -11,6 +13,9 @@ using aipdf::doc::escapeOoxmlText;
 
 // 1 英寸 = 914400 EMU（English Metric Unit）。
 constexpr int kEmuPerInch = 914400;
+
+// 1 点 = 12700 EMU。
+constexpr double kEmuPerPoint = 12700.0;
 
 // 16:9 幻灯片：13.333 × 7.5 英寸。
 constexpr int kSlideWidth = 12192000;
@@ -35,13 +40,20 @@ QString header() {
     return QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
 }
 
-QByteArray contentTypesXml(int slideCount, int notesCount) {
+QByteArray contentTypesXml(int slideCount, int notesCount, const office::MediaSet& media) {
     QString out = header();
     out.append(QStringLiteral(
         "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
         "<Default Extension=\"rels\" "
         "ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
-        "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+        "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"));
+    // 图片的默认内容类型：少了这一项，PowerPoint 不知道 png 是什么，
+    // 打开时会直接报「文件已损坏」。
+    for (const QPair<QString, QString>& entry : media.contentTypeDefaults()) {
+        out.append(QStringLiteral("<Default Extension=\"%1\" ContentType=\"%2\"/>")
+                       .arg(entry.first, entry.second));
+    }
+    out.append(QStringLiteral(
         "<Override PartName=\"/ppt/presentation.xml\" ContentType=\"application/vnd."
         "openxmlformats-officedocument.presentationml.presentation.main+xml\"/>"
         "<Override PartName=\"/ppt/slideMasters/slideMaster1.xml\" ContentType=\"application/vnd."
@@ -354,7 +366,132 @@ QString paragraph(const QString& text, int size, bool bold, bool bullet) {
         .arg(escapeOoxmlText(text));
 }
 
-QByteArray slideXml(const Slide& slide) {
+// PDF 页面 → 幻灯片 的坐标映射。
+//
+// 为什么必须做这一步：幻灯片是 16:9（12192000 × 6858000 EMU），
+// PDF 页面多半是 A4（595 × 842 点 = 7556500 × 10693400 EMU）。
+// 两者比例不同，直接把 PDF 的坐标当成幻灯片坐标，图片会飞到版心外面
+// （A4 比 16:9 高很多，按原坐标放会掉到幻灯片下沿之外）。
+//
+// 所以：等比缩放到能放下的最大尺寸，再**居中**贴上去。
+struct PageMapper {
+    // PDF 页面尺寸（点）。
+    double pageWidthPoints = 595.0;
+    double pageHeightPoints = 842.0;
+    // 缩放系数（EMU/EMU）。
+    double scale = 1.0;
+    // 居中后的左上角偏移（EMU）。
+    double offsetX = 0.0;
+    double offsetY = 0.0;
+
+    void setup() {
+        if (!(pageWidthPoints > 0.0) || !(pageHeightPoints > 0.0)) {
+            pageWidthPoints = 595.0;
+            pageHeightPoints = 842.0;
+        }
+        const double pageWidthEmu = pageWidthPoints * kEmuPerPoint;
+        const double pageHeightEmu = pageHeightPoints * kEmuPerPoint;
+        scale = qMin(kSlideWidth / pageWidthEmu, kSlideHeight / pageHeightEmu);
+        offsetX = (kSlideWidth - pageWidthEmu * scale) * 0.5;
+        offsetY = (kSlideHeight - pageHeightEmu * scale) * 0.5;
+    }
+
+    // PDF 矩形（左下原点，点）→ 幻灯片矩形（左上原点，EMU）。
+    QRectF toSlide(double left, double bottom, double width, double height) const {
+        const double x = offsetX + left * kEmuPerPoint * scale;
+        // PDF 的 y 向上，幻灯片的 y 向下：先翻到「距顶边多远」。
+        const double y = offsetY + (pageHeightPoints - (bottom + height)) * kEmuPerPoint * scale;
+        return QRectF(x, y, width * kEmuPerPoint * scale, height * kEmuPerPoint * scale);
+    }
+};
+
+// 一张图片。
+QString picture(int shapeId, const QString& relationship, const QRectF& rect) {
+    return QStringLiteral(
+        "<p:pic>"
+        "<p:nvPicPr>"
+        "<p:cNvPr id=\"%1\" name=\"图片 %1\"/>"
+        "<p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr>"
+        "<p:nvPr/>"
+        "</p:nvPicPr>"
+        "<p:blipFill>"
+        "<a:blip r:embed=\"%2\"/>"
+        "<a:stretch><a:fillRect/></a:stretch>"
+        "</p:blipFill>"
+        "<p:spPr>"
+        "<a:xfrm><a:off x=\"%3\" y=\"%4\"/><a:ext cx=\"%5\" cy=\"%6\"/></a:xfrm>"
+        "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
+        "</p:spPr>"
+        "</p:pic>")
+        .arg(shapeId)
+        .arg(relationship)
+        .arg(qRound(rect.left()))
+        .arg(qRound(rect.top()))
+        .arg(qRound(rect.width()))
+        .arg(qRound(rect.height()));
+}
+
+// 一个表格。
+//
+// 列宽与行高都用 EMU；单元格里的文字是一个段落。
+QString tableShape(int shapeId, const office::TableGrid& grid, const QRectF& rect) {
+    const int columns = grid.columnCount();
+    if (columns <= 0 || grid.rows.isEmpty()) {
+        return {};
+    }
+    QVector<double> widths = grid.columnWidthsPoints;
+    while (widths.size() < columns) {
+        widths.append(0.0);
+    }
+    double total = 0.0;
+    for (int column = 0; column < columns; ++column) {
+        total += qMax(0.0, widths.at(column));
+    }
+    if (total <= 0.0) {
+        total = qMax(1.0, grid.widthPoints);
+    }
+    const double widthEmu = rect.width();
+    const double heightEmu = rect.height();
+    const double rowHeight = grid.rows.isEmpty() ? heightEmu : heightEmu / grid.rows.size();
+
+    QString out;
+    out.append(QStringLiteral(
+        "<p:graphicFrame>"
+        "<p:nvGraphicFramePr>"
+        "<p:cNvPr id=\"%1\" name=\"表格 %1\"/>"
+        "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrpt=\"0\"/></p:cNvGraphicFramePr>"
+        "<p:nvPr/>"
+        "</p:nvGraphicFramePr>"
+        "<p:xfrm><a:off x=\"%2\" y=\"%3\"/><a:ext cx=\"%4\" cy=\"%5\"/></p:xfrm>"
+        "<a:graphic>"
+        "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">"
+        "<a:tbl>")
+                   .arg(shapeId)
+                   .arg(qRound(rect.left()))
+                   .arg(qRound(rect.top()))
+                   .arg(qRound(widthEmu))
+                   .arg(qRound(heightEmu)));
+    out.append(QStringLiteral("<a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>"));
+    for (int column = 0; column < columns; ++column) {
+        const double columnEmu = qMax(1.0, widths.at(column) / total * widthEmu);
+        out.append(QStringLiteral("<a:gridCol w=\"%1\"/>").arg(qRound(columnEmu)));
+    }
+    out.append(QStringLiteral("</a:tblGrid>"));
+    for (const QVector<QString>& row : grid.rows) {
+        out.append(QStringLiteral("<a:tr h=\"%1\">").arg(qRound(rowHeight)));
+        for (int column = 0; column < columns; ++column) {
+            const QString text = column < row.size() ? row.at(column) : QString();
+            out.append(QStringLiteral(
+                "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>%1</a:txBody><a:tcPr/></a:tc>")
+                           .arg(paragraph(text, 1200, false, false)));
+        }
+        out.append(QStringLiteral("</a:tr>"));
+    }
+    out.append(QStringLiteral("</a:tbl></a:graphicData></a:graphic></p:graphicFrame>"));
+    return out;
+}
+
+QByteArray slideXml(const Slide& slide, int firstImageOrdinal) {
     QString out = header();
     out.append(QStringLiteral(
         "<p:sld xmlns:a=\"%1\" xmlns:r=\"%2\" xmlns:p=\"%3\"><p:cSld><p:spTree>%4")
@@ -383,18 +520,53 @@ QByteArray slideXml(const Slide& slide) {
                            body));
     }
 
+    // 图片与表格：坐标由 PDF 页面映射到幻灯片（等比缩放 + 居中）。
+    PageMapper mapper;
+    mapper.pageWidthPoints = slide.pageSizePoints.width();
+    mapper.pageHeightPoints = slide.pageSizePoints.height();
+    mapper.setup();
+    int shapeId = 5;
+    int imageOrdinal = firstImageOrdinal;
+    for (int index = 0; index < slide.images.size(); ++index) {
+        const office::ImagePlacement& image = slide.images.at(index);
+        if (image.mediaIndex < 0) {
+            continue;
+        }
+        const QRectF rect = mapper.toSlide(image.leftPoints, image.bottomPoints,
+                                           image.widthPoints, image.heightPoints);
+        out.append(picture(shapeId++, office::relationshipId(imageOrdinal++), rect));
+    }
+    for (const office::TableGrid& grid : slide.tables) {
+        const QRectF rect = mapper.toSlide(grid.leftPoints, grid.bottomPoints, grid.widthPoints,
+                                           grid.heightPoints);
+        out.append(tableShape(shapeId++, grid, rect));
+    }
+
     out.append(QStringLiteral(
         "</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>"));
     return out.toUtf8();
 }
 
-QByteArray slideRelsXml(int notesNumber) {
+// 幻灯片的关系文件。
+//
+// 关系号的分配（**顺序不能乱**）：
+//   rId1 = 版式（slideLayout）
+//   rId2 = 备注（notesSlide）—— 该页有备注时才有
+//   之后才是图片：rId3 起（没备注）/ rId4 起（有备注）
+//
+// 正文里的 <a:blip r:embed="..."> 用的就是这个号。号对不上部件，
+// PowerPoint 打开时会判「文件已损坏」。
+QByteArray slideRelsXml(int notesNumber, const QVector<int>& mediaIndexes,
+                        const office::MediaSet& media) {
     QString out = header();
     out.append(QStringLiteral(
         "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         "<Relationship Id=\"rId1\" "
         "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout\" "
         "Target=\"../slideLayouts/slideLayout1.xml\"/>"));
+    // 图片的关系号从 rId3 起（rId1 是版式、rId2 留给备注）；
+    // 该页有备注时备注占了 rId2，图片就从 rId4 起。
+    int ordinal = 2;
     if (notesNumber > 0) {
         // 幻灯片 → 备注的反向关系。少了它，notesSlide 部件虽然写在包里，
         // 却没有任何引用能到达，PowerPoint 的备注窗格是空的。
@@ -402,6 +574,21 @@ QByteArray slideRelsXml(int notesNumber) {
             "<Relationship Id=\"rId2\" "
             "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide\" "
             "Target=\"../notesSlides/notesSlide%1.xml\"/>").arg(notesNumber));
+        ordinal = 3;
+    }
+    for (int index = 0; index < mediaIndexes.size(); ++index) {
+        const int mediaIndex = mediaIndexes.at(index);
+        if (mediaIndex < 0 || mediaIndex >= media.count()) {
+            continue;
+        }
+        // Target 相对于 ppt/slides/ 目录（rels 文件在 ppt/slides/_rels/ 下），
+        // 所以是 "../media/image1.png"。
+        out.append(QStringLiteral(
+            "<Relationship Id=\"%1\" "
+            "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" "
+            "Target=\"../%2\"/>")
+                       .arg(office::relationshipId(ordinal + index),
+                            media.at(mediaIndex).partName.section(QLatin1Char('/'), 1)));
     }
     out.append(QStringLiteral("</Relationships>"));
     return out.toUtf8();
@@ -440,6 +627,10 @@ QByteArray notesSlideRelsXml(int slideNumber) {
 }  // namespace
 
 QByteArray deckToPptx(const Deck& deck) {
+    return deckToPptx(deck, office::MediaSet());
+}
+
+QByteArray deckToPptx(const Deck& deck, const office::MediaSet& media) {
     if (deck.slides.isEmpty()) {
         return QByteArray();
     }
@@ -458,7 +649,7 @@ QByteArray deckToPptx(const Deck& deck) {
 
     doc::zip::Writer writer;
     writer.addFile(QStringLiteral("[Content_Types].xml"),
-                   contentTypesXml(deck.slides.size(), notesCount));
+                   contentTypesXml(deck.slides.size(), notesCount, media));
     writer.addFile(QStringLiteral("_rels/.rels"), packageRelsXml());
     writer.addFile(QStringLiteral("docProps/core.xml"), corePropsXml(deck.title));
     writer.addFile(QStringLiteral("docProps/app.xml"), appPropsXml(deck.slides.size()));
@@ -476,18 +667,37 @@ QByteArray deckToPptx(const Deck& deck) {
     writer.addFile(QStringLiteral("ppt/notesMasters/_rels/notesMaster1.xml.rels"),
                    notesMasterRelsXml());
 
+    // 媒体部件：ppt/media/imageN.png。
+    //
+    // 编号是**包级全局**的（MediaSet 负责），所以这里按 media 的顺序写，
+    // 幻灯片里的关系号才能和文件名字对得上。
+    for (int index = 0; index < media.count(); ++index) {
+        writer.addFile(media.at(index).partName, media.at(index).bytes);
+    }
+
     for (int i = 0; i < deck.slides.size(); ++i) {
         const int number = i + 1;
+        const Slide& slide = deck.slides.at(i);
+        // 这一页的图片在 media 里的下标（连续的一段）。
+        QVector<int> mediaIndexes;
+        for (int index = 0; index < slide.images.size(); ++index) {
+            const int mediaIndex = slide.images.at(index).mediaIndex;
+            if (mediaIndex >= 0 && mediaIndex < media.count()) {
+                mediaIndexes.append(mediaIndex);
+            }
+        }
+        // 图片的关系号：版式占 rId1，有备注时备注占 rId2，图片从 rId3 起。
+        const int firstImageOrdinal = notesSlideNumbers.at(i) > 0 ? 3 : 2;
         writer.addFile(QStringLiteral("ppt/slides/slide%1.xml").arg(number),
-                       slideXml(deck.slides.at(i)));
+                       slideXml(slide, firstImageOrdinal));
         writer.addFile(QStringLiteral("ppt/slides/_rels/slide%1.xml.rels").arg(number),
-                       slideRelsXml(notesSlideNumbers.at(i)));
+                       slideRelsXml(notesSlideNumbers.at(i), mediaIndexes, media));
         const int notesNumber = notesSlideNumbers.at(i);
         if (notesNumber <= 0) {
             continue;
         }
         writer.addFile(QStringLiteral("ppt/notesSlides/notesSlide%1.xml").arg(notesNumber),
-                       notesSlideXml(deck.slides.at(i).notes));
+                       notesSlideXml(slide.notes));
         writer.addFile(QStringLiteral("ppt/notesSlides/_rels/notesSlide%1.xml.rels").arg(notesNumber),
                        notesSlideRelsXml(number));
     }

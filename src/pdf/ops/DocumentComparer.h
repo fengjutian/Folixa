@@ -6,6 +6,8 @@
 #include <QVector>
 #include <QtGlobal>
 
+#include "pdf/ops/LayoutDiff.h"
+
 namespace aipdf::pdf {
 
 // 两份 PDF 之间的一条差异的种类。
@@ -94,6 +96,15 @@ struct DocumentCompareOptions {
     // 渲染是 O(页数 × 像素数) 的重活，不设上限的话几百页的文档
     // 会让「比较」看起来像卡死了。超出的部分记进结果里的 pixelNote。
     int maxPixelComparedPages = 200;
+
+    // 是否做版面结构差异分析（块级归因）。
+    //
+    // 默认开：版面分析只做对象枚举与文字分组，比像素比对便宜一个数量级；
+    // 而「这一块挪到了哪一页」「这里的图被换掉了」「这张表少了一列」
+    // 这类信息只有版面分析能给——文字层看不见图片，也分不清块被挪走。
+    //
+    // 它与文字层差异是两条独立的通路：开它不会改动上面任何一个字段。
+    bool compareLayout = true;
 };
 
 // 一条差异。
@@ -228,6 +239,19 @@ struct DocumentCompareResult {
     QString pixelError;
     // 像素比对的备注（ASCII 技术细节），例如因为页数上限跳过了几页。
     QString pixelNote;
+
+    // ---------------------------------------------------------- 版面差异 ----
+    //
+    // 版面结构差异：块级归因。
+    //
+    // 为什么单列一个字段：文字层差异说的是「文字变了没有」，
+    // 版面差异说的是「版面变了没有」——块被挪走了、图被换掉了、
+    // 表少了一列。混在一张表里，用户分不清「这段话被改了」
+    // 和「这块东西挪了个位置」。
+    //
+    // 字段本身在 LayoutDiffResult 里：这里只放一份，不复制内容。
+    // 没有开关时（compareLayout = false）layoutDiff.analyzed 为 false。
+    LayoutDiffResult layoutDiff;
 };
 
 // 比较两份 PDF 的结构差异。

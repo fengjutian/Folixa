@@ -1103,15 +1103,26 @@ void WiringActions::documentReflow() {
                     return;
                 }
                 dialog.setReport(result.report);
+                // 写回打开的文档：重排完不落到用户正在看的那份上，
+                // 「重排完成」就只是一句报告，用户的文档一点没变。
+                //
+                // 领域层已经把「搬不过去的对象」拦下来了（拦下来时 bytes 是空的，
+                // report.error 里写明少了什么），所以这里只处理写盘本身失败。
+                if (result.bytes.isEmpty()) {
+                    return;
+                }
+                QString replaceError;
+                if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+                    QMessageBox::warning(parentWidget_, title, replaceError);
+                    return;
+                }
+                notify(i18n::tr("aipdf::app::MainWindow", "重排完成：%1 页。")
+                           .arg(result.report.outputPageCount));
             });
-    if (dialog.exec() != QDialog::Accepted) {
-        return;
-    }
-    const pdf::ReflowReport& report = dialog.report();
-    if (!report.ok() || report.outputPageCount <= 0) {
-        return;
-    }
-    notify(i18n::tr("aipdf::app::MainWindow", "重排完成：%1 页。").arg(report.outputPageCount));
+    // 对话框是模态的：用户点「重排」时领域层就跑完了，写回也在那时完成。
+    // 关闭对话框不需要再做别的动作 —— 关闭按钮触发的是 reject，
+    // exec() 返回的是 Rejected，所以收尾不能挂在 exec() 后面（那样永远走不到）。
+    dialog.exec();
 }
 
 // ---------------------------------------------------------------- 任务 T ----
@@ -1384,6 +1395,34 @@ void WiringActions::compareDocuments() {
             dialog.setFiles(current, QString());
         }
     }
+    // 引用定位：点一条差异就跳到那一页。
+    //
+    // 跳的是**当前打开的文档**，所以页号越界（新文里的页）时不能瞎跳 ——
+    // 跳错页比不跳更糟，这里如实说清楚。
+    connect(&dialog, &DocumentCompareDialog::navigateToPage, this, [this, view](int page, const QString&) {
+        if (view == nullptr) {
+            return;
+        }
+        if (page < 0 || page >= view->pageCount()) {
+            notify(i18n::tr("aipdf::app::MainWindow",
+                            "这条差异在新文里，当前打开的是原文，页面跳不过去。"));
+            return;
+        }
+        view->goToPage(page);
+    });
+    // 版面差异带矩形：跳过去并把那一块选上，用户一眼看到说的是哪一块。
+    connect(&dialog, &DocumentCompareDialog::navigateToBlock, this,
+            [this, view](int page, const QRectF& bounds, const QString&) {
+                if (view == nullptr) {
+                    return;
+                }
+                if (page < 0 || page >= view->pageCount()) {
+                    notify(i18n::tr("aipdf::app::MainWindow",
+                                    "这条差异在新文里，当前打开的是原文，页面跳不过去。"));
+                    return;
+                }
+                view->goToBlock(page, bounds);
+            });
     dialog.exec();
 }
 

@@ -61,11 +61,24 @@ public:
     // 视觉差异表格里的行数。
     int visualDifferenceRowCount() const;
 
+    // 版面差异表格里的第 row 行。行号越界时返回 nullptr。
+    //
+    // 版面差异说的是「这一块被挪到了哪」「这张表少了一列」，
+    // 与文字差异（这段文字变了）是两回事，所以单独一张表、单独一套取数。
+    const pdf::LayoutDifference* layoutDifferenceAt(int row) const;
+    // 版面差异表格里的行数。
+    int layoutDifferenceRowCount() const;
+    // 版面分析没做出来时的原因（中文）。做出来了就是空的。
+    QString layoutAnalysisError() const;
+
     // 跳到第 row 行对应的差异：发出 navigateToPage。
     //
     // 双击表格某一行走的也是这条路径；单独暴露出来是为了让「跳到差异」
     // 这样的按钮与自动测试都能用同一套逻辑。
     void activateDifference(int row);
+
+    // 跳到版面差异表的第 row 行：发出 navigateToBlock。
+    void activateLayoutDifference(int row);
 
     // 差异种类对应的中文名（表格第一列用）。
     static QString diffKindName(pdf::DiffKind kind);
@@ -77,6 +90,12 @@ signals:
     // 新文里没有对应页时 pageIndex 是原文页号，snippet 是原文片段。
     void navigateToPage(int pageIndex, const QString& snippet);
 
+    // 用户点了某条版面差异：请求跳到对应页并选中原型里的对象。
+    //
+    // pageIndex 是页号（0 基）；bounds 是该块在 PDF user space 里的矩形
+    // （左下原点，未应用 /Rotate）；snippet 是这一处的文字片段。
+    void navigateToBlock(int pageIndex, const QRectF& bounds, const QString& snippet);
+
 private:
     void buildUi();
     void retranslateUi();
@@ -84,6 +103,7 @@ private:
     void browseNewFile();
     void updateSummary();
     void onTableActivated(int row, int column);
+    void onLayoutTableActivated(int row, int column);
     // 差异在表格里显示的页号：新文有就用新文页号，否则用原文页号。
     static int displayPageOf(const pdf::CompareDifference& difference);
 
@@ -99,6 +119,8 @@ private:
     QTabWidget* tabs_ = nullptr;
     QTableWidget* table_ = nullptr;
     QTableWidget* visualTable_ = nullptr;
+    // 版面差异表：与文字差异、视觉差异分开，回答「哪一块挪到哪」。
+    QTableWidget* layoutTable_ = nullptr;
 
     pdf::DocumentCompareOptions options_;
     pdf::DocumentCompareResult lastResult_;
