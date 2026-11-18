@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QSaveFile>
 #include <QSet>
 #include <QStandardPaths>
 
@@ -398,34 +399,23 @@ bool FormTemplateStore::save(const FormTemplate& tmpl, QString* error) {
         }
     }
 
-    // 先写临时文件再替换：写到一半崩了，旧的模板还在，不会留下半截 JSON。
-    const QString temporaryPath = path + QStringLiteral(".tmp");
-    QFile::remove(temporaryPath);
-    {
-        QFile file(temporaryPath);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            setError(error, QStringLiteral("无法写入模板文件：%1").arg(file.errorString()));
-            return false;
-        }
-        const QByteArray data = serializeTemplate(normalized);
-        if (file.write(data) != data.size()) {
-            file.close();
-            QFile::remove(temporaryPath);
-            setError(error, QStringLiteral("模板文件写入不完整"));
-            return false;
-        }
-        file.flush();
-        file.close();
-    }
-    // Windows 上 rename 不能覆盖已存在的文件，所以先删旧的再改名。
-    if (QFile::exists(path) && !QFile::remove(path)) {
-        QFile::remove(temporaryPath);
-        setError(error, QStringLiteral("无法覆盖已有模板文件"));
+    // 原子替换交给 QSaveFile：它写同目录临时文件，commit() 时才替换目标。
+    //
+    // 不能“先删旧文件再 rename”：删掉旧文件之后、rename 成功之前崩溃或被
+    // 杀软占用，用户的模板就彻底丢了（注释里那句“旧的模板还在”是假的）。
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        setError(error, QStringLiteral("无法写入模板文件：%1").arg(file.errorString()));
         return false;
     }
-    if (!QFile::rename(temporaryPath, path)) {
-        QFile::remove(temporaryPath);
-        setError(error, QStringLiteral("无法保存模板文件"));
+    const QByteArray data = serializeTemplate(normalized);
+    if (file.write(data) != data.size()) {
+        file.cancelWriting();
+        setError(error, QStringLiteral("模板文件写入不完整"));
+        return false;
+    }
+    if (!file.commit()) {
+        setError(error, QStringLiteral("无法保存模板文件：%1").arg(file.errorString()));
         return false;
     }
     return true;

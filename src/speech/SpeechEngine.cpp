@@ -325,6 +325,8 @@ void SpeechEngine::speak(const QString& text) {
     const bool wasSpeaking = speaking_;
     // 重复调用会打断上一次：先收尾，再开新的一场。
     stopSession();
+    // 新场次：上一场遗留的兜底定时器因此作废。
+    ++sessionId_;
 
     words_ = splitIntoWords(text);
     if (words_.isEmpty()) {
@@ -460,9 +462,14 @@ void SpeechEngine::complete() {
         return;
     }
     speaking_ = false;
+    const int session = sessionId_;
     emit finished();
     // 子进程读完 stdin 就自己退出；万一没退，两秒后收掉。
-    QTimer::singleShot(2000, this, [this]() {
+    // 必须核对场次：2 秒内用户可能已经开始了下一场，旧定时器不能杀新进程。
+    QTimer::singleShot(2000, this, [this, session]() {
+        if (sessionId_ != session) {
+            return;
+        }
         if (process_ && process_->state() != QProcess::NotRunning) {
             terminateProcess();
         }

@@ -2832,7 +2832,9 @@ void MainWindow::buildUi() {
     statusZoomLabel_->setAlignment(Qt::AlignCenter);
     statusZoomSlider_ = new QSlider(Qt::Horizontal, this);
     statusZoomSlider_->setObjectName(QStringLiteral("statusZoomSlider"));
-    statusZoomSlider_->setRange(25, 400);
+    // 与 PdfView 的缩放范围同源：10%–800%。写死 25–400 会显示错百分比。
+    statusZoomSlider_->setRange(qRound(PdfView::minZoomFactor() * 100.0),
+                                qRound(PdfView::maxZoomFactor() * 100.0));
     statusZoomSlider_->setValue(100);
     statusZoomSlider_->setFixedWidth(110);
     statusDocumentControls_ = new QWidget(this);
@@ -5958,6 +5960,12 @@ void MainWindow::traceNavigationPanel(int index) {
                       .arg(annotationList_ != nullptr ? annotationList_->count() : 0));
             break;
         case 5:
+            // 导航页顺序：0 页面 / 1 目录 / 2 书签 / 3 搜索 / 4 批注 /
+            // 5 表单 / 6 索引。以前这里把 5 当成索引，轨迹里记的是表单页的条目数。
+            trace(QStringLiteral("panel forms items=%1")
+                      .arg(formTable_ != nullptr ? formTable_->rowCount() : 0));
+            break;
+        case 6:
             trace(QStringLiteral("panel index items=%1")
                       .arg(indexPanel_ != nullptr ? indexPanel_->resultCount() : 0));
             break;
@@ -5997,25 +6005,63 @@ void MainWindow::refreshThumbnails(PdfView* view) {
         return;
     }
     pagesList_->clear();
+    if (thumbnailTimer_ != nullptr) {
+        thumbnailTimer_->stop();
+    }
+    thumbnailView_ = view;
+    thumbnailNextIndex_ = 0;
     if (view == nullptr) {
         return;
     }
 
-    // 首批按需生成，避免打开 500 页文档时一次性阻塞 UI。
-    const int visibleBatch = std::min(view->pageCount(), 24);
-    for (int index = 0; index < visibleBatch; ++index) {
-        const QImage image = view->renderThumbnail(index, 124);
+    // 先把所有页都建成条目：列表本身是“页面导航”，不能只列前 24 页
+    // （否则第 25 页以后既点不到、也不会高亮当前页）。图标另外分批补，
+    // 避免打开几百页文档时一次性把 UI 卡住。
+    const int pageCount = view->pageCount();
+    for (int index = 0; index < pageCount; ++index) {
         auto* item = new QListWidgetItem();
         item->setData(Qt::UserRole, index);
         item->setText(QString::number(index + 1));
         item->setTextAlignment(Qt::AlignHCenter);
-        if (!image.isNull()) {
-            item->setIcon(QIcon(QPixmap::fromImage(image)));
-        }
         pagesList_->addItem(item);
     }
     // 打开文档时可能已经停在某一页（恢复上次位置），先把高亮对上。
     highlightThumbnail(view->currentPage());
+
+    if (pageCount == 0) {
+        return;
+    }
+    if (thumbnailTimer_ == nullptr) {
+        thumbnailTimer_ = new QTimer(this);
+        // 每 10ms 补一小批：既让出事件循环，又不至于让缩略图“一格一格跳”。
+        thumbnailTimer_->setInterval(10);
+        connect(thumbnailTimer_, &QTimer::timeout, this, &MainWindow::renderNextThumbnailBatch);
+    }
+    thumbnailTimer_->start();
+}
+
+void MainWindow::renderNextThumbnailBatch() {
+    if (thumbnailTimer_ == nullptr) {
+        return;
+    }
+    if (thumbnailView_.isNull() || pagesList_ == nullptr ||
+        thumbnailNextIndex_ >= pagesList_->count()) {
+        thumbnailTimer_->stop();
+        return;
+    }
+    // 每轮只渲染一小批：让滚动、翻页、关标签等事件能插进来。
+    constexpr int kBatchSize = 4;
+    const int end = std::min(pagesList_->count(), thumbnailNextIndex_ + kBatchSize);
+    for (; thumbnailNextIndex_ < end; ++thumbnailNextIndex_) {
+        QListWidgetItem* item = pagesList_->item(thumbnailNextIndex_);
+        if (item == nullptr) {
+            continue;
+        }
+        const QImage image = thumbnailView_->renderThumbnail(thumbnailNextIndex_, 124);
+        if (!image.isNull()) {
+            item->setIcon(QIcon(QPixmap::fromImage(image)));
+        }
+    }
 }
 
 void MainWindow::highlightThumbnail(int pageIndex) {
@@ -6177,6 +6223,32 @@ void MainWindow::positionFloatingUi() {
 }
 
 void MainWindow::openPdfFile(const QString& filePath) {
+    // 同一个文件已经打开：切到那个标签，不要再开第二个。
+    //
+    // 两个标签各持一份内存文档，各自保存会互相覆盖，而且没有任何冲突提示。
+    const QString canonical = QFileInfo(filePath).canonicalFilePath();
+    const QString identity =
+        canonical.isEmpty() ? QFileInfo(filePath).absoluteFilePath() : canonical;
+    if (tabs_ != nullptr && !identity.isEmpty()) {
+        for (int index = 0; index < tabs_->count(); ++index) {
+            auto* open = qobject_cast<PdfView*>(tabs_->widget(index));
+            if (open == nullptr) {
+                continue;
+            }
+            const QString openCanonical = QFileInfo(open->filePath()).canonicalFilePath();
+            const QString openIdentity = openCanonical.isEmpty()
+                                             ? QFileInfo(open->filePath()).absoluteFilePath()
+                                             : openCanonical;
+            if (!openIdentity.isEmpty() &&
+                openIdentity.compare(identity, Qt::CaseInsensitive) == 0) {
+                tabs_->setCurrentWidget(open);
+                statusBar()->showMessage(
+                    tr("%1 已经打开了").arg(QFileInfo(filePath).fileName()), 4000);
+                return;
+            }
+        }
+    }
+
     pdf::PdfOpenResult result = pdf::openDocument(filePath);
     trace(QStringLiteral("open file=%1 required=%2 msg=%3")
               .arg(QFileInfo(filePath).fileName())
@@ -6267,12 +6339,14 @@ void MainWindow::openPdfFile(const QString& filePath) {
     });
     // 打开文档后也自动看一眼当前页：扫描件不必先翻页才识别。
     // 等一会儿是为了让文本层先落地——否则会给正常的文字页也做一遍 OCR。
-    QTimer::singleShot(1200, this, [this, view] {
-        if (ocrController_ == nullptr) {
+    //
+    // 捕获 QPointer：1.2 秒内用户可能已经把这个标签关掉了，裸指针会 UAF。
+    QTimer::singleShot(1200, this, [this, guard = QPointer<PdfView>(view)] {
+        if (ocrController_ == nullptr || guard.isNull()) {
             return;
         }
         ocrController_->resetAttempts();
-        ocrController_->handlePageShown(view, view->currentPage());
+        ocrController_->handlePageShown(guard.data(), guard->currentPage());
     });
 
     // 页面结构变了：缩略图列表与页面按钮都要跟着更新。
@@ -6393,7 +6467,9 @@ void MainWindow::updateStatusZoom(double factor) {
     if (statusZoomLabel_ == nullptr || statusZoomSlider_ == nullptr) {
         return;
     }
-    const int percent = qBound(25, qRound(factor * 100.0), 400);
+    const int percent = qBound(qRound(PdfView::minZoomFactor() * 100.0),
+                               qRound(factor * 100.0),
+                               qRound(PdfView::maxZoomFactor() * 100.0));
     updatingStatusZoom_ = true;
     statusZoomLabel_->setText(QStringLiteral("%1%").arg(percent));
     statusZoomSlider_->setValue(percent);

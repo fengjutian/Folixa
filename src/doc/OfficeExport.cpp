@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "doc/ZipWriter.h"
+#include "doc/XmlText.h"
 
 namespace aipdf::doc {
 
@@ -18,34 +19,9 @@ constexpr double kPointsToTwips = 20.0;
 constexpr double kDefaultPageWidthPoints = 595.0;
 constexpr double kDefaultPageHeightPoints = 842.0;
 
-// XML 文本转义。
-QString escapeXml(const QString& text) {
-    QString out;
-    out.reserve(text.size());
-    for (const QChar ch : text) {
-        switch (ch.unicode()) {
-        case '&':
-            out.append(QStringLiteral("&amp;"));
-            break;
-        case '<':
-            out.append(QStringLiteral("&lt;"));
-            break;
-        case '>':
-            out.append(QStringLiteral("&gt;"));
-            break;
-        case '"':
-            out.append(QStringLiteral("&quot;"));
-            break;
-        case '\'':
-            out.append(QStringLiteral("&apos;"));
-            break;
-        default:
-            out.append(ch);
-            break;
-        }
-    }
-    return out;
-}
+// XML 文本转义统一走 doc/XmlText.h：本文件以前自己写了一份，
+// 不过滤 XML 1.0 非法控制字符（PDF 文本层里一个 0x01 就能让 Word 报文件损坏），
+// 也不保留合法代理对。统一实现只留一处，四个导出器共用。
 
 // RTF 文本转义。
 //
@@ -126,6 +102,12 @@ QByteArray exportRtf(const QVector<TextExportLine>& lines) {
     out.append(QStringLiteral("{\\fonttbl{\\f0\\fnil\\fcharset134 SimSun;}}"));
     out.append(QStringLiteral("{\\colortbl;}"));
     for (const TextExportLine& line : lines) {
+        if (line.raw) {
+            // 原样片段（分页符）：不能再走 escapeRtf。
+            out.append(line.text);
+            out.append(QLatin1Char('\n'));
+            continue;
+        }
         // \fs24 = 12 磅；\par 结束这一段。
         out.append(QStringLiteral("\\pard\\plain\\f0\\fs24 "));
         out.append(escapeRtf(line.text));
@@ -184,7 +166,7 @@ QByteArray documentXml(const QVector<QVector<TextExportLine>>& pageLines, const 
         for (const TextExportLine& line : pageLines.at(pageIndex)) {
             // xml:space="preserve"：不加它，行首行尾的空格会被 Word 吃掉。
             out.append(QStringLiteral("<w:p><w:r><w:t xml:space=\"preserve\">%1</w:t></w:r></w:p>")
-                           .arg(escapeXml(line.text)));
+                           .arg(escapeOoxmlText(line.text)));
         }
     }
     out.append(QStringLiteral("<w:sectPr><w:pgSz w:w=\"%1\" w:h=\"%2\"/></w:sectPr>")
@@ -396,6 +378,8 @@ ExportResult exportPagesTo(ExportFormat format, const QVector<pdf::TextPage>& pa
             if (pageIndex > 0) {
                 TextExportLine separator;
                 separator.text = QStringLiteral("\\page");
+                // 原样输出：走 escapeRtf 会变成字面 "\page"，分页失效。
+                separator.raw = true;
                 merged.append(separator);
             }
             merged.append(pageLines.at(pageIndex));

@@ -50,6 +50,7 @@ WorkerClient::WorkerClient(QObject* parent)
     connect(&socket_, &QLocalSocket::readyRead, this, &WorkerClient::readFrames);
     connect(&socket_, &QLocalSocket::connected, this, [this] {
         connectionAttempts_ = 0;
+        restartDelayMs_ = 1000;
         emit stateChanged("ready");
     });
     connect(&socket_, &QLocalSocket::errorOccurred,
@@ -259,6 +260,7 @@ void WorkerClient::handleSocketError(QLocalSocket::LocalSocketError error) {
     }
     emit stateChanged("unavailable");
     failPendingRequests(socket_.errorString());
+    scheduleRestart();
 }
 
 void WorkerClient::handleWorkerFinished(int exitCode, QProcess::ExitStatus status) {
@@ -270,6 +272,29 @@ void WorkerClient::handleWorkerFinished(int exitCode, QProcess::ExitStatus statu
         ? "AI Worker crashed"
         : QString("AI Worker exited with code %1").arg(exitCode);
     failPendingRequests(reason);
+    // Worker 进程没了：不重启的话 AI 功能会一直“假死”到用户重开编辑器。
+    scheduleRestart();
+}
+
+void WorkerClient::scheduleRestart() {
+    if (stopping_ || restartScheduled_) {
+        return;
+    }
+    // 退避到最长 10 秒：Worker 反复崩溃时不要把 CPU 打满。
+    const int delay = restartDelayMs_;
+    restartDelayMs_ = qMin(restartDelayMs_ * 2, 10'000);
+    restartScheduled_ = true;
+    QTimer::singleShot(delay, this, [this] {
+        restartScheduled_ = false;
+        if (stopping_) {
+            return;
+        }
+        if (workerProcess_.state() == QProcess::NotRunning) {
+            start();
+        } else {
+            connectToWorker();
+        }
+    });
 }
 
 void WorkerClient::failPendingRequests(const QString& message) {

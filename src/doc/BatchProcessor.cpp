@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSaveFile>
 
 namespace aipdf::doc {
 
@@ -275,8 +276,11 @@ BatchReport runBatch(const QStringList& inputPaths,
                 }
                 continue;
             }
-            QFile outputFile(outputPath);
-            if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            // 用 QSaveFile：它写同目录临时文件，commit() 成功才替换目标。
+            // 直接 QFile::Truncate 写目标会在失败时毁掉已有文件；输出目录与源
+            // 目录相同时（很常见的“原地优化”）毁掉的就是用户的原件。
+            QSaveFile output(outputPath);
+            if (!output.open(QIODevice::WriteOnly)) {
                 item.error = QStringLiteral("写入输出文件失败：%1").arg(outputPath);
                 finish(!continueOnError);
                 if (!continueOnError) {
@@ -284,9 +288,7 @@ BatchReport runBatch(const QStringList& inputPaths,
                 }
                 continue;
             }
-            const bool written = outputFile.write(current) == current.size();
-            outputFile.close();
-            if (!written) {
+            if (output.write(current) != current.size() || !output.commit()) {
                 item.error = QStringLiteral("写入输出文件失败：%1").arg(outputPath);
                 finish(!continueOnError);
                 if (!continueOnError) {

@@ -180,6 +180,14 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
     outcome.warning = prepared.warning;
     outcome.appearanceCount = prepared.appearanceCount;
 
+    // 保存是整份重写，已有数字签名的覆盖范围必然改变。这里先数出来，
+    // 由界面明确告诉用户“签名已失效”，而不是静默毁掉。
+    //
+    // 不用 qpdf 解析：DocumentWriter 被多个测试目标单独编译，依赖 qpdf
+    // 解析器会把它们全部拖下水。每个签名字典都有且只有一个 /ByteRange，
+    // 按它计数足够做“有没有签名、有几个”的提示（宁可多提示，也不要静默）。
+    outcome.signatureCount = prepared.bytes.count("/ByteRange");
+
     // 加密放在结构校验之前：要校验的是最终会落盘的那份字节。
     QByteArray bytes = prepared.bytes;
 

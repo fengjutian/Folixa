@@ -85,6 +85,7 @@ private slots:
     void deletePageUndoRestoresAnnotations();
     void serializeKeepsPageOrder();
     void rewriteDoesNotDuplicateAnnotations();
+    void reopenedDocumentKeepsAnnotations();
     void safeSaveWritesValidFile();
     void safeSaveKeepsOriginalOnBadPayload();
     void safeSaveKeepsOriginalOnReadOnlyTarget();
@@ -268,6 +269,40 @@ void PageOperationTests::rewriteDoesNotDuplicateAnnotations() {
     // 清空：也要能删干净。
     QVERIFY(page->setAnnotations({}));
     QCOMPARE(page->annotations().size(), 0);
+}
+
+void PageOperationTests::reopenedDocumentKeepsAnnotations() {
+    // 回归：批注只存在于内存模型里时，重新打开后模型是空的；用户在同页再
+    // 新增一条，就会把上次保存的批注整页删掉。模型必须从文档里灌入既有批注，
+    // 同步时也只能删本会话负责的那些 id。
+    const auto first = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(first.document.isValid());
+
+    AnnotationController writer(first.document);
+    const quint64 firstId =
+        writer.addMarkAnnotation(AnnotationType::Highlight, 0, {QRectF(60.0, 250.0, 200.0, 14.0)});
+    QVERIFY(firstId != 0);
+
+    const QByteArray bytes = first.document.serialize();
+    QVERIFY(!bytes.isEmpty());
+
+    const PdfOpenResult reopened = openDocumentFromBytes(bytes);
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+
+    AnnotationController reader(reopened.document);
+    // 打开时应当把文件里的批注读进模型，而不是 0 条。
+    QCOMPARE(reader.annotationCount(), 1);
+    QCOMPARE(reader.annotationsForPage(0).size(), 1);
+
+    // 同一页再新增一条：旧的那条不能被删掉。
+    const quint64 secondId =
+        reader.addMarkAnnotation(AnnotationType::Highlight, 0, {QRectF(70.0, 300.0, 180.0, 12.0)});
+    QVERIFY(secondId != 0);
+    QVERIFY(secondId > firstId);  // id 必须接着文件里的最大值，不能从 1 重来
+
+    auto page = reopened.document.page(0);
+    QVERIFY(page.has_value());
+    QCOMPARE(page->annotations().size(), 2);
 }
 
 void PageOperationTests::safeSaveWritesValidFile() {

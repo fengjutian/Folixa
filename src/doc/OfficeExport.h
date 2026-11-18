@@ -84,6 +84,11 @@ ExportResult exportPagesTo(ExportFormat format, const QVector<pdf::TextPage>& pa
 struct TextExportLine {
     // 行内文字（词之间的空格已补好）。
     QString text;
+    // text 是**已经写好的格式控制串**，序列化时原样输出，不再转义。
+    //
+    // 只给「页与页之间的分页符」这类控制片段用：RTF 的 `\page` 如果走
+    // escapeRtf 会被转成 `\\page`，Word 里显示成字面反斜杠、分页失效。
+    bool raw = false;
     // 行内字符，按 x 从小到大排。
     QVector<pdf::TextChar> chars;
     // 行的包围盒（PDF user space，左下原点）。

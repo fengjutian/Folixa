@@ -59,10 +59,14 @@ private slots:
 private:
     void failPendingRequests(const QString& message);
     QString workerExecutablePath() const;
+    // Worker 崩溃/断开后按退避重启并重连；stopping_ 时什么都不做。
+    void scheduleRestart();
 
     QString serverName_;
     QString workerExecutableOverride_;
     bool autoLaunchWorker_ = true;
+    bool restartScheduled_ = false;
+    int restartDelayMs_ = 1000;
     QProcess workerProcess_;
     QLocalSocket socket_;
     QByteArray receiveBuffer_;

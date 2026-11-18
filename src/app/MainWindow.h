@@ -124,6 +124,9 @@ private:
     void openPdfDialog();
     void sendHealthCheck();
     void refreshThumbnails(PdfView* view);
+    // 缩略图分批补图标：列表先建全（可跳转、可高亮），图标在事件循环里一批批
+    // 渲染，避免打开几百页的文档时一次性卡住界面。
+    void renderNextThumbnailBatch();
     // 在缩略图列表里高亮当前页。
     void highlightThumbnail(int pageIndex);
     // 把导航面板绑到当前文档的导航控制器上，并刷新目录与书签。
@@ -293,6 +296,9 @@ private:
     QAction* navigationViewToggleAction_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
     QListWidget* pagesList_ = nullptr;
+    QTimer* thumbnailTimer_ = nullptr;
+    QPointer<PdfView> thumbnailView_;
+    int thumbnailNextIndex_ = 0;
     // 导航栏的四个视图（页面 / 目录 / 书签 / 搜索）。
     QStackedWidget* navigationPages_ = nullptr;
     // 目录页：大纲树（v0.6.0）。索引 0 是空状态，索引 1 是树。

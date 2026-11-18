@@ -4,6 +4,7 @@
 #include <QtMath>
 
 #include "doc/OfficeExport.h"
+#include "doc/XmlText.h"
 #include "doc/ZipWriter.h"
 
 namespace aipdf::doc {
@@ -31,34 +32,7 @@ QString formatMillimeters(double value) {
     return text;
 }
 
-// XML 文本转义。
-QString escapeXml(const QString& text) {
-    QString out;
-    out.reserve(text.size());
-    for (const QChar ch : text) {
-        switch (ch.unicode()) {
-        case '&':
-            out.append(QStringLiteral("&amp;"));
-            break;
-        case '<':
-            out.append(QStringLiteral("&lt;"));
-            break;
-        case '>':
-            out.append(QStringLiteral("&gt;"));
-            break;
-        case '"':
-            out.append(QStringLiteral("&quot;"));
-            break;
-        case '\'':
-            out.append(QStringLiteral("&apos;"));
-            break;
-        default:
-            out.append(ch);
-            break;
-        }
-    }
-    return out;
-}
+// XML 文本转义统一走 doc/XmlText.h：不要在本文件里再写一份。
 
 // 文本对象的坐标换算。
 //
@@ -124,7 +98,7 @@ QString buildTextObject(int objectId, const TextExportLine& line, const PageGeom
     out.append(QStringLiteral("<ofd:TextCode X=\"0\" Y=\"%1\" DeltaX=\"%2\">%3</ofd:TextCode>")
                    .arg(formatMillimeters(heightMm))
                    .arg(deltas.join(QLatin1Char(' ')))
-                   .arg(escapeXml(line.text)));
+                   .arg(escapeOoxmlText(line.text)));
     out.append(QStringLiteral("</ofd:TextObject>"));
     return out;
 }
@@ -157,9 +131,9 @@ QByteArray buildOfdXml(const OfdExportOptions& options, const QString& documentI
     out.append(QStringLiteral("<ofd:OFD xmlns:ofd=\"%1\" DocType=\"OFD\" Version=\"1.1\">").arg(kOfdNamespace));
     out.append(QStringLiteral("<ofd:DocBody>"));
     out.append(QStringLiteral("<ofd:DocInfo>"));
-    out.append(QStringLiteral("<ofd:DocID>%1</ofd:DocID>").arg(escapeXml(documentId)));
-    out.append(QStringLiteral("<ofd:Title>%1</ofd:Title>").arg(escapeXml(options.title)));
-    out.append(QStringLiteral("<ofd:Author>%1</ofd:Author>").arg(escapeXml(options.author)));
+    out.append(QStringLiteral("<ofd:DocID>%1</ofd:DocID>").arg(escapeOoxmlText(documentId)));
+    out.append(QStringLiteral("<ofd:Title>%1</ofd:Title>").arg(escapeOoxmlText(options.title)));
+    out.append(QStringLiteral("<ofd:Author>%1</ofd:Author>").arg(escapeOoxmlText(options.author)));
     out.append(QStringLiteral("<ofd:Creator>AI PDF Editor</ofd:Creator>"));
     out.append(QStringLiteral("</ofd:DocInfo>"));
     out.append(QStringLiteral("<ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot>"));

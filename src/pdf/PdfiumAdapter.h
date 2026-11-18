@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QImage>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -127,6 +128,10 @@ public:
     // 批注，仅保留整页位图。这样底层文字/图片无法通过移除遮盖层恢复。
     // 为避免坐标误判，目前只接受未旋转页面。
     bool redactByRasterizing(const QRectF& rectPoints, double scale = 2.0);
+    // 一次烧入多个区域：**只渲染一次**。逐块调用会把上一块的位图再栅格化一遍，
+    // 既慢又掉清晰度；更重要的是多个选区不能先并成一个包围盒——那会把两个
+    // 选区之间没被选中的内容一起删掉。
+    bool redactByRasterizing(const QVector<QRectF>& rects, double scale = 2.0);
 
     bool addTextLayer(const QString& text, double xPoints, double yPoints, double fontSize,
                       const QColor& color, double rotationDegrees = 0.0, double opacity = 1.0,
@@ -191,9 +196,19 @@ public:
     // 撤销时再调用一次即可（传空列表就是全撤掉）。
     bool setAnnotations(const QVector<Annotation>& annotations);
 
+    // 精确版：只删 removeIds 里的、由本程序写入的批注，其余批注原样保留。
+    //
+    // 用途：本会话只接管了一部分批注（有些类型 PDFium 读不回来），同步时
+    // 不能把同页其它批注一起删掉。
+    bool setAnnotations(const QVector<Annotation>& annotations,
+                        const QSet<quint64>& removeIds);
+
 private:
     std::shared_ptr<detail::PageImpl> impl_;
     explicit PdfPage(std::shared_ptr<detail::PageImpl> impl);
+    // 内部实现：removeIds 为空表示“删掉这一页所有本程序写的批注”。
+    bool setAnnotations(const QVector<Annotation>& annotations,
+                        std::optional<QSet<quint64>> removeIds);
     friend class PdfDocument;
 };
 

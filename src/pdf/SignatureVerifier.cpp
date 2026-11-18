@@ -968,6 +968,19 @@ QVector<SignatureCryptoVerdict> verifyDocumentSignatures(const QByteArray& pdfBy
             verdicts.append(verdict);
             continue;
         }
+        // 先看覆盖范围：/ByteRange 必须首尾相接地铺满整份文件（只留 /Contents
+        // 那个空洞）。只对“覆盖到的字节”验签，等于允许攻击者在文件尾部追加
+        // 任意增量更新，而这里仍然报“签名有效”。
+        //
+        // 验不出来（缺少证书 API、空洞对不上）一律判不成立——契约见头文件：
+        // “不能把验不出来当成验签通过”。
+        if (!signature.coversDocument) {
+            verdict.failureReason = signature.coverError.isEmpty()
+                                        ? QStringLiteral("签名没有覆盖整份文档，/ByteRange 不完整")
+                                        : signature.coverError;
+            verdicts.append(verdict);
+            continue;
+        }
         // 被签名的字节：/ByteRange 覆盖到的那些区间拼起来（签名空洞不算在内）。
         QByteArray covered;
         bool rangeOk = !signature.byteRange.isEmpty();

@@ -101,6 +101,9 @@ private:
     QByteArray outputBuffer_;
     QByteArray errorBuffer_;
     bool speaking_ = false;
+    // 朗读场次：每开一场 +1。complete() 里的兜底定时器靠它判断自己是不是
+    // 已经过期——否则上一场的 2 秒定时器会把下一场的子进程杀掉。
+    int sessionId_ = 0;
     // 朗读设置（音色/语速/音量）。默认按文本语言自动挑音色。
     SpeechSettings settings_;
 };

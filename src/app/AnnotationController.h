@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QHash>
 #include <QObject>
@@ -238,6 +238,8 @@ private:
 
     // 把某页的批注投影到文档（写进去，或撤掉）。
     void syncPageToDocument(int pageIndex);
+    // 打开文档时把文件里已有的批注读进模型（只接管能无损往返的类型）。
+    void loadExistingAnnotations();
     // 页面几何（按页缓存，取一次就不再问 PDFium）。
     bool pageGeometry(int pageIndex, PageGeometry* geometry) const;
     // 命令执行后同步：模型变了 → 文档跟着变。
@@ -253,6 +255,12 @@ private:
     mutable QHash<int, PageGeometry> geometry_;
     // 已经在文档里写过批注的页：撤销或清空时要把它们都撤掉。
     QSet<int> syncedPages_;
+    // 本会话对哪些批注负责（按页）。同步时只删这些 id：文件里其它软件写的、
+    // 或本程序读不回来的批注一律不动，避免“新增一条就把同页旧批注删掉”。
+    QHash<int, QSet<quint64>> managedIds_;
+    // 已经读过「文件里已有批注」的页：大文档打开时不一次性扫全篇，
+    // 第一次编辑某页时再补读（见 syncPageToDocument）。
+    QSet<int> seededPages_;
     int userRotation_ = 0;
     Tool tool_ = Tool::None;
 };

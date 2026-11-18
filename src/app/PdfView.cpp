@@ -757,129 +757,57 @@ void PdfView::buildAnnotationToolBar() {
         applyMarkAnnotation(pdf::AnnotationType::StrikeOut);
     });
 
-    // 画布工具是互斥的：再点一次同一个按钮就退出工具模式。
-    noteButton_->setCheckable(true);
-    squareButton_->setCheckable(true);
-    inkButton_->setCheckable(true);
-    noteButton_->setAutoExclusive(true);
-    squareButton_->setAutoExclusive(true);
-    ellipseButton_->setAutoExclusive(true);
-    lineButton_->setAutoExclusive(true);
-    arrowButton_->setAutoExclusive(true);
-    polygonButton_->setAutoExclusive(true);
-    cloudButton_->setAutoExclusive(true);
-    freeTextButton_->setAutoExclusive(true);
-    stampButton_->setAutoExclusive(true);
-    measureButton_->setAutoExclusive(true);
-    attachmentButton_->setAutoExclusive(true);
-    imageStampButton_->setAutoExclusive(true);
-    soundButton_->setAutoExclusive(true);
-    perimeterButton_->setAutoExclusive(true);
-    areaButton_->setAutoExclusive(true);
-    inkButton_->setAutoExclusive(true);
-    eraserButton_->setAutoExclusive(true);
-    connect(ellipseButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Ellipse
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(perimeterButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::MeasurePerimeter
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(areaButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::MeasureArea
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(imageStampButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::ImageStamp
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(soundButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Sound
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(attachmentButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Attachment
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(measureButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Measure
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(stampButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Stamp
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(freeTextButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::FreeText
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(lineButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Line
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(arrowButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Arrow
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(polygonButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Polygon
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(cloudButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Cloud
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(noteButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Note
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(squareButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Square
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(inkButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Ink
-                                                   : AnnotationController::Tool::None);
-        }
-    });
-    connect(eraserButton_, &QToolButton::clicked, this, [this](bool checked) {
-        if (annotationController_) {
-            annotationController_->setTool(checked ? AnnotationController::Tool::Eraser
-                                                   : AnnotationController::Tool::None);
-        }
-    });
+    // 画布工具按钮：按钮 ↔ 工具枚举的对应关系只在这张表里维护。
+    //
+    // 三个坑一次解决：
+    //   1) 所有工具按钮都必须 setCheckable：非 checkable 的 QToolButton
+    //      发 clicked(bool) 时 checked 恒为 false，槽里 `checked ? X : None`
+    //      会永远走 None —— 14 个工具点了没反应就是这个原因。
+    //   2) 互斥不能靠 setAutoExclusive：按钮分属两条工具栏，父控件不同就
+    //      不在同一个组里；这里在 toggled 里统一把别的按钮取消选中。
+    //   3) 点击分发也由表生成，新增工具只要往表里加一行。
+    annotationToolButtons_ = {
+        {noteButton_, AnnotationController::Tool::Note},
+        {squareButton_, AnnotationController::Tool::Square},
+        {ellipseButton_, AnnotationController::Tool::Ellipse},
+        {lineButton_, AnnotationController::Tool::Line},
+        {arrowButton_, AnnotationController::Tool::Arrow},
+        {polygonButton_, AnnotationController::Tool::Polygon},
+        {cloudButton_, AnnotationController::Tool::Cloud},
+        {freeTextButton_, AnnotationController::Tool::FreeText},
+        {stampButton_, AnnotationController::Tool::Stamp},
+        {measureButton_, AnnotationController::Tool::Measure},
+        {attachmentButton_, AnnotationController::Tool::Attachment},
+        {imageStampButton_, AnnotationController::Tool::ImageStamp},
+        {soundButton_, AnnotationController::Tool::Sound},
+        {perimeterButton_, AnnotationController::Tool::MeasurePerimeter},
+        {areaButton_, AnnotationController::Tool::MeasureArea},
+        {inkButton_, AnnotationController::Tool::Ink},
+        {eraserButton_, AnnotationController::Tool::Eraser},
+    };
+    for (const auto& entry : annotationToolButtons_) {
+        QToolButton* button = entry.first;
+        const AnnotationController::Tool tool = entry.second;
+        button->setCheckable(true);
+        connect(button, &QToolButton::toggled, this, [this, button](bool checked) {
+            if (!checked) {
+                return;
+            }
+            for (const auto& other : annotationToolButtons_) {
+                if (other.first != button && other.first->isChecked()) {
+                    // 阻断信号：否则被取消的按钮会再发一次 clicked(false)，
+                    // 把刚设好的工具又清成 None。
+                    QSignalBlocker blocker(other.first);
+                    other.first->setChecked(false);
+                }
+            }
+        });
+        connect(button, &QToolButton::clicked, this, [this, tool](bool checked) {
+            if (annotationController_) {
+                annotationController_->setTool(checked ? tool : AnnotationController::Tool::None);
+            }
+        });
+    }
 
     connect(undoButton_, &QToolButton::clicked, this, &PdfView::undoAnnotation);
     connect(redoButton_, &QToolButton::clicked, this, &PdfView::redoAnnotation);
@@ -989,9 +917,15 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             });
     connect(annotationController_.get(), &AnnotationController::toolChanged, this, [this]() {
         const auto tool = annotationController_->tool();
-        noteButton_->setChecked(tool == AnnotationController::Tool::Note);
-        squareButton_->setChecked(tool == AnnotationController::Tool::Square);
-        inkButton_->setChecked(tool == AnnotationController::Tool::Ink);
+        // 反向同步：外部代码也会改工具（编号图章、图片图章、callout、放完批注回到
+        // 选择态），按钮选中态必须跟着走。映射仍只来自那一张表。
+        for (const auto& entry : annotationToolButtons_) {
+            const bool shouldCheck = entry.second == tool;
+            if (entry.first->isChecked() != shouldCheck) {
+                QSignalBlocker blocker(entry.first);
+                entry.first->setChecked(shouldCheck);
+            }
+        }
         // 工具换了，连续批注要跟着记住现在挂的是哪个工具。
         syncContinuousModeWithTool();
     });
@@ -1415,6 +1349,14 @@ void PdfView::handlePageStructureChanged() {
     layout_.setUserRotation(userRotation_);
     cache_.clear();
 
+    // 页号已经重排：按页号记的对象选择必须清掉，否则“编辑对象”会作用到
+    // 原页码上的另一页（删第 1 页后，第 5 页的选择变成了第 6 页）。
+    selectedObjectPage_ = -1;
+    selectedObjectIndexes_.clear();
+    objectCyclePage_ = -1;
+    objectCyclePosition_ = -1;
+    canvas_->clearObjectSelection();
+
     // 渲染线程与后台控制器换新副本。
     stopRenderThread();
     startRenderThread();
@@ -1484,6 +1426,14 @@ int PdfView::currentPage() const {
 
 double PdfView::zoom() const {
     return zoom_;
+}
+
+double PdfView::minZoomFactor() {
+    return kMinZoom;
+}
+
+double PdfView::maxZoomFactor() {
+    return kMaxZoom;
 }
 
 QString PdfView::filePath() const {
@@ -2197,13 +2147,19 @@ void PdfView::redactSelection() {
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
         return;
     }
-    QRectF userRect;
+    // 逐块转换，**不要先并成一个包围盒**：多行选区并集会把两次选中的
+    // 第一行与最后一行之间的整块内容一起栅格化删除，用户没选中的文字也没了。
+    QVector<QRectF> userRects;
+    userRects.reserve(displayRects.size());
     for (const QRectF& rect : displayRects) {
-        userRect = userRect.united(
+        const QRectF converted =
             QRectF(displayToUser(pageIndex, rect.topLeft()),
-                   displayToUser(pageIndex, rect.bottomRight())).normalized());
+                   displayToUser(pageIndex, rect.bottomRight())).normalized();
+        if (!converted.isEmpty()) {
+            userRects.append(converted);
+        }
     }
-    if (userRect.isEmpty() || !page->redactByRasterizing(userRect, 2.0)) {
+    if (userRects.isEmpty() || !page->redactByRasterizing(userRects, 2.0)) {
         QMessageBox::warning(this, tr("密文遮盖"), tr("无法安全地应用遮盖，文档没有修改。"));
         return;
     }
@@ -2811,11 +2767,27 @@ void PdfView::insertPagesFromFileDialog() {
     }
     const int insertAt = currentPage() + 1;
     const int sourceCount = opened.document.pageCount();
+    // 先把要插入的页全部备份出来，再动主文档：源 PDF 第 k 页坏了时，
+    // 不能留下“前 k-1 页已经插进去、布局却没重排”的半成品。
+    QVector<pdf::PdfDocument> backups;
+    backups.reserve(sourceCount);
     for (int index = 0; index < sourceCount; ++index) {
         const pdf::PdfDocument backup = opened.document.backupPage(index);
-        if (!backup.isValid() ||
-            !document_.restorePageFrom(backup, insertAt + index)) {
-            QMessageBox::warning(this, tr("插入页面"), tr("插入失败。"));
+        if (!backup.isValid()) {
+            QMessageBox::warning(this, tr("插入页面"),
+                                 tr("第 %1 页读不出来，没有插入任何页面。").arg(index + 1));
+            return;
+        }
+        backups.append(backup);
+    }
+    for (int index = 0; index < backups.size(); ++index) {
+        if (!document_.restorePageFrom(backups.at(index), insertAt + index)) {
+            // 回滚已经插入的页，保证“失败时文档保持原样”。
+            for (int inserted = index - 1; inserted >= 0; --inserted) {
+                document_.deletePage(insertAt + inserted);
+            }
+            handlePageStructureChanged();
+            QMessageBox::warning(this, tr("插入页面"), tr("插入失败，文档已恢复到操作前。"));
             return;
         }
     }
@@ -5633,13 +5605,12 @@ void PdfView::activateAnnotationTool(const QString& id) {
             annotationController_->setTool(id == QStringLiteral("callout")
                                               ? AnnotationController::Tool::Callout
                                               : AnnotationController::Tool::RegionHighlight);
-            for (QToolButton* button : {noteButton_, squareButton_, ellipseButton_, lineButton_,
-                                        arrowButton_, polygonButton_, cloudButton_, freeTextButton_,
-                                        stampButton_, measureButton_, perimeterButton_, areaButton_,
-                                        inkButton_, eraserButton_, attachmentButton_,
-                                        imageStampButton_, soundButton_}) {
-                if (button != nullptr) {
-                    button->setChecked(false);
+            // 阻断信号：setChecked(false) 会触发 clicked(false)，把刚设好的
+            // callout / regionHighlight 工具又清回 None。
+            for (const auto& entry : annotationToolButtons_) {
+                if (entry.first->isChecked()) {
+                    QSignalBlocker blocker(entry.first);
+                    entry.first->setChecked(false);
                 }
             }
         }
@@ -6231,6 +6202,25 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
     }
     if (!saved.warning.isEmpty()) {
         trace(QStringLiteral("appearance not written: %1").arg(saved.warning));
+        // 文件本身是好的，但批注在别的阅读器里可能看不见。以前只写进轨迹日志，
+        // 用户完全不知道；现在必须当面提示。
+        emit statusMessage(tr("批注外观流没有写入：在其它阅读器里可能看不见批注"));
+        QMessageBox::warning(
+            this, tr("保存完成，但有提示"),
+            tr("%1\n\n文档本身已经保存成功；批注在本程序里正常，但在福昕、"
+               "Acrobat 等阅读器里可能显示不出来。")
+                .arg(saved.warning));
+    }
+    if (saved.signatureCount > 0) {
+        // 保存是整份重写，签名覆盖的字节已经变了：明确告知失效，而不是让用户
+        // 打开阅读器才发现“签名无效”。
+        emit statusMessage(tr("文档包含数字签名，本次保存已使签名失效"));
+        QMessageBox::information(
+            this, tr("数字签名已失效"),
+            tr("这份文档包含 %1 个数字签名。保存会重写整份文件，签名覆盖的内容"
+               "已经改变，在阅读器里会被判定为无效。\n\n"
+               "如果需要保留签名，请在签署完成后不要再次修改并保存这份文件。")
+                .arg(saved.signatureCount));
     }
     if (backupPath != nullptr) {
         *backupPath = saved.backupPath;

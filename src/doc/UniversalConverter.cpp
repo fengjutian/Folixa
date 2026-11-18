@@ -1,4 +1,4 @@
-﻿#include "doc/UniversalConverter.h"
+#include "doc/UniversalConverter.h"
 
 #include "pdf/ContentStream.h"
 #include "pdf/TrueTypeSubset.h"
@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStringDecoder>
 #include <QStringList>
 #include <QVector>
 
@@ -175,6 +176,45 @@ QString decodeUtf8(const QByteArray& bytes, bool* hadInvalid) {
         *hadInvalid = invalid;
     }
     return out;
+}
+
+// 解码文本：UTF-8 解不出来时，按 Windows 上最常见的中文 ANSI 编码再试一次。
+//
+// 为什么需要：Windows 记事本旧默认编码是 ANSI（中文系统上就是 GBK/GB18030），
+// 一份 GBK 的 .txt 按 UTF-8 解会得到满篇 U+FFFD，转出来的 PDF 全是替换符，
+// 用户只会以为文件坏了。GB18030 覆盖 GBK/GB2312；Qt 没带 ICU 时退回系统本地编码。
+QString decodeText(const QByteArray& bytes, bool* hadInvalid) {
+    bool invalid = false;
+    const QString utf8 = decodeUtf8(bytes, &invalid);
+    if (!invalid) {
+        if (hadInvalid != nullptr) {
+            *hadInvalid = false;
+        }
+        return utf8;
+    }
+
+    QStringDecoder gb18030("GB18030");
+    if (gb18030.isValid()) {
+        const QString decoded = gb18030.decode(bytes);
+        if (!decoded.contains(QChar::ReplacementCharacter)) {
+            if (hadInvalid != nullptr) {
+                *hadInvalid = false;
+            }
+            return decoded;
+        }
+    }
+    const QString local = QString::fromLocal8Bit(bytes);
+    if (!local.contains(QChar::ReplacementCharacter)) {
+        if (hadInvalid != nullptr) {
+            *hadInvalid = false;
+        }
+        return local;
+    }
+
+    if (hadInvalid != nullptr) {
+        *hadInvalid = true;
+    }
+    return utf8;
 }
 
 // ====================================================== 嵌入字体解析 ========
@@ -1450,8 +1490,9 @@ QVector<UniversalTextLine> parseUniversalText(const QByteArray& content, Univers
         }
         return {};
     }
+    // 非 UTF-8 的文本（Windows 上常见的 GBK）走回退解码，避免整篇变成 U+FFFD。
     bool hadInvalid = false;
-    const QString text = decodeUtf8(content, &hadInvalid);
+    const QString text = decodeText(content, &hadInvalid);
     Q_UNUSED(hadInvalid)
     return parseDecodedText(text, kind);
 }
@@ -1466,7 +1507,7 @@ bool contentNeedsCjkFont(const QByteArray& content, UniversalFileKind kind) {
         return false;
     }
     bool hadInvalid = false;
-    const QString text = decodeUtf8(content, &hadInvalid);
+    const QString text = decodeText(content, &hadInvalid);
     Q_UNUSED(hadInvalid)
     // 口径与 encodeWinAnsi 一致：WinAnsi 装不下的字符（码位大于 0xFF）。
     for (const QChar ch : text) {
@@ -1499,7 +1540,9 @@ UniversalConversionResult convertToPdf(const QByteArray& content, UniversalFileK
 
     // 非法 UTF-8：按参数决定是失败还是替换。
     bool hadInvalid = false;
-    const QString text = decodeUtf8(content, &hadInvalid);
+    const QString text = options.invalidUtf8 == InvalidUtf8Policy::Fail
+                             ? decodeUtf8(content, &hadInvalid)
+                             : decodeText(content, &hadInvalid);
     if (hadInvalid && options.invalidUtf8 == InvalidUtf8Policy::Fail) {
         result.error = QStringLiteral("文件不是合法的 UTF-8 文本：含有无效的字节序列，无法转换");
         return result;

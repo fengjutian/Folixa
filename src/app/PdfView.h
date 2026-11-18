@@ -71,6 +71,10 @@ public:
     int pageCount() const;
     int currentPage() const;
     double zoom() const;
+    // 缩放范围（10%–800%）。界面上的滑块与百分比显示必须用同一份常量，
+    // 否则会出现“600% 显示成 400%、滑块到不了 400% 以上”。
+    static double minZoomFactor();
+    static double maxZoomFactor();
     QString filePath() const;
     // 为导航面板生成真实页面缩略图；仅按需渲染请求页。
     QImage renderThumbnail(int pageIndex, int targetWidth) const;
@@ -615,6 +619,12 @@ private:
     QToolButton* eraserButton_ = nullptr;
     QToolButton* undoButton_ = nullptr;
     QToolButton* redoButton_ = nullptr;
+    // 画布工具按钮与工具枚举的对应关系。
+    //
+    // 只在这张表里维护“哪个按钮对应哪个工具”：可勾选状态、互斥、点击分发
+    // 都由表驱动。以前三者各写一遍（checkable 清单、autoExclusive 清单、
+    // 17 段 connect），漏一处就表现为“点了没反应”。
+    QVector<QPair<QToolButton*, AnnotationController::Tool>> annotationToolButtons_;
     // 指标不放进工具栏：标签宽度一变，工具栏的溢出状态就变，
     // 画布高度跟着变，滚动范围又跟着变，滚动位置会被钳制——
     // 一个文字宽度引发的反馈环。指标交给主窗口放状态栏。

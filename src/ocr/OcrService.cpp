@@ -96,6 +96,12 @@ protected:
                 if (stopping_) {
                     return;
                 }
+                // 队列空了、也没有在跑的页：取消这一轮结束，后面的请求正常处理。
+                // 队列里还有页时不能清标记——取消对“取消之后紧接着入队”的那批
+                // 同样生效（见 OcrServiceTests::cancelDropsQueuedPages）。
+                if (cancelled_ && queue_.isEmpty() && !busy_) {
+                    cancelled_ = false;
+                }
                 const bool idle = queue_.isEmpty() && !busy_;
                 locker.unlock();
                 if (idle && onIdle_) {
@@ -142,6 +148,15 @@ protected:
             } else if (onResult_) {
                 onResult_(result);
             }
+
+            // 取消是「这一轮」的语义，不是永久开关：这一页处理完、队列也清空了，
+            // 就恢复可识别状态，否则调用一次 cancelAll() 之后这个服务终身失效。
+            {
+                QMutexLocker locker(&mutex_);
+                if (cancelled_ && !stopping_ && !busy_ && queue_.isEmpty()) {
+                    cancelled_ = false;
+                }
+            }
         }
     }
 
@@ -169,7 +184,14 @@ OcrService::OcrService(QObject* parent) : QObject(parent) {
 OcrService::~OcrService() {
     if (worker_ != nullptr) {
         worker_->stop();
-        worker_->wait(5000);
+        if (!worker_->wait(5000)) {
+            // 引擎的 recognize() 是阻塞调用，取消不了。此时 delete 一个仍在
+            // 运行的 QThread 是未定义行为（Qt 会报 "Destroyed while thread is
+            // still running" 并可能崩溃）。进程马上就要退出，宁可泄漏线程对象。
+            qWarning("OcrService: OCR 线程 5 秒内没停下，跳过销毁以免崩溃");
+            worker_ = nullptr;
+            return;
+        }
         delete worker_;
         worker_ = nullptr;
     }

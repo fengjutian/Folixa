@@ -1,4 +1,4 @@
-﻿#include "app/AnnotationController.h"
+#include "app/AnnotationController.h"
 #include "pdf/SoundFormat.h"
 
 #include "app/PdfPageOperations.h"
@@ -36,6 +36,70 @@ AnnotationController::AnnotationController(pdf::PdfDocument document, QObject* p
     : QObject(parent), document_(std::move(document)) {
     pageOperations_ = std::make_unique<PdfPageOperations>(document_);
     connect(&model_, &doc::AnnotationModel::changed, this, &AnnotationController::handleModelChanged);
+    // 文件里已有的批注要进模型：否则面板里是 0 条、不能选/改/删，
+    // 而且本会话新增一条时会把同页旧批注当成“多余”的删掉。
+    loadExistingAnnotations();
+}
+
+namespace {
+
+// 这些类型的模型数据能从 PDFium 完整读回（矩形 / 四角点 / 颜色 / 正文）。
+//
+// 线、箭头、多边形、云线、墨迹、测量、附件、声音、文本框不行：几何（/L、
+// /Vertices、/InkList、/Measure）与附件/声音本体 PDFium 都没有读接口，
+// 读回来只有包围盒。把它们塞进模型再重写，等于把原始数据写坏 —— 所以不接管，
+// 让它们原样留在文档里（PDFium 仍然会渲染），只是面板里看不到。
+bool isRoundTrippable(pdf::AnnotationType type) {
+    switch (type) {
+    case pdf::AnnotationType::Highlight:
+    case pdf::AnnotationType::Underline:
+    case pdf::AnnotationType::StrikeOut:
+    case pdf::AnnotationType::Squiggly:
+    case pdf::AnnotationType::Note:
+    case pdf::AnnotationType::Square:
+    case pdf::AnnotationType::Ellipse:
+    case pdf::AnnotationType::Stamp:
+        return true;
+    default:
+        return false;
+    }
+}
+
+}  // namespace
+
+void AnnotationController::loadExistingAnnotations() {
+    if (!document_.isValid()) {
+        return;
+    }
+    // 启动时逐页读批注是同步成本：几百页的文档全扫一遍会拖慢打开。
+    // 超过这个页数就只接管前 500 页；没接管的页上的批注保持原样、不会被删，
+    // 只是本会话里看不到（精确删除保证了这一点）。
+    constexpr int kMaxSeededPages = 500;
+    const int pages = qMin(document_.pageCount(), kMaxSeededPages);
+    for (int index = 0; index < pages; ++index) {
+        auto page = document_.page(index);
+        if (!page.has_value()) {
+            continue;
+        }
+        QVector<pdf::Annotation> loaded;
+        for (const pdf::Annotation& annotation : page->annotations()) {
+            if (annotation.id == 0) {
+                continue;  // 不是本程序写的批注：不接管。
+            }
+            // 即使不接管，id 也要占住：新建批注不能复用文件里已有的 id。
+            model_.reserveId(annotation.id);
+            if (!isRoundTrippable(annotation.type)) {
+                continue;
+            }
+            loaded.append(annotation);
+            managedIds_[index].insert(annotation.id);
+        }
+        model_.seed(loaded);
+        seededPages_.insert(index);
+    }
+    trace(QStringLiteral("annotation load existing pages=%1 count=%2")
+              .arg(pages)
+              .arg(model_.count()));
 }
 
 AnnotationController::~AnnotationController() = default;
@@ -838,10 +902,48 @@ void AnnotationController::syncPageToDocument(int pageIndex) {
     if (!page.has_value()) {
         return;
     }
-    // 单向投影：文档里的这页批注 = 模型里的这页批注。
+    // 这一页还没读过文件里的既有批注（大文档只预读前若干页）：先补读再同步。
+    // 补读同样只接管能无损往返的类型，id 一律占住。
+    if (!seededPages_.contains(pageIndex)) {
+        seededPages_.insert(pageIndex);
+        QVector<pdf::Annotation> loaded;
+        for (const pdf::Annotation& annotation : page->annotations()) {
+            if (annotation.id == 0) {
+                continue;
+            }
+            model_.reserveId(annotation.id);
+            if (!isRoundTrippable(annotation.type)) {
+                continue;
+            }
+            loaded.append(annotation);
+            managedIds_[pageIndex].insert(annotation.id);
+        }
+        model_.seed(loaded);
+    }
+    // 单向投影：文档里「本会话负责的」批注 = 模型里的这页批注。
+    //
+    // 只删 managedIds_ 里的 id：文件里其它软件写的、以及本程序读不回来
+    // 因而不接管的批注（线/多边形/墨迹/附件/声音……）保持原样。否则用户
+    // 在同页新增一条批注，就会把上次会话保存的批注整页删掉。
     const QVector<pdf::Annotation> items = model_.forPage(pageIndex);
-    page->setAnnotations(items);
+    QSet<quint64> current;
+    current.reserve(items.size());
+    for (const pdf::Annotation& item : items) {
+        current.insert(item.id);
+    }
+    const bool ok = page->setAnnotations(items, managedIds_.value(pageIndex));
+    managedIds_[pageIndex] = current;
     syncedPages_.insert(pageIndex);
+    if (ok) {
+        // 重建后的批注在内存文档里没有 /AP 了：让画布按模型自己画，
+        // 否则用户改完颜色后批注会从屏幕上“消失”（PDFium 不画无 /AP 的批注）。
+        model_.clearAppearanceForPage(pageIndex);
+    }
+    if (!ok) {
+        trace(QStringLiteral("annotation doc sync failed page=%1 count=%2")
+                  .arg(pageIndex)
+                  .arg(items.size()));
+    }
     // 投影结果记进轨迹：验收脚本据此确认批注真的进了文档。
     trace(QStringLiteral("annotation doc sync page=%1 count=%2").arg(pageIndex).arg(items.size()));
 }
@@ -992,10 +1094,24 @@ void AnnotationController::pageStructureChanged(const QVector<int>& pageMapping)
     // 适配层按页维护着批注记账，页面操作时已经跟着重排过，
     // 这里不需要再按旧页号重投影。
     syncedPages_.clear();
+    // 页号变了：哪些页已经补读过也作废，下次编辑时按新页号重读。
+    seededPages_.clear();
     // 几何缓存作废：页数、顺序、某页的旋转都可能变了。
     geometry_.clear();
     // 批注的页码跟着页面走。
     model_.remapPages(pageMapping);
+    // 「本会话负责的批注」按页记的账也要跟着重映射：
+    // 不重映射的话，页面移动之后再同步会拿旧页号的 id 去删新页的批注。
+    QHash<int, QSet<quint64>> remapped;
+    for (auto it = managedIds_.cbegin(); it != managedIds_.cend(); ++it) {
+        const int next = (it.key() >= 0 && it.key() < pageMapping.size())
+                             ? pageMapping.at(it.key())
+                             : -1;
+        if (next >= 0) {
+            remapped.insert(next, it.value());
+        }
+    }
+    managedIds_ = remapped;
     emit documentStructureChanged();
 }
 

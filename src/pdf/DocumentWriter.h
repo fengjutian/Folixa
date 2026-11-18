@@ -35,6 +35,11 @@ struct SaveOutcome {
     QString backupPath;
     // 补上的外观流条数。
     int appearanceCount = 0;
+    // 这次保存会让多少个既有数字签名失效（0 = 没有签名）。
+    //
+    // 保存是整份重写：签名覆盖的字节变了，签名必然失效。界面必须据此提示，
+    // 不能让用户以为“保存完签名还在”。
+    int signatureCount = 0;
 };
 
 // 保存的唯一入口。

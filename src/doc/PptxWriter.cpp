@@ -112,12 +112,22 @@ QByteArray appPropsXml(int slideCount) {
     return out.toUtf8();
 }
 
-QByteArray presentationXml(int slideCount) {
+QByteArray presentationXml(int slideCount, int notesCount) {
     QString out = header();
     out.append(QStringLiteral(
         "<p:presentation xmlns:a=\"%1\" xmlns:r=\"%2\" xmlns:p=\"%3\">"
-        "<p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rId1\"/></p:sldMasterIdLst>"
-        "<p:sldIdLst>").arg(kNsA, kNsR, kNsP));
+        "<p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rId1\"/></p:sldMasterIdLst>")
+                   .arg(kNsA, kNsR, kNsP));
+    if (notesCount > 0) {
+        // 备注母版必须被 presentation 引用，否则 notesMaster 与 notesSlide
+        // 都是孤儿部件：PowerPoint 打开后备注窗格为空。
+        // 关系编号与 presentationRelsXml 保持一致：主题 = slideCount+2，
+        // 备注母版 = slideCount+3。
+        out.append(QStringLiteral(
+            "<p:notesMasterIdLst><p:notesMasterId r:id=\"rId%1\"/></p:notesMasterIdLst>")
+                       .arg(slideCount + 3));
+    }
+    out.append(QStringLiteral("<p:sldIdLst>"));
     // sldId 从 256 起：小于它的编号是保留的。
     for (int i = 0; i < slideCount; ++i) {
         out.append(QStringLiteral("<p:sldId id=\"%1\" r:id=\"rId%2\"/>")
@@ -378,14 +388,22 @@ QByteArray slideXml(const Slide& slide) {
     return out.toUtf8();
 }
 
-QByteArray slideRelsXml() {
+QByteArray slideRelsXml(int notesNumber) {
     QString out = header();
     out.append(QStringLiteral(
         "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         "<Relationship Id=\"rId1\" "
         "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout\" "
-        "Target=\"../slideLayouts/slideLayout1.xml\"/>"
-        "</Relationships>"));
+        "Target=\"../slideLayouts/slideLayout1.xml\"/>"));
+    if (notesNumber > 0) {
+        // 幻灯片 → 备注的反向关系。少了它，notesSlide 部件虽然写在包里，
+        // 却没有任何引用能到达，PowerPoint 的备注窗格是空的。
+        out.append(QStringLiteral(
+            "<Relationship Id=\"rId2\" "
+            "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide\" "
+            "Target=\"../notesSlides/notesSlide%1.xml\"/>").arg(notesNumber));
+    }
+    out.append(QStringLiteral("</Relationships>"));
     return out.toUtf8();
 }
 
@@ -444,7 +462,7 @@ QByteArray deckToPptx(const Deck& deck) {
     writer.addFile(QStringLiteral("_rels/.rels"), packageRelsXml());
     writer.addFile(QStringLiteral("docProps/core.xml"), corePropsXml(deck.title));
     writer.addFile(QStringLiteral("docProps/app.xml"), appPropsXml(deck.slides.size()));
-    writer.addFile(QStringLiteral("ppt/presentation.xml"), presentationXml(deck.slides.size()));
+    writer.addFile(QStringLiteral("ppt/presentation.xml"), presentationXml(deck.slides.size(), notesCount));
     writer.addFile(QStringLiteral("ppt/_rels/presentation.xml.rels"),
                    presentationRelsXml(deck.slides.size()));
     writer.addFile(QStringLiteral("ppt/theme/theme1.xml"), themeXml());
@@ -463,7 +481,7 @@ QByteArray deckToPptx(const Deck& deck) {
         writer.addFile(QStringLiteral("ppt/slides/slide%1.xml").arg(number),
                        slideXml(deck.slides.at(i)));
         writer.addFile(QStringLiteral("ppt/slides/_rels/slide%1.xml.rels").arg(number),
-                       slideRelsXml());
+                       slideRelsXml(notesSlideNumbers.at(i)));
         const int notesNumber = notesSlideNumbers.at(i);
         if (notesNumber <= 0) {
             continue;

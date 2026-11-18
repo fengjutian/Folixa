@@ -747,7 +747,11 @@ void AiPanel::sendDocumentQa(const QString& question) {
     ai::DataScope policyScope;
     policyScope.chunkCount = context.size();
     policyScope.charCount = characters;
-    policyScope.hasExplicitPageSelection = true;
+    // 整篇问答发的是**检索出来的块**，可能横跨用户从没选过的页。
+    // 这里不能谎称“用户已显式选页”：在「选定页面」模式下必须被
+    // DataPolicy 拦住（提示用户改用「选定片段」或本地模式），
+    // 否则该模式的守卫形同虚设。
+    policyScope.hasExplicitPageSelection = false;
     QVector<int> pages;
     for (const ai::ContextBlock& block : context) {
         pages.append(block.pageNumber);

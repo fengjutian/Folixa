@@ -1,4 +1,4 @@
-﻿#include "pdf/PdfiumAdapter.h"
+#include "pdf/PdfiumAdapter.h"
 #include "pdf/DocumentOpen.h"
 #include <QImage>
 #include <QPainter>
@@ -440,6 +440,31 @@ bool isOurAnnotation(FPDF_ANNOTATION annot) {
         }
     }
     return true;
+}
+
+// 从 /NM 里读回批注 id（"Folixa:<id>"）。不是我们的批注或解析失败返回 0。
+//
+// 缓冲区 64 个 UTF-16 单元（128 字节）；FPDFAnnot_GetStringValue 返回的是
+// **所需**字节数，不是写入数，所以长度必须按缓冲区容量裁掉再构造 QString，
+// 否则一个超长 /NM 就会让 fromUtf16 越界读栈。
+quint64 annotationIdFromName(FPDF_ANNOTATION annot) {
+    unsigned short buffer[64] = {0};
+    const unsigned long length = FPDFAnnot_GetStringValue(annot, "NM", buffer, 64);
+    constexpr int kMaxUnits = 64;
+    if (length <= sizeof(kAnnotationNamePrefix)) {
+        return 0;
+    }
+    const int available = static_cast<int>(length / 2) - 1;
+    const int charCount = qBound(0, available, kMaxUnits);
+    const QString name =
+        QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer), charCount);
+    const int prefixLength = static_cast<int>(sizeof(kAnnotationNamePrefix)) - 1;
+    if (!name.startsWith(QString::fromLatin1(kAnnotationNamePrefix))) {
+        return 0;
+    }
+    bool ok = false;
+    const quint64 id = name.mid(prefixLength).toULongLong(&ok);
+    return ok ? id : 0;
 }
 
 // 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
@@ -944,23 +969,7 @@ QVector<Annotation> PdfPage::annotations() const {
 
         // 我们的批注带 /NM 标记（"Folixa:<id>"）：id 从这里读回来，
         // 这样存盘再打开之后，批注的 id 还在。
-        {
-            unsigned short buffer[64] = {0};
-            const unsigned long length = FPDFAnnot_GetStringValue(annot, "NM", buffer, 64);
-            const int prefixLength = int(sizeof(kAnnotationNamePrefix)) - 1;
-            if (length > sizeof(kAnnotationNamePrefix)) {
-                const int charCount = int(length / 2) - 1;
-                const QString name = QString::fromUtf16(
-                    reinterpret_cast<const char16_t*>(buffer), charCount);
-                if (name.startsWith(QString::fromLatin1(kAnnotationNamePrefix))) {
-                    bool ok = false;
-                    const quint64 id = name.mid(prefixLength).toULongLong(&ok);
-                    if (ok) {
-                        item.id = id;
-                    }
-                }
-            }
-        }
+        item.id = annotationIdFromName(annot);
 
         FS_RECTF rect = {};
         if (FPDFAnnot_GetRect(annot, &rect)) {
@@ -1033,17 +1042,32 @@ QVector<Annotation> PdfPage::annotations() const {
 }
 
 bool PdfPage::setAnnotations(const QVector<Annotation>& annotations) {
+    // 单参版本保持原来的语义：这一页上所有本程序写的批注都重写。
+    return setAnnotations(annotations, /*removeIds=*/std::nullopt);
+}
+
+bool PdfPage::setAnnotations(const QVector<Annotation>& annotations,
+                             const QSet<quint64>& removeIds) {
+    return setAnnotations(annotations, std::optional<QSet<quint64>>(removeIds));
+}
+
+bool PdfPage::setAnnotations(const QVector<Annotation>& annotations,
+                             std::optional<QSet<quint64>> removeIds) {
     if (!isValid()) {
         return false;
     }
 
     const detail::PdfiumGuard guard;
 
-    // 先删掉上一次由本类写入的批注。
+    // 先删掉要重写的那批批注。
     //
     // 认它们靠 /NM 标记，不靠「写在末尾第几条」：
     // 页面被插入、删除、移动之后，末尾的位置就变了，
     // 按位置记账会把原文档自带的批注误删，或者把自己的批注留下来变成重复。
+    //
+    // removeIds 有值时只删这些 id：文件里其它软件写的批注、以及本程序读不回来
+    // 因而不接管的批注（几何/附件/声音）一律不动。没有这个过滤时，用户在同页
+    // 新增一条批注就会把上次会话保存的批注整页删掉。
     QVector<int> ours;
     const int total = FPDFPage_GetAnnotCount(impl_->page);
     for (int i = 0; i < total; ++i) {
@@ -1052,8 +1076,9 @@ bool PdfPage::setAnnotations(const QVector<Annotation>& annotations) {
             continue;
         }
         const bool isOurs = isOurAnnotation(annot);
+        const quint64 id = isOurs ? annotationIdFromName(annot) : 0;
         FPDFPage_CloseAnnot(annot);
-        if (isOurs) {
+        if (isOurs && (!removeIds.has_value() || removeIds->contains(id))) {
             ours.append(i);
         }
     }
@@ -2367,23 +2392,40 @@ bool PdfPage::setTextObjectProperties(const QVector<int>& indexes, const QString
 }
 
 bool PdfPage::redactByRasterizing(const QRectF& rectPoints, double scale) {
-    if (!isValid() || rectPoints.isEmpty() || scale <= 0.0 || rotationDegrees() != 0) {
+    return redactByRasterizing(QVector<QRectF>{rectPoints}, scale);
+}
+
+bool PdfPage::redactByRasterizing(const QVector<QRectF>& rects, double scale) {
+    if (!isValid() || rects.isEmpty() || scale <= 0.0 || rotationDegrees() != 0) {
         return false;
     }
     const MediaBox box = contentBox();
     const QRectF pageRect(QPointF(box.left, box.bottom), QPointF(box.right, box.top));
-    const QRectF clipped = rectPoints.normalized().intersected(pageRect.normalized());
+    QVector<QRectF> clipped;
+    clipped.reserve(rects.size());
+    for (const QRectF& rect : rects) {
+        if (rect.isEmpty()) {
+            continue;
+        }
+        const QRectF intersection = rect.normalized().intersected(pageRect.normalized());
+        if (!intersection.isEmpty()) {
+            clipped.append(intersection);
+        }
+    }
     if (clipped.isEmpty()) return false;
 
     QImage image = render(scale);
     if (image.isNull()) return false;
-    const QRect pixelRect(
-        qFloor((clipped.left() - box.left) * scale),
-        qFloor((box.top - clipped.bottom()) * scale),
-        qCeil(clipped.width() * scale), qCeil(clipped.height() * scale));
-    QPainter painter(&image);
-    painter.fillRect(pixelRect.adjusted(-2, -2, 2, 2), Qt::black);
-    painter.end();
+    {
+        QPainter painter(&image);
+        for (const QRectF& area : clipped) {
+            const QRect pixelRect(
+                qFloor((area.left() - box.left) * scale),
+                qFloor((box.top - area.bottom()) * scale),
+                qCeil(area.width() * scale), qCeil(area.height() * scale));
+            painter.fillRect(pixelRect.adjusted(-2, -2, 2, 2), Qt::black);
+        }
+    }
 
     const detail::PdfiumGuard guard;
     const int count = FPDFPage_CountObjects(impl_->page);
@@ -2682,34 +2724,57 @@ bool PdfDocument::reloadFromBytes(const QByteArray& bytes, QString* error) {
     if (!impl_ || bytes.isEmpty()) return false;
     initializePdfium();
     const detail::PdfiumGuard guard;
-    auto replacement = std::make_shared<detail::DocumentImpl>();
-    replacement->reader = DocumentReader::fromBytes(bytes);
-    replacement->path = impl_->path;
-    replacement->password = impl_->password;
-    replacement->access.m_FileLen = static_cast<unsigned long>(bytes.size());
-    replacement->access.m_GetBlock = &detail::DocumentImpl::readBlock;
-    replacement->access.m_Param = replacement.get();
-    const QByteArray password = replacement->password.toUtf8();
-    replacement->handle = FPDF_LoadCustomDocument(
-        &replacement->access, password.isEmpty() ? nullptr : password.constData());
-    if (!replacement->handle) {
+
+    // 关键：FPDF_FILEACCESS 必须活在**文档实现对象自己**身上。
+    //
+    // PDFium 会保存这个结构（或至少保存其中的 m_Param）指向的内存；以前这里
+    // 用一个临时的 replacement 对象去加载，再把 access swap 过来，函数返回时
+    // replacement 析构，PDFium 手里的 m_Param 就悬空了 —— 重载之后的第一次
+    // 懒加载就是 UAF。现在直接改动 impl_->access，让 PDFium 拿到的指针与
+    // 文档同寿。
+    auto newReader = DocumentReader::fromBytes(bytes);
+    if (!newReader) {
+        if (error) *error = i18n::tr("aipdf::pdf::PdfiumAdapter", "无法读取新的文档字节");
+        return false;
+    }
+
+    // 换 reader 之前先备份旧的：加载失败要原样退回去，旧句柄仍然可用。
+    const std::shared_ptr<DocumentReader> oldReader = impl_->reader;
+    const FPDF_FILEACCESS oldAccess = impl_->access;
+
+    impl_->reader = newReader;
+    impl_->access = FPDF_FILEACCESS{};
+    impl_->access.m_FileLen = static_cast<unsigned long>(bytes.size());
+    impl_->access.m_GetBlock = &detail::DocumentImpl::readBlock;
+    impl_->access.m_Param = impl_.get();
+
+    const QByteArray password = impl_->password.toUtf8();
+    const FPDF_DOCUMENT handle = FPDF_LoadCustomDocument(
+        &impl_->access, password.isEmpty() ? nullptr : password.constData());
+    if (handle == nullptr) {
+        impl_->reader = oldReader;
+        impl_->access = oldAccess;
         if (error) *error = describePdfiumError(FPDF_GetLastError());
         return false;
     }
-    // Preserve the shared implementation object so AnnotationController and PageOperations,
-    // which hold copies of PdfDocument, immediately see the reloaded handle as well.
-    std::swap(impl_->reader, replacement->reader);
-    std::swap(impl_->access, replacement->access);
+
+    // 新句柄已经加载成功，再收旧句柄：旧文档的字体对象属于旧文档，先关字体。
+    // 表单环境按本文件既有约定不调用 Exit（固定构建会崩），随文档一起丢弃。
+    if (impl_->handle != nullptr) {
+        if (impl_->latinEditingFont != nullptr) FPDFFont_Close(impl_->latinEditingFont);
+        if (impl_->unicodeEditingFont != nullptr) FPDFFont_Close(impl_->unicodeEditingFont);
+        for (FPDF_FONT font : std::as_const(impl_->editingFonts)) FPDFFont_Close(font);
+        FPDF_CloseDocument(impl_->handle);
+    }
+    impl_->handle = handle;
+    impl_->form = nullptr;
+    impl_->latinEditingFont = nullptr;
+    impl_->unicodeEditingFont = nullptr;
+    impl_->editingFonts.clear();
+    impl_->access.m_Param = impl_.get();
     // 内容换了，XFA 的判定缓存一起作废。
     impl_->xfaChecked = false;
     impl_->xfaPresent = false;
-    std::swap(impl_->handle, replacement->handle);
-    std::swap(impl_->form, replacement->form);
-    std::swap(impl_->latinEditingFont, replacement->latinEditingFont);
-    std::swap(impl_->unicodeEditingFont, replacement->unicodeEditingFont);
-    std::swap(impl_->editingFonts, replacement->editingFonts);
-    impl_->access.m_Param = impl_.get();
-    replacement->access.m_Param = replacement.get();
     if (error) error->clear();
     return true;
 }

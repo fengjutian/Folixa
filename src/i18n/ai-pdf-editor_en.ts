@@ -8294,4 +8294,61 @@ Notes: %1</translation></message>
             <translation>Forward</translation>
         </message>
     </context>
+    <context>
+        <name>aipdf::app::MainWindow</name>
+        <message>
+            <source>%1 已经打开了</source>
+            <translation>%1 is already open</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message>
+            <source>保存完成，但有提示</source>
+            <translation>Saved, but with a notice</translation>
+        </message>
+        <message>
+            <source>批注外观流没有写入：在其它阅读器里可能看不见批注</source>
+            <translation>Annotation appearance streams were not written; annotations may be invisible in other readers</translation>
+        </message>
+        <message>
+            <source>%1
+
+文档本身已经保存成功；批注在本程序里正常，但在福昕、Acrobat 等阅读器里可能显示不出来。</source>
+            <translation>%1
+
+The document itself was saved successfully. Annotations look fine in this app, but may not appear in readers such as Foxit or Acrobat.</translation>
+        </message>
+        <message>
+            <source>文档包含数字签名，本次保存已使签名失效</source>
+            <translation>The document contains digital signatures; saving has invalidated them</translation>
+        </message>
+        <message>
+            <source>数字签名已失效</source>
+            <translation>Digital signatures invalidated</translation>
+        </message>
+        <message>
+            <source>这份文档包含 %1 个数字签名。保存会重写整份文件，签名覆盖的内容已经改变，在阅读器里会被判定为无效。
+
+如果需要保留签名，请在签署完成后不要再次修改并保存这份文件。</source>
+            <translation>This document contains %1 digital signature(s). Saving rewrites the whole file, so the signed content has changed and readers will report the signatures as invalid.
+
+If you need to keep the signatures, do not modify and save this file again after signing.</translation>
+        </message>
+        <message>
+            <source>第 %1 页读不出来，没有插入任何页面。</source>
+            <translation>Page %1 could not be read; no pages were inserted.</translation>
+        </message>
+        <message>
+            <source>插入失败，文档已恢复到操作前。</source>
+            <translation>Insert failed; the document was restored to its previous state.</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::pdf::PdfiumAdapter</name>
+        <message>
+            <source>无法读取新的文档字节</source>
+            <translation>Cannot read the new document bytes</translation>
+        </message>
+    </context>
 </TS>

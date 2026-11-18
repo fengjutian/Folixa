@@ -27,6 +27,28 @@ public:
 
     // 添加批注。id 为 0 或与已有批注重复时返回 false。
     bool add(const pdf::Annotation& annotation);
+
+    // 打开文档时把文件里已有的批注灌进模型。
+    //
+    // 与 add() 的区别：
+    //   * 不发 changed 信号——灌入不是用户操作，不能触发「模型 → 文档」的
+    //     反向投影（否则一打开文档就会重写整页批注）；
+    //   * 已存在的 id 不覆盖；
+    //   * id 计数器抬到 max(id)+1，避免本会话新建的批注与文件里的旧 id 撞号
+    //     （撞号会让保存时把外观写到另一条批注上）。
+    void seed(const QVector<pdf::Annotation>& annotations);
+
+    // 把 id 计数器抬到至少 id+1。
+    //
+    // 给“文件里有、但本会话不接管”的批注用：它们的 id 仍占着，新建批注不能
+    // 复用，否则保存时 DocumentWriter 会按 id 把新批注的外观写到旧批注上。
+    void reserveId(quint64 id);
+
+    // 把某一页的批注标记为「文档里已经没有外观流」。
+    //
+    // 同步到 PDFium 之后，本程序写的批注会被重建，/AP 随之丢失；显示层必须
+    // 自己再画一遍。不发 changed 信号：调用方正在做投影，不需要再触发一次。
+    void clearAppearanceForPage(int pageIndex);
     // 按 id 删除。找不到返回 false。
     bool remove(quint64 id);
     // 按 id 替换整条批注（改颜色、改正文用）。找不到返回 false。

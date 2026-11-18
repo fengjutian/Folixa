@@ -19,6 +19,38 @@ quint64 AnnotationModel::allocateId() const {
     return nextId_++;
 }
 
+void AnnotationModel::seed(const QVector<pdf::Annotation>& annotations) {
+    for (const pdf::Annotation& annotation : annotations) {
+        if (annotation.id == 0) {
+            continue;
+        }
+        if (annotation.id >= nextId_) {
+            nextId_ = annotation.id + 1;
+        }
+        if (annotations_.contains(annotation.id)) {
+            continue;
+        }
+        annotations_.insert(annotation.id, annotation);
+        order_.append(annotation.id);
+    }
+}
+
+void AnnotationModel::reserveId(quint64 id) {
+    if (id >= nextId_) {
+        nextId_ = id + 1;
+    }
+}
+
+void AnnotationModel::clearAppearanceForPage(int pageIndex) {
+    for (quint64 id : order_) {
+        auto it = annotations_.find(id);
+        if (it == annotations_.end() || it.value().pageIndex != pageIndex) {
+            continue;
+        }
+        it.value().hasAppearance = false;
+    }
+}
+
 bool AnnotationModel::add(const pdf::Annotation& annotation) {
     if (annotation.id == 0 || annotations_.contains(annotation.id)) {
         return false;

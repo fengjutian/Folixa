@@ -9,6 +9,7 @@
 #include <QXmlStreamReader>
 
 #include "doc/OfficeExport.h"
+#include "doc/XmlText.h"
 #include "doc/ZipWriter.h"
 
 using aipdf::doc::ExportFormat;
@@ -77,6 +78,8 @@ private slots:
     void suggestedSuffixMatchesFormat();
     void failedExportReturnsEmptyBytes();
     void multipleLinesAreOrderedTopToBottom();
+    void ooxmlEscapingKeepsEmojiAndDropsControlCharacters();
+    void multiPageRtfUsesRealPageBreak();
 };
 
 void OfficeExportTests::everyFormatExportsWithoutCrashing() {
@@ -236,6 +239,36 @@ void OfficeExportTests::multipleLinesAreOrderedTopToBottom() {
         aipdf::doc::exportPageTo(ExportFormat::PlainText, page, QSizeF(595.0, 842.0));
     QVERIFY(result.ok);
     QCOMPARE(QString::fromUtf8(result.bytes), QStringLiteral("First\nSecond"));
+}
+
+void OfficeExportTests::ooxmlEscapingKeepsEmojiAndDropsControlCharacters() {
+    // 合法代理对（emoji）必须原样保留：以前按 0xD800–0xDFFF 一刀切，
+    // 会把整对代理项当成“落单代理项”丢掉，导出的 Office 文件里静默少字。
+    const char32_t emoji = 0x1F600;  // 😀
+    QString text = QString::fromUcs4(&emoji, 1);
+    text += QChar(0x01);  // XML 1.0 非法控制字符
+    text += QStringLiteral("&<>");
+    text += QChar(0x0D);
+
+    const QString escaped = aipdf::doc::escapeOoxmlText(text);
+    QVERIFY2(escaped.contains(QString::fromUcs4(&emoji, 1)), "emoji 被丢掉了");
+    QVERIFY2(!escaped.contains(QChar(0x01)), "非法控制字符没有被丢掉");
+    QVERIFY(escaped.contains(QStringLiteral("&amp;&lt;&gt;")));
+    QVERIFY(escaped.contains(QStringLiteral("&#xD;")));
+
+    // 包进一个元素里必须是格式正确的 XML。
+    QVERIFY(isWellFormedXml(
+        (QStringLiteral("<t>") + escaped + QStringLiteral("</t>")).toUtf8()));
+}
+
+void OfficeExportTests::multiPageRtfUsesRealPageBreak() {
+    const QVector<TextPage> pages{samplePage(), samplePage()};
+    const ExportResult result =
+        aipdf::doc::exportPagesTo(ExportFormat::Rtf, pages, QSizeF(595.0, 842.0));
+    QVERIFY(result.ok);
+    // 真分页符是 `\page`，不是被 escapeRtf 转义后的 `\\page`。
+    QVERIFY2(result.bytes.contains("\\page"), "RTF 里没有分页符");
+    QVERIFY2(!result.bytes.contains("\\\\page"), "分页符被二次转义了");
 }
 
 QTEST_GUILESS_MAIN(OfficeExportTests)
