@@ -40,6 +40,9 @@ private slots:
     void stopPreventsFurtherWordEvents();
     void wordIndexesMatchSplitIntoWords();
     void destroyingWhileSpeakingIsSafe();
+    void settingsAreStoredAndNormalized();
+    void normalizeClampsRateAndVolume();
+    void availableVoicesDoesNotCrash();
 };
 
 void SpeechEngineTests::isSupportedDoesNotCrash() {
@@ -147,6 +150,50 @@ void SpeechEngineTests::destroyingWhileSpeakingIsSafe() {
         // 引擎在这里析构：子进程必须被收掉，不能留下孤儿进程。
     }
     QVERIFY2(timer.elapsed() < 5000, "析构不能挂住");
+}
+
+void SpeechEngineTests::settingsAreStoredAndNormalized() {
+    SpeechEngine engine;
+    SpeechSettings settings;
+    settings.voice = QStringLiteral("  Microsoft Test Voice  ");
+    settings.rate = 3;
+    settings.volume = 80;
+    engine.setSettings(settings);
+
+    const SpeechSettings stored = engine.settings();
+    QCOMPARE(stored.voice, QStringLiteral("Microsoft Test Voice"));
+    QCOMPARE(stored.rate, 3);
+    QCOMPARE(stored.volume, 80);
+}
+
+void SpeechEngineTests::normalizeClampsRateAndVolume() {
+    SpeechSettings settings;
+    settings.rate = 99;
+    settings.volume = 250;
+    SpeechSettings normalized = normalizeSpeechSettings(settings);
+    QCOMPARE(normalized.rate, kSpeechRateMax);
+    QCOMPARE(normalized.volume, 100);
+
+    settings.rate = -99;
+    settings.volume = -10;
+    normalized = normalizeSpeechSettings(settings);
+    QCOMPARE(normalized.rate, kSpeechRateMin);
+    QCOMPARE(normalized.volume, 0);
+
+    // 合法值不能被改动。
+    settings.rate = 0;
+    settings.volume = 50;
+    normalized = normalizeSpeechSettings(settings);
+    QCOMPARE(normalized.rate, 0);
+    QCOMPARE(normalized.volume, 50);
+}
+
+void SpeechEngineTests::availableVoicesDoesNotCrash() {
+    // 系统没装语音时列表是空的，这里只保证探测本身不会崩。
+    const QVector<SpeechVoice> voices = SpeechEngine::availableVoices();
+    for (const SpeechVoice& voice : voices) {
+        QVERIFY(!voice.name.isEmpty());
+    }
 }
 
 QTEST_MAIN(SpeechEngineTests)

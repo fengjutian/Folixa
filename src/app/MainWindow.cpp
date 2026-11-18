@@ -40,6 +40,7 @@
 #include "doc/SpreadsheetExport.h"
 #include "pdf/PdfiumAdapter.h"
 #include "pdf/Annotation.h"
+#include "pdf/AnnotationFilter.h"
 #include "pdf/FormData.h"
 #include "pdf/FormScriptStore.h"
 #include "pdf/FormTemplateStore.h"
@@ -52,6 +53,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QSlider>
 #include <QHeaderView>
@@ -1016,6 +1018,8 @@ void MainWindow::buildUi() {
     addToolCommand(textGroup, "便签", "在页面上放一个便签", ":/icons/note.svg", "note");
     addToolCommand(textGroup, "文本框", "在页面上写一段文字", ":/icons/edit.svg", "freetext");
     addToolCommand(textGroup, "图章", "放置文字图章", ":/icons/annotation.svg", "stamp");
+    addToolCommand(textGroup, "数字图章", "放自动编号的图章（数字或字母）", ":/icons/annotation.svg",
+                   "numberstamp");
     addToolCommand(textGroup, "图片图章", "用图片做图章", ":/icons/annotation.svg", "imagestamp");
     auto* shapeGroup = ribbonBar_->addGroup(commentTab, tr("图形"));
     addToolCommand(shapeGroup, "矩形", "拖出一个矩形", ":/icons/square.svg", "square");
@@ -1076,6 +1080,21 @@ void MainWindow::buildUi() {
     });
     connect(continuousAnnotationButton, &QToolButton::clicked, this, [this](bool checked) {
         if (wiringActions_ != nullptr) { wiringActions_->toggleContinuousAnnotationMode(checked); }
+    });
+    // 保持工具选择：逐工具记住「放完别退回选择态」。
+    //
+    // 与「连续批注」的区别：连续批注是全局开关（开一次所有工具一起连着放），
+    // 这里是逐工具的（矩形保持、箭头不保持）——实际干活时需要的粒度。
+    keepToolButton_ = ribbonBar_->addCommand(
+        toolboxGroup, tr("保持工具选择"), QIcon(":/icons/square.svg"),
+        tr("当前选中的批注工具放完后保持激活，可以连着放"), true, "annotation.keepTool");
+    keepToolButton_->setCheckable(true);
+    texts_.bind([this] {
+        keepToolButton_->setText(tr("保持工具选择"));
+        keepToolButton_->setToolTip(tr("当前选中的批注工具放完后保持激活，可以连着放"));
+    });
+    connect(keepToolButton_, &QToolButton::clicked, this, [this](bool checked) {
+        applyKeepToolSelection(checked);
     });
 
     const int pageTab = ribbonBar_->addTab(tr("页面管理"));
@@ -1950,8 +1969,11 @@ void MainWindow::buildUi() {
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     };
     addRibbonCommand(accessibilityReadingGroup, "阅读选项",
-                     "预览当前页的逻辑阅读顺序", ":/icons/book.svg",
-                     showReadingOrder, true, "accessibility.readingOptions");
+                     "阅读顺序预览与朗读设置（音色、语速、音量）", ":/icons/book.svg",
+                     [this] {
+                         if (auto* view = currentView()) { view->showReadingOptions(); }
+                         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+                     }, true, "accessibility.readingOptions");
     addRibbonCommand(accessibilityReadingGroup, "阅读顺序",
                      "核对当前页文字的逻辑顺序", ":/icons/pages.svg",
                      showReadingOrder, true, "accessibility.readingOrder");
@@ -2353,6 +2375,24 @@ void MainWindow::buildUi() {
             &MainWindow::setSelectedAnnotationState);
     connect(annotationRemoveButton_, &QPushButton::clicked, this,
             &MainWindow::removeSelectedAnnotation);
+    // 筛选栏：条件一变就重刷列表；「全选结果」把当前筛出来的全部选中。
+    connect(annotationFilterApplyButton_, &QPushButton::clicked, this, [this] {
+        refreshAnnotations(currentView());
+    });
+    connect(annotationFilterKeywordEdit_, &QLineEdit::returnPressed, this, [this] {
+        refreshAnnotations(currentView());
+    });
+    connect(annotationFilterTypeBox_, &QComboBox::currentIndexChanged, this, [this](int) {
+        refreshAnnotations(currentView());
+    });
+    connect(annotationFilterSelectAllButton_, &QPushButton::clicked, this, [this] {
+        if (annotationList_ == nullptr) {
+            return;
+        }
+        annotationList_->selectAll();
+        statusBar()->showMessage(tr("已选中 %1 条批注").arg(annotationList_->selectedItems().size()),
+                                 3000);
+    });
     navigationLayout->addWidget(rail);
     auto* pageArea = new QWidget(navigation);
     auto* pageAreaLayout = new QVBoxLayout(pageArea);
@@ -3035,6 +3075,41 @@ QWidget* MainWindow::createAnnotationTab() {
                           "选中文字后点「高亮」，或用便签、矩形、墨迹工具添加批注。")));
     annotationList_ = new QListWidget(stack);
     stack->addWidget(annotationList_);
+    // 筛选栏：按类型、关键字筛批注，再一次选中筛出来的全部。
+    //
+    // 为什么放在堆叠页**外面**：没有批注时筛选栏也该看得见（灰着就行），
+    // 藏进另一个页里用户就找不到它了。
+    auto* filterRow = new QHBoxLayout();
+    filterRow->setSpacing(6);
+    annotationFilterTypeBox_ = new QComboBox(page);
+    annotationFilterTypeBox_->setObjectName(QStringLiteral("annotationFilter.type"));
+    annotationFilterTypeBox_->addItem(tr("全部类型"), -1);
+    for (pdf::AnnotationType type : {pdf::AnnotationType::Highlight, pdf::AnnotationType::Underline,
+                                     pdf::AnnotationType::StrikeOut, pdf::AnnotationType::Squiggly,
+                                     pdf::AnnotationType::Note, pdf::AnnotationType::Square,
+                                     pdf::AnnotationType::Ellipse, pdf::AnnotationType::Line,
+                                     pdf::AnnotationType::Arrow, pdf::AnnotationType::Polygon,
+                                     pdf::AnnotationType::Cloud, pdf::AnnotationType::FreeText,
+                                     pdf::AnnotationType::Stamp, pdf::AnnotationType::Measure,
+                                     pdf::AnnotationType::FileAttachment, pdf::AnnotationType::Sound,
+                                     pdf::AnnotationType::Ink}) {
+        annotationFilterTypeBox_->addItem(pdf::annotationTypeName(type),
+                                          static_cast<int>(type));
+    }
+    filterRow->addWidget(annotationFilterTypeBox_);
+    annotationFilterKeywordEdit_ = new QLineEdit(page);
+    annotationFilterKeywordEdit_->setObjectName(QStringLiteral("annotationFilter.keyword"));
+    annotationFilterKeywordEdit_->setPlaceholderText(tr("正文或作者"));
+    filterRow->addWidget(annotationFilterKeywordEdit_, 1);
+    annotationFilterApplyButton_ = new QPushButton(QString(), page);
+    texts_.bind([this] { annotationFilterApplyButton_->setText(tr("筛选")); });
+    annotationFilterApplyButton_->setObjectName(QStringLiteral("annotationFilter.apply"));
+    filterRow->addWidget(annotationFilterApplyButton_);
+    annotationFilterSelectAllButton_ = new QPushButton(QString(), page);
+    texts_.bind([this] { annotationFilterSelectAllButton_->setText(tr("全选结果")); });
+    annotationFilterSelectAllButton_->setObjectName(QStringLiteral("annotationFilter.selectAll"));
+    filterRow->addWidget(annotationFilterSelectAllButton_);
+    outer->addLayout(filterRow);
     outer->addWidget(stack, 1);
 
     auto* content = new QWidget(page);
@@ -3787,12 +3862,19 @@ void MainWindow::bindAnnotations(PdfView* view) {
         QObject::disconnect(annotationConnection_);
         annotationConnection_ = QMetaObject::Connection();
     }
+    if (annotationToolConnection_) {
+        QObject::disconnect(annotationToolConnection_);
+        annotationToolConnection_ = QMetaObject::Connection();
+    }
     boundAnnotations_ = controller;
     if (controller != nullptr) {
         annotationConnection_ = connect(controller, &AnnotationController::annotationsChanged,
                                        this, [this]() {
                                            refreshAnnotations(currentView());
                                        });
+        // 工具换了以后，「保持工具选择」按钮的勾选状态要跟着换。
+        annotationToolConnection_ = connect(controller, &AnnotationController::toolChanged, this,
+                                            [this]() { refreshKeepToolButton(); });
     }
     refreshAnnotations(view);
     refreshForms(view);
@@ -3827,7 +3909,20 @@ void MainWindow::refreshAnnotations(PdfView* view) {
         annotationRemoveButton_->setEnabled(!annotations.isEmpty());
     }
 
-    for (const pdf::Annotation& annotation : annotations) {
+    // 筛选规则在领域层（pdf::filterAnnotations），这里只负责把条件收齐。
+    pdf::AnnotationFilter filter;
+    if (annotationFilterTypeBox_ != nullptr) {
+        const int typeValue = annotationFilterTypeBox_->currentData().toInt();
+        if (typeValue >= 0) {
+            filter.types.append(static_cast<pdf::AnnotationType>(typeValue));
+        }
+    }
+    if (annotationFilterKeywordEdit_ != nullptr) {
+        filter.keyword = annotationFilterKeywordEdit_->text();
+    }
+    const QVector<pdf::Annotation> visible = pdf::filterAnnotations(annotations, filter);
+
+    for (const pdf::Annotation& annotation : visible) {
         auto* item = new QListWidgetItem(annotationList_);
         QString summary = pdf::annotationTypeName(annotation.type);
         if (!annotation.contents.isEmpty()) {
@@ -3838,7 +3933,14 @@ void MainWindow::refreshAnnotations(PdfView* view) {
         item->setData(Qt::UserRole + 1, annotation.pageIndex);
         item->setToolTip(tr("跳转到第 %1 页").arg(annotation.pageIndex + 1));
     }
-    trace(QStringLiteral("panel annotations items=%1").arg(annotations.size()));
+    if (visible.isEmpty() && !annotations.isEmpty()) {
+        // 有批注但一条都没筛出来：说清楚是筛选的结果，不是没有批注。
+        auto* placeholder = new QListWidgetItem(tr("没有匹配的批注"), annotationList_);
+        placeholder->setFlags(Qt::NoItemFlags);
+    }
+    trace(QStringLiteral("panel annotations items=%1 visible=%2")
+              .arg(annotations.size())
+              .arg(visible.size()));
 }
 
 void MainWindow::applyAnnotationAppearance() {
@@ -3958,14 +4060,103 @@ void MainWindow::removeSelectedAnnotation() {
     if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
         return;
     }
-    QListWidgetItem* item = annotationList_->currentItem();
-    if (item == nullptr) {
+    // 批量删除：删掉所有选中的（筛选后「全选结果」一次删一批）。
+    QVector<quint64> ids;
+    for (QListWidgetItem* item : annotationList_->selectedItems()) {
+        const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+        if (id != 0) {
+            ids.append(id);
+        }
+    }
+    if (ids.isEmpty()) {
+        // 没选中时退回删当前项：单选用户的直觉。
+        QListWidgetItem* item = annotationList_->currentItem();
+        if (item == nullptr) {
+            return;
+        }
+        const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+        if (id == 0) {
+            return;
+        }
+        ids.append(id);
+    }
+    int removed = 0;
+    for (quint64 id : ids) {
+        if (boundAnnotations_->removeAnnotation(id)) {
+            ++removed;
+        }
+    }
+    if (removed > 0) {
+        statusBar()->showMessage(tr("已删除 %1 条批注").arg(removed), 3000);
+    }
+}
+
+// 保持工具选择：把当前选中的批注工具标记为「放完保持激活」。
+void MainWindow::applyKeepToolSelection(bool retained) {
+    PdfView* view = currentView();
+    const QString toolId = currentAnnotationToolId(view);
+    if (toolId.isEmpty()) {
+        statusBar()->showMessage(tr("先选中一个批注工具，再设置「保持工具选择」。"), 3000);
+        if (keepToolButton_ != nullptr) {
+            keepToolButton_->setChecked(false);
+        }
         return;
     }
-    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
-    if (boundAnnotations_->removeAnnotation(id)) {
-        statusBar()->showMessage(tr("已删除批注"), 3000);
+    view->setToolRetained(toolId, retained);
+    const QString name = annotationToolDisplayName(toolId);
+    statusBar()->showMessage(retained ? tr("「%1」放完后保持选中。").arg(name)
+                                     : tr("「%1」放完后回到选择工具。").arg(name),
+                             3000);
+}
+
+void MainWindow::refreshKeepToolButton() {
+    if (keepToolButton_ == nullptr) {
+        return;
     }
+    PdfView* view = currentView();
+    const QString toolId = currentAnnotationToolId(view);
+    keepToolButton_->setChecked(view != nullptr && !toolId.isEmpty() && view->toolRetained(toolId));
+}
+
+QString MainWindow::currentAnnotationToolId(PdfView* view) const {
+    if (view == nullptr) {
+        return QString();
+    }
+    AnnotationController* controller = view->annotationController();
+    if (controller == nullptr) {
+        return QString();
+    }
+    return PdfView::continuousToolId(controller->tool());
+}
+
+QString MainWindow::annotationToolDisplayName(const QString& toolId) {
+    static const QHash<QString, QString> names{
+        {QStringLiteral("highlight"), QStringLiteral("高亮")},
+        {QStringLiteral("underline"), QStringLiteral("下划线")},
+        {QStringLiteral("strikethrough"), QStringLiteral("删除线")},
+        {QStringLiteral("squiggly"), QStringLiteral("波浪线")},
+        {QStringLiteral("note"), QStringLiteral("便签")},
+        {QStringLiteral("freetext"), QStringLiteral("文本框")},
+        {QStringLiteral("stamp"), QStringLiteral("图章")},
+        {QStringLiteral("numberstamp"), QStringLiteral("编号图章")},
+        {QStringLiteral("imagestamp"), QStringLiteral("图片图章")},
+        {QStringLiteral("square"), QStringLiteral("矩形")},
+        {QStringLiteral("ellipse"), QStringLiteral("椭圆")},
+        {QStringLiteral("line"), QStringLiteral("直线")},
+        {QStringLiteral("arrow"), QStringLiteral("箭头")},
+        {QStringLiteral("polygon"), QStringLiteral("多边形")},
+        {QStringLiteral("cloud"), QStringLiteral("云线")},
+        {QStringLiteral("callout"), QStringLiteral("箭头框")},
+        {QStringLiteral("regionHighlight"), QStringLiteral("区域高亮")},
+        {QStringLiteral("ink"), QStringLiteral("墨迹")},
+        {QStringLiteral("eraser"), QStringLiteral("橡皮")},
+        {QStringLiteral("measure"), QStringLiteral("测量")},
+        {QStringLiteral("perimeter"), QStringLiteral("周长")},
+        {QStringLiteral("area"), QStringLiteral("面积")},
+        {QStringLiteral("attachment"), QStringLiteral("附件")},
+        {QStringLiteral("sound"), QStringLiteral("声音")},
+    };
+    return names.value(toolId, toolId);
 }
 
 // 切换阅读配色（夜间 / 护眼 / 高对比）。

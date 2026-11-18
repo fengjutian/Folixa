@@ -94,6 +94,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/ConversionExports.h
     app/AnnotationToolboxDialog.cpp
     app/AnnotationToolboxDialog.h
+    app/StampNumberDialog.cpp
+    app/StampNumberDialog.h
+    app/ReadingOptionsDialog.cpp
+    app/ReadingOptionsDialog.h
     app/AiToolsDialog.cpp
     app/AiToolsDialog.h
     app/AiToolService.cpp
@@ -245,6 +249,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/XmlText.h
     pdf/AnnotationToolkit.cpp
     pdf/AnnotationToolkit.h
+    pdf/AnnotationFilter.cpp
+    pdf/AnnotationFilter.h
     app/ViewModes.cpp
     app/ViewModes.h
     doc/PrintTemplate.cpp
@@ -371,6 +377,8 @@ qt_add_executable(AiPdfEditor WIN32
     ocr/OcrTextUtils.h
     speech/SpeechText.h
     speech/SpeechText.cpp
+    speech/SpeechSettings.h
+    speech/SpeechSettings.cpp
     speech/SpeechEngine.h
     speech/SpeechEngine.cpp
     tools/ToolRegistry.cpp

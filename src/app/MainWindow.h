@@ -9,6 +9,7 @@
 
 class QAction;
 class QActionGroup;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QMenu;
@@ -122,8 +123,16 @@ private:
     void refreshAnnotations(PdfView* view);
     // 把索引面板绑到当前文档的索引控制器上。
     void bindIndex(PdfView* view);
-    // 删除批注面板里选中的批注。
+    // 删除批注面板里选中的批注（多选时一次删一批）。
     void removeSelectedAnnotation();
+    // 保持工具选择：把当前选中的批注工具标记为「放完保持激活」。
+    void applyKeepToolSelection(bool retained);
+    // 工具换了以后刷新「保持工具选择」按钮的勾选状态。
+    void refreshKeepToolButton();
+    // 当前选中的批注工具 id（没选工具时返回空串）。
+    QString currentAnnotationToolId(PdfView* view) const;
+    // 工具 id → 界面上的中文名。
+    static QString annotationToolDisplayName(const QString& toolId);
     void replyToSelectedAnnotation();
     void applyAnnotationAppearance();
     void pickAnnotationColor();
@@ -260,6 +269,11 @@ private:
     QPushButton* annotationApplyAppearanceButton_ = nullptr;
     QDoubleSpinBox* annotationWidthSpin_ = nullptr;
     QSlider* annotationOpacitySlider_ = nullptr;
+    // 批注筛选栏：按类型与关键字筛，再一次选中筛出来的全部。
+    QComboBox* annotationFilterTypeBox_ = nullptr;
+    QLineEdit* annotationFilterKeywordEdit_ = nullptr;
+    QPushButton* annotationFilterApplyButton_ = nullptr;
+    QPushButton* annotationFilterSelectAllButton_ = nullptr;
     QStackedWidget* formStack_ = nullptr;
     QTableWidget* formTable_ = nullptr;
     QLineEdit* formValueEdit_ = nullptr;
@@ -284,6 +298,10 @@ private:
     // 当前绑定的批注控制器；换文档时要把上一个的连接断掉。
     AnnotationController* boundAnnotations_ = nullptr;
     QMetaObject::Connection annotationConnection_;
+    // 工具切换的连接（换文档时也要断，否则旧控制器的信号还会来）。
+    QMetaObject::Connection annotationToolConnection_;
+    // 「保持工具选择」按钮：勾选状态跟着当前选中的工具走。
+    QToolButton* keepToolButton_ = nullptr;
     // 当前绑定的导航控制器；换文档时要把上一个的连接断掉。
     NavigationController* boundNavigation_ = nullptr;
     QMetaObject::Connection navigationConnection_;

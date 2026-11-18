@@ -3,14 +3,18 @@
 namespace aipdf::pdf {
 
 bool AnnotationFilter::isEmpty() const {
+    // includeReplies 默认是 true：只有显式关掉它时才算一个条件。
     return types.isEmpty() && keyword.trimmed().isEmpty() && pageIndex < 0 && !onlyReplies &&
-           !requireContents;
+           !requireContents && includeReplies;
 }
 
 bool matchesAnnotationFilter(const Annotation& annotation, const AnnotationFilter& filter) {
     const bool isReply = annotation.replyToId != 0;
-    if (isReply && filter.onlyReplies) {
-        // 只看回复时，正文为空也照样留着：回复本来就可能只有一句话。
+    if (filter.onlyReplies) {
+        // 只看回复：不是回复的一律不要。
+        if (!isReply) {
+            return false;
+        }
     } else if (isReply && !filter.includeReplies) {
         return false;
     }

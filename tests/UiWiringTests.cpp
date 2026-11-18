@@ -50,6 +50,8 @@ const RibbonCommandSpec kNewCommands[] = {
     {"计算器", "annotation.calculator"},
     {"符号面板", "annotation.symbols"},
     {"连续批注", "annotation.continuous"},
+    {"数字图章", "annotation.numberstamp"},
+    {"保持工具选择", "annotation.keepTool"},
     {"导出 HTML", "convert.exportHtml"},
     {"图像化 PDF", "convert.imagePdf"},
     {"到 OFD", "convert.exportOfd"},

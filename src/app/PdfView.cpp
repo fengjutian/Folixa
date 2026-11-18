@@ -9,7 +9,9 @@
 #include "app/PdfPageOperations.h"
 #include "app/Language.h"
 #include "app/PageChunkBuilder.h"
+#include "app/ReadingOptionsDialog.h"
 #include "app/ReadingScheme.h"
+#include "app/StampNumberDialog.h"
 #include "app/PageTextLines.h"
 #include "doc/BatchProcessor.h"
 #include "doc/ChunkBuilder.h"
@@ -1118,6 +1120,20 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
                 if (!accepted || label.isEmpty() || !annotationController_) {
                     return;
                 }
+                constexpr double kWidth = 140.0;
+                constexpr double kHeight = 48.0;
+                const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - kHeight / 2.0,
+                                  kWidth, kHeight);
+                annotationController_->addStamp(pageIndex, rect, label);
+                finishAnnotationPlacement();
+            });
+    // 编号图章：编号在领域层的计数器里，放一个涨一个，不打断用户。
+    connect(canvas_, &PageCanvas::numberStampRequested, this,
+            [this](int pageIndex, const QPointF& userPoint) {
+                if (!annotationController_) {
+                    return;
+                }
+                const QString label = stampSequence_.next();
                 constexpr double kWidth = 140.0;
                 constexpr double kHeight = 48.0;
                 const QRectF rect(userPoint.x() - kWidth / 2.0, userPoint.y() - kHeight / 2.0,
@@ -5516,6 +5532,12 @@ void PdfView::activateAnnotationTool(const QString& id) {
         redoAnnotation();
         return;
     }
+    // 编号图章：放之前先问一次编号规则（形式、起始号、前后缀），
+    // 问完就切工具，之后每放一个编号自动加一。
+    if (id == QStringLiteral("numberstamp")) {
+        activateNumberStampTool();
+        return;
+    }
     // 箭头框与区域高亮：工具栏上没有对应的按钮（按钮在 Ribbon 的「注释」标签页），
     // 所以直接切工具，并把工具栏上其它按钮的选中态清掉 ——
     // 免得界面上显示的还是上一个工具。
@@ -8063,7 +8085,30 @@ bool PdfView::continuousAnnotationMode() const {
     return continuousModeEnabled_;
 }
 
+void PdfView::activateNumberStampTool() {
+    if (annotationController_ == nullptr) {
+        return;
+    }
+    StampNumberDialog dialog(stampSequence_.options(), this);
+    if (dialog.exec() != QDialog::Accepted) {
+        // 取消：既不动工具，也不改编号设置。
+        return;
+    }
+    // 换设置就重新从起始号排：接着旧编号排会让人看不懂。
+    stampSequence_.setOptions(dialog.options());
+    annotationController_->setTool(AnnotationController::Tool::NumberStamp);
+    emit statusMessage(tr("编号图章：在页面上点一下就放一个，编号自动递增"));
+}
+
 bool PdfView::afterAnnotationPlacement() {
+    // 逐工具的「保持工具选择」优先：用户明确标记过的工具放完就留着，
+    // 不受全局连续批注开关的影响。
+    if (annotationController_ != nullptr) {
+        const QString toolId = continuousToolId(annotationController_->tool());
+        if (!toolId.isEmpty() && retainedTools_.keepsAfterPlacement(toolId)) {
+            return true;
+        }
+    }
     if (!continuousModeEnabled_) {
         if (annotationController_ != nullptr) {
             annotationController_->setTool(AnnotationController::Tool::None);
@@ -8125,6 +8170,7 @@ QString PdfView::continuousToolId(AnnotationController::Tool tool) {
     case AnnotationController::Tool::RegionHighlight: return QStringLiteral("regionHighlight");
     case AnnotationController::Tool::FreeText: return QStringLiteral("freetext");
     case AnnotationController::Tool::Stamp: return QStringLiteral("stamp");
+    case AnnotationController::Tool::NumberStamp: return QStringLiteral("numberstamp");
     case AnnotationController::Tool::ImageStamp: return QStringLiteral("imagestamp");
     case AnnotationController::Tool::Sound: return QStringLiteral("sound");
     case AnnotationController::Tool::Measure: return QStringLiteral("measure");
@@ -8136,6 +8182,75 @@ QString PdfView::continuousToolId(AnnotationController::Tool tool) {
     case AnnotationController::Tool::None: break;
     }
     return QString();
+}
+
+void PdfView::setToolRetained(const QString& toolId, bool retained) {
+    retainedTools_.setRetained(toolId, retained);
+}
+
+bool PdfView::toolRetained(const QString& toolId) const {
+    return retainedTools_.isRetained(toolId);
+}
+
+QVector<QString> PdfView::retainedAnnotationTools() const {
+    return retainedTools_.retainedTools();
+}
+
+void PdfView::clearRetainedAnnotationTools() {
+    retainedTools_.clear();
+}
+
+QString PdfView::currentPageReadingOrder() const {
+    const std::optional<pdf::PdfPage> page = document_.page(currentPage());
+    const std::optional<pdf::TextPage> extracted = page ? page->extractText() : std::nullopt;
+    // 阅读顺序优先用排版后的视觉顺序：PDFium 给的是内容流顺序，
+    // 多栏、表格、图注混排时直接显示会是乱的（与屏幕阅读器看到的也不一致）。
+    QString ordered;
+    if (textController_ != nullptr) {
+        const TextLayout* textLayout = textController_->layout(currentPage());
+        if (textLayout != nullptr && !textLayout->isEmpty()) {
+            ordered = textLayout->textForRange(0, textLayout->charCount());
+        }
+    }
+    if (ordered.isEmpty() && extracted.has_value()) {
+        ordered = extracted->plainText();
+    }
+    return ordered;
+}
+
+void PdfView::showReadingOptions() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("阅读选项"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const QString order = currentPageReadingOrder();
+    ReadingOptionsDialog dialog(order,
+                                speechSettings(),
+                                availableSpeechVoices(),
+                                this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    setSpeechSettings(dialog.settings());
+    emit statusMessage(tr("朗读设置已保存"));
+}
+
+speech::SpeechSettings PdfView::speechSettings() const {
+    if (speechEngine_ == nullptr) {
+        return speech::SpeechSettings();
+    }
+    return speechEngine_->settings();
+}
+
+void PdfView::setSpeechSettings(const speech::SpeechSettings& settings) {
+    if (speechEngine_ == nullptr) {
+        return;
+    }
+    speechEngine_->setSettings(settings);
+}
+
+QVector<speech::SpeechVoice> PdfView::availableSpeechVoices() const {
+    return speech::SpeechEngine::availableVoices();
 }
 
 }  // namespace aipdf::app

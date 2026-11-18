@@ -74,6 +74,27 @@ private slots:
     void continuousModeExitsToolThatDoesNotRepeat();
     void continuousModeIgnoresEmptyToolId();
     void continuousModeReportsRepeatFlag();
+
+    // ---------------------------------------------------------- 编号图章 ----
+    void stampNumberStartsAtConfiguredValue();
+    void stampNumberCountsUpByOne();
+    void stampNumberUsesUpperCaseLetters();
+    void stampNumberUsesLowerCaseLetters();
+    void stampNumberRollsOverToDoubleLetters();
+    void stampNumberPadsWithLeadingZeros();
+    void stampNumberKeepsPrefixAndSuffix();
+    void stampNumberIgnoresPaddingForLetters();
+    void stampNumberTreatsBadStartAsOne();
+    void stampNumberSequenceIncrementsAndCounts();
+    void stampNumberSequenceResetsOnNewOptions();
+
+    // ------------------------------------------------------ 保持工具选择 ----
+    void retentionSetIsEmptyByDefault();
+    void retentionSetMarksAndUnmarksTool();
+    void retentionSetKeepsMarkOrder();
+    void retentionSetKeepsAfterPlacementOnlyForMarkedTool();
+    void retentionSetIgnoresEmptyToolId();
+    void retentionSetClearRemovesEverything();
 };
 
 // ---------------------------------------------------------- 计算器 ----
@@ -409,6 +430,170 @@ void AnnotationToolkitTests::continuousModeReportsRepeatFlag() {
     QVERIFY(!mode.repeatsLastPlacement());
     mode.deactivate();
     QVERIFY(!mode.repeatsLastPlacement());
+}
+
+// ---------------------------------------------------------- 编号图章 ----
+
+void AnnotationToolkitTests::stampNumberStartsAtConfiguredValue() {
+    StampNumberOptions options;
+    options.style = StampNumberStyle::Arabic;
+    options.start = 5;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("5"));
+    QCOMPARE(formatStampNumber(options, 1), QStringLiteral("6"));
+}
+
+void AnnotationToolkitTests::stampNumberCountsUpByOne() {
+    StampNumberOptions options;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("1"));
+    QCOMPARE(formatStampNumber(options, 1), QStringLiteral("2"));
+    QCOMPARE(formatStampNumber(options, 2), QStringLiteral("3"));
+}
+
+void AnnotationToolkitTests::stampNumberUsesUpperCaseLetters() {
+    StampNumberOptions options;
+    options.style = StampNumberStyle::UpperAlpha;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("A"));
+    QCOMPARE(formatStampNumber(options, 1), QStringLiteral("B"));
+    QCOMPARE(formatStampNumber(options, 2), QStringLiteral("C"));
+}
+
+void AnnotationToolkitTests::stampNumberUsesLowerCaseLetters() {
+    StampNumberOptions options;
+    options.style = StampNumberStyle::LowerAlpha;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("a"));
+    QCOMPARE(formatStampNumber(options, 25), QStringLiteral("z"));
+}
+
+void AnnotationToolkitTests::stampNumberRollsOverToDoubleLetters() {
+    StampNumberOptions options;
+    options.style = StampNumberStyle::UpperAlpha;
+    // 第 26 个是 Z，第 27 个进位成 AA（双基 26，没有"第 0 个字母"）。
+    QCOMPARE(formatStampNumber(options, 25), QStringLiteral("Z"));
+    QCOMPARE(formatStampNumber(options, 26), QStringLiteral("AA"));
+    QCOMPARE(formatStampNumber(options, 51), QStringLiteral("AZ"));
+    QCOMPARE(formatStampNumber(options, 52), QStringLiteral("BA"));
+}
+
+void AnnotationToolkitTests::stampNumberPadsWithLeadingZeros() {
+    StampNumberOptions options;
+    options.digits = 3;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("001"));
+    QCOMPARE(formatStampNumber(options, 9), QStringLiteral("010"));
+    QCOMPARE(formatStampNumber(options, 99), QStringLiteral("100"));
+}
+
+void AnnotationToolkitTests::stampNumberKeepsPrefixAndSuffix() {
+    StampNumberOptions options;
+    options.prefix = QStringLiteral("第");
+    options.suffix = QStringLiteral("号");
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("第1号"));
+    QCOMPARE(formatStampNumber(options, 2), QStringLiteral("第3号"));
+}
+
+void AnnotationToolkitTests::stampNumberIgnoresPaddingForLetters() {
+    StampNumberOptions options;
+    options.style = StampNumberStyle::UpperAlpha;
+    options.digits = 3;
+    // 补零只对数字有意义：字母形式下 "00A" 没人看得懂。
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("A"));
+}
+
+void AnnotationToolkitTests::stampNumberTreatsBadStartAsOne() {
+    StampNumberOptions options;
+    options.start = 0;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("1"));
+    options.start = -5;
+    QCOMPARE(formatStampNumber(options, 0), QStringLiteral("1"));
+    // 负偏移按 0 处理：不能倒着编号。
+    options.start = 1;
+    QCOMPARE(formatStampNumber(options, -3), QStringLiteral("1"));
+}
+
+void AnnotationToolkitTests::stampNumberSequenceIncrementsAndCounts() {
+    StampNumberSequence sequence;
+    QCOMPARE(sequence.issued(), 0);
+    QCOMPARE(sequence.next(), QStringLiteral("1"));
+    QCOMPARE(sequence.next(), QStringLiteral("2"));
+    QCOMPARE(sequence.issued(), 2);
+    QCOMPARE(sequence.next(), QStringLiteral("3"));
+    QCOMPARE(sequence.issued(), 3);
+}
+
+void AnnotationToolkitTests::stampNumberSequenceResetsOnNewOptions() {
+    StampNumberSequence sequence;
+    sequence.next();
+    sequence.next();
+    QCOMPARE(sequence.issued(), 2);
+
+    StampNumberOptions options;
+    options.style = StampNumberStyle::UpperAlpha;
+    options.start = 10;
+    sequence.setOptions(options);
+    // 换了设置就从头排：接着旧编号排会让人看不懂。
+    QCOMPARE(sequence.issued(), 0);
+    QCOMPARE(sequence.next(), QStringLiteral("J"));
+
+    sequence.reset();
+    QCOMPARE(sequence.issued(), 0);
+    QCOMPARE(sequence.next(), QStringLiteral("J"));
+}
+
+// ------------------------------------------------------ 保持工具选择 ----
+
+void AnnotationToolkitTests::retentionSetIsEmptyByDefault() {
+    ToolRetentionSet set;
+    QVERIFY(set.isEmpty());
+    QVERIFY(set.retainedTools().isEmpty());
+    QVERIFY(!set.isRetained(QStringLiteral("rect")));
+}
+
+void AnnotationToolkitTests::retentionSetMarksAndUnmarksTool() {
+    ToolRetentionSet set;
+    set.setRetained(QStringLiteral("rect"), true);
+    QVERIFY(set.isRetained(QStringLiteral("rect")));
+    QVERIFY(!set.isEmpty());
+
+    set.setRetained(QStringLiteral("rect"), false);
+    QVERIFY(!set.isRetained(QStringLiteral("rect")));
+    QVERIFY(set.isEmpty());
+}
+
+void AnnotationToolkitTests::retentionSetKeepsMarkOrder() {
+    ToolRetentionSet set;
+    set.setRetained(QStringLiteral("rect"), true);
+    set.setRetained(QStringLiteral("arrow"), true);
+    set.setRetained(QStringLiteral("note"), true);
+    // 重复标记不重复计数。
+    set.setRetained(QStringLiteral("rect"), true);
+
+    const QVector<QString> tools = set.retainedTools();
+    QCOMPARE(tools.size(), 3);
+    QCOMPARE(tools.at(0), QStringLiteral("rect"));
+    QCOMPARE(tools.at(1), QStringLiteral("arrow"));
+    QCOMPARE(tools.at(2), QStringLiteral("note"));
+}
+
+void AnnotationToolkitTests::retentionSetKeepsAfterPlacementOnlyForMarkedTool() {
+    ToolRetentionSet set;
+    set.setRetained(QStringLiteral("rect"), true);
+    QVERIFY(set.keepsAfterPlacement(QStringLiteral("rect")));
+    QVERIFY(!set.keepsAfterPlacement(QStringLiteral("arrow")));
+}
+
+void AnnotationToolkitTests::retentionSetIgnoresEmptyToolId() {
+    ToolRetentionSet set;
+    set.setRetained(QString(), true);
+    QVERIFY(set.isEmpty());
+    QVERIFY(!set.keepsAfterPlacement(QString()));
+}
+
+void AnnotationToolkitTests::retentionSetClearRemovesEverything() {
+    ToolRetentionSet set;
+    set.setRetained(QStringLiteral("rect"), true);
+    set.setRetained(QStringLiteral("note"), true);
+    set.clear();
+    QVERIFY(set.isEmpty());
+    QVERIFY(!set.isRetained(QStringLiteral("rect")));
 }
 
 QTEST_GUILESS_MAIN(AnnotationToolkitTests)

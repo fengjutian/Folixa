@@ -275,6 +275,8 @@ public slots:
     // 被标记为保持的工具（按标记顺序）。
     QVector<QString> retainedAnnotationTools() const;
     void clearRetainedAnnotationTools();
+    // 编号图章：先问编号规则，再切到编号图章工具。
+    void activateNumberStampTool();
 
     // 按指定的打印设置打印当前文档（批量打印与打印模板都用它）。
     //

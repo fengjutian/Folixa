@@ -10,6 +10,8 @@ qt_add_executable(SpeechEngineTests
     ${CMAKE_CURRENT_LIST_DIR}/../SpeechEngineTests.cpp
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechEngine.cpp
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechEngine.h
+    ${CMAKE_SOURCE_DIR}/src/speech/SpeechSettings.cpp
+    ${CMAKE_SOURCE_DIR}/src/speech/SpeechSettings.h
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechText.cpp
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechText.h
 )

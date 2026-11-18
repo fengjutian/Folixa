@@ -2754,6 +2754,66 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>把字段和值导出为 Excel 工作簿（.xlsx）</source>
             <translation>Export the field names and values as an Excel workbook (.xlsx)</translation>
         </message>
+        <message>
+            <source>「%1」放完后保持选中。</source>
+            <translation>“%1” stays selected after placing.</translation>
+        </message>
+        <message>
+            <source>「%1」放完后回到选择工具。</source>
+            <translation>“%1” returns to the select tool after placing.</translation>
+        </message>
+        <message>
+            <source>保持工具选择</source>
+            <translation>Keep tool selected</translation>
+        </message>
+        <message>
+            <source>先选中一个批注工具，再设置「保持工具选择」。</source>
+            <translation>Select an annotation tool first, then set Keep tool selected.</translation>
+        </message>
+        <message>
+            <source>全选结果</source>
+            <translation>Select all matches</translation>
+        </message>
+        <message>
+            <source>全部类型</source>
+            <translation>All types</translation>
+        </message>
+        <message>
+            <source>已删除 %1 条批注</source>
+            <translation>Deleted %1 annotations</translation>
+        </message>
+        <message>
+            <source>已选中 %1 条批注</source>
+            <translation>Selected %1 annotations</translation>
+        </message>
+        <message>
+            <source>当前选中的批注工具放完后保持激活，可以连着放</source>
+            <translation>The selected annotation tool stays active after placing, so you can keep going</translation>
+        </message>
+        <message>
+            <source>正文或作者</source>
+            <translation>Contents or author</translation>
+        </message>
+        <message>
+            <source>没有匹配的批注</source>
+            <translation>No matching annotations</translation>
+        </message>
+        <message>
+            <source>筛选</source>
+            <translation>Filter</translation>
+        </message>
+        <message>
+            <source>数字图章</source>
+            <translation>Number stamp</translation>
+        </message>
+        <message>
+            <source>放自动编号的图章（数字或字母）</source>
+            <translation>Place a stamp with an automatic number (digits or letters)</translation>
+        </message>
+        <message>
+            <source>阅读顺序预览与朗读设置（音色、语速、音量）</source>
+            <translation>Reading order preview and narration settings (voice, rate, volume)</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -4607,6 +4667,18 @@ Write them into the document?</translation>
                 <source>已清理 %1 类隐藏数据：%2；请保存文档以写入磁盘</source>
                 <translation>Cleared %1 hidden data categor(y/ies): %2; save the document to write it to disk.</translation>
             </message>
+        <message>
+            <source>朗读设置已保存</source>
+            <translation>Narration settings saved</translation>
+        </message>
+        <message>
+            <source>编号图章：在页面上点一下就放一个，编号自动递增</source>
+            <translation>Number stamp: click the page to place one, the number increments automatically</translation>
+        </message>
+        <message>
+            <source>阅读选项</source>
+            <translation>Reading options</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -7757,6 +7829,100 @@ Notes: %1</translation></message>
         <message>
             <source>排在「%1」后面</source>
             <translation>Place it after “%1”</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::StampNumberDialog</name>
+        <message>
+            <source>编号图章</source>
+            <translation>Number stamp</translation>
+        </message>
+        <message>
+            <source>编号形式:</source>
+            <translation>Number style:</translation>
+        </message>
+        <message>
+            <source>数字（1、2、3）</source>
+            <translation>Digits (1, 2, 3)</translation>
+        </message>
+        <message>
+            <source>大写字母（A、B、C）</source>
+            <translation>Upper case letters (A, B, C)</translation>
+        </message>
+        <message>
+            <source>小写字母（a、b、c）</source>
+            <translation>Lower case letters (a, b, c)</translation>
+        </message>
+        <message>
+            <source>起始序号:</source>
+            <translation>Start number:</translation>
+        </message>
+        <message>
+            <source>补零位数:</source>
+            <translation>Leading zeros:</translation>
+        </message>
+        <message>
+            <source>前缀:</source>
+            <translation>Prefix:</translation>
+        </message>
+        <message>
+            <source>后缀:</source>
+            <translation>Suffix:</translation>
+        </message>
+        <message>
+            <source>第一个图章: %1</source>
+            <translation>First stamp: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::ReadingOptionsDialog</name>
+        <message>
+            <source>朗读设置</source>
+            <translation>Narration settings</translation>
+        </message>
+        <message>
+            <source>音色:</source>
+            <translation>Voice:</translation>
+        </message>
+        <message>
+            <source>自动（按文本语言选择）</source>
+            <translation>Automatic (pick by the text language)</translation>
+        </message>
+        <message>
+            <source>%1（%2）</source>
+            <translation>%1 (%2)</translation>
+        </message>
+        <message>
+            <source>语速:</source>
+            <translation>Rate:</translation>
+        </message>
+        <message>
+            <source>音量:</source>
+            <translation>Volume:</translation>
+        </message>
+        <message>
+            <source>当前语速: %1</source>
+            <translation>Current rate: %1</translation>
+        </message>
+        <message>
+            <source>当前音量: %1</source>
+            <translation>Current volume: %1</translation>
+        </message>
+        <message>
+            <source>以下内容按页面上的视觉顺序排列（多栏与表格已按位置重排），可用于人工核对屏幕阅读器的阅读次序。</source>
+            <translation>The content is listed in visual order on the page (multi-column layouts and tables are re-ordered), so you can check the reading order a screen reader will use.</translation>
+        </message>
+        <message>
+            <source>当前页阅读顺序</source>
+            <translation>Reading order of the current page</translation>
+        </message>
+        <message>
+            <source>阅读顺序</source>
+            <translation>Reading order</translation>
+        </message>
+        <message>
+            <source>阅读选项</source>
+            <translation>Reading options</translation>
         </message>
     </context>
 </TS>
