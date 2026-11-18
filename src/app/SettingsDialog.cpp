@@ -92,12 +92,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     generalForm->setSpacing(14);
     language_ = new QComboBox(generalCard);
     language_->setObjectName(QStringLiteral("settingsLanguage"));
-    language_->addItem(tr("跟随系统"), QStringLiteral("system"));
-    for (const i18n::Language& language : i18n::supportedLanguages()) {
-        language_->addItem(language.nativeName, language.code);
-    }
-    const QString preference = i18n::LanguageManager::instance().preference();
-    language_->setCurrentIndex(std::max(0, language_->findData(preference)));
+    rebuildLanguageList();
     // 语言包装不装得看用户手里有没有包：给一个「安装语言包…」的入口，
     // 缺包时用户才有事可做（否则界面只能报一句「没找到语言包」）。
     auto* languageRow = new QWidget(generalCard);
@@ -223,6 +218,22 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     root->addWidget(buttons, 0, Qt::AlignRight);
 }
 
+// 重建语言下拉框。
+//
+// 列出的是「现在能选」的语言：内置的那些 + 用户目录里装了语言包的那些。
+// 装了却选不到，安装这一半就没有意义；所以这里跟 availableLanguages() 对齐，
+// 装完立刻重建一次。
+void SettingsDialog::rebuildLanguageList() {
+    language_->clear();
+    language_->addItem(tr("跟随系统"), QStringLiteral("system"));
+    for (const i18n::Language& language : i18n::availableLanguages()) {
+        language_->addItem(language.nativeName, language.code);
+    }
+    const QString preference = i18n::LanguageManager::instance().preference();
+    const int index = language_->findData(preference);
+    language_->setCurrentIndex(index >= 0 ? index : 0);
+}
+
 // 「安装语言包…」：选文件 → 校验 → 复制到用户目录 → 切语言。
 //
 // 装完之后要把下拉框跟着改过来：否则下拉框还停在旧的那一项，
@@ -231,6 +242,7 @@ void SettingsDialog::installLanguagePack() {
     if (!i18n::installLanguagePackInteractively(this)) {
         return;
     }
+    rebuildLanguageList();
     const QString code = i18n::LanguageManager::instance().code();
     const int index = language_->findData(code);
     if (index >= 0) {

@@ -2730,6 +2730,10 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
                 <source>逐项检查离 PDF/A-2b 还差什么（预检，不是合规认证）</source>
                 <translation>Check item by item what is still missing for PDF/A-2b (preflight, not certification)</translation>
             </message>
+        <message>
+            <source>安装语言包…</source>
+            <translation>Install Language Pack…</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::OcrController</name>
@@ -5755,6 +5759,10 @@ Write them into the document?</translation>
         <message><source>仅发送检索片段</source><translation>Send retrieved excerpts only</translation></message>
         <message><source>发送选定页面</source><translation>Send selected pages</translation></message>
         <message><source>未知</source><translation>Unknown</translation></message>
+        <message>
+            <source>安装语言包…</source>
+            <translation>Install Language Pack…</translation>
+        </message>
     </context>
     <context>
         <name>aipdf::app::MainWindow</name>
@@ -6453,6 +6461,78 @@ Notes: %1</translation></message>
                 <source>%1 的语言包是空的或解析失败，界面仍然是中文。</source>
                 <translation>The %1 language pack is empty or failed to parse; the interface stays in Chinese.</translation>
             </message>
+        <message>
+            <source>没有指定语言。</source>
+            <translation>No language was specified.</translation>
+        </message>
+        <message>
+            <source>读不了 %1：%2</source>
+            <translation>Cannot read %1: %2</translation>
+        </message>
+        <message>
+            <source>%1 不是有效的语言包（解析失败或没有词条）。</source>
+            <translation>%1 is not a valid language pack (it failed to parse or has no entries).</translation>
+        </message>
+        <message>
+            <source>%1 不是本应用的语言包（里面没有 aipdf::app:: 的词条）。</source>
+            <translation>%1 is not a language pack for this application (it has no aipdf::app:: entries).</translation>
+        </message>
+        <message>
+            <source>这份语言包是 %1 的，不是 %2 的：%3</source>
+            <translation>This language pack is for %1, not %2: %3</translation>
+        </message>
+        <message>
+            <source>中文是源语言，不需要语言包。</source>
+            <translation>Chinese is the source language; it does not need a language pack.</translation>
+        </message>
+        <message>
+            <source>%1 不像语言代码（应该像 ja、zh_CN 这样）。</source>
+            <translation>%1 does not look like a language code (it should look like ja or zh_CN).</translation>
+        </message>
+        <message>
+            <source>建不了语言包目录 %1。</source>
+            <translation>Cannot create the language pack directory %1.</translation>
+        </message>
+        <message>
+            <source>换不掉旧的语言包 %1。</source>
+            <translation>Cannot replace the old language pack %1.</translation>
+        </message>
+        <message>
+            <source>把语言包复制到 %1 失败。</source>
+            <translation>Failed to copy the language pack to %1.</translation>
+        </message>
+        <message>
+            <source>选择语言包文件</source>
+            <translation>Select Language Pack File</translation>
+        </message>
+        <message>
+            <source>语言包 (*.ts)</source>
+            <translation>Language pack (*.ts)</translation>
+        </message>
+        <message>
+            <source>安装语言包</source>
+            <translation>Install Language Pack</translation>
+        </message>
+        <message>
+            <source>%1 读不出语言代码：它可能不是标准的 .ts 翻译目录。</source>
+            <translation>Cannot read the language code from %1: it may not be a standard .ts translation catalog.</translation>
+        </message>
+        <message>
+            <source>%1 的语言包安装失败：%2</source>
+            <translation>Failed to install the language pack for %1: %2</translation>
+        </message>
+        <message>
+            <source>%1 的语言包装好了，但切换失败：%2</source>
+            <translation>The language pack for %1 is installed, but switching failed: %2</translation>
+        </message>
+        <message>
+            <source>已安装 %1 的语言包，可以在「设置 → 界面语言」里切换。</source>
+            <translation>The language pack for %1 is installed. You can switch to it in Settings → Interface Language.</translation>
+        </message>
+        <message>
+            <source>没有找到 %1 的语言包，界面仍然是中文。把语言包文件（%2）放到这个目录：%3；或者在「语言 → 安装语言包…」/「设置 → 界面语言」里点「安装语言包…」直接选文件安装。</source>
+            <translation>The language pack for %1 was not found; the interface is still in Chinese. Put the language pack file (%2) in this directory: %3; or click “Install Language Pack…” under Language → Install Language Pack / Settings → Interface Language to pick the file directly.</translation>
+        </message>
     </context>
     <context>
         <name>aipdf::app::ConversionInputs</name>

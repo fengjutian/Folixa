@@ -26,6 +26,11 @@ signals:
 
 private:
     void refreshAiSummary();
+    // 重建语言下拉框：列出**现在能选**的语言（内置的 + 用户装了语言包的）。
+    //
+    // 为什么每次都重建而不是构造时填一次：用户可能刚在「安装语言包…」里
+    // 装了一个新语言，下拉框里必须立刻能选到它。
+    void rebuildLanguageList();
     // 「安装语言包…」：走一遍选文件 → 校验 → 复制 → 切语言的流程。
     void installLanguagePack();
 

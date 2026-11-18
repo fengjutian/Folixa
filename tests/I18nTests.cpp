@@ -72,6 +72,8 @@ private slots:
 
 private:
     QTemporaryDir settingsDir_;
+    // 语言包目录也指到临时目录：用例不碰用户真实 AppData 里那份。
+    QTemporaryDir packDir_;
 };
 
 void I18nTests::initTestCase() {
@@ -82,12 +84,17 @@ void I18nTests::initTestCase() {
     QSettings::setPath(QSettings::IniFormat, QSettings::SystemScope, settingsDir_.path());
     QCoreApplication::setOrganizationName(QStringLiteral("AiPdfEditorTests"));
     QCoreApplication::setApplicationName(QStringLiteral("I18nTests"));
+    // 用户语言包目录同理：语言管理器现在会先扫用户目录，
+    // 用例不覆盖的话，这台机器上装过的语言包会漏进断言里。
+    QVERIFY(packDir_.isValid());
+    aipdf::i18n::setLanguagePackDirectoryOverride(packDir_.path());
     LanguageManager::instance().loadSavedPreference();
     QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
 }
 
 void I18nTests::cleanupTestCase() {
     LanguageManager::instance().setPreference(QStringLiteral("zh_CN"));
+    aipdf::i18n::setLanguagePackDirectoryOverride(QString());
     QSettings().clear();
 }
 

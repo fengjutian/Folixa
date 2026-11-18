@@ -5,9 +5,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QFileDialog>
 #include <QLocale>
-#include <QMessageBox>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QXmlStreamReader>
@@ -27,6 +26,55 @@ const QChar kKeySeparator(0x1f);
 
 QString messageKey(const QString& context, const QString& source, const QString& disambiguation) {
     return context + kKeySeparator + source + kKeySeparator + disambiguation;
+}
+
+// 语言代码得像语言代码：字母开头，可带 _地区 或 -地区（ja、zh_CN、pt-BR）。
+//
+// 为什么查这个：<TS language="..."> 里填什么全靠作者，
+// 填成 "my pack" 这种值，装进去之后语言菜单里就会多出一个看不懂的条目。
+bool looksLikeLanguageCode(const QString& code) {
+    static const QRegularExpression pattern(
+        QStringLiteral("^[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8})?$"));
+    return pattern.match(code).hasMatch();
+}
+
+// 扫用户目录里的语言包：语言代码 → 文件路径。
+//
+// 按**目录自己声明的语言**归类，不按文件名猜：用户可以把文件改名，
+// 名字不该决定它是哪种语言（声明才是权威）。
+QHash<QString, QString> scanInstalledPacks() {
+    QHash<QString, QString> packs;
+    QDir directory(languagePackDirectory());
+    if (!directory.exists()) {
+        return packs;
+    }
+    const QStringList files =
+        directory.entryList({QStringLiteral("*.ts")}, QDir::Files, QDir::Name);
+    for (const QString& file : files) {
+        const QString path = directory.filePath(file);
+        const QString code = declaredLanguageOf(path);
+        if (!code.isEmpty() && !packs.contains(code)) {
+            packs.insert(code, path);
+        }
+    }
+    return packs;
+}
+
+// 系统语言 → 实际语言代码。
+//
+// 先看用户装了什么：系统语言是日语、用户装了 ja 的包，就该用日语。
+// 没有装，再按内置列表解析（不认识就回退英文）。
+QString resolveSystemLanguage() {
+    const QStringList uiLanguages = QLocale::system().uiLanguages();
+    const QString prefix = uiLanguages.value(0).section(QLatin1Char('_'), 0, 0);
+    if (!prefix.isEmpty()) {
+        for (const QString& code : installedLanguageCodes()) {
+            if (code.section(QLatin1Char('_'), 0, 0) == prefix) {
+                return code;
+            }
+        }
+    }
+    return resolveLanguage(uiLanguages);
 }
 
 void skipElement(QXmlStreamReader& reader) {
@@ -111,7 +159,8 @@ void readMessage(QXmlStreamReader& reader, const QString& context,
 }
 
 // 读一个 <context>，读完后 reader 停在 </context> 上。
-void readContext(QXmlStreamReader& reader, QHash<QString, CatalogMessage>& out) {
+void readContext(QXmlStreamReader& reader, QHash<QString, CatalogMessage>& out,
+                 QSet<QString>& contexts) {
     QString context;
     while (!reader.atEnd()) {
         const QXmlStreamReader::TokenType token = reader.readNext();
@@ -123,6 +172,9 @@ void readContext(QXmlStreamReader& reader, QHash<QString, CatalogMessage>& out) 
         }
         if (reader.name() == u"name") {
             context = reader.readElementText();
+            if (!context.isEmpty()) {
+                contexts.insert(context);
+            }
         } else if (reader.name() == u"message") {
             readMessage(reader, context, out);
         } else {
@@ -155,18 +207,12 @@ QString installedLanguagePackPath(const QString& code) {
     if (code.isEmpty() || code == QLatin1String("zh_CN")) {
         return {};
     }
-    const QString path =
-        languagePackDirectory() + QLatin1Char('/') + languagePackFileName(code);
-    return QFile::exists(path) ? path : QString();
+    return scanInstalledPacks().value(code);
 }
 
 QStringList installedLanguageCodes() {
-    QStringList codes;
-    for (const Language& language : supportedLanguages()) {
-        if (!installedLanguagePackPath(language.code).isEmpty()) {
-            codes.append(language.code);
-        }
-    }
+    QStringList codes = scanInstalledPacks().keys();
+    codes.sort();
     return codes;
 }
 
@@ -192,6 +238,10 @@ bool installLanguagePack(const QString& sourcePath, const QString& code, QString
     if (code.isEmpty()) {
         return fail(i18n::tr("aipdf::app::Language", "没有指定语言。"));
     }
+    if (!looksLikeLanguageCode(code)) {
+        return fail(i18n::tr("aipdf::app::Language", "%1 不像语言代码（应该像 ja、zh_CN 这样）。")
+                        .arg(code));
+    }
 
     // 先把文件读一遍：既校验它是不是目录，也顺手拿到它自己声明的语言。
     QFile source(sourcePath);
@@ -209,7 +259,17 @@ bool installLanguagePack(const QString& sourcePath, const QString& code, QString
                         : parseError);
     }
 
-    // 校验二：目录声明的语言要和目标语言一致。
+    // 校验二：目录得是**本应用**的翻译目录。
+    //
+    // 装一个别人的 .ts（Qt 自带的、别的软件的）进来，界面一个字都不会变 ——
+    // 看上去「装成功了」，其实白装。用户还得自己琢磨是哪一步没生效。
+    if (!probe.coversAppContexts()) {
+        return fail(i18n::tr("aipdf::app::Language",
+                             "%1 不是本应用的语言包（里面没有 aipdf::app:: 的词条）。")
+                        .arg(sourcePath));
+    }
+
+    // 校验三：目录声明的语言要和目标语言一致。
     //
     // 装错语言包比不装更糟：界面会变成另一种语言，用户还以为是自己刚装的。
     const QString declared = probe.catalogLanguage();
@@ -219,9 +279,6 @@ bool installLanguagePack(const QString& sourcePath, const QString& code, QString
     }
     if (code == QLatin1String("zh_CN")) {
         return fail(i18n::tr("aipdf::app::Language", "中文是源语言，不需要语言包。"));
-    }
-    if (!isSupportedLanguage(code)) {
-        return fail(i18n::tr("aipdf::app::Language", "当前版本不支持 %1 的界面语言。").arg(code));
     }
 
     const QString directoryPath = languagePackDirectory();
@@ -238,57 +295,31 @@ bool installLanguagePack(const QString& sourcePath, const QString& code, QString
     return true;
 }
 
-bool installLanguagePackInteractively(QWidget* parent) {
-    const QString path = QFileDialog::getOpenFileName(
-        parent, i18n::tr("aipdf::app::Language", "选择语言包文件"), QString(),
-        i18n::tr("aipdf::app::Language", "语言包 (*.ts)"));
-    if (path.isEmpty()) {
-        return false;  // 用户自己取消了，不是失败。
-    }
-
-    const QString code = declaredLanguageOf(path);
-    if (code.isEmpty()) {
-        QMessageBox::warning(
-            parent, i18n::tr("aipdf::app::Language", "安装语言包"),
-            i18n::tr("aipdf::app::Language",
-                     "%1 读不出语言代码：它可能不是标准的 .ts 翻译目录。")
-                .arg(path));
-        return false;
-    }
-    if (!isSupportedLanguage(code)) {
-        QMessageBox::warning(
-            parent, i18n::tr("aipdf::app::Language", "安装语言包"),
-            i18n::tr("aipdf::app::Language", "这份语言包的语言（%1）当前版本不支持。").arg(code));
-        return false;
-    }
-
-    QString error;
-    if (!installLanguagePack(path, code, &error)) {
-        QMessageBox::warning(parent, i18n::tr("aipdf::app::Language", "安装语言包"),
-                             i18n::tr("aipdf::app::Language", "%1 的语言包安装失败：%2")
-                                 .arg(code, error));
-        return false;
-    }
-
-    // 装好了就切过去：用户刚装完就是要用。
-    if (!LanguageManager::instance().setPreference(code)) {
-        QMessageBox::warning(
-            parent, i18n::tr("aipdf::app::Language", "安装语言包"),
-            i18n::tr("aipdf::app::Language", "%1 的语言包装好了，但切换失败：%2")
-                .arg(code, LanguageManager::instance().lastError()));
-        return false;
-    }
-    QMessageBox::information(
-        parent, i18n::tr("aipdf::app::Language", "安装语言包"),
-        i18n::tr("aipdf::app::Language", "已安装 %1 的语言包。").arg(code));
-    return true;
-}
 
 QVector<Language> supportedLanguages() {
     return {
         {QStringLiteral("zh_CN"), QStringLiteral("中文")},
         {QStringLiteral("en"), QStringLiteral("English")},
     };
+}
+
+QVector<Language> availableLanguages() {
+    QVector<Language> languages = supportedLanguages();
+    for (const QString& code : installedLanguageCodes()) {
+        bool known = false;
+        for (const Language& language : languages) {
+            if (language.code == code) {
+                known = true;
+                break;
+            }
+        }
+        if (known) {
+            continue;
+        }
+        // 装来的语言包没有自带名字（.ts 里只有语言代码），菜单里就显示代码。
+        languages.append({code, code});
+    }
+    return languages;
 }
 
 bool isSupportedLanguage(const QString& code) {
@@ -329,6 +360,7 @@ TsTranslator::TsTranslator(QObject* parent) : QTranslator(parent) {}
 
 bool TsTranslator::loadTs(QIODevice* device, QString* errorMessage) {
     messages_.clear();
+    contexts_.clear();
     catalogLanguage_.clear();
     if (device == nullptr) {
         if (errorMessage != nullptr) {
@@ -358,7 +390,7 @@ bool TsTranslator::loadTs(QIODevice* device, QString* errorMessage) {
                 break;
             }
             if (inner == QXmlStreamReader::StartElement && reader.name() == u"context") {
-                readContext(reader, messages_);
+                readContext(reader, messages_, contexts_);
             }
         }
     }
@@ -382,6 +414,16 @@ bool TsTranslator::loadTs(QIODevice* device, QString* errorMessage) {
 }
 
 bool TsTranslator::isEmpty() const { return messages_.isEmpty(); }
+
+bool TsTranslator::coversAppContexts() const {
+    // 上下文名以 "aipdf::app::" 开头 = 这份目录是给本应用用的。
+    for (const QString& context : contexts_) {
+        if (context.startsWith(QLatin1String("aipdf::app::"))) {
+            return true;
+        }
+    }
+    return false;
+}
 
 QString TsTranslator::translate(const char* context, const char* sourceText,
                                 const char* disambiguation, int n) const {
@@ -460,6 +502,15 @@ bool LanguageManager::apply(const QString& code) {
             return false;
         }
         translator = candidate;
+    } else if (code != QLatin1String("zh_CN")) {
+        // 既没有用户包也没有内置包：**必须报错**。
+        //
+        // 这一条现在主要是**兜底**：catalogPath 对任何语言码都会合成一个
+        // 资源路径，打不开时上面那条已经报错退出了。它把「找不到语言包 =
+        // 失败、绝不静默降级」这条不变量写死在这儿 —— 以后谁改了
+        // catalogPath，也不会让 apply() 悄悄返回成功。
+        lastError_ = missingPackGuidance(code);
+        return false;
     }
 
     if (translator_ != nullptr) {
@@ -499,7 +550,8 @@ QString LanguageManager::languagePackSource(const QString& code) const {
 QString LanguageManager::missingPackGuidance(const QString& code) const {
     return i18n::tr("aipdf::app::Language",
                     "没有找到 %1 的语言包，界面仍然是中文。把语言包文件（%2）放到这个目录：%3；"
-                    "或者在「设置 → 界面语言」里点「安装语言包…」直接选文件安装。")
+                    "或者在「语言 → 安装语言包…」/「设置 → 界面语言」里点「安装语言包…」"
+                    "直接选文件安装。")
         .arg(code, languagePackFileName(code), languagePackDirectory());
 }
 
@@ -509,8 +561,10 @@ bool LanguageManager::setPreference(const QString& value) {    const QString tri
 
     QString resolved;
     if (preference == systemPreference()) {
-        resolved = resolveLanguage(QLocale::system().uiLanguages());
-    } else if (isSupportedLanguage(preference)) {
+        resolved = resolveSystemLanguage();
+    } else if (isSupportedLanguage(preference) ||
+               !installedLanguagePackPath(preference).isEmpty()) {
+        // 内置的语言，或者用户装了的语言 —— 装了就得能选它。
         resolved = preference;
     } else {
         return false;
@@ -529,7 +583,8 @@ void LanguageManager::loadSavedPreference() {
         QString resolved;
         if (override == systemPreference()) {
             resolved = resolveLanguage(QLocale::system().uiLanguages());
-        } else if (isSupportedLanguage(override)) {
+        } else if (isSupportedLanguage(override) ||
+                   !installedLanguagePackPath(override).isEmpty()) {
             resolved = override;
         }
         if (!resolved.isEmpty()) {

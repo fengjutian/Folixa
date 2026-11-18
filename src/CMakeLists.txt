@@ -10,6 +10,7 @@ qt_add_executable(AiPdfEditor WIN32
     app/FormDesignAssistantDialog.cpp
     app/Language.cpp
     app/Language.h
+    app/LanguagePackInstaller.cpp
     i18n/Translate.h
     app/Theme.cpp
     app/Theme.h

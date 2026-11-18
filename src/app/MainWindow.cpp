@@ -640,6 +640,7 @@ void MainWindow::buildUi() {
     // 界面语言：中文是源语言（界面文案本身就是中文），英文走翻译目录；
     // 「跟随系统」按系统语言选，默认就是它。
     auto* languageMenu = appMenu->addMenu(QString());
+    languageMenu_ = languageMenu;
     texts_.bind([this, languageMenu] { languageMenu->setTitle(tr("语言(&L)")); });
     languageActions_ = new QActionGroup(this);
     languageActions_->setExclusive(true);
@@ -663,7 +664,7 @@ void MainWindow::buildUi() {
     });
     // 「安装语言包…」：语言包原先只在构建期打进资源，用户侧装不了别的语言。
     // 有了这个入口，缺包时用户有路可走，不必干等。
-    languageMenu->addSeparator();
+    languageSeparator_ = languageMenu->addSeparator();
     auto* installLanguageAction = languageMenu->addAction(QString());
     texts_.bind([this, installLanguageAction] {
         installLanguageAction->setText(tr("安装语言包…"));
@@ -5744,6 +5745,35 @@ void MainWindow::retranslateUi() {
 void MainWindow::syncLanguageMenu() {
     if (languageActions_ == nullptr) {
         return;
+    }
+    // 菜单始终反映「现在能选的语言」：用户装完语言包要能当场切过去，
+    // 否则「安装」这一半就没有意义（新装的语言只在设置里能选）。
+    //
+    // 新项插在分隔线**之前**：插在后面会排到「安装语言包…」旁边，
+    // 看着不像语言项。
+    if (languageMenu_ != nullptr && languageSeparator_ != nullptr) {
+        for (const i18n::Language& language : i18n::availableLanguages()) {
+            bool exists = false;
+            for (QAction* action : languageActions_->actions()) {
+                if (action->data().toString() == language.code) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (exists) {
+                continue;
+            }
+            // 语言名用各自的自称（内置的是「中文 / English」），
+            // 装来的包只有语言代码，就显示代码 —— 不翻译。
+            auto* action = new QAction(language.nativeName, this);
+            action->setCheckable(true);
+            action->setData(language.code);
+            languageMenu_->insertAction(languageSeparator_, action);
+            languageActions_->addAction(action);
+            connect(action, &QAction::triggered, this, [this, code = language.code] {
+                applyLanguage(code);
+            });
+        }
     }
     const QString preference = i18n::LanguageManager::instance().preference();
     for (QAction* action : languageActions_->actions()) {

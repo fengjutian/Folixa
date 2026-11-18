@@ -11,6 +11,7 @@ class QAction;
 class QActionGroup;
 class QLabel;
 class QLineEdit;
+class QMenu;
 class QPushButton;
 class QDoubleSpinBox;
 class QSlider;
@@ -308,6 +309,10 @@ private:
     i18n::TextBindings texts_;
     QActionGroup* languageActions_ = nullptr;
     QAction* followSystemAction_ = nullptr;
+    // 语言菜单本体与它末尾的分隔线：新装的语言要插在分隔线**之前**，
+    // 否则会排到「安装语言包…」后面，看着不像语言项。
+    QMenu* languageMenu_ = nullptr;
+    QAction* languageSeparator_ = nullptr;
     QFileSystemWatcher* autoImportWatcher_ = nullptr;
     QHash<QString, qint64> autoImportSizes_;
 };

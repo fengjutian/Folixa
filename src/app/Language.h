@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QTranslator>
@@ -27,6 +28,12 @@ struct CatalogMessage {
 // 应用支持的语言（按菜单顺序）。中文是源语言：界面上写的就是中文，
 // 因此中文不需要翻译目录；英文等其他语言各有一份 .ts。
 QVector<Language> supportedLanguages();
+
+// 现在**能选**的语言：内置的那些 + 用户装了的那些。
+//
+// 为什么要有这个：装了语言包就得能选它，否则「安装」这一半就没有意义。
+// 装来的语言包没有自带名字（.ts 里只有语言代码），菜单里就显示代码。
+QVector<Language> availableLanguages();
 
 // 语言代码是否在支持列表里。
 bool isSupportedLanguage(const QString& code);
@@ -63,7 +70,7 @@ QString languagePackFileName(const QString& code);
 // 用户目录里某个语言的语言包文件路径（没装就返回空串）。
 QString installedLanguagePackPath(const QString& code);
 
-// 用户目录里已经装了包的语言代码（按 supportedLanguages 的顺序）。
+// 用户目录里已经装了包的语言代码（按目录里声明的语言来，读不到就跳过）。
 QStringList installedLanguageCodes();
 
 // 读一份语言包里**自己声明**的语言（<TS language="…">）；读不到返回空串。
@@ -71,10 +78,15 @@ QString declaredLanguageOf(const QString& sourcePath);
 
 // 安装一份语言包：校验 → 复制到用户目录 → 返回装好的路径。
 //
-// 校验两件事：
+// 校验四件事：
 //   1. 能解析成目录且词条不为空（否则装进去也是坏的）；
-//   2. 目录自己声明的语言与 code 一致 —— 装错语言包比不装更糟：
-//      界面会变成另一种语言，用户还以为是自己刚装的。
+//   2. 目录里有本应用的词条（aipdf::app:: 上下文）—— 装别人的 .ts 白装；
+//   3. 目录自己声明的语言与 code 一致 —— 装错语言包比不装更糟：
+//      界面会变成另一种语言，用户还以为是自己刚装的；
+//   4. code 得像个语言代码（ja / zh_CN 这类），不然菜单里会多出一个看不懂的条目。
+//
+// 装进来的语言**不要求**在 supportedLanguages() 里：用户侧装的包
+// 本来就可能是本版本没内置的语言（社区包），装了就能切。
 bool installLanguagePack(const QString& sourcePath, const QString& code,
                          QString* error = nullptr);
 
@@ -111,8 +123,19 @@ public:
     // 目录自身声明的语言（<TS language="...">），用于校验文件名与内容一致。
     QString catalogLanguage() const { return catalogLanguage_; }
 
+    // 目录里有没有**本应用**的词条（上下文以 "aipdf::app::" 开头）。
+    //
+    // 为什么要有这个判断：用户从网上随便下个 .ts（Qt 自带的、别的软件的）
+    // 装进来，界面一个字都不会变 —— 看上去「装成功了」，其实白装。
+    bool coversAppContexts() const;
+
 private:
     QHash<QString, CatalogMessage> messages_;
+    // 目录里出现过的上下文名。
+    //
+    // 为什么单独记一份：词条键是「上下文 + 分隔符 + 源文案 + 分隔符 + 消歧义」，
+    // 从键里反推上下文要靠分隔符的位置，绕；直接记上下文更直白。
+    QSet<QString> contexts_;
     QString catalogLanguage_;
 };
 
