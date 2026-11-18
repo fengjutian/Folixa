@@ -136,7 +136,12 @@ BatchReport runBatch(const QStringList& inputPaths,
 // 打开密码非空时，错密码必须打不开。自检不过就不产出文件。
 //
 // 单个文件失败不影响整批：失败原因由 runBatch 记进该文件的条目里。
-BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptions& options);
+//
+// sourcePassword 是**源文件**的打开密码：源文件本身已加密时，先用它解开旧的加密，
+// 再按 options 加密。没有它就只能加密明文源文件（源文件已加密时这一步会明确失败）。
+BatchStep makeEncryptStep(const QString& stepName,
+                          const pdf::PdfEncryptionOptions& options,
+                          const QString& sourcePassword = QString());
 
 // 「加密」步骤用的默认设置：权限位沿用 pdf::PdfPermissions 的默认值，
 // 与「加密与权限」对话框的默认值相同，调用方只需要给一个打开密码。

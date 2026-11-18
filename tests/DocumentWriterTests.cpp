@@ -81,6 +81,8 @@ private slots:
     void imageStampAndSoundAreEmbedded();
     void nativeSoundAnnotationIsInjected();
     void saveEncryptsWrittenFile();
+    void savingEncryptedDocumentKeepsItsPassword();
+    void reencryptingAnEncryptedDocumentUsesTheNewSettings();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -496,8 +498,91 @@ void DocumentWriterTests::saveEncryptsWrittenFile() {
     QVERIFY(permissions & (1 << 2));     // 打印位：开启
 }
 
-void DocumentWriterTests::nativeSoundAnnotationIsInjected() {
+// 打开一份加密文档 → 原样保存 → 文件仍然加密，密码不变。
+//
+// 这是用户真的会走的路：打开加密 PDF → 改一点 → 保存。
+// 落盘字节如果被清成明文，等于替用户拆了锁；校验时如果不带密码，
+// 保存会直接失败（被自己写的结构校验挡住，报「invalid password」）。
+void DocumentWriterTests::savingEncryptedDocumentKeepsItsPassword() {
     const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("reader");
+    options.ownerPassword = QStringLiteral("owner");
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString sourcePath = dir.filePath(QStringLiteral("locked.pdf"));
+    const aipdf::pdf::SaveOutcome encrypted =
+        aipdf::pdf::DocumentWriter::save(opened.document, sourcePath, false, {}, &options);
+    QVERIFY2(encrypted.ok, qPrintable(encrypted.error));
+
+    const auto locked = openDocument(sourcePath, QStringLiteral("reader"));
+    QVERIFY2(locked.document.isValid(), qPrintable(locked.errorMessage));
+
+    // 原样保存：不改加密设置。
+    const QString outPath = dir.filePath(QStringLiteral("saved.pdf"));
+    const aipdf::pdf::SaveOutcome saved = aipdf::pdf::DocumentWriter::save(
+        locked.document, outPath, false, {}, nullptr, QStringLiteral("reader"));
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+
+    // 落盘的文件仍然要密码：没被清成明文。
+    const auto withoutPassword = openDocument(outPath);
+    QVERIFY(withoutPassword.passwordRequired);
+    const auto withPassword = openDocument(outPath, QStringLiteral("reader"));
+    QVERIFY2(withPassword.document.isValid(), qPrintable(withPassword.errorMessage));
+    QCOMPARE(withPassword.document.pageCount(), locked.document.pageCount());
+
+    // 没有打开密码时不能偷偷保存成明文：必须明确失败。
+    const QString deniedPath = dir.filePath(QStringLiteral("denied.pdf"));
+    const aipdf::pdf::SaveOutcome denied = aipdf::pdf::DocumentWriter::save(
+        locked.document, deniedPath, false, {}, nullptr, QString());
+    QVERIFY(!denied.ok);
+    QVERIFY2(denied.error.contains(QString::fromUtf8("密码")), qPrintable(denied.error));
+    QVERIFY(!QFile::exists(deniedPath));
+}
+
+// 打开加密文档 → 在「加密与权限」里改了密码 → 保存 → 用新密码能打开。
+//
+// 这里最关键的是：源字节本身是加密的，必须先解开旧的才能按新设置加密。
+// 直接对加密字节调用 encryptPdf() 只会得到一句「invalid password」。
+void DocumentWriterTests::reencryptingAnEncryptedDocumentUsesTheNewSettings() {
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString sourcePath = dir.filePath(QStringLiteral("locked.pdf"));
+
+    aipdf::pdf::PdfEncryptionOptions first;
+    first.userPassword = QStringLiteral("old");
+    first.ownerPassword = QStringLiteral("old-owner");
+    const aipdf::pdf::SaveOutcome encrypted =
+        aipdf::pdf::DocumentWriter::save(opened.document, sourcePath, false, {}, &first);
+    QVERIFY2(encrypted.ok, qPrintable(encrypted.error));
+
+    const auto locked = openDocument(sourcePath, QStringLiteral("old"));
+    QVERIFY2(locked.document.isValid(), qPrintable(locked.errorMessage));
+
+    aipdf::pdf::PdfEncryptionOptions second;
+    second.userPassword = QStringLiteral("new");
+    second.ownerPassword = QStringLiteral("new-owner");
+    const QString outPath = dir.filePath(QStringLiteral("reencrypted.pdf"));
+    const aipdf::pdf::SaveOutcome saved = aipdf::pdf::DocumentWriter::save(
+        locked.document, outPath, false, {}, &second, QStringLiteral("old"));
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+
+    // 新密码能打开，旧密码打不开。
+    const auto withNew = openDocument(outPath, QStringLiteral("new"));
+    QVERIFY2(withNew.document.isValid(), qPrintable(withNew.errorMessage));
+    QCOMPARE(withNew.document.pageCount(), locked.document.pageCount());
+    const auto withOld = openDocument(outPath, QStringLiteral("old"));
+    QVERIFY(!withOld.document.isValid());
+    QVERIFY(withOld.passwordRequired);
+}
+
+void DocumentWriterTests::nativeSoundAnnotationIsInjected() {    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
     QVERIFY(opened.document.isValid());
 
     // 声音注释只存在于模型里：PDFium 建不出来，保存时由写入器插进页面 /Annots。

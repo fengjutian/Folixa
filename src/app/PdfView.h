@@ -58,6 +58,13 @@ public:
     // 使用已打开的文档（例如由调用方完成密码校验后传入）。
     void setDocument(pdf::PdfDocument document, const QString& filePath);
 
+    // 记下打开这份文档用的密码。
+    //
+    // 为什么视图要记：加密文档的字节一直是加密的（PDFium 序列化会保留加密），
+    // 于是「清理隐藏信息」与「保存」这两件事都需要同一个密码——qpdf 解不开就
+    // 枚举不了，校验也会被自己写的加密挡住。调用方在打开成功后设一次即可。
+    void setDocumentPassword(const QString& password);
+
     void clear();
 
     int pageCount() const;
@@ -598,6 +605,8 @@ private:
     // 保存时的加密设置（v1.6.0）。encryptionEnabled_ 为假时按明文保存。
     pdf::PdfEncryptionOptions encryptionOptions_;
     bool encryptionEnabled_ = false;
+    // 打开这份文档用的密码（加密文档才有）。清理隐藏信息与保存都要用它。
+    QString documentPassword_;
     bool ownerPermissionsUnlocked_ = false;
     QByteArray pendingSignatureImage_;
     QString pendingSignatureName_;

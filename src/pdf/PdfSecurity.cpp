@@ -41,6 +41,8 @@ constexpr const char* kEmbeddedFiles = "embedded-files";
 constexpr const char* kFileAttachments = "file-attachments";
 constexpr const char* kScripts = "scripts";
 constexpr const char* kActions = "actions";
+constexpr const char* kAnnotationActions = "annotation-actions";
+constexpr const char* kFieldActions = "field-actions";
 constexpr const char* kFormData = "form-data";
 constexpr const char* kThumbnails = "thumbnails";
 constexpr const char* kAnnotations = "annotations";
@@ -62,6 +64,8 @@ const QVector<QString>& supportedCategoryIds() {
         QString::fromLatin1(category_id::kFileAttachments),
         QString::fromLatin1(category_id::kScripts),
         QString::fromLatin1(category_id::kActions),
+        QString::fromLatin1(category_id::kAnnotationActions),
+        QString::fromLatin1(category_id::kFieldActions),
         QString::fromLatin1(category_id::kFormData),
         QString::fromLatin1(category_id::kThumbnails),
         QString::fromLatin1(category_id::kAnnotations),
@@ -75,6 +79,80 @@ const QVector<QString>& supportedCategoryIds() {
 }
 
 #ifdef AIPDF_WITH_QPDF
+
+// 打开一份可能是加密的 PDF，并说清楚「为什么打不开」。
+//
+// 为什么要有这层：加密文档不给密码时 qpdf 直接抛异常（invalid password），
+// 于是枚举与清理都拿不到任何信息——用户看到的是一句「隐藏数据枚举失败」，
+// 根本不知道「其实只要有密码就能查」。
+//
+// 判定顺序：先带密码试（对明文文档无害，qpdf 会忽略它），再不带密码试。
+// 两次都失败才报错；错密码与文件损坏必须分开说，因为处理方式完全不同。
+enum class OpenOutcome {
+    Ok,
+    NeedsPassword,  // 加密了，而且没给密码
+    WrongPassword,  // 加密了，密码不对
+    Damaged,        // 解析失败，与密码无关
+};
+
+OpenOutcome openForInspection(std::shared_ptr<QPDF>& pdf,
+                              const QByteArray& bytes,
+                              const QString& password,
+                              bool* encrypted,
+                              std::string* detail) {
+    const QByteArray utf8 = password.toUtf8();
+    const char* passwordArg = utf8.isEmpty() ? nullptr : utf8.constData();
+
+    const auto attempt = [&bytes, detail](const char* pwd) -> std::shared_ptr<QPDF> {
+        auto candidate = QPDF::create();
+        try {
+            candidate->processMemoryFile("hidden-data.pdf", bytes.constData(),
+                                         static_cast<size_t>(bytes.size()), pwd);
+        } catch (const std::exception& exception) {
+            if (detail != nullptr && detail->empty()) {
+                *detail = exception.what();
+            }
+            return nullptr;
+        }
+        return candidate;
+    };
+
+    // 第一次：带密码试。
+    if (std::shared_ptr<QPDF> candidate = attempt(passwordArg)) {
+        pdf = candidate;
+        *encrypted = candidate->isEncrypted();
+        return OpenOutcome::Ok;
+    }
+    // 第二次：不带密码试（明文文档、用户密码为空的加密文档走这条路）。
+    if (std::shared_ptr<QPDF> candidate = attempt(nullptr)) {
+        pdf = candidate;
+        *encrypted = candidate->isEncrypted();
+        return OpenOutcome::Ok;
+    }
+
+    // 两次都失败：分清「密码不对」与「文件坏了」。
+    //
+    // 判据是 qpdf 的错误文本：解密失败时报的是 invalid password，
+    // 别的解析错误不会带这个词。
+    if (detail != nullptr && detail->find("password") != std::string::npos) {
+        return password.isEmpty() ? OpenOutcome::NeedsPassword : OpenOutcome::WrongPassword;
+    }
+    return OpenOutcome::Damaged;
+}
+
+// 打开失败时给用户看的中文原因。
+QString describeOpenFailure(OpenOutcome outcome, const std::string& detail) {
+    switch (outcome) {
+    case OpenOutcome::NeedsPassword:
+        return toLocal(QStringLiteral("文档已加密，需要正确的打开密码才能检查隐藏信息"));
+    case OpenOutcome::WrongPassword:
+        return toLocal(QStringLiteral("文档已加密，输入的密码不正确"));
+    case OpenOutcome::Damaged:
+    default:
+        return toLocal(QStringLiteral("无法解析文档：%1")
+                            .arg(QString::fromUtf8(detail.c_str())));
+    }
+}
 
 // qpdf 的 R3 打印枚举：无 / 低分辨率 / 完整。
 qpdf_r3_print_e printMode(const PdfPermissions& permissions) {
@@ -125,6 +203,8 @@ struct HiddenDataCounts {
     int fileAttachments = 0;
     int scripts = 0;
     int actions = 0;
+    int annotationActions = 0;
+    int fieldActions = 0;
     int formData = 0;
     int thumbnails = 0;
     int annotations = 0;
@@ -228,6 +308,41 @@ bool isFileAttachmentAnnotation(const QPDFObjectHandle& annot) {
     }
     const QPDFObjectHandle subtype = annot.getKey("/Subtype");
     return subtype.isName() && subtype.getName() == "/FileAttachment";
+}
+
+// 字典里 /AA 动作的条数。
+//
+// /AA 是一个字典，键是触发器（/E 进入、/X 离开、/D 放下、/Fo 聚焦……），
+// 值是动作本身。所以「条数」= 触发器个数，也就是这份文档里埋了多少个自动动作。
+int countActionEntries(const QPDFObjectHandle& dict) {
+    if (!dict.isDictionary()) {
+        return 0;
+    }
+    return static_cast<int>(dict.getKeys().size());
+}
+
+// 这个批注是不是表单控件（widget）？
+//
+// 为什么必须分开：表单控件的 /AA（校验、格式化脚本的挂点）与普通批注的 /AA
+// （点击、进入时触发的动作）是两回事，必须分成两类，否则「只清批注动作」
+// 会顺手把表单的校验脚本也删掉。
+//
+// 依据：控件要么与字段合并（自己带 /FT），要么通过 /Parent 挂在字段下面。
+bool isFormWidget(const QPDFObjectHandle& annot) {
+    if (!annot.isDictionary()) {
+        return false;
+    }
+    if (annot.hasKey("/FT")) {
+        return true;  // 字段与控件合并成同一个字典
+    }
+    QPDFObjectHandle node = annot.getKey("/Parent");
+    for (int depth = 0; depth < 8 && node.isDictionary(); ++depth) {
+        if (node.hasKey("/T") || node.hasKey("/FT")) {
+            return true;
+        }
+        node = node.getKey("/Parent");
+    }
+    return false;
 }
 
 // 内容流里「不可见文字」的扫描器。
@@ -525,14 +640,12 @@ HiddenDataCounts collectHiddenDataCounts(QPDF& pdf, const QByteArray& rawBytes) 
     // actions：自动动作（不需要用户点一下就会执行的那种）。
     //
     // 依据：catalog 的 /OpenAction，以及 catalog 与页面上的 /AA。
-    // 批注自己的 /AA 不算——那是批注被点开时的行为，删批注时自然一起没了，
-    // 算进这一类会让「只清一类、别的类不变」这条性质不成立。
-    const auto countActionEntries = [](const QPDFObjectHandle& dict) {
-        if (!dict.isDictionary()) {
-            return 0;
-        }
-        return static_cast<int>(dict.getKeys().size());
-    };
+    // 批注自己的 /AA 不算进这一类——它是「用户点了某个控件才触发」的行为，
+    // 性质与文档自动动作不同，混在一起会让「只清一类、别的类不变」这条性质不成立。
+    //
+    // 批注级与字段级的 /AA 各自成类（annotation-actions / field-actions）：
+    // 它们是用户点某个控件时才触发的动作，而且必须分开——
+    // 「清批注动作」不该顺手删掉表单的校验脚本。
     if (root.hasKey("/OpenAction")) {
         ++counts.actions;
     }
@@ -550,6 +663,10 @@ HiddenDataCounts collectHiddenDataCounts(QPDF& pdf, const QByteArray& rawBytes) 
                     ++counts.fileAttachments;
                 } else if (isHiddenAnnotation(annot)) {
                     ++counts.annotations;
+                }
+                // 批注级 /AA：表单控件的不算（那是字段级那一类）。
+                if (!isFormWidget(annot)) {
+                    counts.annotationActions += countActionEntries(annot.getKey("/AA"));
                 }
             }
         }
@@ -611,6 +728,17 @@ HiddenDataCounts collectHiddenDataCounts(QPDF& pdf, const QByteArray& rawBytes) 
             } else if (hasValue) {
                 ++counts.formData;
             }
+            // 字段级 /AA：字段字典自己的，外加纯控件（没有自己的名字/类型）的。
+            // 带 /T 或 /FT 的子字段自己就在 fields 里，单独再数一遍就重复了。
+            counts.fieldActions += countActionEntries(field.getKey("/AA"));
+            const QPDFObjectHandle kids = field.getKey("/Kids");
+            if (kids.isArray()) {
+                for (const QPDFObjectHandle& kid : kids.getArrayAsVector()) {
+                    if (kid.isDictionary() && !kid.hasKey("/T") && !kid.hasKey("/FT")) {
+                        counts.fieldActions += countActionEntries(kid.getKey("/AA"));
+                    }
+                }
+            }
         }
         const QPDFObjectHandle xfa = acroForm.getKey("/XFA");
         if (xfa.isArray()) {
@@ -646,6 +774,10 @@ QVector<HiddenDataCategory> buildCategories(const HiddenDataCounts& counts) {
         QStringLiteral("/Names /JavaScript entries: %1").arg(counts.scripts));
     add(category_id::kActions, counts.actions,
         QStringLiteral("/OpenAction + /AA actions: %1").arg(counts.actions));
+    add(category_id::kAnnotationActions, counts.annotationActions,
+        QStringLiteral("annotation /AA triggers: %1").arg(counts.annotationActions));
+    add(category_id::kFieldActions, counts.fieldActions,
+        QStringLiteral("form field /AA triggers: %1").arg(counts.fieldActions));
     add(category_id::kFormData, counts.formData,
         QStringLiteral("AcroForm fields with a value: %1").arg(counts.formData));
     add(category_id::kThumbnails, counts.thumbnails,
@@ -770,21 +902,27 @@ QByteArray encryptPdf(const QByteArray& input,
 #endif
 }
 
-QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
+QByteArray sanitizeHiddenData(const QByteArray& input, QString* error, const QString& password) {
     if (input.isEmpty()) {
         if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
         return {};
     }
 #ifdef AIPDF_WITH_QPDF
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, input, password, &encrypted, &detail);
+    if (outcome != OpenOutcome::Ok) {
+        if (error != nullptr) {
+            *error = describeOpenFailure(outcome, detail);
+        }
+        return {};
+    }
     try {
-        QPDF pdf;
-        pdf.processMemoryFile("sanitize.pdf", input.constData(),
-                              static_cast<size_t>(input.size()));
-
-        QPDFObjectHandle trailer = pdf.getTrailer();
+        QPDFObjectHandle trailer = pdf->getTrailer();
         trailer.removeKey("/Info");
 
-        QPDFObjectHandle root = pdf.getRoot();
+        QPDFObjectHandle root = pdf->getRoot();
         for (const char* key : {"/Metadata", "/PieceInfo", "/OpenAction", "/AA"}) {
             root.removeKey(key);
         }
@@ -795,15 +933,19 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
                 names.removeKey("/EmbeddedFiles");
             }
         }
-        for (QPDFObjectHandle page : pdf.getAllPages()) {
+        for (QPDFObjectHandle page : pdf->getAllPages()) {
             page.removeKey("/AA");
             page.removeKey("/PieceInfo");
             page.removeKey("/Metadata");
         }
 
-        QPDFWriter writer(pdf);
+        QPDFWriter writer(*pdf);
         writer.setOutputMemory();
         writer.setObjectStreamMode(qpdf_o_generate);
+        if (encrypted) {
+            // 加密文档清理完仍然加密：清成明文等于替用户拆了锁。
+            writer.setPreserveEncryption(true);
+        }
         writer.write();
         std::unique_ptr<Buffer> buffer(writer.getBuffer());
         if (!buffer || buffer->getSize() == 0) {
@@ -820,23 +962,30 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error) {
         return {};
     }
 #else
+    Q_UNUSED(password);
     if (error != nullptr) *error = missingQpdfError();
     return {};
 #endif
 }
 
-QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
+QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error, const QString& password) {
     if (input.isEmpty()) {
         if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
         return {};
     }
 #ifdef AIPDF_WITH_QPDF
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, input, password, &encrypted, &detail);
+    if (outcome != OpenOutcome::Ok) {
+        if (error != nullptr) {
+            *error = describeOpenFailure(outcome, detail);
+        }
+        return {};
+    }
     try {
-        QPDF pdf;
-        pdf.processMemoryFile("embedded-files.pdf", input.constData(),
-                              static_cast<size_t>(input.size()));
-
-        QPDFObjectHandle root = pdf.getRoot();
+        QPDFObjectHandle root = pdf->getRoot();
 
         // 1) 名称树里的嵌入文件：用 qpdf 官方的接口。
         //    removeEmbeddedFile() 不只是把名字从树上摘掉，它还会「掏空」文件规格字典，
@@ -844,7 +993,7 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
         //    这才叫附件真的从文件里消失，而不只是从附件列表里消失。
         try {
             QPDFEmbeddedFileDocumentHelper& embedded =
-                QPDFEmbeddedFileDocumentHelper::get(pdf);
+                QPDFEmbeddedFileDocumentHelper::get(*pdf);
             std::vector<std::string> names;
             for (const auto& entry : embedded.getEmbeddedFiles()) {
                 names.push_back(entry.first);
@@ -874,7 +1023,7 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
         //    文件本体照样被写进输出文件——这正是 sanitizeHiddenData 留下的缺口。
         //    文件被清掉之后，批注只剩一个空壳（挂附件的批注没有附件就没有意义），
         //    所以连批注一起删掉。
-        for (QPDFObjectHandle page : pdf.getAllPages()) {
+        for (QPDFObjectHandle page : pdf->getAllPages()) {
             QPDFObjectHandle annots = page.getKey("/Annots");
             if (!annots.isArray()) {
                 continue;
@@ -895,13 +1044,17 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
             }
         }
 
-        QPDFWriter writer(pdf);
+        QPDFWriter writer(*pdf);
         writer.setOutputMemory();
         writer.setObjectStreamMode(qpdf_o_generate);
         // 明确要求「不可达的对象不写出去」。
         // qpdf 12.4.2 的默认行为本来就是丢弃（保留要显式开 --preserve-unreferenced），
         // 这里仍然显式写一遍：断了引用却把流本体写出去，等于「声称已清理、实际没清」。
         writer.setPreserveUnreferencedObjects(false);
+        if (encrypted) {
+            // 加密文档清完嵌入文件后仍然加密：清成明文等于替用户拆了锁。
+            writer.setPreserveEncryption(true);
+        }
         writer.write();
         std::unique_ptr<Buffer> buffer(writer.getBuffer());
         if (!buffer || buffer->getSize() == 0) {
@@ -918,12 +1071,13 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error) {
         return {};
     }
 #else
+    Q_UNUSED(password);
     if (error != nullptr) *error = missingQpdfEmbeddedFilesError();
     return {};
 #endif
 }
 
-QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error) {
+QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error, const QString& password) {
     if (input.isEmpty()) {
         if (error != nullptr) *error = toLocal(QStringLiteral("没有可清理的内容"));
         return {};
@@ -931,14 +1085,16 @@ QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error) {
     // 顺序不能反：removeEmbeddedFiles() 要靠名称树把嵌入文件找出来，
     // 先删索引就找不到了（EmbeddedFileTests 的 removeThenSanitizeKeepsItClean
     // 就是按这个顺序断言的）。
-    QByteArray withoutFiles = removeEmbeddedFiles(input, error);
+    QByteArray withoutFiles = removeEmbeddedFiles(input, error, password);
     if (withoutFiles.isEmpty()) {
         return {};
     }
-    return sanitizeHiddenData(withoutFiles, error);
+    return sanitizeHiddenData(withoutFiles, error, password);
 }
 
-QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& input, QString* error) {
+QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& input,
+                                                 QString* error,
+                                                 const QString& password) {
     QVector<HiddenDataCategory> categories;
     if (input.isEmpty()) {
         if (error != nullptr) {
@@ -947,12 +1103,19 @@ QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& input, QString
         return categories;
     }
 #ifdef AIPDF_WITH_QPDF
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, input, password, &encrypted, &detail);
+    if (outcome != OpenOutcome::Ok) {
+        if (error != nullptr) {
+            *error = describeOpenFailure(outcome, detail);
+        }
+        return {};
+    }
     try {
-        QPDF pdf;
-        pdf.processMemoryFile("hidden-inventory.pdf", input.constData(),
-                              static_cast<size_t>(input.size()));
         // 只解析不写盘：枚举不会改变文档的任何一个字节。
-        const HiddenDataCounts counts = collectHiddenDataCounts(pdf, input);
+        const HiddenDataCounts counts = collectHiddenDataCounts(*pdf, input);
         categories = buildCategories(counts);
     } catch (const std::exception& exception) {
         if (error != nullptr) {
@@ -962,6 +1125,7 @@ QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& input, QString
         return {};
     }
 #else
+    Q_UNUSED(password);
     if (error != nullptr) {
         *error = missingQpdfError();
     }
@@ -970,9 +1134,72 @@ QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& input, QString
     return categories;
 }
 
+bool isEncryptedDocument(const QByteArray& bytes, QString* error) {
+    if (bytes.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("没有可检查的内容"));
+        }
+        return false;
+    }
+#ifdef AIPDF_WITH_QPDF
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, bytes, QString(), &encrypted, &detail);
+    if (outcome == OpenOutcome::Ok) {
+        return encrypted;
+    }
+    if (outcome == OpenOutcome::NeedsPassword || outcome == OpenOutcome::WrongPassword) {
+        // 打不开但明确是密码问题：它就是加密文档。
+        return true;
+    }
+    if (error != nullptr) {
+        *error = describeOpenFailure(outcome, detail);
+    }
+    return false;
+#else
+    if (error != nullptr) {
+        *error = missingQpdfError();
+    }
+    return false;
+#endif
+}
+
+bool requiresPasswordToOpen(const QByteArray& bytes, QString* error) {
+    if (bytes.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("没有可检查的内容"));
+        }
+        return false;
+    }
+#ifdef AIPDF_WITH_QPDF
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, bytes, QString(), &encrypted, &detail);
+    if (outcome == OpenOutcome::Ok) {
+        // 空密码就能打开：要么没加密，要么用户密码为空。
+        return false;
+    }
+    if (outcome == OpenOutcome::NeedsPassword || outcome == OpenOutcome::WrongPassword) {
+        return true;
+    }
+    if (error != nullptr) {
+        *error = describeOpenFailure(outcome, detail);
+    }
+    return false;
+#else
+    if (error != nullptr) {
+        *error = missingQpdfError();
+    }
+    return false;
+#endif
+}
+
 QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
                                        const QSet<QString>& categoryIds,
-                                       QString* error) {
+                                       QString* error,
+                                       const QString& password) {
     if (input.isEmpty()) {
         if (error != nullptr) {
             *error = toLocal(QStringLiteral("没有可清理的内容"));
@@ -1009,15 +1236,22 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
     }
 
 #ifdef AIPDF_WITH_QPDF
-    try {
-        QPDF pdf;
-        pdf.processMemoryFile("hidden-selective.pdf", input.constData(),
-                              static_cast<size_t>(input.size()));
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForInspection(pdf, input, password, &encrypted, &detail);
+    if (outcome != OpenOutcome::Ok) {
+        if (error != nullptr) {
+            *error = describeOpenFailure(outcome, detail);
+        }
+        return {};
+    }
 
-        QPDFObjectHandle root = pdf.getRoot();
-        QPDFObjectHandle trailer = pdf.getTrailer();
+    try {
+        QPDFObjectHandle root = pdf->getRoot();
+        QPDFObjectHandle trailer = pdf->getTrailer();
         std::vector<QPDFPageObjectHelper> pages =
-            QPDFPageDocumentHelper::get(pdf).getAllPages();
+            QPDFPageDocumentHelper::get(*pdf).getAllPages();
 
         // metadata：删掉文档信息字典。
         if (categoryIds.contains(QString::fromLatin1(category_id::kMetadata))) {
@@ -1048,7 +1282,7 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
         if (categoryIds.contains(QString::fromLatin1(category_id::kEmbeddedFiles))) {
             try {
                 QPDFEmbeddedFileDocumentHelper& embedded =
-                    QPDFEmbeddedFileDocumentHelper::get(pdf);
+                    QPDFEmbeddedFileDocumentHelper::get(*pdf);
                 std::vector<std::string> embeddedNames;
                 for (const auto& entry : embedded.getEmbeddedFiles()) {
                     embeddedNames.push_back(entry.first);
@@ -1081,6 +1315,58 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
             for (QPDFPageObjectHelper& page : pages) {
                 QPDFObjectHandle pageDict = page.getObjectHandle();
                 pageDict.removeKey("/AA");
+            }
+        }
+
+        // annotation-actions：删掉批注上的 /AA。
+        //
+        // 只摘 /AA 这一个键，批注本身留着——批注里的正文是给人看的，不是隐藏数据。
+        // 表单控件的 /AA 不动：那是字段级那一类，两类必须能分开清。
+        if (categoryIds.contains(QString::fromLatin1(category_id::kAnnotationActions))) {
+            for (QPDFPageObjectHelper& page : pages) {
+                QPDFObjectHandle pageDict = page.getObjectHandle();
+                const QPDFObjectHandle annots = pageDict.getKey("/Annots");
+                if (!annots.isArray()) {
+                    continue;
+                }
+                for (QPDFObjectHandle annot : annots.getArrayAsVector()) {
+                    if (!annot.isDictionary() || isFormWidget(annot)) {
+                        continue;
+                    }
+                    if (annot.hasKey("/AA")) {
+                        annot.removeKey("/AA");
+                    }
+                }
+            }
+        }
+
+        // field-actions：删掉表单域上的 /AA（校验、格式化脚本的挂点）。
+        //
+        // 字段字典与它的控件都要看：合并成同一个字典的字段，/AA 就在字段上；
+        // 分开写的字段，/AA 可能挂在控件上。
+        if (categoryIds.contains(QString::fromLatin1(category_id::kFieldActions))) {
+            QVector<QPDFObjectHandle> fields;
+            const QPDFObjectHandle acroForm = root.getKey("/AcroForm");
+            if (acroForm.isDictionary()) {
+                const QPDFObjectHandle fieldArray = acroForm.getKey("/Fields");
+                if (fieldArray.isArray()) {
+                    for (const QPDFObjectHandle& field : fieldArray.getArrayAsVector()) {
+                        collectFormFields(field, fields);
+                    }
+                }
+            }
+            for (QPDFObjectHandle field : fields) {
+                if (field.hasKey("/AA")) {
+                    field.removeKey("/AA");
+                }
+                const QPDFObjectHandle kids = field.getKey("/Kids");
+                if (kids.isArray()) {
+                    for (QPDFObjectHandle kid : kids.getArrayAsVector()) {
+                        if (kid.isDictionary() && kid.hasKey("/AA")) {
+                            kid.removeKey("/AA");
+                        }
+                    }
+                }
             }
         }
 
@@ -1135,10 +1421,18 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
         // 写出器本来就把历史拍平成一份：qpdf 只认最后一版修订，旧版本的对象
         // 压根不会进到输出字节里。选它等于「只把文件重写一遍」。
 
-        QPDFWriter writer(pdf);
+        QPDFWriter writer(*pdf);
         writer.setOutputMemory();
         writer.setObjectStreamMode(qpdf_o_generate);
         writer.setPreserveUnreferencedObjects(false);
+        if (encrypted) {
+            // 加密文档清理完**仍然加密**：沿用原来的密码与权限位。
+            //
+            // 清成明文等于替用户拆了锁——这是最不能出现的静默降级。
+            // qpdf 默认就保留加密，这里显式写出来，免得以后有人改了写出器
+            // 的模式（qdf / 内容归一化会关掉保留）就悄悄把锁拆了。
+            writer.setPreserveEncryption(true);
+        }
         writer.write();
         std::unique_ptr<Buffer> buffer(writer.getBuffer());
         if (!buffer || buffer->getSize() == 0) {
@@ -1153,7 +1447,9 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
         // 复验：勾了的类必须真的归零。
         //
         // 「声称清掉了、实际没清」是最坏的失败，所以写完立刻用同一套枚举再查一遍。
-        const QVector<HiddenDataCategory> after = enumerateHiddenData(output, nullptr);
+        // 加密文档要用同一个密码查：不然复验会栽在「打不开」上，
+        // 看起来像清理失败，其实文件是好的。
+        const QVector<HiddenDataCategory> after = enumerateHiddenData(output, nullptr, password);
         for (const HiddenDataCategory& category : after) {
             if (categoryIds.contains(category.id) && category.itemCount != 0) {
                 if (error != nullptr) {
@@ -1173,6 +1469,55 @@ QByteArray sanitizeHiddenDataSelective(const QByteArray& input,
         return {};
     }
 #else
+    Q_UNUSED(password);
+    if (error != nullptr) {
+        *error = missingQpdfError();
+    }
+    return {};
+#endif
+}
+
+QByteArray decryptPdf(const QByteArray& input, const QString& password, QString* error) {
+    if (input.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("没有可解密的内容"));
+        }
+        return {};
+    }
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        const QByteArray utf8 = password.toUtf8();
+        pdf.processMemoryFile("decrypt.pdf", input.constData(),
+                              static_cast<size_t>(input.size()),
+                              utf8.isEmpty() ? nullptr : utf8.constData());
+        if (!pdf.isEncrypted()) {
+            // 本来就没加密：一个字节都不动。
+            return input;
+        }
+        QPDFWriter writer(pdf);
+        writer.setOutputMemory();
+        // 关键：不保留加密。qpdf 默认会沿用原来的加密参数，那样解不开。
+        writer.setPreserveEncryption(false);
+        writer.write();
+        std::unique_ptr<Buffer> buffer(writer.getBuffer());
+        if (!buffer || buffer->getSize() == 0) {
+            if (error != nullptr) {
+                *error = toLocal(QStringLiteral("qpdf 没有写出解密结果"));
+            }
+            return {};
+        }
+        return QByteArray(reinterpret_cast<const char*>(buffer->getBuffer()),
+                          static_cast<int>(buffer->getSize()));
+    } catch (const std::exception& exception) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("解密失败：%1")
+                                 .arg(QString::fromUtf8(exception.what())));
+        }
+        return {};
+    }
+#else
+    Q_UNUSED(password);
     if (error != nullptr) {
         *error = missingQpdfError();
     }

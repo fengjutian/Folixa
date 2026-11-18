@@ -61,11 +61,19 @@ public:
     //
     // encryption 非空时，序列化之后先做 AES-256 加密再落盘；重开校验会用
     // 加密设置里的用户密码。用户密码为空表示加密但不要求密码打开（只写权限位）。
+    //
+    // documentPassword 是**源文档的打开密码**（从磁盘打开加密文档时用户输入的那个）。
+    // 它解决两件事：
+    //   - PDFium 序列化会保留原来的加密，所以落盘的字节仍然是加密的，
+    //     重开校验必须带着密码，否则会被自己的校验挡下来（报「invalid password」）；
+    //   - 用户在「加密与权限」里改了加密设置时，要先解开旧的加密才能按新设置加密。
+    // 文档没加密时它可以是空的。
     static SaveOutcome save(const PdfDocument& document,
                             const QString& targetPath,
                             bool createBackup = true,
                             const QVector<Annotation>& model = {},
-                            const PdfEncryptionOptions* encryption = nullptr);
+                            const PdfEncryptionOptions* encryption = nullptr,
+                            const QString& documentPassword = QString());
 };
 
 }  // namespace aipdf::pdf

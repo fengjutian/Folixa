@@ -59,7 +59,11 @@ bool inspectEncryption(const QByteArray& input,
 // 删除常见的隐藏信息载体：文档信息字典、XMP、文档级 JavaScript、自动打开动作、
 // 附加动作、嵌入文件名称树和页面级附加动作。页面正文、可见批注和表单值不受影响。
 // 结果由 qpdf 完整重写，失败时返回空数组，绝不回退成“原样保存却声称已清理”。
-QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr);
+//
+// password 是打开密码：加密文档给了密码才能清，清理后**仍然加密**。
+QByteArray sanitizeHiddenData(const QByteArray& input,
+                              QString* error = nullptr,
+                              const QString& password = QString());
 
 // 把文档级嵌入文件的**本体**也清掉。
 //
@@ -73,7 +77,11 @@ QByteArray sanitizeHiddenData(const QByteArray& input, QString* error = nullptr)
 // 被断开的对象因此不会再进到输出字节里。
 //
 // 需要 qpdf；未启用 qpdf 时返回空 QByteArray 并写中文错误。
-QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error = nullptr);
+//
+// password 是打开密码：加密文档给了密码才能清，清理后**仍然加密**。
+QByteArray removeEmbeddedFiles(const QByteArray& input,
+                               QString* error = nullptr,
+                               const QString& password = QString());
 
 // 「清理隐藏信息」按钮真正要走的那条路：先清嵌入文件本体，再清隐藏信息。
 //
@@ -87,7 +95,9 @@ QByteArray removeEmbeddedFiles(const QByteArray& input, QString* error = nullptr
 // 语义：sanitizeHiddenData() 的清理项 + 嵌入文件本体（/Filespec 与 EmbeddedFile 流）
 // 一起清掉。挂附件的 /FileAttachment 批注会连同附件一起删除（附件没了，批注没有意义）。
 // 页面正文、可见批注与表单值不受影响。
-QByteArray sanitizeHiddenDataFully(const QByteArray& input, QString* error = nullptr);
+QByteArray sanitizeHiddenDataFully(const QByteArray& input,
+                                  QString* error = nullptr,
+                                  const QString& password = QString());
 
 // 一类隐藏数据的清单项。
 //
@@ -99,14 +109,30 @@ struct HiddenDataCategory {
     QString detail;     // ASCII 技术细节：这一类凭什么被算进来
 };
 
+// 这份文档是不是加密的。
+//
+// 「加密但用户密码为空」也算加密：这种文档能直接打开，可它仍然带着 /Encrypt，
+// 清理之后必须继续带着——否则用户会拿到一份「密码保护没了」的文件。
+bool isEncryptedDocument(const QByteArray& bytes, QString* error = nullptr);
+
+// 打开这份文档是不是必须要密码。
+//
+// 与 isEncryptedDocument 的区别：加密文档的用户密码为空时，它不需要密码就能打开。
+// 界面据此决定要不要弹密码框——不该为一个空密码的加密文档挡住用户。
+bool requiresPasswordToOpen(const QByteArray& bytes, QString* error = nullptr);
+
 // 枚举一份文档里各类隐藏数据。
 //
 // 只读：只解析不写盘，调用前后文档字节不变。
 // 每一类都有可验证的判断依据（依据写在 PdfSecurity.cpp 里），不是猜的。
 // 返回的清单总是包含全部受支持的类别，固定顺序；没有的类别 itemCount = 0，
 // 这样界面可以直接按顺序渲染勾选列表。
+//
+// password 给的是**打开密码**：加密文档不给对密码就枚举不了（qpdf 直接拒绝解密），
+// 这时返回空清单并写明原因，而不是给一份「什么都没查出来」的假清单。
 QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& bytes,
-                                                 QString* error = nullptr);
+                                                 QString* error = nullptr,
+                                                 const QString& password = QString());
 
 // 只清理勾选的类；没勾的类必须原样保留。
 //
@@ -116,9 +142,24 @@ QVector<HiddenDataCategory> enumerateHiddenData(const QByteArray& bytes,
 //   - 未知 id → 明确失败，不静默忽略。
 //   - 写盘之前会用同一套枚举复验：勾选的类必须归零，没勾的类必须不变
 //     （增量历史除外——任何重写都会把它拍平，这是写出器的固有行为）。
+//
+// 加密文档：password 是打开密码。清理完之后**仍然加密**（沿用原来的密码与
+// 权限位），绝不清成明文——把一份加密文件「清理」成明文，等于替用户拆了锁。
 QByteArray sanitizeHiddenDataSelective(const QByteArray& bytes,
                                        const QSet<QString>& categoryIds,
-                                       QString* error = nullptr);
+                                       QString* error = nullptr,
+                                       const QString& password = QString());
+
+// 把一份加密 PDF 解开成明文（用打开密码）。
+//
+// 什么时候需要：用户在「加密与权限」里重新设置了加密，而源文档本身是加密的——
+// 必须先把旧的解开，才能按新设置加密。直接对加密字节调用 encryptPdf() 是错的：
+// qpdf 连打开都打不开。
+//
+// 本来就没加密的文档原样返回（不改一个字节）。
+QByteArray decryptPdf(const QByteArray& input,
+                      const QString& password,
+                      QString* error = nullptr);
 
 // 用 qpdf 区分用户密码和所有者密码。仅“能打开”不足以解除权限限制。
 bool verifyOwnerPassword(const QByteArray& input,

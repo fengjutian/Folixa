@@ -905,6 +905,10 @@ bool PdfView::load(const QString& path, QString* errorMessage) {
     return true;
 }
 
+void PdfView::setDocumentPassword(const QString& password) {
+    documentPassword_ = password;
+}
+
 void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     stopRenderThread();
 
@@ -1420,6 +1424,7 @@ void PdfView::clear() {
     qaController_.reset();
     indexController_.reset();
     document_ = pdf::PdfDocument();
+    documentPassword_.clear();
     contentUndo_.clear();
     contentRedo_.clear();
     editUndoTimeline_.clear();
@@ -2003,12 +2008,30 @@ void PdfView::sanitizeHiddenData() {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
     }
+
+    // 加密文档：字节一直是加密的，qpdf 不给密码就解不开。
+    //
+    // 这里问一次密码，记住它（保存时还要用同一把钥匙）。
+    QString password = documentPassword_;
+    if (pdf::requiresPasswordToOpen(source, nullptr) && password.isEmpty()) {
+        bool accepted = false;
+        password = QInputDialog::getText(this, tr("需要密码"),
+                                         tr("这份文档已加密，请输入打开密码："),
+                                         QLineEdit::Password, QString(), &accepted);
+        if (!accepted || password.isEmpty()) {
+            QMessageBox::information(
+                this, tr("清理隐藏信息"),
+                tr("这份文档已加密，需要正确的打开密码才能检查和清理隐藏信息。"));
+            return;
+        }
+    }
+
     // 先列清单，再让用户逐项勾选。
     //
     // 为什么不再直接问一句「确定全清吗」：原来那个组合入口会把嵌入文件本体
     // 一起删掉，用户点一下就丢了附件，而且事后不知道自己丢了什么。
     const QVector<pdf::HiddenDataCategory> categories =
-        pdf::enumerateHiddenData(source, &error);
+        pdf::enumerateHiddenData(source, &error, password);
     if (categories.isEmpty()) {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
@@ -2032,18 +2055,20 @@ void PdfView::sanitizeHiddenData() {
         selectedIds.insert(id);
     }
     const QByteArray sanitized =
-        pdf::sanitizeHiddenDataSelective(source, selectedIds, &error);
+        pdf::sanitizeHiddenDataSelective(source, selectedIds, &error, password);
     if (sanitized.isEmpty()) {
         QMessageBox::warning(this, tr("清理隐藏信息"), error);
         return;
     }
-    auto reopened = pdf::openDocumentFromBytes(sanitized, filePath_);
+    auto reopened = pdf::openDocumentFromBytes(sanitized, filePath_, password);
     if (!reopened.document.isValid()) {
         QMessageBox::warning(this, tr("清理隐藏信息"),
                              tr("清理结果校验失败：%1").arg(reopened.errorMessage));
         return;
     }
     setDocument(std::move(reopened.document), filePath_);
+    // 记住密码：清理后的文档仍然是加密的，保存时还要用它。
+    setDocumentPassword(password);
     setModified(true);
     QStringList clearedTitles;
     for (const QString& id : selected) {
@@ -3357,6 +3382,16 @@ void PdfView::batchProcessDialog() {
     outputRow->addWidget(outputEdit);
     layout->addLayout(outputRow);
 
+    // 源文件的打开密码：批处理要读的是磁盘上的原始字节，加密文档不给密码
+    // 就打不开。留空表示这批文件都没加密。
+    auto* passwordRow = new QHBoxLayout;
+    auto* passwordEdit = new QLineEdit(&dialog);
+    passwordEdit->setObjectName(QStringLiteral("batch.sourcePassword"));
+    passwordEdit->setEchoMode(QLineEdit::Password);
+    passwordEdit->setPlaceholderText(tr("源文件打开密码（目录里有加密文件时填）"));
+    passwordRow->addWidget(passwordEdit);
+    layout->addLayout(passwordRow);
+
     auto* steps = new QListWidget(&dialog);
     steps->setObjectName(QStringLiteral("batch.steps"));
     const QStringList stepNames{tr("清理隐藏信息"), tr("移除嵌入文件"), tr("加密（AES-256）"),
@@ -3378,7 +3413,7 @@ void PdfView::batchProcessDialog() {
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [this, &dialog, inputEdit, outputEdit,
-                                                             steps, report, &stepNames] {
+                                                             passwordEdit, steps, report, &stepNames] {
         const QString directory = inputEdit->text().trimmed();
         if (directory.isEmpty()) {
             QMessageBox::information(&dialog, tr("批处理"), tr("先选一个目录。"));
@@ -3420,6 +3455,9 @@ void PdfView::batchProcessDialog() {
                 continue;
             }
             const QString title = item->text();
+            // 源文件的打开密码：加密文档不给密码就打不开，
+            // 清理与移除嵌入文件这两步都要用它。
+            const QString sourcePassword = passwordEdit->text();
             if (title == stepNames.at(0)) {
                 // 批处理是对一批文件跑固定步骤，没有逐项勾选的界面，
                 // 所以这里用与界面一致的默认集合。
@@ -3432,17 +3470,20 @@ void PdfView::batchProcessDialog() {
                     cleanupIds.insert(id);
                 }
                 batchSteps.append(doc::BatchStep{
-                    title, [cleanupIds](const QByteArray& in, QString* err) {
-                        return pdf::sanitizeHiddenDataSelective(in, cleanupIds, err);
+                    title, [cleanupIds, sourcePassword](const QByteArray& in, QString* err) {
+                        return pdf::sanitizeHiddenDataSelective(in, cleanupIds, err, sourcePassword);
                     }});
             } else if (title == stepNames.at(1)) {
-                batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString* err) {
-                    return pdf::removeEmbeddedFiles(in, err);
+                batchSteps.append(doc::BatchStep{title, [sourcePassword](const QByteArray& in, QString* err) {
+                    return pdf::removeEmbeddedFiles(in, err, sourcePassword);
                 }});
             } else if (title == stepNames.at(2)) {
                 // 加密步走 doc 层：加密完会做一次「用密码重新打开」的自检，
                 // 打不开就不产出文件，不会给出一堆谁也读不了的 PDF。
-                batchSteps.append(doc::makeEncryptStep(title, encryptOptions));
+                //
+                // 源文件自己就是加密的时，用源文件密码先解开旧的再加密。
+                batchSteps.append(
+                    doc::makeEncryptStep(title, encryptOptions, sourcePassword));
             } else {
                 // 「什么也不做」：原样返回，报告里照样有它的字节数。
                 batchSteps.append(doc::BatchStep{title, [](const QByteArray& in, QString*) {
@@ -6070,7 +6111,8 @@ bool PdfView::saveAs(const QString& targetPath, QString* errorMessage, QString* 
     }
     const pdf::SaveOutcome saved =
         pdf::DocumentWriter::save(document_, targetPath, true, modelAnnotations,
-                                  encryptionEnabled_ ? &encryptionOptions_ : nullptr);
+                                  encryptionEnabled_ ? &encryptionOptions_ : nullptr,
+                                  documentPassword_);
     if (!saved.ok) {
         if (errorMessage != nullptr) {
             *errorMessage = saved.error;

@@ -309,10 +309,10 @@
 | 密文 | 马赛克 | ✅ | G4 | 区域像素化并删相交对象，文字层读不到该区域；有专项单测 |
 | 密文 | 擦除 | ✅ | G4 | 删相交对象，文字层读不到；页面其余仍是矢量文字；有专项单测 |
 | 密文 | 保护密文 | ✅ | G4 | 整页位图化落实标记，页面失去文字层；有专项单测 |
-| 隐私 | 隐藏数据 | 🟨 | G3 | 「清理隐藏信息」改成逐项勾选（`pdf::enumerateHiddenData` 列出 14 类隐藏数据与各自条数，`pdf::sanitizeHiddenDataSelective` 只清勾选的类，界面 `app::HiddenDataDialog`）：**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变；**加密文档的隐藏数据尚未纳入枚举**（`processMemoryFile` 不带密码打不开加密文档）；批注级与字段级的 `/AA` 动作不单独成类（随批注 / 字段一起清）；增量历史计数在内嵌 PDF 时偏大；`HiddenDataInventoryTests` 13 条 + `EmbeddedFileTests` 11 条 |
+| 隐私 | 隐藏数据 | 🟨 | G3 | 「清理隐藏信息」逐项勾选（`pdf::enumerateHiddenData` 列 16 类隐藏数据与各自条数，`pdf::sanitizeHiddenDataSelective` 只清勾选的类，界面 `app::HiddenDataDialog`）：**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变；加密文档给打开密码即可枚举与逐项清理，清理后仍保持加密（枚举与清理都吃 password；写出器保留原加密；复验用同一个密码）；批注级与字段级 `/AA` 动作各成一类（`annotation-actions` / `field-actions`），可分别清理；批处理也能用源文件密码处理加密文件（`batch.sourcePassword`）；**增量历史计数在内嵌 PDF 时偏大**（内层 PDF 的 %%EOF 被数进来，重写仍会拍平）；`HiddenDataInventoryTests` 19 条 + `EmbeddedFileTests` 13 条 + `DocumentWriterTests` 18 条 |
 | 文档 | 安全文档 | 🟨 | G8 | AI 调用走独立 Worker；PDF 解析仍在主进程 |
 | 文档 | 限制访问 | 🟨 | G1 | AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建 |
-| 文档 | 批量加密 | ✅ | G9 | 批量加密已实现：选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件 |
+| 文档 | 批量加密 | ✅ | G9 | 批量加密已实现：选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件；源文件本身已加密时，用源文件密码解开旧的再按新设置加密（`doc::makeEncryptStep` 的 sourcePassword），没有源文件密码就明确失败而不是产出谁也读不了的文件 |
 | 设置 | 设置 | 🟨 | — | 有「保护」标签页与「加密与权限」入口（AES-256 加密 + 权限位，`EncryptionDialog`）；**权限位随保存写入，没有独立的权限管理面板**（不能事后单独改权限而不重新加密） |
 | 企业 | 敏感度 | ➖ | — | 企业敏感度标签 |
 | 签名 | 填写&签名 | ✅ | F1 | 表单填写与证书签名均可用 |

@@ -111,6 +111,7 @@ private slots:
     void permissionBitsFollowDialogDefaults();
     void reportRoundTripKeepsStepBytes();
     void defaultOptionsUseDialogPermissions();
+    void encryptedSourceIsReencryptedWithTheNewPassword();
 };
 
 void BatchEncryptTests::init() {
@@ -385,6 +386,50 @@ void BatchEncryptTests::defaultOptionsUseDialogPermissions() {
     QCOMPARE(options.permissions.allowFormFilling, plain.permissions.allowFormFilling);
     QCOMPARE(options.permissions.allowAssembly, plain.permissions.allowAssembly);
     QCOMPARE(options.permissions.allowModifying, plain.permissions.allowModifying);
+}
+
+// 源文件自己就是加密的：用源文件密码解开旧的，再按新设置加密。
+//
+// 这条盯的是「对着加密字节调用 encryptPdf()」这个坑：
+// qpdf 连打开都打不开，只会说一句 invalid password。
+// 批处理里源文件加密是很常见的（上一轮批处理加密的产物就是），
+// 不支持的话等于「批量加密只能跑一遍」。
+void BatchEncryptTests::encryptedSourceIsReencryptedWithTheNewPassword() {
+    const QString input = QDir(m_tempDir).filePath(QStringLiteral("locked.pdf"));
+    const QByteArray source = buildPdf(1);
+
+    PdfEncryptionOptions first;
+    first.userPassword = QStringLiteral("old-secret");
+    QString error;
+    const QByteArray encrypted = aipdf::pdf::encryptPdf(source, first, &error);
+    QVERIFY2(!encrypted.isEmpty(), qPrintable(error));
+    writeFile(input, encrypted);
+
+    PdfEncryptionOptions second;
+    second.userPassword = QStringLiteral("new-secret");
+    const QString outputDirectory = QDir(m_tempDir).filePath(QStringLiteral("out"));
+    QVERIFY(QDir().mkpath(outputDirectory));
+
+    // 没有源文件密码：必须明确失败，而不是产出谁也读不了的文件。
+    QVector<BatchStep> blindSteps;
+    blindSteps.append(aipdf::doc::makeEncryptStep(QStringLiteral("加密"), second));
+    const BatchReport blind = runBatch({input}, {}, blindSteps, true, outputDirectory);
+    QCOMPARE(blind.failedCount, 1);
+    QVERIFY(!blind.items.at(0).error.isEmpty());
+
+    // 给了源文件密码：解开旧的，按新设置加密，产出用新密码能打开。
+    QVector<BatchStep> steps;
+    steps.append(aipdf::doc::makeEncryptStep(QStringLiteral("加密"), second,
+                                             QStringLiteral("old-secret")));
+    const BatchReport report = runBatch({input}, {}, steps, true, outputDirectory);
+    QCOMPARE(report.failedCount, 0);
+    QVERIFY2(report.items.at(0).succeeded, qPrintable(report.items.at(0).error));
+
+    const QByteArray produced = readFile(report.items.at(0).outputPath);
+    QVERIFY(!produced.isEmpty());
+    const PdfOpenResult reopened = openDocumentFromBytes(produced, QString(), second.userPassword);
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    QCOMPARE(reopened.document.pageCount(), 1);
 }
 
 QTEST_GUILESS_MAIN(BatchEncryptTests)

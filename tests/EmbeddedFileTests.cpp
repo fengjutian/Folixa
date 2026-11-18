@@ -120,9 +120,13 @@ QByteArray buildPdfWithEmbeddedFile(const QByteArray& payload, bool withAnnotati
 // 压过之后明文就搜不到了——那样「搜不到」证明不了任何事。
 // 所以这里把文件里所有对象（含不可达对象）都翻一遍，
 // 取每个流的**解码后**数据再搜。
-bool payloadSurvives(const QByteArray& bytes, const QByteArray& payload) {
+bool payloadSurvives(const QByteArray& bytes,
+                      const QByteArray& payload,
+                      const QString& password = QString()) {
     QPDF pdf;
-    pdf.processMemoryFile("scan.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
+    const QByteArray utf8 = password.toUtf8();
+    pdf.processMemoryFile("scan.pdf", bytes.constData(), static_cast<size_t>(bytes.size()),
+                          utf8.isEmpty() ? nullptr : utf8.constData());
     for (QPDFObjectHandle object : pdf.getAllObjects()) {
         if (!object.isStream()) {
             continue;
@@ -141,9 +145,11 @@ bool payloadSurvives(const QByteArray& bytes, const QByteArray& payload) {
 }
 
 // 文件里还有几个 /FileAttachment 批注（附件载体）。
-int fileAttachmentCount(const QByteArray& bytes) {
+int fileAttachmentCount(const QByteArray& bytes, const QString& password = QString()) {
     QPDF pdf;
-    pdf.processMemoryFile("scan.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
+    const QByteArray utf8 = password.toUtf8();
+    pdf.processMemoryFile("scan.pdf", bytes.constData(), static_cast<size_t>(bytes.size()),
+                          utf8.isEmpty() ? nullptr : utf8.constData());
     int count = 0;
     for (const QPDFObjectHandle& page : pdf.getAllPages()) {
         const QPDFObjectHandle annots = page.getKey("/Annots");
@@ -181,6 +187,7 @@ private slots:
     void emptyInputIsRejected();
     void brokenInputIsRejected();
     void missingQpdfIsReported();
+    void encryptedDocumentIsCleanedWithItsPassword();
 
 private:
     bool qpdfAvailable_ = false;
@@ -394,6 +401,50 @@ void EmbeddedFileTests::sanitizeHiddenDataFullyKeepsVisibleContent() {
     QVERIFY(text.has_value());
     QVERIFY2(text->plainText().contains(QStringLiteral("Hello PDFium")),
              "清理隐藏信息之后正文没了");
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// 加密文档：给密码就能清嵌入文件；清完**仍然加密**。
+//
+// 这一条盯的是两件事：
+//   - 不给密码时必须明确失败（不能给一份「什么都没清」的假成功）；
+//   - 给了密码就要清得干净，而且**不能把用户的锁拆了**——
+//     把加密文档清成明文，等于替用户拆了锁。
+void EmbeddedFileTests::encryptedDocumentIsCleanedWithItsPassword() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray source = buildPdfWithEmbeddedFile(kPayload);
+    QVERIFY(!source.isEmpty());
+    QVERIFY(payloadSurvives(source, kPayload));
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("secret");
+    QString error;
+    const QByteArray encrypted = aipdf::pdf::encryptPdf(source, options, &error);
+    QVERIFY2(!encrypted.isEmpty(), qPrintable(error));
+    QVERIFY(aipdf::pdf::requiresPasswordToOpen(encrypted, nullptr));
+
+    // 不给密码：清不动，而且要说清是密码的事。
+    QString deniedError;
+    QVERIFY(removeEmbeddedFiles(encrypted, &deniedError).isEmpty());
+    QVERIFY2(deniedError.contains(QString::fromUtf8("密码")), qPrintable(deniedError));
+
+    // 给密码：清得掉。
+    const QByteArray cleaned = removeEmbeddedFiles(encrypted, &error, options.userPassword);
+    QVERIFY2(!cleaned.isEmpty(), qPrintable(error));
+
+    // 清完仍然是加密的：不能把锁拆了。
+    QVERIFY2(aipdf::pdf::requiresPasswordToOpen(cleaned, nullptr),
+             "清理加密文档后不能把它清成明文");
+
+    // 同一个密码能打开，嵌入文件真的没了。
+    const auto opened =
+        aipdf::pdf::openDocumentFromBytes(cleaned, QString(), options.userPassword);
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QVERIFY2(!payloadSurvives(cleaned, kPayload, options.userPassword),
+             "加密文档的嵌入文件本体还在");
+    QCOMPARE(fileAttachmentCount(cleaned, options.userPassword), 0);
 #else
     QSKIP("本次构建没有启用 qpdf");
 #endif

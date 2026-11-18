@@ -31,6 +31,12 @@ QString hiddenDataCategoryTitle(const QString& id)
     if (id == QLatin1String("actions")) {
         return i18n::tr("aipdf::app::HiddenDataDialog", "自动动作（打开时 / 关闭时触发）");
     }
+    if (id == QLatin1String("annotation-actions")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "批注上的自动动作（进入 / 点开时触发）");
+    }
+    if (id == QLatin1String("field-actions")) {
+        return i18n::tr("aipdf::app::HiddenDataDialog", "表单域上的自动动作（校验 / 格式化脚本）");
+    }
     if (id == QLatin1String("form-data")) {
         return i18n::tr("aipdf::app::HiddenDataDialog", "表单字段的已填值");
     }
@@ -79,16 +85,20 @@ QStringList HiddenDataDialog::defaultCleanupCategoryIds()
     //   incremental-history 旧版本（写出器重写文件时本来就会拍平，勾不勾都清）
     //   scripts           文档级 JavaScript
     //   actions           打开/关闭时触发的自动动作
+    //   annotation-actions 批注上的自动动作（点开就跑的东西，与文档自动动作同类）
     //   thumbnails        预览图（派生缓存，删了无损）
     //
     // 不在名单里的（签名、表单已填值、OCR 文字层、图层、XFA、隐藏批注、
-    // 嵌入文件本体、附件引用点）默认不勾 —— 理由见头文件里的注释。
+    // 嵌入文件本体、附件引用点、表单域上的自动动作）默认不勾 ——
+    // 理由见头文件里的注释。表单域的动作默认不勾：校验与格式化脚本常常是
+    // 表单特意写好的功能，删了用户会心疼；批注上的动作则不然——那是「点开就跑」。
     return {
         QStringLiteral("metadata"),
         QStringLiteral("metadata-streams"),
         QStringLiteral("incremental-history"),
         QStringLiteral("scripts"),
         QStringLiteral("actions"),
+        QStringLiteral("annotation-actions"),
         QStringLiteral("thumbnails"),
     };
 }
@@ -109,7 +119,7 @@ HiddenDataDialog::HiddenDataDialog(QWidget* parent)
     auto* hint = new QLabel(
         i18n::tr("aipdf::app::HiddenDataDialog",
                  "勾掉要清理的类别。默认只清文档属性、元数据流、旧版本、脚本、"
-                 "自动动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件"
+                 "自动动作、批注动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件"
                  "默认不勾，勾了才会删。"),
         this);
     hint->setWordWrap(true);

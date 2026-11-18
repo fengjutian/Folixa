@@ -45,6 +45,8 @@ const QStringList kAllCategoryIds = {
     QStringLiteral("file-attachments"),
     QStringLiteral("scripts"),
     QStringLiteral("actions"),
+    QStringLiteral("annotation-actions"),
+    QStringLiteral("field-actions"),
     QStringLiteral("form-data"),
     QStringLiteral("thumbnails"),
     QStringLiteral("annotations"),
@@ -176,6 +178,9 @@ QByteArray buildRichPdf() {
     page.replaceKey("/AA", pdf.makeIndirectObject(pageAA));
 
     // form-data：一个填过值的文本域。
+    //
+    // 它同时是 field-actions 的载体：表单域上的 /AA 是校验、格式化脚本的挂点，
+    // 与普通批注的 /AA 是两回事，必须能被分开清。
     QPDFObjectHandle textField = QPDFObjectHandle::newDictionary();
     textField.replaceKey("/Type", QPDFObjectHandle::newName("/Annot"));
     textField.replaceKey("/Subtype", QPDFObjectHandle::newName("/Widget"));
@@ -185,6 +190,9 @@ QByteArray buildRichPdf() {
     textField.replaceKey("/F", QPDFObjectHandle::newInteger(4));
     textField.replaceKey("/Rect", makeRect());
     textField.replaceKey("/DA", QPDFObjectHandle::newString("/Helv 12 Tf 0 g"));
+    QPDFObjectHandle fieldAA = QPDFObjectHandle::newDictionary();
+    fieldAA.replaceKey("/K", makeJsAction("app.alert('keystroke validation');"));
+    textField.replaceKey("/AA", pdf.makeIndirectObject(fieldAA));
     const QPDFObjectHandle textFieldIndirect = pdf.makeIndirectObject(textField);
     appendAnnot(page, textFieldIndirect);
 
@@ -250,6 +258,12 @@ QByteArray buildRichPdf() {
     visibleAnnot.replaceKey("/F", QPDFObjectHandle::newInteger(4));
     visibleAnnot.replaceKey("/Rect", makeRect());
     visibleAnnot.replaceKey("/Contents", QPDFObjectHandle::newString("VISIBLE-ANNOTATION-MARKER"));
+    // annotation-actions：可见批注上的 /AA（进入时触发的动作）。
+    //
+    // 可见批注不是「隐藏批注」，但它身上的自动动作是——点开就跑的东西不该留着。
+    QPDFObjectHandle visibleAnnotAA = QPDFObjectHandle::newDictionary();
+    visibleAnnotAA.replaceKey("/E", makeJsAction("app.alert('annotation enter');"));
+    visibleAnnot.replaceKey("/AA", pdf.makeIndirectObject(visibleAnnotAA));
     appendAnnot(page, pdf.makeIndirectObject(visibleAnnot));
 
     // invisible-text：不可见渲染模式（Tr 3）下的文字层。
@@ -457,6 +471,10 @@ private slots:
     void emptyInputIsRejected();
     void brokenInputIsRejected();
     void missingQpdfIsReported();
+    void encryptedDocumentNeedsPasswordToBeInspected();
+    void cleaningEncryptedDocumentKeepsItEncrypted();
+    void annotationAndFieldActionsAreSeparateCategories();
+    void pdfiumSerializationKeepsEncryption();
 
 private:
     bool qpdfAvailable_ = false;
@@ -741,6 +759,164 @@ void HiddenDataInventoryTests::missingQpdfIsReported() {
     }
     QVERIFY(enumerateHiddenData(source, &error).isEmpty());
     QVERIFY(!error.isEmpty());
+}
+
+// 加密文档：不给密码就查不了，但必须说清「这是密码的事」。
+//
+// 欠账 G3 的原话：「加密文档解锁后也能枚举并逐项清理」。
+// 这里守的是「说不清楚」这一侧：拿不到密码时不能给一份「什么都没查出来」的
+// 假清单（那会让用户以为文档是干净的），必须明确说文档加密了、要密码。
+void HiddenDataInventoryTests::encryptedDocumentNeedsPasswordToBeInspected() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray plain = buildRichPdf();
+    QVERIFY2(!plain.isEmpty(), "造不出夹具");
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("secret");
+    QString error;
+    const QByteArray encrypted = aipdf::pdf::encryptPdf(plain, options, &error);
+    QVERIFY2(!encrypted.isEmpty(), qPrintable(error));
+
+    // 判定：它确实是加密文档，而且确实要密码才能打开。
+    QVERIFY(aipdf::pdf::isEncryptedDocument(encrypted, nullptr));
+    QVERIFY(aipdf::pdf::requiresPasswordToOpen(encrypted, nullptr));
+
+    // 不给密码：枚举必须失败并说明要密码。
+    QString noPasswordError;
+    QVERIFY(enumerateHiddenData(encrypted, &noPasswordError).isEmpty());
+    QVERIFY2(noPasswordError.contains(QString::fromUtf8("密码")), qPrintable(noPasswordError));
+
+    // 密码不对：必须说密码不对，不能笼统报「打不开」。
+    QString wrongError;
+    QVERIFY(enumerateHiddenData(encrypted, &wrongError, QStringLiteral("wrong")).isEmpty());
+    QVERIFY2(wrongError.contains(QString::fromUtf8("密码")), qPrintable(wrongError));
+
+    // 密码对：清单出来，条数与明文那份一致。
+    QString rightError;
+    const QVector<HiddenDataCategory> granted =
+        enumerateHiddenData(encrypted, &rightError, options.userPassword);
+    QVERIFY2(rightError.isEmpty(), qPrintable(rightError));
+    QCOMPARE(granted.size(), kAllCategoryIds.size());
+    QVERIFY(countFor(granted, QStringLiteral("metadata")) > 0);
+    QVERIFY(countFor(granted, QStringLiteral("annotation-actions")) > 0);
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// 加密文档清理完**仍然加密**：清成明文等于替用户拆了锁。
+void HiddenDataInventoryTests::cleaningEncryptedDocumentKeepsItEncrypted() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray plain = buildRichPdf();
+    QVERIFY2(!plain.isEmpty(), "造不出夹具");
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("secret");
+    QString error;
+    const QByteArray encrypted = aipdf::pdf::encryptPdf(plain, options, &error);
+    QVERIFY2(!encrypted.isEmpty(), qPrintable(error));
+
+    const QByteArray cleaned = sanitizeHiddenDataSelective(
+        encrypted, QSet<QString>{QStringLiteral("metadata")}, &error, options.userPassword);
+    QVERIFY2(!cleaned.isEmpty(), qPrintable(error));
+
+    // 仍然加密：不带密码打不开。
+    QVERIFY2(aipdf::pdf::requiresPasswordToOpen(cleaned, nullptr),
+             "清理加密文档后不能把它清成明文");
+
+    // 用同一个密码能打开，页数不变。
+    const aipdf::pdf::PdfOpenResult reopened =
+        aipdf::pdf::openDocumentFromBytes(cleaned, QString(), options.userPassword);
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    QCOMPARE(reopened.document.pageCount(), 1);
+
+    // 清理真的生效了，而且没勾的那几类还在。
+    const QVector<HiddenDataCategory> after =
+        enumerateHiddenData(cleaned, nullptr, options.userPassword);
+    QCOMPARE(countFor(after, QStringLiteral("metadata")), 0);
+    QVERIFY(countFor(after, QStringLiteral("scripts")) > 0);
+    QVERIFY(countFor(after, QStringLiteral("annotation-actions")) > 0);
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// 批注动作与表单域动作必须分成两类，而且能分开清。
+//
+// 「清批注动作」顺手把表单的校验脚本删掉，用户会以为只是清了几个批注动作。
+void HiddenDataInventoryTests::annotationAndFieldActionsAreSeparateCategories() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray source = buildRichPdf();
+    QVERIFY2(!source.isEmpty(), "造不出夹具");
+
+    QString error;
+    const QVector<HiddenDataCategory> before = enumerateHiddenData(source, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(countFor(before, QStringLiteral("annotation-actions")), 1);
+    QCOMPARE(countFor(before, QStringLiteral("field-actions")), 1);
+
+    // 只清批注动作：字段动作必须原样留着。
+    const QByteArray cleaned = sanitizeHiddenDataSelective(
+        source, QSet<QString>{QStringLiteral("annotation-actions")}, &error);
+    QVERIFY2(!cleaned.isEmpty(), qPrintable(error));
+    const QVector<HiddenDataCategory> after = enumerateHiddenData(cleaned, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(countFor(after, QStringLiteral("annotation-actions")), 0);
+    QCOMPARE(countFor(after, QStringLiteral("field-actions")), 1);
+
+    // 只清字段动作：批注动作必须原样留着。
+    const QByteArray fieldCleaned = sanitizeHiddenDataSelective(
+        source, QSet<QString>{QStringLiteral("field-actions")}, &error);
+    QVERIFY2(!fieldCleaned.isEmpty(), qPrintable(error));
+    const QVector<HiddenDataCategory> fieldAfter = enumerateHiddenData(fieldCleaned, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(countFor(fieldAfter, QStringLiteral("field-actions")), 0);
+    QCOMPARE(countFor(fieldAfter, QStringLiteral("annotation-actions")), 1);
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
+}
+
+// PDFium 序列化一份加密文档时，加密还在不在？
+//
+// 这条决定界面层能不能直接用序列化结果去保存：要是 PDFium 把加密丢了，
+// 「打开加密文档 → 改一下 → 保存」就会静默把用户的密码保护拆掉。
+void HiddenDataInventoryTests::pdfiumSerializationKeepsEncryption() {
+#ifdef AIPDF_WITH_QPDF
+    const QByteArray plain = buildRichPdf();
+    QVERIFY2(!plain.isEmpty(), "造不出夹具");
+
+    aipdf::pdf::PdfEncryptionOptions options;
+    options.userPassword = QStringLiteral("secret");
+    QString error;
+    const QByteArray encrypted = aipdf::pdf::encryptPdf(plain, options, &error);
+    QVERIFY2(!encrypted.isEmpty(), qPrintable(error));
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(encrypted, QString(), options.userPassword);
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+
+    QString serializeError;
+    const QByteArray serialized = opened.document.serialize(&serializeError);
+    QVERIFY2(!serialized.isEmpty(), qPrintable(serializeError));
+
+    // 结论写进日志：构建差异导致的两种行为都要看得见。
+    const bool keepsEncryption = aipdf::pdf::requiresPasswordToOpen(serialized, nullptr);
+    qInfo() << "pdfium serialization keeps encryption:" << keepsEncryption;
+
+    // 不管保不保留，序列化结果都必须还能用同一个密码打开（内容不能丢）。
+    const aipdf::pdf::PdfOpenResult reopened =
+        aipdf::pdf::openDocumentFromBytes(serialized, QString(), options.userPassword);
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    QCOMPARE(reopened.document.pageCount(), 1);
+
+    // 加密要么原样保留，要么由界面层显式重新加密——绝不能是「悄悄没了」。
+    // 实测（qpdf 12.4.2 + 本仓库的 PDFium）：序列化**保留**加密。
+    QVERIFY2(keepsEncryption,
+             "PDFium 序列化后加密丢了：界面层必须在保存时显式重新加密");
+#else
+    QSKIP("本次构建没有启用 qpdf");
+#endif
 }
 
 QTEST_GUILESS_MAIN(HiddenDataInventoryTests)

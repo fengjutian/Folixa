@@ -5454,6 +5454,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
               .arg(QFileInfo(filePath).fileName())
               .arg(result.passwordRequired ? 1 : 0)
               .arg(result.errorMessage));
+    // 加密文档的打开密码：清理隐藏信息与保存都要用它（文档字节一直是加密的）。
+    QString openPassword;
     if (result.passwordRequired) {
         bool accepted = false;
         const QString password = QInputDialog::getText(
@@ -5470,6 +5472,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
             statusBar()->showMessage(tr("已取消打开 %1").arg(QFileInfo(filePath).fileName()), 5000);
             return;
         }
+        openPassword = password;
         result = pdf::openDocument(filePath, password);
         trace(QStringLiteral("reopen valid=%1 required=%2 msg=%3")
                   .arg(result.document.isValid() ? 1 : 0)
@@ -5486,6 +5489,7 @@ void MainWindow::openPdfFile(const QString& filePath) {
 
     auto* view = new PdfView(this);
     view->setDocument(result.document, filePath);
+    view->setDocumentPassword(openPassword);
     // 文档/批注/图形工具条已经收进 Ribbon，释放垂直空间给画布与状态栏。
     view->setToolBarsVisible(false);
     // 打开成功才记：密码错、文件损坏的不该出现在「最近文档」里。

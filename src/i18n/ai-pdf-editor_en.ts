@@ -7543,8 +7543,52 @@ Notes: %1</translation></message>
                 <translation>Embedded file payloads</translation>
             </message>
                 <message>
-                <source>勾掉要清理的类别。默认只清文档属性、元数据流、旧版本、脚本、自动动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件默认不勾，勾了才会删。</source>
-                <translation>Uncheck the categories to clean. By default only document properties, metadata streams, old revisions, scripts, automatic actions and thumbnails are cleared; signatures, filled form values, invisible text layers, layers and embedded files are unchecked and are only removed if you check them.</translation>
+                <source>勾掉要清理的类别。默认只清文档属性、元数据流、旧版本、脚本、自动动作、批注动作和缩略图；签名、表单已填值、不可见文字层、图层与嵌入文件默认不勾，勾了才会删。</source>
+                <translation>Uncheck the categories to clean. By default only document properties, metadata streams, old revisions, scripts, automatic actions, annotation actions and thumbnails are cleared; signatures, filled form values, invisible text layers, layers and embedded files are unchecked and are only removed if you check them.</translation>
             </message>
 </context>
+    <context>
+        <name>aipdf::app::HiddenDataDialog</name>
+            <message>
+                <source>批注上的自动动作（进入 / 点开时触发）</source>
+                <translation>Automatic actions on annotations (on enter / on click)</translation>
+            </message>
+            <message>
+                <source>表单域上的自动动作（校验 / 格式化脚本）</source>
+                <translation>Automatic actions on form fields (validation / formatting scripts)</translation>
+            </message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+            <message>
+                <source>需要密码</source>
+                <translation>Password required</translation>
+            </message>
+            <message>
+                <source>这份文档已加密，请输入打开密码：</source>
+                <translation>This document is encrypted. Enter the password to open it:</translation>
+            </message>
+            <message>
+                <source>这份文档已加密，需要正确的打开密码才能检查和清理隐藏信息。</source>
+                <translation>This document is encrypted. The correct password is required to inspect and clean hidden data.</translation>
+            </message>
+    </context>
+    <context>
+        <name>aipdf::pdf::DocumentWriter</name>
+            <message>
+                <source>文档已加密，但没有它的打开密码，无法改加密设置</source>
+                <translation>The document is encrypted and its opening password is unknown, so the encryption settings cannot be changed</translation>
+            </message>
+            <message>
+                <source>文档已加密，但没有它的打开密码，无法保存</source>
+                <translation>The document is encrypted and its opening password is unknown, so it cannot be saved</translation>
+            </message>
+    </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message>
+            <source>源文件打开密码（目录里有加密文件时填）</source>
+            <translation>Source file password (fill it in when the folder contains encrypted files)</translation>
+        </message>
+    </context>
 </TS>

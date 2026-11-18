@@ -314,10 +314,11 @@ pdf::PdfEncryptionOptions defaultEncryptOptions(const QString& userPassword) {
     return options;
 }
 
-BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptions& options) {
+BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptions& options,
+                          const QString& sourcePassword) {
     BatchStep step;
     step.name = stepName;
-    step.transform = [options](const QByteArray& input, QString* error) -> QByteArray {
+    step.transform = [options, sourcePassword](const QByteArray& input, QString* error) -> QByteArray {
         if (input.isEmpty()) {
             if (error != nullptr) {
                 *error = QStringLiteral("没有可加密的内容");
@@ -333,8 +334,23 @@ BatchStep makeEncryptStep(const QString& stepName, const pdf::PdfEncryptionOptio
             return {};
         }
 #ifdef AIPDF_WITH_QPDF
+        // 源文件本身已加密：先解开旧的，才能按新设置加密。
+        // 直接对加密字节调用 encryptPdf() 只会得到一句「invalid password」。
+        QByteArray plain = input;
+        if (pdf::requiresPasswordToOpen(input, nullptr)) {
+            QString decryptError;
+            plain = pdf::decryptPdf(input, sourcePassword, &decryptError);
+            if (plain.isEmpty()) {
+                if (error != nullptr) {
+                    *error = decryptError.isEmpty()
+                                 ? QStringLiteral("源文件已加密，但没有它的打开密码，无法重新加密")
+                                 : decryptError;
+                }
+                return {};
+            }
+        }
         QString encryptError;
-        const QByteArray encrypted = pdf::encryptPdf(input, options, &encryptError);
+        const QByteArray encrypted = pdf::encryptPdf(plain, options, &encryptError);
         if (encrypted.isEmpty()) {
             if (error != nullptr) {
                 *error = encryptError.isEmpty() ? QStringLiteral("加密失败") : encryptError;

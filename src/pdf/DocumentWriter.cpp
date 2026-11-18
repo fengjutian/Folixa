@@ -168,7 +168,8 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
 SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& targetPath,
                                       bool createBackup,
                                       const QVector<Annotation>& model,
-                                      const PdfEncryptionOptions* encryption) {
+                                      const PdfEncryptionOptions* encryption,
+                                      const QString& documentPassword) {
     SaveOutcome outcome;
 
     const SaveBytes prepared = serializeForSave(document, model);
@@ -181,14 +182,42 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
 
     // 加密放在结构校验之前：要校验的是最终会落盘的那份字节。
     QByteArray bytes = prepared.bytes;
-    const QString password = encryption != nullptr ? encryption->userPassword : QString();
+
+    // 最终落盘字节的密码。空 = 落盘的是明文。
+    QString password;
+
     if (encryption != nullptr) {
+        // 用户重新设置了加密。源字节可能还带着原加密（PDFium 序列化会保留它），
+        // 必须先解开旧的，才能按新设置加密——对着加密字节调用 encryptPdf()
+        // 只会得到一句「invalid password」。
+        if (requiresPasswordToOpen(bytes, nullptr)) {
+            QString decryptError;
+            const QByteArray plain = decryptPdf(bytes, documentPassword, &decryptError);
+            if (plain.isEmpty()) {
+                outcome.error = decryptError.isEmpty()
+                                    ? i18n::tr("aipdf::pdf::DocumentWriter",
+                                               "文档已加密，但没有它的打开密码，无法改加密设置")
+                                    : decryptError;
+                return outcome;
+            }
+            bytes = plain;
+        }
         QString encryptionError;
         bytes = encryptPdf(bytes, *encryption, &encryptionError);
         if (bytes.isEmpty()) {
             outcome.error = encryptionError;
             return outcome;
         }
+        password = encryption->userPassword;
+    } else if (requiresPasswordToOpen(bytes, nullptr)) {
+        // 保持原来的加密（没改加密设置）：落盘字节仍是加密的，
+        // 重开校验必须带着同一个密码，否则会被自己的校验挡下来。
+        if (documentPassword.isEmpty()) {
+            outcome.error = i18n::tr("aipdf::pdf::DocumentWriter",
+                                     "文档已加密，但没有它的打开密码，无法保存");
+            return outcome;
+        }
+        password = documentPassword;
     }
 
     // 落盘前的最后一道结构检查。qpdf 未编入时这是一次空操作（返回 true），
