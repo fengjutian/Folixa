@@ -195,8 +195,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormDesignParser.cpp
     pdf/document/DocumentProperties.cpp
     pdf/document/DocumentProperties.h
-    pdf/ops/OutlineGenerator.cpp
-    pdf/ops/OutlineGenerator.h
+    doc/model/OutlineGenerator.cpp
+    doc/model/OutlineGenerator.h
     pdf/ops/OutlineEditor.cpp
     pdf/ops/OutlineEditor.h
     pdf/ops/PageSplitPlanner.cpp
@@ -221,8 +221,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/XfaSupport.h
     pdf/compliance/PdfUaChecker.cpp
     pdf/compliance/PdfUaChecker.h
-    ai/rag/OfflineQa.cpp
-    ai/rag/OfflineQa.h
+    doc/index/OfflineQa.cpp
+    doc/index/OfflineQa.h
     doc/convert/UniversalConverter.cpp
     doc/convert/UniversalConverter.h
     pdf/compliance/StructTreeReader.cpp
@@ -341,9 +341,9 @@ qt_add_executable(AiPdfEditor WIN32
     ai/settings/DataPolicy.h
     ai/settings/AuditLog.cpp
     ai/settings/AuditLog.h
-    ai/chat/EmbeddingProvider.h
-    ai/rag/LocalHashEmbedding.cpp
-    ai/rag/LocalHashEmbedding.h
+    doc/index/EmbeddingProvider.h
+    doc/index/LocalHashEmbedding.cpp
+    doc/index/LocalHashEmbedding.h
     doc/edit/AnnotationModel.cpp
     doc/edit/AnnotationModel.h
     doc/model/ChunkBuilder.cpp
@@ -366,8 +366,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/edit/PageCommand.h
     doc/persist/RecoveryLog.cpp
     doc/persist/RecoveryLog.h
-    doc/persist/SafeSave.cpp
-    doc/persist/SafeSave.h
+    pdf/kernel/SafeSave.cpp
+    pdf/kernel/SafeSave.h
     doc/edit/UndoStack.cpp
     doc/edit/UndoStack.h
     doc/index/VectorIndex.cpp

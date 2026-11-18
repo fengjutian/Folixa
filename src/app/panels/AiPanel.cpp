@@ -12,7 +12,7 @@
 #include "ai/settings/AuditLog.h"
 #include "ai/chat/ChatTypes.h"
 #include "ai/settings/CredentialStore.h"
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 #include "ai/settings/ProviderConfig.h"
 #include "ai/provider/ProviderFactory.h"
 #include "ai/settings/ProviderPreset.h"

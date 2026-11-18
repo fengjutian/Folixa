@@ -12,7 +12,7 @@
 #include "app/panels/LastWavePanels.h"
 #include "app/shell/RibbonBar.h"
 #include "app/ui/SystemCjkFont.h"
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 #include "doc/model/BlankDocument.h"
 #include "doc/model/DocumentChunk.h"
 #include "doc/convert/UniversalConverter.h"

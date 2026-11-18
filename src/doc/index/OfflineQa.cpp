@@ -1,6 +1,6 @@
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 
-#include "ai/rag/LocalHashEmbedding.h"
+#include "doc/index/LocalHashEmbedding.h"
 #include "doc/index/CitationVerifier.h"
 #include "doc/index/HybridRetriever.h"
 #include "doc/index/LocalIndex.h"

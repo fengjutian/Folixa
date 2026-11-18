@@ -5,7 +5,7 @@
 #include <QStringList>
 #include <QVector>
 
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 #include "doc/batch/ActionWizard.h"
 #include "doc/convert/InvoiceLayout.h"
 #include "doc/convert/UniversalConverter.h"

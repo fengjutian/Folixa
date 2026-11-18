@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/chat/EmbeddingProvider.h"
+#include "doc/index/EmbeddingProvider.h"
 
 #include <QHash>
 #include <QString>

@@ -26,7 +26,7 @@
 #include "pdf/security/PdfSecurity.h"
 #include "pdf/ops/BatchReplace.h"
 #include "pdf/document/NamedDestination.h"
-#include "pdf/ops/OutlineGenerator.h"
+#include "doc/model/OutlineGenerator.h"
 #include "pdf/ops/PageLabels.h"
 #include "pdf/ops/PageSplitPlanner.h"
 #include "pdf/security/Redaction.h"

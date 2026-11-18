@@ -591,8 +591,8 @@ qt_add_executable(DocumentWriterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
@@ -925,8 +925,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.h
 )
 
 target_link_libraries(DocumentOutputTests PRIVATE
@@ -1136,8 +1136,8 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
 )
@@ -1311,9 +1311,9 @@ qt_add_executable(DocumentQaTests
     DocumentQaTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ai/chat/EmbeddingProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.h
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ModelProvider.h
     ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.h
@@ -1370,9 +1370,9 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.h
-    ${CMAKE_SOURCE_DIR}/src/ai/chat/EmbeddingProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.cpp

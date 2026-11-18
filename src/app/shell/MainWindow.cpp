@@ -30,7 +30,7 @@
 #include "app/dialogs/FormToolSettingsDialog.h"
 #include "app/dialogs/FormDesignAssistantDialog.h"
 #include "ai/settings/AuditLog.h"
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 #include "app/editor/OcrController.h"
 #include "tools/ProposalValidator.h"
 #include "app/controllers/ProposalRunner.h"

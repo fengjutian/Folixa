@@ -6,9 +6,9 @@
 //   2. **可核对性**：返回的每一条引用，都必须能在原始片段里逐字定位到。
 //   3. **可复现性**：同样的输入永远得到同样的答案（本地嵌入、不联网）。
 
-#include "ai/rag/OfflineQa.h"
+#include "doc/index/OfflineQa.h"
 
-#include "ai/rag/LocalHashEmbedding.h"
+#include "doc/index/LocalHashEmbedding.h"
 #include "doc/index/CitationVerifier.h"
 #include "doc/model/DocumentChunk.h"
 #include "doc/index/LocalIndex.h"

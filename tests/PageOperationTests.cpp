@@ -12,7 +12,7 @@
 #include "app/layout/PdfPageOperations.h"
 #include "doc/edit/EditCommand.h"
 #include "doc/edit/PageCommand.h"
-#include "doc/persist/SafeSave.h"
+#include "pdf/kernel/SafeSave.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

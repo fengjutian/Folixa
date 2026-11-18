@@ -47,31 +47,30 @@ $ErrorActionPreference = 'Stop'
 # 模块 -> 文件基名（不含扩展名）。划分依据见 docs/SOURCE_MODULES.md。
 $Maps = @{
     pdf = [ordered]@{
-        'kernel'     = 'PdfiumAdapter DocumentOpen Navigation TextPage StandardFonts TableStructure PdfRevisionCounter'
+        'kernel'     = 'PdfiumAdapter DocumentOpen Navigation SafeSave TextPage StandardFonts TableStructure PdfRevisionCounter'
         'document'   = 'DocumentWriter IncrementalWriter QpdfBackend DocumentProperties NamedDestination'
         'content'    = 'ContentStream TextReflow TableIntegration ParagraphFormat TrueTypeSubset InvisibleTextLayer PageDecorations'
         'annot'      = 'Annotation AnnotationDictionary AnnotationFilter AnnotationShapes AnnotationSummary AnnotationToolkit AppearanceStream Xfdf SoundFormat PageAnnotsInjector RichMedia3d'
         'forms'      = 'FormData FormFieldWriter FormJsEvaluator FormScriptStore FormTemplateStore FormToolSettings FormDesignParser FormAutoTag BarcodeEncoder XfaSupport'
         'security'   = 'PdfSecurity SignatureVerifier SignatureInspector SignatureWorkflow RsaVerifier Redaction'
         'compliance' = 'PdfAChecker PdfUaChecker PreflightChecker TagTreeWriter StructTreeReader'
-        'ops'        = 'DocumentMerger DocumentComparer DocumentReflow PageSplitPlanner PageLabels OptionalContent BatchReplace SpellChecker OcrSuspicion OutlineEditor OutlineGenerator OutlineWriter'
+        'ops'        = 'DocumentMerger DocumentComparer DocumentReflow PageSplitPlanner PageLabels OptionalContent BatchReplace SpellChecker OcrSuspicion OutlineEditor OutlineWriter'
         'convert'    = 'ExportFormats ImageToPdf PortfolioWriter'
     }
     ai = [ordered]@{
-        'chat'     = 'ChatTypes SseParser ModelProvider EmbeddingProvider'
+        'chat'     = 'ChatTypes SseParser ModelProvider'
         'provider' = 'OpenAiProvider MockProvider ProviderFactory'
         'settings' = 'ProviderConfig ProviderPreset ProviderSelection CredentialStore DataPolicy AuditLog UploadPreview'
-        'rag'      = 'LocalHashEmbedding OfflineQa'
         'content'  = 'AiContentDetection AiImageGeneration AiNarration PptGeneration PptxExport'
     }
     doc = [ordered]@{
-        'model'   = 'BlankDocument DocumentChunk ChunkBuilder DocumentStatistics'
+        'model'   = 'BlankDocument DocumentChunk ChunkBuilder DocumentStatistics OutlineGenerator'
         'edit'    = 'AnnotationModel EditCommand EditContext PageCommand UndoStack'
-        'index'   = 'LocalIndex VectorIndex HybridRetriever CitationVerifier'
+        'index'   = 'LocalIndex VectorIndex HybridRetriever CitationVerifier LocalHashEmbedding OfflineQa EmbeddingProvider'
         'export'  = 'OfficeExport OfdExport PdfToOffice PptxWriter SpreadsheetExport XmlText ZipWriter'
         'convert' = 'UniversalConverter ConversionInputs InvoiceLayout FontFlattening'
         'print'   = 'PrintTemplate PrintBatch'
-        'persist' = 'SafeSave RecoveryLog'
+        'persist' = 'RecoveryLog'
         'batch'   = 'BatchProcessor ActionWizard'
     }
     app = [ordered]@{

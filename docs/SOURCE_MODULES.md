@@ -1,11 +1,10 @@
 # 源码功能模块划分
 
 这份文档回答一个问题：`src/` 里按功能模块分目录行不行、怎么分、代价多大。
-结论先说：**行，而且 src/ 下的四个大目录已经全部落地**——src/pdf 130 个文件拆成 9 个模块，
-src/ai 40 个拆成 5 个，src/doc 57 个拆成 8 个，src/app 163 个拆成 7 个，src/ocr 20 个拆成 3 个。
-引用改写量都是可枚举的（pdf 130 次移动 / 282 个文件 / 1213 行引用；ai 40 / 76 / 299；
-doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同一个脚本
-`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app|ocr>`。
+结论先说：**行，`src/` 下的五个大目录已经全部拆完，而且目录之间的依赖是 DAG**——
+`src/pdf` 130 个文件拆成 9 个模块，`src/ai` 40 个拆成 5 个，`src/doc` 57 个拆成 8 个，
+`src/app` 163 个拆成 8 个，`src/ocr` 20 个拆成 3 个。拆完之后又把检索栈从 `ai/` 并进
+`doc/index`、把 `SafeSave` 与 `OutlineGenerator` 归位，消掉了跨目录的两处环。
 
 ## 现状
 
@@ -15,8 +14,8 @@ doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同
 | --- | ---: | --- |
 | `app/` | 163 | 窗口、面板、对话框、控制器全平铺在一起 |
 | `pdf/` | 130 | PDF 底层：注释、表单、签名、合规、读写、转换全在一个目录 |
-| `doc/` | 57 | 文档模型、导出、命令栈 |
-| `ai/` | 40 | AI 供应商、凭据、索引 |
+| `doc/` | 62 | 文档模型、检索栈、导出、命令栈 |
+| `ai/` | 35 | AI 供应商、凭据、生成（检索栈已并入 `doc/index`） |
 | `ocr/` | 20 | OCR 引擎与几何（已拆成 3 个模块） |
 | 其它 | 15 | `ipc/`、`speech/`、`tools/`、`i18n/` |
 
@@ -36,14 +35,14 @@ doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同
 
 | 模块 | 文件数 | 职责 | 主要文件 |
 | --- | ---: | --- | --- |
-| `kernel/` | 13 | PDFium 适配层与最基础的文档/导航/页/表/字体模型 | `PdfiumAdapter`、`DocumentOpen`、`Navigation`、`TextPage`、`StandardFonts`、`TableStructure`、`PdfRevisionCounter` |
+| `kernel/` | 15 | PDFium 适配层与最基础的文档/导航/页/表/字体模型 | `PdfiumAdapter`、`DocumentOpen`、`Navigation`、`SafeSave`、`TextPage`、`StandardFonts`、`TableStructure`、`PdfRevisionCounter` |
 | `document/` | 10 | 文档写出：增量保存、结构校验、属性、命名目标 | `DocumentWriter`、`IncrementalWriter`、`QpdfBackend`、`DocumentProperties`、`NamedDestination` |
 | `content/` | 13 | 内容流、文本重排、字体子集化、页面装饰 | `ContentStream`、`TextReflow`、`ParagraphFormat`、`TrueTypeSubset`、`InvisibleTextLayer`、`TableIntegration` |
 | `annot/` | 22 | 注释模型、外观流、批注字典、Xfdf、富媒体、页面注注入 | `Annotation`、`AppearanceStream`、`AnnotationToolkit`、`Xfdf`、`PageAnnotsInjector`、`RichMedia3d` |
 | `forms/` | 20 | 表单字段、JS 求值、模板、自动打标签、条码、XFA | `FormFieldWriter`、`FormJsEvaluator`、`FormTemplateStore`、`FormAutoTag`、`XfaSupport` |
 | `security/` | 12 | 加密、权限、签名与验签、涂黑 | `PdfSecurity`、`SignatureVerifier`、`SignatureWorkflow`、`RsaVerifier`、`Redaction` |
 | `compliance/` | 10 | PDF/A、PDF/UA、预检、标签树与结构树 | `PdfAChecker`、`PdfUaChecker`、`PreflightChecker`、`TagTreeWriter`、`StructTreeReader` |
-| `ops/` | 24 | 文档级操作：合并、比较、重排、分页、大纲、页码、图层、批替换、拼写、OCR 嫌疑 | `DocumentMerger`、`DocumentComparer`、`DocumentReflow`、`OutlineEditor`、`PageLabels`、`BatchReplace` |
+| `ops/` | 22 | 文档级操作：合并、比较、重排、分页、大纲、页码、图层、批替换、拼写、OCR 嫌疑 | `DocumentMerger`、`DocumentComparer`、`DocumentReflow`、`OutlineEditor`、`PageLabels`、`BatchReplace` |
 | `convert/` | 6 | 导入导出格式 | `ExportFormats`、`ImageToPdf`、`PortfolioWriter` |
 
 合计 130 个文件，覆盖 `src/pdf` 全部内容，无遗漏无重复（脚本会先校验这一点，
@@ -87,10 +86,9 @@ P2 静态库时再收：要么改成不透明句柄，要么把注释相关方�
 
 | 模块 | 文件数 | 职责 | 主要文件 |
 | --- | ---: | --- | --- |
-| `chat/` | 6 | 对话契约：消息类型、SSE 流解析、模型与向量接口 | `ChatTypes`、`SseParser`、`ModelProvider`、`EmbeddingProvider` |
+| `chat/` | 5 | 对话契约：消息类型、SSE 流解析、模型接口 | `ChatTypes`、`SseParser`、`ModelProvider` |
 | `provider/` | 6 | 供应商实现与工厂 | `OpenAiProvider`、`MockProvider`、`ProviderFactory` |
 | `settings/` | 14 | 供应商配置/预设/选择、凭据、数据政策、审计、上传预览 | `ProviderConfig`、`ProviderPreset`、`ProviderSelection`、`CredentialStore`、`DataPolicy`、`AuditLog`、`UploadPreview` |
-| `rag/` | 4 | 本地哈希向量与离线问答 | `LocalHashEmbedding`、`OfflineQa` |
 | `content/` | 10 | 生成类能力：内容检测、配图、旁白、PPT 生成与导出 | `AiContentDetection`、`AiImageGeneration`、`AiNarration`、`PptGeneration`、`PptxExport` |
 
 实测依赖是全序的，没有环：
@@ -98,7 +96,6 @@ P2 静态库时再收：要么改成不透明句柄，要么把注释相关方�
 ```
 content  -> chat      2
 provider -> chat      4    settings 4
-rag      -> chat      1
 ```
 
 `settings` 之所以一次收进 7 个基名，是因为它们互相咬合：`ProviderConfig`/`ProviderPreset`/
@@ -111,13 +108,13 @@ rag      -> chat      1
 
 | 模块 | 文件数 | 职责 | 主要文件 |
 | --- | ---: | --- | --- |
-| `model/` | 7 | 空白文档骨架、分块与统计 | `BlankDocument`、`DocumentChunk`、`ChunkBuilder`、`DocumentStatistics` |
+| `model/` | 9 | 空白文档骨架、分块与统计、大纲生成 | `BlankDocument`、`DocumentChunk`、`ChunkBuilder`、`DocumentStatistics`、`OutlineGenerator` |
 | `edit/` | 9 | 编辑命令、撤销栈、页命令、注释模型 | `EditCommand`、`EditContext`、`PageCommand`、`UndoStack`、`AnnotationModel` |
-| `index/` | 8 | 本地索引、向量检索、混合检索、引用核对 | `LocalIndex`、`VectorIndex`、`HybridRetriever`、`CitationVerifier` |
+| `index/` | 13 | 检索栈：向量接口、本地索引、混合检索、引用核对、离线问答 | `LocalIndex`、`VectorIndex`、`HybridRetriever`、`CitationVerifier`、`EmbeddingProvider`、`LocalHashEmbedding`、`OfflineQa` |
 | `export/` | 13 | Office/OFD/PPT/表格导出与 ZIP、XML 底座 | `OfficeExport`、`OfdExport`、`PdfToOffice`、`PptxWriter`、`SpreadsheetExport`、`XmlText`、`ZipWriter` |
 | `convert/` | 8 | 通用转换入口、转换输入、发票版式、字体扁平化 | `UniversalConverter`、`ConversionInputs`、`InvoiceLayout`、`FontFlattening` |
 | `print/` | 4 | 打印模板与批量打印 | `PrintTemplate`、`PrintBatch` |
-| `persist/` | 4 | 安全保存与恢复日志 | `SafeSave`、`RecoveryLog` |
+| `persist/` | 2 | 恢复日志 | `RecoveryLog` |
 | `batch/` | 4 | 批处理与动作向导 | `BatchProcessor`、`ActionWizard` |
 
 内部依赖比 `ai` 还干净：只有一个底座和三条单向边，另外四个模块彼此完全独立。
@@ -198,33 +195,43 @@ pipeline -> core 2
 `engines` 之所以多一条指向 `pipeline`，是两个引擎都直接用了 `ImagePreprocess` 做预处理；
 这条边方向正确（实现层用工具），没有回指。
 
-## 跨目录还剩两处环
+## 跨目录已经收敛
 
-五个目录内部现在都是 DAG，但把它们当整体看，还有两处跨目录的环，量很小、都能指到行：
+五个目录内部都是 DAG，但第一版拆完时跨目录还有两处环，量都很小：
 
 ```
-app  -> pdf 121   doc 52   ai 34   ocr 5   speech 8   ipc 5   tools 3
-doc  -> pdf 17    ai 4    i18n 5
-ai   -> doc 6     speech 1
-ocr  -> doc 2
-pdf  -> doc 2     i18n 9
+pdf -> doc 2    document/DocumentWriter.cpp 引 doc/persist/SafeSave.h
+                ops/OutlineGenerator.h 引 doc/model/DocumentChunk.h
+doc -> ai 4     index/ 四个文件引 ai/chat/EmbeddingProvider.h、ai/rag/LocalHashEmbedding.h
 ```
 
-- `pdf` ⇄ `doc`：`document/DocumentWriter.cpp` 引 `doc/persist/SafeSave.h`（保存时做原子写），
-  `ops/OutlineGenerator.h` 引 `doc/model/DocumentChunk.h`（大纲生成吃 doc 的分块类型）。
-  其余 17 条方向都是 `doc -> pdf`。
-- `doc` ⇄ `ai`：`index` 模块四个文件引 `ai/chat/EmbeddingProvider.h` 与
-  `ai/rag/LocalHashEmbedding.h`，而 `ai` 有 6 条反过来用 `doc` 的分块/统计类型。
+两处根因是同一个：**"分块 + 向量"这套东西横跨 `doc` 和 `ai`**——`doc` 的索引要用 `ai` 的
+向量接口，`ai` 的离线问答要用 `doc` 的索引和分块类型。按"谁用得多"归并，而不是硬拆接口：
 
-两处的根因是同一个：**"分块（chunk）+ 向量"这套类型没有中立归属**，doc 的索引要用 ai
-的向量接口，ai 的 RAG 要用 doc 的分块类型。可行的收法是抽一个 `collab/`（或 `kernel/`）
-放 `DocumentChunk`、`EmbeddingProvider` 这类纯接口与值类型，让 doc 和 ai 都只依赖它。
-`pdf -> doc` 那两条则更简单：`OutlineGenerator` 本质是 doc 层的大纲生成，可以挪进
-`doc/`；`SafeSave` 要么下沉成通用原子写工具，要么由调用方注入。
+| 动作 | 从 | 到 | 理由 |
+| --- | --- | --- | --- |
+| 移动 4 个文件 | `ai/rag/`（`LocalHashEmbedding`、`OfflineQa`） | `doc/index/` | 检索栈被 `app` 的 `IndexController`/`DocumentQaController` 大量使用，本质是文档能力 |
+| 移动 1 个文件 | `ai/chat/EmbeddingProvider.h` | `doc/index/` | 纯接口，跟着实现走 |
+| 移动 2 个文件 | `doc/persist/SafeSave` | `pdf/kernel/` | 原子写是文档写出的底层能力，`DocumentWriter` 直接用；`doc` 本来就依赖 `pdf` |
+| 移动 2 个文件 | `pdf/ops/OutlineGenerator` | `doc/model/` | 它是"从分块生成大纲"，属于文档结构层，不是 PDF 底层操作 |
 
-这两处都不影响现在的构建，属于"知道在哪、下一步再动"的状态。
+移动完成后，整个 `src/` 的目录依赖是一张 DAG：
 
-## 落地分三步
+```
+app  -> pdf 120   doc 59   ai 28   ocr 5   speech 8   ipc 5   tools 3   i18n 50
+doc  -> pdf 17    i18n 4
+ai   -> doc 1     speech 1   i18n 6
+ocr  -> doc 2     i18n 3
+pdf  -> i18n 10
+ipc / speech / tools -> i18n
+```
+
+也就是说：`i18n` 在最底，`pdf` 在 `doc` 之下，`ai` 建在 `doc` 之上，`app` 在顶。
+唯一还需注意的是 `ai -> doc 1`（`PptxExport` 用 `doc/export/PptxWriter`）——这是单向的，
+但严格说 PPT 导出应该由 `doc` 调用 `ai` 的内容，而不是反过来；等 P2 拆静态库时再把它
+翻过来。
+
+## 落地分三步## 落地分三步
 
 ### P0 逻辑模块（零风险）
 

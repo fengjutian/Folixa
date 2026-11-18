@@ -1,4 +1,4 @@
-#include "ai/rag/LocalHashEmbedding.h"
+#include "doc/index/LocalHashEmbedding.h"
 
 #include <QHash>
 #include <QStringList>

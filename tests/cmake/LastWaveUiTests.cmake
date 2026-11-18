@@ -64,10 +64,10 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.h
     ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.h
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/OfflineQa.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/OfflineQa.h
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/OfflineQa.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/OfflineQa.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 

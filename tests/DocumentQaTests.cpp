@@ -4,8 +4,8 @@
 // 这四块都不碰 PDFium、也不联网，所以能单独跑、结果可复现。
 // 真正把 PDF 读进来的那部分由 PdfIndexTests 覆盖。
 #include "ai/chat/ChatTypes.h"
-#include "ai/chat/EmbeddingProvider.h"
-#include "ai/rag/LocalHashEmbedding.h"
+#include "doc/index/EmbeddingProvider.h"
+#include "doc/index/LocalHashEmbedding.h"
 #include "ai/provider/MockProvider.h"
 #include "ai/chat/ModelProvider.h"
 #include "doc/index/CitationVerifier.h"

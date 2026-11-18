@@ -1,4 +1,4 @@
-#include "pdf/ops/OutlineGenerator.h"
+#include "doc/model/OutlineGenerator.h"
 
 #include "doc/model/ChunkBuilder.h"
 #include "pdf/kernel/Navigation.h"

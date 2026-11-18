@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/chat/EmbeddingProvider.h"
+#include "doc/index/EmbeddingProvider.h"
 #include "doc/index/LocalIndex.h"
 #include "doc/index/VectorIndex.h"
 

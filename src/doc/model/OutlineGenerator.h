@@ -38,7 +38,7 @@ struct OutlineGeneratorOptions {
 // 标题识别已经在 ChunkBuilder 里做完了（headingLevel、pageIndex、text），
 // 再定义一份结构体就等于让调用方把块手工拆一遍——多一次转换，
 // 还多一处"两边对不上"的可能。pdf → doc 的依赖方向仓库里已经有了
-// （DocumentWriter.cpp 就 include doc/persist/SafeSave.h）。
+// （DocumentWriter.cpp 就 include pdf/kernel/SafeSave.h）。
 std::vector<OutlineItem> generateOutlineFromChunks(const QVector<doc::DocumentChunk>& chunks,
                                                    const OutlineGeneratorOptions& options = {});
 
