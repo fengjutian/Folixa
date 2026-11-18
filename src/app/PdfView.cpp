@@ -68,6 +68,7 @@
 #include <QSpinBox>
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QAction>
 #include <QBuffer>
 #include <QCheckBox>
 #include <QClipboard>

@@ -1752,11 +1752,15 @@ void PageCanvas::wheelEvent(QWheelEvent* event) {
 
 void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseDoubleClickEvent(event);
-    // Qt 的双击事件取代了第二次 press：连击计数在这里补成 2，
+    // Qt 的双击事件取代了第二次 press：连击计数在这里继续累加，
     // 下一次 press 才能数到 3（选行）与 4（选段）。
     if (event->button() == Qt::LeftButton) {
-        clickCount_ = 2;
-        lastClickMs_ = QDateTime::currentMSecsSinceEpoch();
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        const int distance = (event->pos() - lastClickPos_).manhattanLength();
+        clickCount_ = mouse::nextClickCount(clickCount_, now - lastClickMs_, distance,
+                                            QApplication::doubleClickInterval(),
+                                            QApplication::startDragDistance());
+        lastClickMs_ = now;
         lastClickPos_ = event->pos();
     }
     // 多边形/云线/区域高亮：双击就是"收笔"。这条必须先于文字选词判定，
@@ -1779,6 +1783,10 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     }
     const int order = textController_->hitAt(pageIndex, displayPoint);
     if (order < 0) {
+        return;
+    }
+    // 第四击在某些平台上仍然走双击事件：连击数已经到 4 时改成选段。
+    if (clickCount_ >= 3 && selectTextUnitAt(clickCount_, pageIndex, order)) {
         return;
     }
     const TextLayout* textLayout = textController_->layout(pageIndex);

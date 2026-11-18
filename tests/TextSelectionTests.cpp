@@ -221,28 +221,33 @@ void TextSelectionTests::layoutLineRangeSelectsWholeLine() {
 }
 
 void TextSelectionTests::layoutParagraphRangeStopsAtParagraphGap() {
-    // 四行：前两行行距 2px，第三行与上一行隔了 26px（段间距），第四行又紧接。
+    // 四行、每行五个字符：前两行行距 2px，第三行与上一行隔了 14px（段间距），
+    // 第四行又紧接。每行字符数必须多于行数，否则会被当成竖排（列少行多）。
+    const double lineTops[] = {0.0, 14.0, 40.0, 54.0};
+    QVector<LayoutChar> chars;
+    for (int line = 0; line < 4; ++line) {
+        for (int column = 0; column < 5; ++column) {
+            chars.append(makeChar(QChar(QLatin1Char('A' + line * 5 + column)),
+                                  column * 10.0, lineTops[line], 10.0, 12.0));
+        }
+    }
     TextLayout layout;
-    layout.setChars({
-        makeChar("A", 0.0, 0.0, 10.0, 12.0),
-        makeChar("B", 0.0, 14.0, 10.0, 12.0),
-        makeChar("C", 0.0, 40.0, 10.0, 12.0),
-        makeChar("D", 0.0, 54.0, 10.0, 12.0),
-    });
+    layout.setChars(chars);
+    QCOMPARE(layout.lines().size(), 4);
 
     int start = -1;
     int end = -1;
     // 第一行属于第一段：只合并前两行。
     QVERIFY(layout.paragraphRangeAt(0, &start, &end));
     QCOMPARE(start, 0);
-    QCOMPARE(end, 2);
-    QCOMPARE(layout.textForRange(start, end), QStringLiteral("A\nB"));
+    QCOMPARE(end, 10);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("ABCDE\nFGHIJ"));
 
     // 第三行属于第二段：从第二段的第一行开始。
-    QVERIFY(layout.paragraphRangeAt(2, &start, &end));
-    QCOMPARE(start, 2);
-    QCOMPARE(end, 4);
-    QCOMPARE(layout.textForRange(start, end), QStringLiteral("C\nD"));
+    QVERIFY(layout.paragraphRangeAt(10, &start, &end));
+    QCOMPARE(start, 10);
+    QCOMPARE(end, 20);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("KLMNO\nPQRST"));
 }
 
 void TextSelectionTests::layoutHandlesVerticalCjk() {

@@ -109,7 +109,7 @@
 | 组 | 命令 | 状态 | 能力 | 说明 |
 |---|---|---|---|---|
 | 导航 | 手型工具 | ✅ | — | 手型工具：按住左键拖动平移视图，光标在「抓手」与「握拳」之间切换；主页与视图页各有一个开关，状态同步；判据在 `app::viewmodes::beginPanDrag` / `panScrollValue`，`ViewModesTests` 27 条 |
-| 导航 | 选择 | ✅ | — | 文本选择/复制/双击选词 |
+| 导航 | 选择 | ✅ | — | 文本选择/复制/双击选词/三击选行/四击选段（`TextLayout::lineRangeAt` / `paragraphRangeAt`，`TextSelectionTests`）；Ctrl+滚轮以指针为中心缩放、Shift+滚轮横向滚动、中键拖动平移、鼠标侧键前进后退、画布右键菜单（`app::mouse`，`MouseShortcutsTests`） |
 
 ### 主页（26 条）
 

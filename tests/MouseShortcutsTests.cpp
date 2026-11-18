@@ -67,9 +67,12 @@ void MouseShortcutsTests::zoomFactorIsSymmetric() {
 }
 
 void MouseShortcutsTests::zoomFactorClampsHugeDelta() {
-    // 触摸板可能给出 1200 的增量；不夹住会一下跳到 800%。
-    QCOMPARE(wheelZoomFactor(12000), 2.0);
-    QCOMPARE(wheelZoomFactor(-12000), 0.5);
+    // 触摸板可能给出 1200 的增量；单次事件最多按 4 格累乘（1.1^4），
+    // 再大的增量与 480 等价，不会一下从 100% 跳到 800%。
+    QVERIFY(qFuzzyCompare(wheelZoomFactor(12000), wheelZoomFactor(480)));
+    QVERIFY(qFuzzyCompare(wheelZoomFactor(-12000), wheelZoomFactor(-480)));
+    QVERIFY(wheelZoomFactor(12000) <= 2.0);
+    QVERIFY(wheelZoomFactor(-12000) >= 0.5);
 }
 
 void MouseShortcutsTests::zoomFactorIgnoresZeroDelta() {
