@@ -8,8 +8,8 @@
 
 qt_add_executable(BlankDocumentTests
     ${CMAKE_CURRENT_LIST_DIR}/../BlankDocumentTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.h
 )
 target_link_libraries(BlankDocumentTests PRIVATE
     Qt6::Core Qt6::Test

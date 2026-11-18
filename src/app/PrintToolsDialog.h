@@ -4,9 +4,9 @@
 #include <QString>
 #include <QVector>
 
-#include "doc/BlankDocument.h"
-#include "doc/PrintBatch.h"
-#include "doc/PrintTemplate.h"
+#include "doc/model/BlankDocument.h"
+#include "doc/print/PrintBatch.h"
+#include "doc/print/PrintTemplate.h"
 
 class QCheckBox;
 class QComboBox;

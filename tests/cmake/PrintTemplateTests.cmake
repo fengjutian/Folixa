@@ -7,10 +7,10 @@
 
 qt_add_executable(PrintTemplateTests
     ${CMAKE_CURRENT_LIST_DIR}/../PrintTemplateTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintTemplate.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintTemplate.h
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintTemplate.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintTemplate.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.h
 )
 target_link_libraries(PrintTemplateTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(PrintTemplateTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

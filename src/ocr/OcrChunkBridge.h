@@ -1,7 +1,7 @@
 #pragma once
 
-#include "doc/ChunkBuilder.h"
-#include "doc/DocumentChunk.h"
+#include "doc/model/ChunkBuilder.h"
+#include "doc/model/DocumentChunk.h"
 #include "ocr/OcrTypes.h"
 
 #include <QString>

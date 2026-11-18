@@ -11,8 +11,8 @@
 #include <cmath>
 #include <optional>
 
-#include "doc/BlankDocument.h"
-#include "doc/FontFlattening.h"
+#include "doc/model/BlankDocument.h"
+#include "doc/convert/FontFlattening.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
 using aipdf::doc::FlattenOptions;

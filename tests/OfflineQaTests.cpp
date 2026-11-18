@@ -9,10 +9,10 @@
 #include "ai/rag/OfflineQa.h"
 
 #include "ai/rag/LocalHashEmbedding.h"
-#include "doc/CitationVerifier.h"
-#include "doc/DocumentChunk.h"
-#include "doc/LocalIndex.h"
-#include "doc/VectorIndex.h"
+#include "doc/index/CitationVerifier.h"
+#include "doc/model/DocumentChunk.h"
+#include "doc/index/LocalIndex.h"
+#include "doc/index/VectorIndex.h"
 
 #include <QSet>
 #include <QString>

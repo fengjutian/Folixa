@@ -3,7 +3,7 @@
 // 恢复日志记的是命令序列：写进去、读回来、重放，工作就能恢复。
 // 这一层不碰 PDFium：日志只是文件里的 JSON。
 
-#include "doc/RecoveryLog.h"
+#include "doc/persist/RecoveryLog.h"
 
 #include <QDir>
 #include <QFile>

@@ -5,9 +5,9 @@
 #include <QString>
 #include <QVector>
 
-#include "doc/FontFlattening.h"
-#include "doc/OfdExport.h"
-#include "doc/OfficeExport.h"
+#include "doc/convert/FontFlattening.h"
+#include "doc/export/OfdExport.h"
+#include "doc/export/OfficeExport.h"
 #include "pdf/convert/ExportFormats.h"
 #include "pdf/kernel/TextPage.h"
 

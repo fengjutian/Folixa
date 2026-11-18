@@ -2,8 +2,8 @@
 #include "pdf/annot/SoundFormat.h"
 
 #include "app/PdfPageOperations.h"
-#include "doc/EditCommand.h"
-#include "doc/PageCommand.h"
+#include "doc/edit/EditCommand.h"
+#include "doc/edit/PageCommand.h"
 
 #include <QDateTime>
 #include <QFile>

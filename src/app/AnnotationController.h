@@ -9,9 +9,9 @@
 #include <QVector>
 
 #include "app/PageTransform.h"
-#include "doc/AnnotationModel.h"
-#include "doc/EditContext.h"
-#include "doc/UndoStack.h"
+#include "doc/edit/AnnotationModel.h"
+#include "doc/edit/EditContext.h"
+#include "doc/edit/UndoStack.h"
 #include "app/MeasureGeometry.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/kernel/PdfiumAdapter.h"

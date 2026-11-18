@@ -21,12 +21,12 @@ set(AIPDF_UNIVERSAL_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 qt_add_executable(UniversalConverterTests
     ${CMAKE_CURRENT_LIST_DIR}/../UniversalConverterTests.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/doc/convert/UniversalConverter.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/doc/convert/UniversalConverter.h
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/TrueTypeSubset.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/TrueTypeSubset.h
-    ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.cpp
-    ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/doc/model/BlankDocument.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/doc/model/BlankDocument.h
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/ContentStream.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/content/ContentStream.h
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp

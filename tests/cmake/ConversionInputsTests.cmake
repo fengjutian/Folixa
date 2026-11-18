@@ -37,14 +37,14 @@ endif()
 
 qt_add_executable(ConversionInputsTests
     ${CMAKE_CURRENT_LIST_DIR}/../ConversionInputsTests.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/doc/ConversionInputs.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/doc/ConversionInputs.h
-    ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/ConversionInputs.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/ConversionInputs.h
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/UniversalConverter.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/UniversalConverter.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/content/TrueTypeSubset.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/content/TrueTypeSubset.h
-    ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.h
+    ${AIPDF_CONVERSION_ROOT}/src/doc/model/BlankDocument.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/doc/model/BlankDocument.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/content/ContentStream.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/content/ContentStream.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/forms/FormData.cpp

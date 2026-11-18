@@ -9,10 +9,10 @@
 
 qt_add_executable(OfficeExportTests
     ${CMAKE_CURRENT_LIST_DIR}/../OfficeExportTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/OfficeExport.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/OfficeExport.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/OfficeExport.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/export/OfficeExport.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/ZipWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/export/ZipWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
 )

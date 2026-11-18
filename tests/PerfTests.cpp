@@ -8,8 +8,8 @@
 // 预算刻意给得宽（实测的 10 倍以上）：这里要抓的是「数量级退化」，
 // 不是把机器快慢当成回归。具体数值随构建打印出来，方便对照。
 #include "app/BlankPageDetector.h"
-#include "doc/ChunkBuilder.h"
-#include "doc/LocalIndex.h"
+#include "doc/model/ChunkBuilder.h"
+#include "doc/index/LocalIndex.h"
 #include "ocr/ImagePreprocess.h"
 #include "tools/ProposalValidator.h"
 

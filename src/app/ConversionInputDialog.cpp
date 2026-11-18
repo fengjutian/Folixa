@@ -32,7 +32,7 @@
 #include <utility>
 
 #include "app/SystemCjkFont.h"
-#include "doc/ConversionInputs.h"
+#include "doc/convert/ConversionInputs.h"
 #include "i18n/Translate.h"
 
 namespace aipdf::app {

@@ -7,7 +7,7 @@
 #include "app/EditProposalDialog.h"
 #include "app/ProposalRunner.h"
 
-#include "doc/PageCommand.h"
+#include "doc/edit/PageCommand.h"
 #include "tools/ProposalValidator.h"
 
 #include <QDialogButtonBox>

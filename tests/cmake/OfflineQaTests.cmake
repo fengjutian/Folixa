@@ -20,17 +20,17 @@ qt_add_executable(OfflineQaTests
     ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/LocalHashEmbedding.cpp
     ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/LocalHashEmbedding.h
     ${AIPDF_OFFLINEQA_ROOT}/src/ai/chat/EmbeddingProvider.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/LocalIndex.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/LocalIndex.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/VectorIndex.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/VectorIndex.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/ChunkBuilder.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/ChunkBuilder.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/DocumentChunk.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/HybridRetriever.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/HybridRetriever.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/CitationVerifier.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/doc/CitationVerifier.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/LocalIndex.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/LocalIndex.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/VectorIndex.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/VectorIndex.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/model/ChunkBuilder.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/model/ChunkBuilder.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/model/DocumentChunk.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/HybridRetriever.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/HybridRetriever.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/CitationVerifier.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/doc/index/CitationVerifier.h
 )
 
 target_link_libraries(OfflineQaTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

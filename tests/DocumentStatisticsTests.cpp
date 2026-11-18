@@ -1,6 +1,6 @@
-#include "doc/DocumentStatistics.h"
+#include "doc/model/DocumentStatistics.h"
 
-#include "doc/ChunkBuilder.h"
+#include "doc/model/ChunkBuilder.h"
 
 #include <QTest>
 

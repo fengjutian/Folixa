@@ -446,17 +446,17 @@ add_test(NAME PdfNavigationTests COMMAND PdfNavigationTests)
 
 qt_add_executable(AnnotationTests
     AnnotationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
@@ -487,17 +487,17 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
 )
 
 target_link_libraries(PdfAnnotationTests PRIVATE
@@ -591,8 +591,8 @@ qt_add_executable(DocumentWriterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AppearanceStream.cpp
@@ -925,8 +925,8 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
 )
 
 target_link_libraries(DocumentOutputTests PRIVATE
@@ -974,15 +974,15 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
@@ -1127,19 +1127,19 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/SafeSave.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/SafeSave.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
 )
 
 target_link_libraries(PageOperationTests PRIVATE
@@ -1163,8 +1163,8 @@ add_test(NAME PageOperationTests COMMAND PageOperationTests)
 
 qt_add_executable(RecoveryLogTests
     RecoveryLogTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.h
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/RecoveryLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/RecoveryLog.h
 )
 
 target_link_libraries(RecoveryLogTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1178,11 +1178,11 @@ add_test(NAME RecoveryLogTests COMMAND RecoveryLogTests)
 
 qt_add_executable(DocumentIndexTests
     DocumentIndexTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
 )
 
 target_link_libraries(DocumentIndexTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1210,11 +1210,11 @@ qt_add_executable(PdfIndexTests
     ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
     ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
 )
 
 target_link_libraries(PdfIndexTests PRIVATE
@@ -1317,15 +1317,15 @@ qt_add_executable(DocumentQaTests
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ModelProvider.h
     ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.h
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.h
 )
 
 target_link_libraries(DocumentQaTests PRIVATE Qt6::Core Qt6::Test)
@@ -1385,17 +1385,17 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.h
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.h
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
     ${CMAKE_SOURCE_DIR}/src/ipc/WorkerClient.cpp
@@ -1555,11 +1555,11 @@ qt_add_executable(OcrChunkBridgeTests
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.h
     ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
 )
 
 target_link_libraries(OcrChunkBridgeTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1639,15 +1639,15 @@ qt_add_executable(ProposalRunnerTests
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PageCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/AnnotationModel.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/EditCommand.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UndoStack.h
-    ${CMAKE_SOURCE_DIR}/src/doc/EditContext.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/PageCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
+    ${CMAKE_SOURCE_DIR}/src/doc/edit/EditContext.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
@@ -1665,11 +1665,11 @@ add_test(NAME ProposalRunnerTests COMMAND ProposalRunnerTests)
 
 qt_add_executable(PerfTests
     PerfTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
     ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h
     ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
@@ -1696,8 +1696,8 @@ qt_add_executable(FuzzTests
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.h
-    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/RecoveryLog.h
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/RecoveryLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/persist/RecoveryLog.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp

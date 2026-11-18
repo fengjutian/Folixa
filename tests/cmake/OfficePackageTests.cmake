@@ -8,17 +8,17 @@
 
 qt_add_executable(OfficePackageTests
     ${CMAKE_CURRENT_LIST_DIR}/../OfficePackageTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ZipWriter.h
-    ${CMAKE_SOURCE_DIR}/src/doc/SpreadsheetExport.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/SpreadsheetExport.h
-    ${CMAKE_SOURCE_DIR}/src/doc/XmlText.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/ZipWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/export/ZipWriter.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/SpreadsheetExport.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/export/SpreadsheetExport.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/XmlText.h
     ${CMAKE_SOURCE_DIR}/src/ai/content/PptGeneration.h
     ${CMAKE_SOURCE_DIR}/src/ai/content/PptxExport.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/content/PptxExport.h
     # pptx 的打包在 doc 层（AI 生成的 PPT 与 PDF 导出的 PPT 共用同一套）。
-    ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.h
+    ${CMAKE_SOURCE_DIR}/src/doc/export/PptxWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/export/PptxWriter.h
 )
 
 target_link_libraries(OfficePackageTests PRIVATE Qt6::Core Qt6::Test)

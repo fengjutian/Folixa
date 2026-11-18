@@ -1,6 +1,6 @@
 #include "pdf/document/DocumentWriter.h"
 
-#include "doc/SafeSave.h"
+#include "doc/persist/SafeSave.h"
 #include "i18n/Translate.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/annot/AnnotationDictionary.h"

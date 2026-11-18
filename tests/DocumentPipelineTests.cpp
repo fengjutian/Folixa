@@ -14,9 +14,9 @@
 
 #include "ai/rag/OfflineQa.h"
 
-#include "doc/DocumentChunk.h"
-#include "doc/LocalIndex.h"
-#include "doc/UniversalConverter.h"
+#include "doc/model/DocumentChunk.h"
+#include "doc/index/LocalIndex.h"
+#include "doc/convert/UniversalConverter.h"
 
 #include "pdf/ops/DocumentMerger.h"
 #include "pdf/ops/DocumentReflow.h"

@@ -9,7 +9,7 @@
 // 合成字体（buildTestFont）是为了让「嵌入中文字体」这条路径有个不依赖本机
 // 字体文件的确定性测试。
 
-#include "doc/UniversalConverter.h"
+#include "doc/convert/UniversalConverter.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>

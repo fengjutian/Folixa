@@ -1,7 +1,7 @@
 // v0.13.0：OCR 结果接入索引的单元测试。
 //
 // 守两件事：OCR 页产出与文本页同样形状的块；fromOcr 标记能落盘再读回来。
-#include "doc/LocalIndex.h"
+#include "doc/index/LocalIndex.h"
 #include "ocr/OcrChunkBridge.h"
 
 #include <QDir>

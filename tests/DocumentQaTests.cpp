@@ -8,11 +8,11 @@
 #include "ai/rag/LocalHashEmbedding.h"
 #include "ai/provider/MockProvider.h"
 #include "ai/chat/ModelProvider.h"
-#include "doc/CitationVerifier.h"
-#include "doc/DocumentChunk.h"
-#include "doc/HybridRetriever.h"
-#include "doc/LocalIndex.h"
-#include "doc/VectorIndex.h"
+#include "doc/index/CitationVerifier.h"
+#include "doc/model/DocumentChunk.h"
+#include "doc/index/HybridRetriever.h"
+#include "doc/index/LocalIndex.h"
+#include "doc/index/VectorIndex.h"
 
 #include <QDir>
 #include <QSignalSpy>

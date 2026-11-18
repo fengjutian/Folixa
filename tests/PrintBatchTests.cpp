@@ -1,4 +1,4 @@
-#include "doc/PrintBatch.h"
+#include "doc/print/PrintBatch.h"
 
 #include <QSet>
 #include <QString>

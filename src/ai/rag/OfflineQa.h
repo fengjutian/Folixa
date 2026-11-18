@@ -3,7 +3,7 @@
 #include <QString>
 #include <QVector>
 
-#include "doc/DocumentChunk.h"
+#include "doc/model/DocumentChunk.h"
 
 namespace aipdf::doc {
 // 前向声明：这两个头文件会把 ai/ 拉进来，而本文件在 ai/ 里，

@@ -8,9 +8,9 @@
 #include <QSet>
 #include <QXmlStreamReader>
 
-#include "doc/OfficeExport.h"
-#include "doc/XmlText.h"
-#include "doc/ZipWriter.h"
+#include "doc/export/OfficeExport.h"
+#include "doc/export/XmlText.h"
+#include "doc/export/ZipWriter.h"
 
 using aipdf::doc::ExportFormat;
 using aipdf::doc::ExportResult;

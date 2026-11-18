@@ -1,6 +1,6 @@
 #pragma once
 
-#include "doc/LocalIndex.h"
+#include "doc/index/LocalIndex.h"
 
 #include "pdf/kernel/PdfiumAdapter.h"
 

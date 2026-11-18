@@ -7,7 +7,7 @@
 //
 // 判据不是「输出对不对」，而是「不崩 + 不变量成立」：
 // 校验通过的提案必须只引用白名单里的提案类工具；打开成功的文档必须真能取到页。
-#include "doc/RecoveryLog.h"
+#include "doc/persist/RecoveryLog.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 #include "tools/ProposalValidator.h"
 #include "tools/ToolRegistry.h"

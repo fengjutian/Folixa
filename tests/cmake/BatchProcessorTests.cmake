@@ -4,8 +4,8 @@
 
 qt_add_executable(BatchProcessorTests
     ${CMAKE_CURRENT_LIST_DIR}/../BatchProcessorTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BatchProcessor.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BatchProcessor.h
+    ${CMAKE_SOURCE_DIR}/src/doc/batch/BatchProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/batch/BatchProcessor.h
 )
 target_link_libraries(BatchProcessorTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(BatchProcessorTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

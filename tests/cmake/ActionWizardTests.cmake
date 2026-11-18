@@ -11,8 +11,8 @@
 
 qt_add_executable(ActionWizardTests
     ${CMAKE_CURRENT_LIST_DIR}/../ActionWizardTests.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/ActionWizard.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/ActionWizard.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/batch/ActionWizard.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/batch/ActionWizard.h
 )
 
 target_link_libraries(ActionWizardTests PRIVATE Qt6::Core Qt6::Test)

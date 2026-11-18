@@ -1,4 +1,4 @@
-#include "doc/BlankDocument.h"
+#include "doc/model/BlankDocument.h"
 
 #include <QByteArray>
 #include <QSizeF>

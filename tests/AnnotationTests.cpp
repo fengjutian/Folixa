@@ -3,9 +3,9 @@
 // 这一层不碰 PDFium：批注是纯数据，撤销逻辑也是纯逻辑，
 // 都能脱离界面与文档单独验证。
 
-#include "doc/AnnotationModel.h"
-#include "doc/EditCommand.h"
-#include "doc/UndoStack.h"
+#include "doc/edit/AnnotationModel.h"
+#include "doc/edit/EditCommand.h"
+#include "doc/edit/UndoStack.h"
 #include "pdf/annot/Annotation.h"
 
 #include <QJsonArray>

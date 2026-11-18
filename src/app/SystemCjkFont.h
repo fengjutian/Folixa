@@ -1,6 +1,6 @@
 #pragma once
 
-#include "doc/UniversalConverter.h"
+#include "doc/convert/UniversalConverter.h"
 
 #include <QByteArray>
 #include <QFile>

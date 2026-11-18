@@ -35,7 +35,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('pdf', 'ai')]
+    [ValidateSet('pdf', 'ai', 'doc')]
     [string]$Area = 'pdf',
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Apply
@@ -63,6 +63,16 @@ $Maps = @{
         'settings' = 'ProviderConfig ProviderPreset ProviderSelection CredentialStore DataPolicy AuditLog UploadPreview'
         'rag'      = 'LocalHashEmbedding OfflineQa'
         'content'  = 'AiContentDetection AiImageGeneration AiNarration PptGeneration PptxExport'
+    }
+    doc = [ordered]@{
+        'model'   = 'BlankDocument DocumentChunk ChunkBuilder DocumentStatistics'
+        'edit'    = 'AnnotationModel EditCommand EditContext PageCommand UndoStack'
+        'index'   = 'LocalIndex VectorIndex HybridRetriever CitationVerifier'
+        'export'  = 'OfficeExport OfdExport PdfToOffice PptxWriter SpreadsheetExport XmlText ZipWriter'
+        'convert' = 'UniversalConverter ConversionInputs InvoiceLayout FontFlattening'
+        'print'   = 'PrintTemplate PrintBatch'
+        'persist' = 'SafeSave RecoveryLog'
+        'batch'   = 'BatchProcessor ActionWizard'
     }
 }
 

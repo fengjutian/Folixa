@@ -5,8 +5,8 @@
 
 qt_add_executable(PrintBatchTests
     ${CMAKE_CURRENT_LIST_DIR}/../PrintBatchTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintBatch.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintBatch.h
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintBatch.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintBatch.h
 )
 target_link_libraries(PrintBatchTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(PrintBatchTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

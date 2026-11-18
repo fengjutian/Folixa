@@ -1,7 +1,7 @@
 #include "app/ProposalRunner.h"
 
-#include "doc/PageCommand.h"
-#include "doc/UndoStack.h"
+#include "doc/edit/PageCommand.h"
+#include "doc/edit/UndoStack.h"
 #include "pdf/annot/Annotation.h"
 
 #include "i18n/Translate.h"

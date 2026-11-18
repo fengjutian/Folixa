@@ -75,28 +75,28 @@ qt_add_executable(DocumentPipelineTests
     ${AIPDF_REPO_ROOT}/src/pdf/content/TextReflow.h
     ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/annot/RichMedia3d.h
-    ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_REPO_ROOT}/src/doc/convert/UniversalConverter.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/convert/UniversalConverter.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/TrueTypeSubset.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/content/TrueTypeSubset.h
-    ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.h
+    ${AIPDF_REPO_ROOT}/src/doc/model/BlankDocument.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/model/BlankDocument.h
     ${AIPDF_REPO_ROOT}/src/ai/rag/OfflineQa.cpp
     ${AIPDF_REPO_ROOT}/src/ai/rag/OfflineQa.h
     ${AIPDF_REPO_ROOT}/src/ai/rag/LocalHashEmbedding.cpp
     ${AIPDF_REPO_ROOT}/src/ai/rag/LocalHashEmbedding.h
     ${AIPDF_REPO_ROOT}/src/ai/chat/EmbeddingProvider.h
-    ${AIPDF_REPO_ROOT}/src/doc/CitationVerifier.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/CitationVerifier.h
-    ${AIPDF_REPO_ROOT}/src/doc/ChunkBuilder.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/ChunkBuilder.h
-    ${AIPDF_REPO_ROOT}/src/doc/DocumentChunk.h
-    ${AIPDF_REPO_ROOT}/src/doc/HybridRetriever.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/HybridRetriever.h
-    ${AIPDF_REPO_ROOT}/src/doc/LocalIndex.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/LocalIndex.h
-    ${AIPDF_REPO_ROOT}/src/doc/VectorIndex.cpp
-    ${AIPDF_REPO_ROOT}/src/doc/VectorIndex.h
+    ${AIPDF_REPO_ROOT}/src/doc/index/CitationVerifier.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/index/CitationVerifier.h
+    ${AIPDF_REPO_ROOT}/src/doc/model/ChunkBuilder.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/model/ChunkBuilder.h
+    ${AIPDF_REPO_ROOT}/src/doc/model/DocumentChunk.h
+    ${AIPDF_REPO_ROOT}/src/doc/index/HybridRetriever.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/index/HybridRetriever.h
+    ${AIPDF_REPO_ROOT}/src/doc/index/LocalIndex.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/index/LocalIndex.h
+    ${AIPDF_REPO_ROOT}/src/doc/index/VectorIndex.cpp
+    ${AIPDF_REPO_ROOT}/src/doc/index/VectorIndex.h
     ${AIPDF_REPO_ROOT}/src/i18n/Translate.h
 )
 

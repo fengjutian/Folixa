@@ -10,9 +10,9 @@
 
 #include "app/AnnotationController.h"
 #include "app/PdfPageOperations.h"
-#include "doc/EditCommand.h"
-#include "doc/PageCommand.h"
-#include "doc/SafeSave.h"
+#include "doc/edit/EditCommand.h"
+#include "doc/edit/PageCommand.h"
+#include "doc/persist/SafeSave.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

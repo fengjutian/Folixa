@@ -15,10 +15,10 @@ qt_add_executable(TrueTypeSubsetTests
     ${AIPDF_SOURCE_ROOT}/src/pdf/content/TrueTypeSubset.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/content/ContentStream.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/content/ContentStream.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/UniversalConverter.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/UniversalConverter.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/BlankDocument.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/BlankDocument.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/convert/UniversalConverter.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/convert/UniversalConverter.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/model/BlankDocument.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/model/BlankDocument.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.cpp

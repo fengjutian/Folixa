@@ -1,6 +1,6 @@
 #pragma once
 
-#include "doc/EditCommand.h"
+#include "doc/edit/EditCommand.h"
 #include "tools/ProposalValidator.h"
 
 #include <QString>

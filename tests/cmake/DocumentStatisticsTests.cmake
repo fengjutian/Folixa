@@ -4,11 +4,11 @@
 
 qt_add_executable(DocumentStatisticsTests
     ${CMAKE_CURRENT_LIST_DIR}/../DocumentStatisticsTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentStatistics.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentStatistics.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentStatistics.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentStatistics.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
 )
 target_link_libraries(DocumentStatisticsTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(DocumentStatisticsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

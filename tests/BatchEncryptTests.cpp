@@ -1,4 +1,4 @@
-#include "doc/BatchProcessor.h"
+#include "doc/batch/BatchProcessor.h"
 
 #include "pdf/security/PdfSecurity.h"
 #include "pdf/kernel/PdfiumAdapter.h"

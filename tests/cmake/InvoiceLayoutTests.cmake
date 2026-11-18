@@ -10,8 +10,8 @@
 
 qt_add_executable(InvoiceLayoutTests
     ${CMAKE_CURRENT_LIST_DIR}/../InvoiceLayoutTests.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/InvoiceLayout.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/InvoiceLayout.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/convert/InvoiceLayout.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/doc/convert/InvoiceLayout.h
 )
 
 target_link_libraries(InvoiceLayoutTests PRIVATE Qt6::Core Qt6::Test)

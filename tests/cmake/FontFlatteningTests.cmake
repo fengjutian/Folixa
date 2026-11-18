@@ -9,10 +9,10 @@
 
 qt_add_executable(FontFlatteningTests
     ${CMAKE_CURRENT_LIST_DIR}/../FontFlatteningTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/FontFlattening.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/FontFlattening.h
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/FontFlattening.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/FontFlattening.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp

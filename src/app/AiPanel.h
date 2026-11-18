@@ -3,7 +3,7 @@
 #include "ai/chat/ChatTypes.h"
 #include "ai/settings/DataPolicy.h"
 #include "ai/rag/OfflineQa.h"
-#include "doc/CitationVerifier.h"
+#include "doc/index/CitationVerifier.h"
 #include "i18n/Translate.h"
 
 #include <QObject>

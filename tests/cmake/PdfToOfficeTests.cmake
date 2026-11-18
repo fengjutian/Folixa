@@ -21,17 +21,17 @@ endif()
 
 qt_add_executable(PdfToOfficeTests
     ${CMAKE_CURRENT_LIST_DIR}/../PdfToOfficeTests.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/PdfToOffice.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/PdfToOffice.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/OfficeExport.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/OfficeExport.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/SpreadsheetExport.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/SpreadsheetExport.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/PptxWriter.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/PptxWriter.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/ZipWriter.cpp
-    ${AIPDF_SOURCE_ROOT}/src/doc/ZipWriter.h
-    ${AIPDF_SOURCE_ROOT}/src/doc/XmlText.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/PdfToOffice.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/PdfToOffice.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/OfficeExport.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/OfficeExport.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/SpreadsheetExport.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/SpreadsheetExport.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/PptxWriter.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/PptxWriter.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/ZipWriter.cpp
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/ZipWriter.h
+    ${AIPDF_SOURCE_ROOT}/src/doc/export/XmlText.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
     ${AIPDF_SOURCE_ROOT}/src/pdf/kernel/PdfiumAdapter.h
     ${AIPDF_SOURCE_ROOT}/src/pdf/annot/Annotation.cpp

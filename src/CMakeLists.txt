@@ -223,8 +223,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/compliance/PdfUaChecker.h
     ai/rag/OfflineQa.cpp
     ai/rag/OfflineQa.h
-    doc/UniversalConverter.cpp
-    doc/UniversalConverter.h
+    doc/convert/UniversalConverter.cpp
+    doc/convert/UniversalConverter.h
     pdf/compliance/StructTreeReader.cpp
     pdf/compliance/StructTreeReader.h
     pdf/content/InvisibleTextLayer.cpp
@@ -233,10 +233,10 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/content/ParagraphFormat.h
     pdf/ops/OptionalContent.cpp
     pdf/ops/OptionalContent.h
-    doc/InvoiceLayout.cpp
-    doc/InvoiceLayout.h
-    doc/ActionWizard.cpp
-    doc/ActionWizard.h
+    doc/convert/InvoiceLayout.cpp
+    doc/convert/InvoiceLayout.h
+    doc/batch/ActionWizard.cpp
+    doc/batch/ActionWizard.h
     pdf/ops/OcrSuspicion.cpp
     pdf/ops/OcrSuspicion.h
     pdf/convert/PortfolioWriter.cpp
@@ -245,35 +245,35 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/compliance/PreflightChecker.h
     pdf/convert/ExportFormats.cpp
     pdf/convert/ExportFormats.h
-    doc/ZipWriter.cpp
-    doc/ZipWriter.h
-    doc/ConversionInputs.cpp
-    doc/ConversionInputs.h
-    doc/FontFlattening.cpp
-    doc/FontFlattening.h
-    doc/OfdExport.cpp
-    doc/OfdExport.h
-    doc/OfficeExport.cpp
-    doc/OfficeExport.h
-    doc/PdfToOffice.cpp
-    doc/PdfToOffice.h
-    doc/PptxWriter.cpp
-    doc/PptxWriter.h
-    doc/SpreadsheetExport.cpp
-    doc/SpreadsheetExport.h
-    doc/XmlText.h
+    doc/export/ZipWriter.cpp
+    doc/export/ZipWriter.h
+    doc/convert/ConversionInputs.cpp
+    doc/convert/ConversionInputs.h
+    doc/convert/FontFlattening.cpp
+    doc/convert/FontFlattening.h
+    doc/export/OfdExport.cpp
+    doc/export/OfdExport.h
+    doc/export/OfficeExport.cpp
+    doc/export/OfficeExport.h
+    doc/export/PdfToOffice.cpp
+    doc/export/PdfToOffice.h
+    doc/export/PptxWriter.cpp
+    doc/export/PptxWriter.h
+    doc/export/SpreadsheetExport.cpp
+    doc/export/SpreadsheetExport.h
+    doc/export/XmlText.h
     pdf/annot/AnnotationToolkit.cpp
     pdf/annot/AnnotationToolkit.h
     pdf/annot/AnnotationFilter.cpp
     pdf/annot/AnnotationFilter.h
     app/ViewModes.cpp
     app/ViewModes.h
-    doc/PrintTemplate.cpp
-    doc/PrintTemplate.h
-    doc/PrintBatch.cpp
-    doc/PrintBatch.h
-    doc/BlankDocument.cpp
-    doc/BlankDocument.h
+    doc/print/PrintTemplate.cpp
+    doc/print/PrintTemplate.h
+    doc/print/PrintBatch.cpp
+    doc/print/PrintBatch.h
+    doc/model/BlankDocument.cpp
+    doc/model/BlankDocument.h
     ai/content/PptGeneration.cpp
     ai/content/PptGeneration.h
     ai/content/PptxExport.cpp
@@ -344,33 +344,33 @@ qt_add_executable(AiPdfEditor WIN32
     ai/chat/EmbeddingProvider.h
     ai/rag/LocalHashEmbedding.cpp
     ai/rag/LocalHashEmbedding.h
-    doc/AnnotationModel.cpp
-    doc/AnnotationModel.h
-    doc/ChunkBuilder.cpp
-    doc/ChunkBuilder.h
-    doc/DocumentChunk.h
-    doc/DocumentStatistics.cpp
-    doc/DocumentStatistics.h
-    doc/BatchProcessor.cpp
-    doc/BatchProcessor.h
-    doc/EditCommand.cpp
-    doc/EditCommand.h
-    doc/EditContext.h
-    doc/CitationVerifier.cpp
-    doc/CitationVerifier.h
-    doc/HybridRetriever.cpp
-    doc/HybridRetriever.h
-    doc/LocalIndex.cpp
-    doc/LocalIndex.h
-    doc/PageCommand.cpp
-    doc/PageCommand.h
-    doc/RecoveryLog.cpp
-    doc/RecoveryLog.h
-    doc/SafeSave.cpp
-    doc/SafeSave.h
-    doc/UndoStack.cpp
-    doc/UndoStack.h
-    doc/VectorIndex.cpp
+    doc/edit/AnnotationModel.cpp
+    doc/edit/AnnotationModel.h
+    doc/model/ChunkBuilder.cpp
+    doc/model/ChunkBuilder.h
+    doc/model/DocumentChunk.h
+    doc/model/DocumentStatistics.cpp
+    doc/model/DocumentStatistics.h
+    doc/batch/BatchProcessor.cpp
+    doc/batch/BatchProcessor.h
+    doc/edit/EditCommand.cpp
+    doc/edit/EditCommand.h
+    doc/edit/EditContext.h
+    doc/index/CitationVerifier.cpp
+    doc/index/CitationVerifier.h
+    doc/index/HybridRetriever.cpp
+    doc/index/HybridRetriever.h
+    doc/index/LocalIndex.cpp
+    doc/index/LocalIndex.h
+    doc/edit/PageCommand.cpp
+    doc/edit/PageCommand.h
+    doc/persist/RecoveryLog.cpp
+    doc/persist/RecoveryLog.h
+    doc/persist/SafeSave.cpp
+    doc/persist/SafeSave.h
+    doc/edit/UndoStack.cpp
+    doc/edit/UndoStack.h
+    doc/index/VectorIndex.cpp
 
     ocr/OcrEngine.h
     ocr/OcrTypes.h
@@ -408,7 +408,7 @@ qt_add_executable(AiPdfEditor WIN32
     app/EditProposalDialog.h
     app/BlankPageDetector.cpp
     app/BlankPageDetector.h
-    doc/VectorIndex.h
+    doc/index/VectorIndex.h
 )
 
 # 图标资源按目录收集：新增一个图标只要放文件，不用同时改应用和测试两份清单。

@@ -38,12 +38,12 @@ qt_add_executable(UiWiringTests
     ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintBatch.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintBatch.h
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintTemplate.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/PrintTemplate.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.h
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintBatch.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintBatch.h
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintTemplate.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/print/PrintTemplate.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 

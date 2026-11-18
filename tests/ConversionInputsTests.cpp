@@ -13,7 +13,7 @@
 // 字体文件的确定性测试（合成字体只含 .notdef、空格、A、B、中五个字形）。
 
 #include "app/ConversionInputDialog.h"
-#include "doc/ConversionInputs.h"
+#include "doc/convert/ConversionInputs.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QByteArray>

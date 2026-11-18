@@ -2,7 +2,7 @@
 
 #include "ai/rag/LocalHashEmbedding.h"
 #include "app/IndexController.h"
-#include "doc/DocumentChunk.h"
+#include "doc/model/DocumentChunk.h"
 
 #include "i18n/Translate.h"
 

@@ -16,9 +16,9 @@ qt_add_executable(OutlineGeneratorTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
 )
 
 target_link_libraries(OutlineGeneratorTests PRIVATE

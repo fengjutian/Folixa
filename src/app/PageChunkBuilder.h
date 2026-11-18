@@ -1,6 +1,6 @@
 #pragma once
 
-#include "doc/ChunkBuilder.h"
+#include "doc/model/ChunkBuilder.h"
 
 #include <QVector>
 

@@ -6,9 +6,9 @@
 #include <QVector>
 
 #include "ai/rag/OfflineQa.h"
-#include "doc/ActionWizard.h"
-#include "doc/InvoiceLayout.h"
-#include "doc/UniversalConverter.h"
+#include "doc/batch/ActionWizard.h"
+#include "doc/convert/InvoiceLayout.h"
+#include "doc/convert/UniversalConverter.h"
 #include "i18n/Translate.h"
 #include "ocr/OcrTypes.h"
 #include "pdf/ops/DocumentReflow.h"

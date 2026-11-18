@@ -1,4 +1,4 @@
-#include "doc/PrintTemplate.h"
+#include "doc/print/PrintTemplate.h"
 
 #include <QSettings>
 #include <QString>

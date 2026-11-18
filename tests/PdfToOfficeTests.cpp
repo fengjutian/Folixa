@@ -10,8 +10,8 @@
 // 另有一条端到端脚本（build/verify-office-packages.py）：产物由
 // **openpyxl / python-pptx / LibreOffice** 这些独立工具打开验证——
 // 用本仓库自己的 zip 读回器验证自己写的包，等于自己给自己判卷。
-#include "doc/PdfToOffice.h"
-#include "doc/ZipWriter.h"
+#include "doc/export/PdfToOffice.h"
+#include "doc/export/ZipWriter.h"
 
 #include <QByteArray>
 #include <QDir>

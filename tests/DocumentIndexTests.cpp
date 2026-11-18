@@ -3,9 +3,9 @@
 // 这两个都是纯逻辑，不碰 PDFium，所以单独一个可执行文件就能测。
 // 走真实 PDF 的那部分在 PdfIndexTests 里。
 
-#include "doc/ChunkBuilder.h"
-#include "doc/DocumentChunk.h"
-#include "doc/LocalIndex.h"
+#include "doc/model/ChunkBuilder.h"
+#include "doc/model/DocumentChunk.h"
+#include "doc/index/LocalIndex.h"
 
 #include <QDir>
 #include <QTemporaryDir>

@@ -1,4 +1,4 @@
-#include "doc/ActionWizard.h"
+#include "doc/batch/ActionWizard.h"
 
 #include <QSettings>
 #include <QString>

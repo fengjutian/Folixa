@@ -1,10 +1,11 @@
 # 源码功能模块划分
 
 这份文档回答一个问题：`src/` 里按功能模块分目录行不行、怎么分、代价多大。
-结论先说：**行，而且已经落地了两个目录**——`src/pdf` 的 130 个文件拆成 9 个模块，
-`src/ai` 的 40 个文件拆成 5 个模块，引用改写量都是可枚举的
-（`pdf`：130 次移动、282 个文件、1213 行引用；`ai`：40 次移动、76 个文件、299 处引用），
-两个都得用同一个脚本 `scripts/modularize-src.ps1 -Area <pdf|ai>`。
+结论先说：**行，而且已经落地了三个目录**——`src/pdf` 的 130 个文件拆成 9 个模块，
+`src/ai` 的 40 个文件拆成 5 个，`src/doc` 的 57 个拆成 8 个；引用改写量都是可枚举的
+（`pdf`：130 次移动、282 个文件、1213 行引用；`ai`：40 次移动、76 个文件、299 处；
+`doc`：57 次移动、119 个文件、458 处），三个都用同一个脚本
+`scripts/modularize-src.ps1 -Area <pdf|ai|doc>`。
 
 ## 现状
 
@@ -98,6 +99,30 @@ rag      -> chat      1
 "配置/预设"与"政策/审计"两块，立刻出现 `settings` ⇄ `privacy` 环，所以维持一个模块，
 名字取最宽的那个语义。
 
+## `src/doc` 的八个模块
+
+| 模块 | 文件数 | 职责 | 主要文件 |
+| --- | ---: | --- | --- |
+| `model/` | 7 | 空白文档骨架、分块与统计 | `BlankDocument`、`DocumentChunk`、`ChunkBuilder`、`DocumentStatistics` |
+| `edit/` | 9 | 编辑命令、撤销栈、页命令、注释模型 | `EditCommand`、`EditContext`、`PageCommand`、`UndoStack`、`AnnotationModel` |
+| `index/` | 8 | 本地索引、向量检索、混合检索、引用核对 | `LocalIndex`、`VectorIndex`、`HybridRetriever`、`CitationVerifier` |
+| `export/` | 13 | Office/OFD/PPT/表格导出与 ZIP、XML 底座 | `OfficeExport`、`OfdExport`、`PdfToOffice`、`PptxWriter`、`SpreadsheetExport`、`XmlText`、`ZipWriter` |
+| `convert/` | 8 | 通用转换入口、转换输入、发票版式、字体扁平化 | `UniversalConverter`、`ConversionInputs`、`InvoiceLayout`、`FontFlattening` |
+| `print/` | 4 | 打印模板与批量打印 | `PrintTemplate`、`PrintBatch` |
+| `persist/` | 4 | 安全保存与恢复日志 | `SafeSave`、`RecoveryLog` |
+| `batch/` | 4 | 批处理与动作向导 | `BatchProcessor`、`ActionWizard` |
+
+内部依赖比 `ai` 还干净：只有一个底座和三条单向边，另外四个模块彼此完全独立。
+
+```
+convert -> model   3
+index   -> model   1
+print   -> model   1
+```
+
+也就是说 `edit`、`export`、`persist`、`batch` 内部是闭合的，改动不外溢；
+真正被共享的只有 `model/`（`BlankDocument` 与分块模型）。
+
 ## 落地分三步
 
 ### P0 逻辑模块（零风险）
@@ -117,12 +142,13 @@ rag      -> chat      1
 4. 自检：每个 `<area>/<模块>/<文件>` 引用都能解析到真实文件，且没有残留的
    未加模块段的 `<area>/<文件>` 引用。
 
-两个目录都已执行完，并各跑过一次全量构建与 `ctest`：
+三个目录都已执行完，并各跑过一次全量构建与 `ctest`：
 
 | 目录 | 移动 | 重写文件 | 引用行数 | 构建 | 测试 |
 | --- | ---: | ---: | ---: | --- | --- |
 | `src/pdf` | 130 | 282 | 1213 | 通过 | 149/150（唯一失败项与搬迁无关） |
 | `src/ai` | 40 | 76 | 299 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
+| `src/doc` | 57 | 119 | 458 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 
 因为都是纯路径替换，review 时可以只看 `git diff -M --stat` 和几个抽样文件；
 脚本本身也会核对"每一行改动都含目录名"，确保没有混进内容改动。

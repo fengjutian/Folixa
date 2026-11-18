@@ -46,24 +46,24 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentReflow.h
     ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.h
-    ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.h
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/UniversalConverter.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/UniversalConverter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
-    ${CMAKE_SOURCE_DIR}/src/doc/ActionWizard.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/ActionWizard.h
-    ${CMAKE_SOURCE_DIR}/src/doc/InvoiceLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/InvoiceLayout.h
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/LocalIndex.h
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/VectorIndex.h
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/HybridRetriever.h
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
-    ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/model/BlankDocument.h
+    ${CMAKE_SOURCE_DIR}/src/doc/batch/ActionWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/batch/ActionWizard.h
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/InvoiceLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/convert/InvoiceLayout.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/VectorIndex.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/HybridRetriever.h
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/index/CitationVerifier.h
     ${CMAKE_SOURCE_DIR}/src/ai/rag/OfflineQa.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/rag/OfflineQa.h
     ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp

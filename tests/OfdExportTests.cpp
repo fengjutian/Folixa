@@ -8,8 +8,8 @@
 #include <QRegularExpression>
 #include <QXmlStreamReader>
 
-#include "doc/OfdExport.h"
-#include "doc/ZipWriter.h"
+#include "doc/export/OfdExport.h"
+#include "doc/export/ZipWriter.h"
 
 using aipdf::doc::OfdExportOptions;
 using aipdf::doc::OfdExportResult;

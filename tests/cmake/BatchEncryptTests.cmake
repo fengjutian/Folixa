@@ -19,8 +19,8 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 if (AIPDF_WITH_QPDF AND qpdf_FOUND)
     qt_add_executable(BatchEncryptTests
         ${CMAKE_CURRENT_LIST_DIR}/../BatchEncryptTests.cpp
-        ${AIPDF_REPO_ROOT}/src/doc/BatchProcessor.cpp
-        ${AIPDF_REPO_ROOT}/src/doc/BatchProcessor.h
+        ${AIPDF_REPO_ROOT}/src/doc/batch/BatchProcessor.cpp
+        ${AIPDF_REPO_ROOT}/src/doc/batch/BatchProcessor.h
         ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.cpp
         ${AIPDF_REPO_ROOT}/src/pdf/security/PdfSecurity.h
         ${AIPDF_REPO_ROOT}/src/pdf/document/PdfRevisionCounter.cpp

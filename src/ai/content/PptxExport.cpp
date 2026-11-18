@@ -1,6 +1,6 @@
 #include "ai/content/PptxExport.h"
 
-#include "doc/PptxWriter.h"
+#include "doc/export/PptxWriter.h"
 
 namespace aipdf::ai {
 

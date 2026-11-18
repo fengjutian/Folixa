@@ -7,7 +7,7 @@
 #include <QUrl>
 #include <QVector>
 
-#include "doc/ConversionInputs.h"
+#include "doc/convert/ConversionInputs.h"
 
 class QComboBox;
 class QLabel;

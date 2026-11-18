@@ -8,9 +8,9 @@
 #include <QVector>
 
 #include "app/LastWaveBridge.h"
-#include "doc/ActionWizard.h"
-#include "doc/InvoiceLayout.h"
-#include "doc/UniversalConverter.h"
+#include "doc/batch/ActionWizard.h"
+#include "doc/convert/InvoiceLayout.h"
+#include "doc/convert/UniversalConverter.h"
 #include "pdf/ops/DocumentReflow.h"
 #include "pdf/ops/OptionalContent.h"
 #include "pdf/content/ParagraphFormat.h"

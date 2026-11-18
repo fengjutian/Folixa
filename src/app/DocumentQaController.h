@@ -2,10 +2,10 @@
 
 #include "ai/chat/ChatTypes.h"
 #include "ai/chat/EmbeddingProvider.h"
-#include "doc/CitationVerifier.h"
-#include "doc/HybridRetriever.h"
-#include "doc/LocalIndex.h"
-#include "doc/VectorIndex.h"
+#include "doc/index/CitationVerifier.h"
+#include "doc/index/HybridRetriever.h"
+#include "doc/index/LocalIndex.h"
+#include "doc/index/VectorIndex.h"
 
 #include <QObject>
 #include <QString>
