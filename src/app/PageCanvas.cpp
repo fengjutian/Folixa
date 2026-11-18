@@ -1108,6 +1108,12 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
                 emit stampRequested(pageIndex, userPoint);
                 return;
             }
+            if (tool == AnnotationController::Tool::NumberStamp) {
+                const QPointF userPoint = toUserSpacePoint(pageIndex, displayPoint);
+                trace(QStringLiteral("annotation tool number stamp page=%1").arg(pageIndex));
+                emit numberStampRequested(pageIndex, userPoint);
+                return;
+            }
             if (tool == AnnotationController::Tool::FreeText) {
                 drawingSquare_ = true;
                 drawingFreeText_ = true;

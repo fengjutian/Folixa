@@ -58,6 +58,7 @@ public:
         RegionHighlight, // 区域高亮：逐点点击，双击结束，画半透明填充
         FreeText, // 文本框：拖出一块再输入文字
         Stamp,   // 图章：点一下放一个
+        NumberStamp, // 编号图章：点一下放一个，编号自动递增
         ImageStamp, // 图片图章
         Sound,   // 声音批注
         Measure, // 测量：拖出两点

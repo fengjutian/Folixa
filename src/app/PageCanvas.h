@@ -147,6 +147,8 @@ signals:
     void freeTextRequested(int pageIndex, const QRectF& userSpaceRect);
     // 图章工具：点在页面上，要放一个图章（中心点，用户空间）。
     void stampRequested(int pageIndex, const QPointF& userSpacePoint);
+    // 编号图章工具：点在页面上，要放一个自动编号的图章（中心点，用户空间）。
+    void numberStampRequested(int pageIndex, const QPointF& userSpacePoint);
     // 图片图章 / 声音批注：点在页面上，素材已经在工具选择时准备好。
     void imageStampRequested(int pageIndex, const QPointF& userSpacePoint);
     void soundRequested(int pageIndex, const QPointF& userSpacePoint);

@@ -20,6 +20,7 @@
 #include "pdf/TagTreeWriter.h"
 #include "pdf/FormScriptStore.h"
 #include "i18n/Translate.h"
+#include "speech/SpeechSettings.h"
 #include "speech/SpeechText.h"
 
 #include <memory>
@@ -267,6 +268,14 @@ public slots:
     // 工具 → 领域层用的工具 id。
     static QString continuousToolId(AnnotationController::Tool tool);
 
+    // 保持工具选择：逐工具记住"放完别退回选择态"。
+    // 状态存在领域层的 pdf::ToolRetentionSet 里。
+    void setToolRetained(const QString& toolId, bool retained);
+    bool toolRetained(const QString& toolId) const;
+    // 被标记为保持的工具（按标记顺序）。
+    QVector<QString> retainedAnnotationTools() const;
+    void clearRetainedAnnotationTools();
+
     // 按指定的打印设置打印当前文档（批量打印与打印模板都用它）。
     //
     // 返回 false 时 error 里是中文原因；打印对话框由调用方弹。
@@ -321,6 +330,15 @@ public slots:
     // 朗读：把当前页按视觉阅读顺序逐词读出来，并在页面上高亮正在读的那个词。
     void speakCurrentPage();
     void stopSpeaking();
+    // 阅读选项：阅读顺序预览 + 朗读设置（音色、语速、音量）。
+    void showReadingOptions();
+    // 当前页的逻辑阅读顺序（按视觉顺序重排过的纯文本）。
+    QString currentPageReadingOrder() const;
+    // 朗读设置（音色、语速、音量）。设置存在语音引擎上，下一次朗读生效。
+    speech::SpeechSettings speechSettings() const;
+    void setSpeechSettings(const speech::SpeechSettings& settings);
+    // 系统里可用的音色列表（探测不到就返回空列表）。
+    QVector<speech::SpeechVoice> availableSpeechVoices() const;
     // 批量替换：一张规则表，规则按顺序依次生效。
     void batchReplaceDialog();
     // 拼写检查：列出可疑的词并给出建议。
@@ -628,6 +646,10 @@ private:
     // 界面只存「用户开没开这个开关」这一位。
     pdf::ContinuousAnnotationMode continuousMode_;
     bool continuousModeEnabled_ = false;
+    // 保持工具选择：逐工具记住"放完别退回选择态"。
+    pdf::ToolRetentionSet retainedTools_;
+    // 编号图章的计数器：每放一个图章自动取下一个编号。
+    pdf::StampNumberSequence stampSequence_;
     // 智能朗读的分段队列：按段念，一段念完接下一段。
     QVector<ai::NarrationSegment> narrationSegments_;
     int narrationSegmentIndex_ = -1;
