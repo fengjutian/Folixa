@@ -98,7 +98,18 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     }
     const QString preference = i18n::LanguageManager::instance().preference();
     language_->setCurrentIndex(std::max(0, language_->findData(preference)));
-    generalForm->addRow(tr("界面语言"), language_);
+    // 语言包装不装得看用户手里有没有包：给一个「安装语言包…」的入口，
+    // 缺包时用户才有事可做（否则界面只能报一句「没找到语言包」）。
+    auto* languageRow = new QWidget(generalCard);
+    auto* languageLayout = new QHBoxLayout(languageRow);
+    languageLayout->setContentsMargins(0, 0, 0, 0);
+    languageLayout->addWidget(language_);
+    auto* installLanguageButton = new QPushButton(tr("安装语言包…"), languageRow);
+    installLanguageButton->setObjectName(QStringLiteral("settingsInstallLanguagePack"));
+    languageLayout->addWidget(installLanguageButton);
+    generalForm->addRow(tr("界面语言"), languageRow);
+    connect(installLanguageButton, &QPushButton::clicked, this,
+            &SettingsDialog::installLanguagePack);
     navigationVisible_ = new QCheckBox(tr("启动时显示左侧导航栏"), generalCard);
     navigationVisible_->setChecked(
         settings.value(QStringLiteral("workspace/navigationVisible"), true).toBool());
@@ -212,8 +223,22 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     root->addWidget(buttons, 0, Qt::AlignRight);
 }
 
-void SettingsDialog::refreshAiSummary() {
-    const ai::ProviderConfig config = ai::ProviderConfig::load();
+// 「安装语言包…」：选文件 → 校验 → 复制到用户目录 → 切语言。
+//
+// 装完之后要把下拉框跟着改过来：否则下拉框还停在旧的那一项，
+// 用户会以为没装上（切换其实是生效的，只是下拉框没同步）。
+void SettingsDialog::installLanguagePack() {
+    if (!i18n::installLanguagePackInteractively(this)) {
+        return;
+    }
+    const QString code = i18n::LanguageManager::instance().code();
+    const int index = language_->findData(code);
+    if (index >= 0) {
+        language_->setCurrentIndex(index);
+    }
+}
+
+void SettingsDialog::refreshAiSummary() {    const ai::ProviderConfig config = ai::ProviderConfig::load();
     aiProviderValue_->setText(config.providerId == QStringLiteral("demo") ? tr("演示模式")
                                                                           : config.providerId);
     aiModelValue_->setText(config.model.isEmpty() ? tr("未设置") : config.model);

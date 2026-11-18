@@ -26,6 +26,8 @@ signals:
 
 private:
     void refreshAiSummary();
+    // 「安装语言包…」：走一遍选文件 → 校验 → 复制 → 切语言的流程。
+    void installLanguagePack();
 
     QComboBox* language_ = nullptr;
     QCheckBox* navigationVisible_ = nullptr;

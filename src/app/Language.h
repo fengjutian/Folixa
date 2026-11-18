@@ -8,6 +8,7 @@
 #include <QVector>
 
 class QIODevice;
+class QWidget;
 
 namespace aipdf::i18n {
 
@@ -37,6 +38,51 @@ QString nativeNameOf(const QString& code);
 // 按顺序取第一个认识的语言；不认识的语言回退到英文。
 // 单独拿出来是为了能被单元测试直接喂各种 locale 组合。
 QString resolveLanguage(const QStringList& uiLanguages);
+
+// ---------------------------------------------------------------------------
+// 语言包的用户侧安装
+//
+// 为什么要有用户目录：语言包原先只在**构建期**打进 Qt 资源，
+// 用户侧装不了别的语言，缺包时也只能看着一句「没有找到语言包」，
+// 不知道该干什么。这里给用户一个可写目录：把 .ts 放进去
+// （或在界面上点「安装语言包…」选文件），程序就优先用它。
+// ---------------------------------------------------------------------------
+
+// 语言包目录（用户级、可写）。目录不一定存在：装了才会有。
+QString languagePackDirectory();
+
+// 覆盖语言包目录（测试用；传空串恢复默认目录）。
+//
+// 为什么需要它：测试不能往用户真实的 AppData 目录里写东西，
+// 否则一台机器上跑一次测试，用户的语言目录就多出文件了。
+void setLanguagePackDirectoryOverride(const QString& directory);
+
+// 语言包文件名（"ai-pdf-editor_en.ts"）。
+QString languagePackFileName(const QString& code);
+
+// 用户目录里某个语言的语言包文件路径（没装就返回空串）。
+QString installedLanguagePackPath(const QString& code);
+
+// 用户目录里已经装了包的语言代码（按 supportedLanguages 的顺序）。
+QStringList installedLanguageCodes();
+
+// 读一份语言包里**自己声明**的语言（<TS language="…">）；读不到返回空串。
+QString declaredLanguageOf(const QString& sourcePath);
+
+// 安装一份语言包：校验 → 复制到用户目录 → 返回装好的路径。
+//
+// 校验两件事：
+//   1. 能解析成目录且词条不为空（否则装进去也是坏的）；
+//   2. 目录自己声明的语言与 code 一致 —— 装错语言包比不装更糟：
+//      界面会变成另一种语言，用户还以为是自己刚装的。
+bool installLanguagePack(const QString& sourcePath, const QString& code,
+                         QString* error = nullptr);
+
+// 走一遍「安装语言包」的完整流程：选文件 → 校验 → 复制 → 切语言 → 提示结果。
+//
+// 装成功时界面语言已经切过去了（用户刚装完就是要用）。
+// 返回是否装成功。
+bool installLanguagePackInteractively(QWidget* parent);
 
 // ---------------------------------------------------------------------------
 // 标准 .ts 的运行时加载器
@@ -110,6 +156,16 @@ public:
     // 界面用它提示「语言包没装 / 加载失败」，**不许静默劣化**：
     // 静默失败的代价是用户以为界面已经换成英文，其实还是中文。
     QString lastError() const { return lastError_; }
+
+    // 某个语言的语言包现在从哪来：
+    // "user"（用户目录里装的）/ "builtin"（程序自带的）/ 空（哪儿都没有）。
+    QString languagePackSource(const QString& code) const;
+
+    // 缺包时给用户的**可执行引导**：语言包放哪、怎么装。
+    //
+    // 为什么不能只报「没有找到语言包」：用户看到那句话也不知道该干什么，
+    // 只能干等。引导要写清「去哪个目录、放什么文件、界面上哪儿能装」。
+    QString missingPackGuidance(const QString& code) const;
 
 signals:
     // 语言已切换并已装好翻译；各窗口据此就地重译。

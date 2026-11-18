@@ -661,6 +661,17 @@ void MainWindow::buildUi() {
     connect(followSystemAction, &QAction::triggered, this, [this] {
         applyLanguage(i18n::LanguageManager::systemPreference());
     });
+    // 「安装语言包…」：语言包原先只在构建期打进资源，用户侧装不了别的语言。
+    // 有了这个入口，缺包时用户有路可走，不必干等。
+    languageMenu->addSeparator();
+    auto* installLanguageAction = languageMenu->addAction(QString());
+    texts_.bind([this, installLanguageAction] {
+        installLanguageAction->setText(tr("安装语言包…"));
+    });
+    connect(installLanguageAction, &QAction::triggered, this, [this] {
+        i18n::installLanguagePackInteractively(this);
+        syncLanguageMenu();
+    });
     syncLanguageMenu();
 
     auto* appQuitAction = appMenu->addAction(QString());
@@ -5647,9 +5658,24 @@ void MainWindow::applyLanguage(const QString& preference) {
     if (!i18n::LanguageManager::instance().setPreference(preference)) {
         // 切不过去要说明原因：静默失败会让用户以为界面已经换成英文，
         // 实际一个字都没变（评分卡 I3 的验收写的正是「不许静默劣化」）。
+        //
+        // 而且不能只报一句「没找到语言包」：那等于把用户晾在那儿。
+        // 这里给一条**带出口**的提示：把语言包放到哪儿、或者直接去装。
         const QString reason = i18n::LanguageManager::instance().lastError();
-        if (!reason.isEmpty()) {
-            QMessageBox::warning(this, tr("切换界面语言"), reason);
+        if (reason.isEmpty()) {
+            return;
+        }
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Warning);
+        box.setWindowTitle(tr("切换界面语言"));
+        box.setText(reason);
+        QPushButton* installButton =
+            box.addButton(tr("安装语言包…"), QMessageBox::AcceptRole);
+        box.addButton(QMessageBox::Ok);
+        box.exec();
+        if (box.clickedButton() == installButton) {
+            i18n::installLanguagePackInteractively(this);
+            syncLanguageMenu();
         }
         return;
     }
