@@ -109,7 +109,7 @@
 | 组 | 命令 | 状态 | 能力 | 说明 |
 |---|---|---|---|---|
 | 导航 | 手型工具 | ✅ | — | 手型工具：按住左键拖动平移视图，光标在「抓手」与「握拳」之间切换；主页与视图页各有一个开关，状态同步；判据在 `app::viewmodes::beginPanDrag` / `panScrollValue`，`ViewModesTests` 27 条 |
-| 导航 | 选择 | ✅ | — | 文本选择/复制/双击选词/三击选行/四击选段（`TextLayout::lineRangeAt` / `paragraphRangeAt`，`TextSelectionTests`）；Ctrl+滚轮以指针为中心缩放、Shift+滚轮横向滚动、中键拖动平移、鼠标侧键前进后退、画布右键菜单（`app::mouse`，`MouseShortcutsTests`） |
+| 导航 | 选择 | ✅ | — | 文本选择/复制/双击选词 |
 
 ### 主页（26 条）
 
@@ -146,9 +146,9 @@
 
 | 组 | 命令 | 状态 | 能力 | 说明 |
 |---|---|---|---|---|
-| 输入 | 文件转换 | ✅ | H6 | 文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 23 条），Office / HTML 另走本机 LibreOffice；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」三行），本行不重复计分 |
+| 输入 | 文件转换 | ✅ | H6 | 文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 25 条），Office / HTML 另走本机 LibreOffice；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」三行），本行不重复计分；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），子集化做不了时退回整份嵌入（文件大一点，但字不丢）；`TrueTypeSubsetTests` 7 条 |
 | 输入 | 从扫描仪 | 🟨 | I5 | 与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG**；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 28 条 + `ScannerCaptureTests` 9 条 |
-| 输入 | 从剪贴板 | 🟨 | H9 | 剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；剪贴板里的图片现在也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；纯文本路径靠嵌入整份系统字体（不子集化，体积大）；`ConversionInputsTests` 51 条 |
+| 输入 | 从剪贴板 | 🟨 | H9 | 剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；剪贴板里的图片现在也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 51 条 |
 | 输入 | 从网页 | 🟨 | H9 | 网页转 PDF 已实现：抓取 → 抽正文 → 排版（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）；**网页正文里的 `<img src>` 会下载并嵌进 PDF**（每张单独一页，插在它出现的那段正文之后）；**任一张图失败都不中断整篇转换**，逐条记原因（下载失败 / 格式不支持 / 解不开 / 太大 / 超上限）；格式只支持 JPEG / BMP / PNG，TIFF / GIF / WebP 逐条报「格式不支持」；**不执行 JavaScript、不渲染 CSS**，`srcset`、CSS `background-image`、脚本动态插的图都不取；`data:` 内联图不支持；单次最多 50 张；只支持 UTF-8 / UTF-16，GBK 明确报错；抓取超时 15 秒 |
 | 输入 | 从CAJ | ➖ | — | 地区性格式 |
 | 输入 | 表单 | ✅ | H10 | 表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过 |
@@ -163,7 +163,7 @@
 | 输出 | 转为基于图像的PDF | ✅ | — | 整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests` |
 | 输出 | 到CAD | 🟨 | — | 导出 DXF；**只含文字几何，不含曲线、标注与图层**；`pdf::exportPageToDxf`，`ExportFormatsTests` |
 | 输出 | 到其它格式 | 🟨 | — | 导出对话框提供 HTML / 图像化PDF / DXF / OFD / DOCX / RTF 六种，各格式另有降级（见对应行）；**不是任意格式** |
-| 输出 | 到PDF | ✅ | H6 | 任意文件 → PDF：除本机 LibreOffice 外，自建转换覆盖 txt / md / csv / json / html，**不需要装任何外部引擎**；**用标准 14 字体时中文会变成 `?`**，界面如实提示替换了多少字符并提供「选择字体文件」入口；`UniversalConverterTests` 23 条 |
+| 输出 | 到PDF | ✅ | H6 | 任意文件 → PDF：除本机 LibreOffice 外，自建转换覆盖 txt / md / csv / json / html，**不需要装任何外部引擎**；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，**只嵌用到的字形**（子集化，10 MB → 几十 KB），界面也会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体，并如实报出替换了多少字符；`UniversalConverterTests` 25 条 + `TrueTypeSubsetTests` 7 条 |
 | 输出 | 到OFD | 🟨 | — | 导出 OFD；**只支持文本对象**，不含图形与图片；`doc::exportPageToOfd`，`OfdExportTests` |
 | 输出 | OFD批量转换 | 🟨 | — | OFD 批量转换已实现：调用本机已安装的 OFD 转换器批量转为 PDF，Ribbon「OFD 批量转换」（`documentManagement.ofdConvert`）入口已启用；**依赖本机装 OFD 转换器**，没装会如实报错 |
 | OCR | 识别文本 | ✅ | I1 | 识别结果进本地索引，可检索可问答；未回写 PDF 隐藏文本层 |

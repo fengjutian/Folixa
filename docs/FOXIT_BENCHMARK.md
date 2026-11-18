@@ -109,7 +109,7 @@
 | H3 | 导出图片（PNG / JPEG，可选 DPI） | ✓ | 已具备 | 1.2.0 | 尺寸与 DPI 断言 |
 | H4 | 导出纯文本（按阅读顺序） | ✓ | 已具备 | 1.2.0 | 与抽取结果一致 |
 | H5 | PDF → Word / Excel / PPT | ✓ | 对齐 | 1.9.0 | PDF → Word（DOCX）/ RTF / 纯文本已实现并有界面入口（`doc::exportPageTo`，DOCX 是 zip 打包的真 .docx），`OfficeExportTests` 11 条；**只导一页文本层，不含图片、表格与样式**，Excel / PPT 仍未做 |
-| H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 23 条），有界面入口；**用标准 14 字体时中文会变成 `?`**，界面如实提示并提供「选择字体文件」入口；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」），本项不重复计分 |
+| H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 25 条），有界面入口；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），界面会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体并如实报出替换了多少字符；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」），本项不重复计分；`TrueTypeSubsetTests` 7 条 |
 | H7 | PDF/A 转换 | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**现在有 PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**但预检不是合规认证** —— 认证要 veraPDF（Java 依赖），本仓库不引入新依赖，所以界面只说「预检发现 N 个问题」；`PdfACheckerTests` 34 条 |
 | H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`，带自检负例）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的 |
 |  H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 剪贴板转 PDF（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`）与网页转 PDF（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`）都有界面入口（`convert.fromClipboard` / `convert.fromWeb`）；**剪贴板里有富文本时按富文本排版**（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片现在也转**（图片模式每张图单独一页；原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；**网页正文里的 `<img src>` 会下载并嵌进 PDF**（每张单独一页，插在它出现的那段正文之后；**任一张图失败都不中断整篇转换**，逐条记原因；格式只支持 JPEG / BMP / PNG，TIFF / GIF / WebP 逐条报「格式不支持」）；**网页仍然不执行 JavaScript、不渲染 CSS**，`srcset`、CSS `background-image`、脚本动态插的图都不取；`data:` 内联图不支持；单次最多 50 张；只支持 UTF-8 / UTF-16（GBK 明确报错），抓取超时 15 秒；`ConversionInputsTests` 51 条  |
@@ -171,7 +171,7 @@
 | Must（待补齐） | 33 | Must 共 102 项（102 − 0 Nice − 0 不做），已达「对齐」及以上 69 |
 | Nice（可延后） | 0 | 全部已实现，见评分卡 |
 | 未做（未实现） | 0 | L7 文档比较本轮已实现（文字层 + 可选的像素比对），**没有未实现项** |
-| 欠账（对齐但承诺范围未达成） | 13 | A8 / A11 / A12 / F6 / G5 / H5 / H6 / H7 / H9 / J5 / J6 / J7 / L7；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
+| 欠账（对齐但承诺范围未达成） | 12 | A8 / A11 / A12 / F6 / G5 / H5 / H7 / H9 / J5 / J6 / J7 / L7；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
 | 不做（含理由） | 0 | 本轮已全部有实现，1.2 相应条目已移出 |
 
 校准记录：

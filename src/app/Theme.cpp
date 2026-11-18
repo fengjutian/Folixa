@@ -404,6 +404,7 @@ QMap<QString, QString> darkTextColors() {
         {"#39475D", "#C3CEDD"},      // AI 快捷动作文字
         {"#344156", "#C3CEDD"},      // AI 快捷动作文字
         {"#465267", "#B5C0D0"},      // 次级文字（text.secondary）
+        {"#3F4B5E", "#C3CEDD"},      // 大纲树文字
         {"#4A576E", "#A9B4C4"},      // 命令栏文字
         {"#5A6779", "#A9B4C4"},      // 标签文字
         {"#596579", "#A9B4C4"},      // AI 按钮文字
@@ -460,6 +461,7 @@ QMap<QString, QString> darkSurfaceColors() {
         {"#F7F7F8", "#151D2B"},      // 设置导航列表
         {"#F8F9FB", "#222D3D"},      // AI 次级按钮（surface.secondary）
         {"#FBFCFE", "#1E2837"},      // 停靠面板标题
+        {"#FBFBFD", "#1E2837"},      // 导航页容器底
         {"#FAFAFD", "#161F2E"},      // AI 快捷动作禁用底
         {"#F7F8FB", "#151D2B"},      // 缩略图列表底
         {"#F6F8FB", "#151D2B"},      // AI 面板底

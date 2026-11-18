@@ -1884,6 +1884,10 @@
             <translation>Proofread</translation>
         </message>
         <message>
+            <source>欢迎页</source>
+            <translation>Welcome</translation>
+        </message>
+        <message>
             <source>工作台</source>
             <translation>Workspace</translation>
         </message>
