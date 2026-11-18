@@ -35,7 +35,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('pdf', 'ai', 'doc')]
+    [ValidateSet('pdf', 'ai', 'doc', 'app')]
     [string]$Area = 'pdf',
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [switch]$Apply
@@ -74,6 +74,15 @@ $Maps = @{
         'persist' = 'SafeSave RecoveryLog'
         'batch'   = 'BatchProcessor ActionWizard'
     }
+    app = [ordered]@{
+        'shell'       = 'main MainWindow WiringActions RibbonBar WelcomePage'
+        'ui'          = 'AccessibilityPlan BrandMark Language LanguagePackInstaller ModalScrim ReadingScheme SystemCjkFont Theme TraceText'
+        'editor'      = 'PdfView PageCanvas PageLayout PageTransform TextLayout PageTextLines PageChunkBuilder PdfPageOperations TileCache RenderThread ViewFit ZoomMemory NavigationHistory LinkHitTest InkGeometry MeasureGeometry MouseShortcuts ViewModes PresentationWindow'
+        'controllers' = 'AiToolService AnnotationController AudioRecorder DigitalSignatureBackend DocumentConverter DocumentOutput DocumentQaController IndexController LastWaveBridge LastWaveWriter NavigationController OcrController OneNoteExporter PresentationLoop ProposalRunner ScannerCapture ScreenCapture TextController'
+        'panels'      = 'AiPanel AttachmentPanel IndexPanel LastWavePanels PdfAPreflightPanel SearchPanel'
+        'dialogs'     = 'AccessibilityWizard AiSettingsDialog AiToolsDialog AnnotationToolboxDialog BookmarkTreeDialog ConversionInputDialog ConversionToolsDialog DocumentCompareDialog EditProposalDialog EncryptionDialog FormDesignAssistantDialog FormScriptDialog FormToolSettingsDialog HiddenDataDialog PrintToolsDialog ReadingOptionsDialog RegionPicker SettingsDialog SignatureDialog StampNumberDialog UploadPreviewDialog'
+        'util'        = 'BatchRename BlankPageDetector ConversionExports ConversionReports SearchMatcher ShareUtils'
+    }
 }
 
 $Modules = $Maps[$Area]
@@ -93,17 +102,20 @@ foreach ($module in $Modules.Keys) {
 $areaDir = Join-Path $Root "src/$Area"
 if (-not (Test-Path $areaDir)) { throw "找不到 $areaDir" }
 
+# 只处理源文件：目录里还躺着 app.ico / app.svg 这类资源，不能参与划分。
+$sourceExts = @('.h', '.cpp', '.hpp', '.cc', '.mm')
+
 # --- 1. 校验覆盖完整性 -------------------------------------------------------
-$onDisk = Get-ChildItem $areaDir -File | ForEach-Object { $_.BaseName } | Sort-Object -Unique
+$onDisk = Get-ChildItem $areaDir -File | Where-Object { $sourceExts -contains $_.Extension } | ForEach-Object { $_.BaseName } | Sort-Object -Unique
 $missing = $onDisk | Where-Object { -not $Owner.ContainsKey($_) }
 $extra   = $Owner.Keys | Where-Object { $onDisk -notcontains $_ } | Sort-Object
 if ($missing) { throw "这些文件没有分配模块：$($missing -join ', ')" }
 if ($extra)   { throw "划分表里有 src/$Area 下不存在的文件：$($extra -join ', ')" }
 
-$total = (Get-ChildItem $areaDir -File).Count
+$total = (Get-ChildItem $areaDir -File | Where-Object { $sourceExts -contains $_.Extension }).Count
 Write-Host "覆盖校验通过：$total 个文件 / $($Owner.Count) 个基名 / $($Modules.Count) 个模块"
 foreach ($module in $Modules.Keys) {
-    $n = (Get-ChildItem $areaDir -File | Where-Object { $Owner[$_.BaseName] -eq $module }).Count
+    $n = (Get-ChildItem $areaDir -File | Where-Object { $sourceExts -contains $_.Extension -and $Owner[$_.BaseName] -eq $module }).Count
     Write-Host ("  {0,-11} {1,3} 个文件" -f $module, $n)
 }
 
@@ -168,7 +180,7 @@ foreach ($module in $Modules.Keys) {
     New-Item -ItemType Directory -Path (Join-Path $areaDir $module) -Force | Out-Null
 }
 $moved = 0
-foreach ($file in Get-ChildItem $areaDir -File) {
+foreach ($file in Get-ChildItem $areaDir -File | Where-Object { $sourceExts -contains $_.Extension }) {
     $module = $Owner[$file.BaseName]
     $dest = Join-Path (Join-Path $areaDir $module) $file.Name
     if ($inGit) {
