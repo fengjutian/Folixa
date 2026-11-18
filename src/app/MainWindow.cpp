@@ -1004,13 +1004,13 @@ void MainWindow::buildUi() {
     addToolCommand(textGroup, "图片图章", "用图片做图章", ":/icons/annotation.svg", "imagestamp");
     auto* shapeGroup = ribbonBar_->addGroup(commentTab, tr("图形"));
     addToolCommand(shapeGroup, "矩形", "拖出一个矩形", ":/icons/square.svg", "square");
-    addToolCommand(shapeGroup, "椭圆", "拖出一个椭圆", ":/icons/square.svg", "ellipse");
-    addToolCommand(shapeGroup, "直线", "拖出一条直线", ":/icons/square.svg", "line");
-    addToolCommand(shapeGroup, "箭头", "拖出一个箭头", ":/icons/square.svg", "arrow");
-    addToolCommand(shapeGroup, "多边形", "画一个多边形", ":/icons/square.svg", "polygon");
-    addToolCommand(shapeGroup, "云线", "画一个云线", ":/icons/square.svg", "cloud");
-    addToolCommand(shapeGroup, "箭头框", "用箭头框指向正文", ":/icons/square.svg", "callout");
-    addToolCommand(shapeGroup, "区域高亮", "圈出一块区域做半透明高亮", ":/icons/square.svg",
+    addToolCommand(shapeGroup, "椭圆", "拖出一个椭圆", ":/icons/ellipse.svg", "ellipse");
+    addToolCommand(shapeGroup, "直线", "拖出一条直线", ":/icons/line.svg", "line");
+    addToolCommand(shapeGroup, "箭头", "拖出一个箭头", ":/icons/arrow.svg", "arrow");
+    addToolCommand(shapeGroup, "多边形", "画一个多边形", ":/icons/polygon.svg", "polygon");
+    addToolCommand(shapeGroup, "云线", "画一个云线", ":/icons/cloud.svg", "cloud");
+    addToolCommand(shapeGroup, "箭头框", "用箭头框指向正文", ":/icons/callout.svg", "callout");
+    addToolCommand(shapeGroup, "区域高亮", "圈出一块区域做半透明高亮", ":/icons/region-highlight.svg",
                    "regionHighlight");
     auto* inkGroup = ribbonBar_->addGroup(commentTab, tr("手写"));
     addToolCommand(inkGroup, "墨迹", "自由绘制", ":/icons/ink.svg", "ink");
