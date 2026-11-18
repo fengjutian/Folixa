@@ -1430,21 +1430,21 @@ void MainWindow::buildUi() {
     auto* convertInputGroup = ribbonBar_->addGroup(convertTab, tr("输入"));
     addRibbonCommand(convertInputGroup, "Office 转 PDF",
                      "使用 LibreOffice 把 Word、Excel 或 PowerPoint 转为 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/office-to-pdf.svg", [this] {
         convertDocument(ConversionKind::OfficeToPdf);
     }, true, "convert.officeToPdf");
     addRibbonCommand(convertInputGroup, "HTML 转 PDF",
                      "使用 LibreOffice 把本地 HTML 文档转为 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/html-to-pdf.svg", [this] {
         convertDocument(ConversionKind::HtmlToPdf);
     }, true, "convert.htmlToPdf");
     // 剪贴板 / 网页 / 表单文件 / 扫描仪：四个「别的来源转成 PDF」的入口。
     addRibbonCommand(convertInputGroup, "从剪贴板", "把剪贴板里的文字变成一份新 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/clipboard-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->convertFromClipboard(); }
     }, true, "convert.fromClipboard");
     addRibbonCommand(convertInputGroup, "从网页", "抓取网页正文并排版成 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/web-to-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->convertFromWeb(); }
     }, true, "convert.fromWeb");
     addRibbonCommand(convertInputGroup, "表单", "用模板 PDF 加表单数据文件生成 PDF",
@@ -1461,34 +1461,34 @@ void MainWindow::buildUi() {
         convertDocument(ConversionKind::PdfA2b);
     }, true, "convert.pdfa");
     addRibbonCommand(convertOutputGroup, "优化压缩", "使用 Ghostscript 优化并压缩当前 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/compress.svg", [this] {
         convertDocument(ConversionKind::OptimizePdf);
     }, true, "convert.optimize");
     // 导出与检查：这些能力已经写好并有单测，界面上必须点得到。
     auto* convertExportGroup = ribbonBar_->addGroup(convertTab, tr("导出"));
     addRibbonCommand(convertExportGroup, "导出 HTML", "把文字层导成一个 HTML 文件",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/export-html.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportHtml(); }
     }, true, "convert.exportHtml");
     addRibbonCommand(convertExportGroup, "图像化 PDF", "把每一页渲染成位图，写成一份新的 PDF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/image-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportImagePdf(); }
     }, true, "convert.imagePdf");
     addRibbonCommand(convertExportGroup, "到 OFD", "把文字层导成 OFD 包",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOfd(); }
     }, true, "convert.exportOfd");
     addRibbonCommand(convertExportGroup, "到 MS Office", "把当前页的文字层导成 Word 文档",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOffice(); }
     }, true, "convert.exportOffice");
     addRibbonCommand(convertExportGroup, "到 CAD", "把页面上的矢量路径导成 DXF",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/cad-export.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportDxf(); }
     }, true, "convert.exportDxf");
     addRibbonCommand(convertExportGroup, "PDF 转曲",
                      "把字体转成不再依赖字体的形式（视觉等价的栅格化版本）",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/outline-text.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->flattenFonts(); }
     }, true, "convert.flattenFonts");
     auto* convertCheckGroup = ribbonBar_->addGroup(convertTab, tr("检查与打包"));
