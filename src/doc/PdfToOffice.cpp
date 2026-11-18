@@ -23,27 +23,87 @@ namespace {
 // （看得见，但版式乱了）。拆成「第 N 页（续）」既不丢字，也不溢出。
 constexpr int kLinesPerSlide = 15;
 
-// 把一页的文本行变成表格检测用的对象。
+// 一行里的单元格：按横向间隙切开。
 //
-// 为什么用「行」而不是「字符」：PDF 的字符流里没有「单元格」的概念，
-// 一个单元格里的文字通常就是一行（也可能折成几行）。用行做检测的粒度
-// 与 pdf::TableStructure 的设计一致（它按行的 y 聚类、按 x 分列）。
+// 为什么不能直接拿「行」当单元格：表格的一行在文本层里是**一整行文字**
+// （"Item Qty Price"），列与列之间只是空得远一点。不切开的话，
+// 表格检测会以为这一行只有一个格子，整张表就认不出来（实测过：
+// 切之前导出的工作表里是「Apple 1 2 3 50」这种糊在一起的内容）。
+//
+// 阈值取字高的 0.9 倍：词距（≈0.3 倍字高）远小于它，列距通常远大于它。
+QVector<QVector<pdf::TextChar>> splitLineIntoCells(const TextExportLine& line) {
+    QVector<QVector<pdf::TextChar>> cells;
+    QVector<pdf::TextChar> current;
+    double previousRight = 0.0;
+    bool hasPrevious = false;
+    const double threshold = qMax(3.0, line.fontSize * 0.9);
+    for (const pdf::TextChar& character : line.chars) {
+        if (hasPrevious) {
+            const double gap = character.box.left() - previousRight;
+            if (gap > threshold && !current.isEmpty()) {
+                cells.append(current);
+                current.clear();
+            }
+        }
+        current.append(character);
+        previousRight = character.box.right();
+        hasPrevious = true;
+    }    if (!current.isEmpty()) {
+        cells.append(current);
+    }
+    return cells;
+}
+
+// 单元格的文字：直接拼字符，不补空格。
+//
+// 为什么不用 buildLineText：那个函数按字距补空格（词与词之间要断开），
+// 而单元格里的空格是原本就有的，补出来的空格会把 "3.50" 变成 "3 . 50"。
+QString cellText(const QVector<pdf::TextChar>& chars) {
+    QString out;
+    for (const pdf::TextChar& character : chars) {
+        out.append(character.text);
+    }
+    return out;
+}
+
+// 把一页的文本行变成表格检测用的对象（每个单元格一个对象）。
 QVector<pdf::TableTextObject> tableObjectsFromLines(const QVector<TextExportLine>& lines) {
     QVector<pdf::TableTextObject> objects;
-    objects.reserve(lines.size());
-    for (int index = 0; index < lines.size(); ++index) {
-        const TextExportLine& line = lines.at(index);
-        if (line.text.trimmed().isEmpty()) {
-            continue;
+    int objectId = 0;
+    for (const TextExportLine& line : lines) {
+        for (const QVector<pdf::TextChar>& cell : splitLineIntoCells(line)) {
+            const QString text = cellText(cell);
+            if (text.trimmed().isEmpty()) {
+                continue;
+            }
+            double left = 0.0;
+            double right = 0.0;
+            double bottom = 0.0;
+            double top = 0.0;
+            bool first = true;
+            for (const pdf::TextChar& character : cell) {
+                if (first) {
+                    left = character.box.left();
+                    right = character.box.right();
+                    bottom = character.box.top();
+                    top = character.box.bottom();
+                    first = false;
+                    continue;
+                }
+                left = qMin(left, character.box.left());
+                right = qMax(right, character.box.right());
+                bottom = qMin(bottom, character.box.top());
+                top = qMax(top, character.box.bottom());
+            }
+            if (first) {
+                continue;
+            }
+            pdf::TableTextObject object;
+            object.objectId = objectId++;
+            object.bounds = QRectF(left, bottom, right - left, top - bottom);
+            object.text = text;
+            objects.append(object);
         }
-        pdf::TableTextObject object;
-        object.objectId = index;
-        // TextExportLine 的 bottom 是较小的 y、top 是较大的 y（PDF 坐标），
-        // 高度取两者之差即可。
-        object.bounds = QRectF(line.left, line.bottom, line.right - line.left,
-                               line.top - line.bottom);
-        object.text = line.text;
-        objects.append(object);
     }
     return objects;
 }
@@ -70,15 +130,26 @@ QVector<QVector<QString>> tableRows(const pdf::TableStructure& table) {
     return rows;
 }
 
-// 这一行是不是落在表格里（落在任何一个单元格里就算在）。
-bool lineInsideTable(const TextExportLine& line, const pdf::TableStructure& table) {
-    const QPointF center(line.left, (line.bottom + line.top) * 0.5);
+// 表格的整体包围盒（所有单元格的并集）。
+QRectF tableBounds(const pdf::TableStructure& table) {
+    QRectF bounds;
     for (const pdf::TableCell& cell : table.cells) {
-        if (cell.bounds.contains(center)) {
-            return true;
-        }
+        bounds = bounds.isNull() ? cell.bounds : bounds.united(cell.bounds);
     }
-    return false;
+    return bounds;
+}
+
+// 这一行是不是落在表格里。
+//
+// 用「行的中心点」判断：表格的一行横跨好几列，中心点落在表格范围内就算在表里；
+// 表格上方或下方的说明文字中心点在范围外，就不算。
+bool lineInsideTable(const TextExportLine& line, const pdf::TableStructure& table) {
+    const QRectF bounds = tableBounds(table);
+    if (bounds.isEmpty()) {
+        return false;
+    }
+    const QPointF center((line.left + line.right) * 0.5, (line.bottom + line.top) * 0.5);
+    return bounds.contains(center);
 }
 
 // 表格之外的文字行 → 单列的工作表。

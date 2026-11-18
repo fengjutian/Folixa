@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QPrintDialog>
 #include <QPrinter>
@@ -38,6 +39,7 @@
 #include "doc/FontFlattening.h"
 #include "doc/OfdExport.h"
 #include "doc/OfficeExport.h"
+#include "doc/PdfToOffice.h"
 #include "doc/UniversalConverter.h"
 #include "i18n/Translate.h"
 #include "ipc/WorkerClient.h"
@@ -591,34 +593,95 @@ void WiringActions::exportOffice() {
     if (view == nullptr) {
         return;
     }
+    // 三种格式都是「导**整篇**」。先问要哪种，别让用户以为只导当前页。
+    const QStringList formats = {
+        i18n::tr("aipdf::app::MainWindow", "Word 文档（.docx）"),
+        i18n::tr("aipdf::app::MainWindow", "Excel 工作簿（.xlsx）"),
+        i18n::tr("aipdf::app::MainWindow", "PowerPoint 演示文稿（.pptx）"),
+    };
+    bool accepted = false;
+    const QString choice = QInputDialog::getItem(
+        parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
+        i18n::tr("aipdf::app::MainWindow", "要导出成哪种格式？"), formats.size(),
+        formats.first(), false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int formatIndex = formats.indexOf(choice);
+    if (formatIndex < 0) {
+        return;
+    }
+
+    const QString suffix = formatIndex == 0 ? QStringLiteral("docx")
+                                            : (formatIndex == 1 ? QStringLiteral("xlsx")
+                                                                : QStringLiteral("pptx"));
+    const QString filter = formatIndex == 0
+                               ? i18n::tr("aipdf::app::MainWindow", "Word 文档 (*.docx)")
+                               : (formatIndex == 1
+                                      ? i18n::tr("aipdf::app::MainWindow", "Excel 工作簿 (*.xlsx)")
+                                      : i18n::tr("aipdf::app::MainWindow",
+                                                 "PowerPoint 演示文稿 (*.pptx)"));
     const QString path = QFileDialog::getSaveFileName(
-        parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"), QStringLiteral("document.docx"),
-        i18n::tr("aipdf::app::MainWindow", "Word 文档 (*.docx)"));
+        parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
+        QStringLiteral("document.") + suffix, filter);
     if (path.isEmpty()) {
         return;
     }
-    const QVector<pdf::TextPage> pages = view->documentTextPages();
-    if (pages.isEmpty()) {
-        QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
-                             i18n::tr("aipdf::app::MainWindow", "这一页没有可导出的文字层。"));
-        return;
-    }
-    const pdf::TextPage& page = pages.first();
-    const QSizeF size(page.contentBox.width(), page.contentBox.height());
+
     QString error;
-    const QByteArray bytes =
-        ConversionTools::exportOffice(doc::ExportFormat::WordOpenXml, page, size, &error);
-    if (bytes.isEmpty()) {
+    const QByteArray documentBytes = view->documentBytes(&error);
+    if (documentBytes.isEmpty()) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
                              error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "导出失败。") : error);
         return;
     }
+
+    QByteArray bytes;
+    QString detail;
+    if (formatIndex == 1) {
+        const doc::ExcelExportResult result = doc::exportPdfToExcel(documentBytes);
+        if (!result.ok) {
+            QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
+                                 result.error.isEmpty()
+                                     ? i18n::tr("aipdf::app::MainWindow", "导出失败。")
+                                     : result.error);
+            return;
+        }
+        bytes = result.bytes;
+        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 页、%2 张工作表（认出 %3 个表格）")
+                     .arg(result.pageCount)
+                     .arg(result.sheetCount)
+                     .arg(result.tableCount);
+    } else if (formatIndex == 2) {
+        const doc::PptxExportResult result = doc::exportPdfToPptx(documentBytes);
+        if (!result.ok) {
+            QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
+                                 result.error.isEmpty()
+                                     ? i18n::tr("aipdf::app::MainWindow", "导出失败。")
+                                     : result.error);
+            return;
+        }
+        bytes = result.bytes;
+        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 张幻灯片（一页一张）").arg(result.slideCount);
+    } else {
+        const doc::WordExportResult result = doc::exportPdfToWord(documentBytes);
+        if (!result.ok) {
+            QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
+                                 result.error.isEmpty()
+                                     ? i18n::tr("aipdf::app::MainWindow", "导出失败。")
+                                     : result.error);
+            return;
+        }
+        bytes = result.bytes;
+        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 页（页与页之间有分页符）").arg(result.pageCount);
+    }
+
     if (!writeFile(path, bytes, &error)) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"), error);
         return;
     }
     QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
-                             officeExportNoticeText(i18n::tr("aipdf::app::MainWindow", "Word 文档")));
+                             officeExportNoticeText(formats.at(formatIndex), detail));
 }
 
 void WiringActions::exportOfd() {

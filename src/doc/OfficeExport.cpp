@@ -84,8 +84,12 @@ QString buildLineText(const QVector<pdf::TextChar>& chars) {
         const double height = qMax(character.box.height(), 1.0);
         if (hasPrevious) {
             const double gap = character.box.left() - previousRight;
-            // 阈值取字高的两成：正常字距远小于它，词距大于它。
-            const double threshold = 0.2 * qMax(previousHeight, 1.0);
+            // 阈值取字高的三成：正常字距（约 0.1 倍字高）远小于它，
+            // 词距（约 0.5 倍字高）大于它。
+            //
+            // 为什么不是两成：两成时小写字母之间的字距（x 高度 × 0.23）
+            // 会越线，"Quarterly" 会被拆成 "Qu arterly"（实测过）。
+            const double threshold = 0.3 * qMax(previousHeight, 1.0);
             const bool previousIsSpace = out.endsWith(QLatin1Char(' '));
             const bool currentIsSpace = character.text.startsWith(QLatin1Char(' '));
             if (gap > threshold && !previousIsSpace && !currentIsSpace) {
@@ -231,15 +235,24 @@ QVector<TextExportLine> buildTextLines(const pdf::TextPage& text) {
     QVector<TextExportLine> lines;
     for (const pdf::TextChar& character : chars) {
         const double height = qMax(character.box.height(), 1.0);
-        const double center = character.box.center().y();
+        // 归行用**基线**（字符盒的下边，即较小的 y），不用盒子的中心。
+        //
+        // 为什么：句点、逗号这类字符的盒子只有基线以上那一丁点高
+        // （12 号字里只有 1.2 pt），中心明显偏低。按中心归组的话，
+        // "3.50" 会被拆成 "350" 与 "." 两行——导出到 Word / Excel 里
+        // 就会看到数字被拆开（实测过）。
+        const double baseline = character.box.top();
 
         bool appended = false;
         if (!lines.isEmpty()) {
             TextExportLine& last = lines.last();
-            const double tolerance = 0.6 * qMax(qMin(last.fontSize, height), 1.0);
-            const double lineCenter = (last.bottom + last.top) * 0.5;
-            if (qAbs(center - lineCenter) <= tolerance) {
+            // 阈值用这一行字高的一半，且取 **max** 而不是 min：
+            // 矮字符（句点）不能把阈值一起拉小，否则永远归不进行里。
+            const double tolerance = 0.6 * qMax(qMax(last.fontSize, height), 1.0);
+            if (qAbs(baseline - last.baseline) <= tolerance) {
                 last.chars.append(character);
+                last.baseline = (last.baseline * (last.chars.size() - 1) + baseline) /
+                                last.chars.size();
                 // PDF 的下边 = Qt 的 box.top()（较小的 y），
                 // PDF 的上边 = Qt 的 box.bottom()（较大的 y）。
                 last.bottom = qMin(last.bottom, character.box.top());
@@ -256,6 +269,7 @@ QVector<TextExportLine> buildTextLines(const pdf::TextPage& text) {
 
         TextExportLine line;
         line.chars.append(character);
+        line.baseline = baseline;
         line.bottom = character.box.top();
         line.top = character.box.bottom();
         line.left = character.box.left();

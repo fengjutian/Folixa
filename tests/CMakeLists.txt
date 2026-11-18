@@ -1487,6 +1487,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OllamaProviderTests.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TrueTypeSubsetTests.cmake)
 
+# --------------------------------------------- PDF → Excel / PPT / Word ----
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PdfToOfficeTests.cmake)
+
 # ------------------------------------------------- 提示注入防护 ----
 
 qt_add_executable(PromptInjectionTests

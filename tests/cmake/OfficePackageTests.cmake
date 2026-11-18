@@ -16,6 +16,9 @@ qt_add_executable(OfficePackageTests
     ${CMAKE_SOURCE_DIR}/src/ai/PptGeneration.h
     ${CMAKE_SOURCE_DIR}/src/ai/PptxExport.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/PptxExport.h
+    # pptx 的打包在 doc 层（AI 生成的 PPT 与 PDF 导出的 PPT 共用同一套）。
+    ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.h
 )
 
 target_link_libraries(OfficePackageTests PRIVATE Qt6::Core Qt6::Test)

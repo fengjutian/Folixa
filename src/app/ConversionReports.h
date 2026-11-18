@@ -69,5 +69,7 @@ QString htmlExportNoticeText();
 QString dxfExportNoticeText();
 QString ofdExportNoticeText();
 QString officeExportNoticeText(const QString& formatName);
+// 带这次导出的实际结果（页数 / 工作表数 / 幻灯片数）。
+QString officeExportNoticeText(const QString& formatName, const QString& detail);
 
 }  // namespace aipdf::app

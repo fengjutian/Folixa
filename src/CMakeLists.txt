@@ -255,6 +255,10 @@ qt_add_executable(AiPdfEditor WIN32
     doc/OfdExport.h
     doc/OfficeExport.cpp
     doc/OfficeExport.h
+    doc/PdfToOffice.cpp
+    doc/PdfToOffice.h
+    doc/PptxWriter.cpp
+    doc/PptxWriter.h
     doc/SpreadsheetExport.cpp
     doc/SpreadsheetExport.h
     doc/XmlText.h

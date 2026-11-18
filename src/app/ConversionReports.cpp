@@ -100,4 +100,15 @@ QString officeExportNoticeText(const QString& formatName) {
     return i18n::tr("aipdf::app::MainWindow", "导出为 %1：只包含文字层，不含图片、表格结构与批注。").arg(formatName);
 }
 
+QString officeExportNoticeText(const QString& formatName, const QString& detail) {
+    // detail 是这次导出的实际结果（页数 / 工作表数 / 幻灯片数）。
+    // 为什么要有它：光说「导出了」用户不知道拿到的是什么，
+    // 说清楚「几页、几张表」才知道对不对。
+    QString text = i18n::tr("aipdf::app::MainWindow", "导出为 %1：%2").arg(formatName, detail);
+    text += i18n::tr("aipdf::app::MainWindow",
+                     "只包含文字层：图片、批注与精确版式不会带过去；"
+                     "表格按识别结果写成表格，认不出的按文字行导出。");
+    return text;
+}
+
 }  // namespace aipdf::app
