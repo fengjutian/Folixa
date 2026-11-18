@@ -1191,7 +1191,7 @@ void MainWindow::buildUi() {
     addRibbonCommand(showGroup, "AI 助手", "显示或隐藏 AI 面板", ":/icons/chat.svg", [this] {
         aiDock_->setVisible(!aiDock_->isVisible());
     });
-    addRibbonCommand(showGroup, "阅读配色", "切换夜间 / 护眼 / 高对比阅读底色", ":/icons/square.svg",
+    addRibbonCommand(showGroup, "阅读配色", "切换夜间 / 护眼 / 高对比阅读底色", ":/icons/reading-theme.svg",
                      [this] { changeReadingScheme(); }, true, "view.readingScheme");
     // 视图模式：标尺、边缘自动滚动、翻页过渡、纯文本查看器、逆序镜像。
     // 这一组只改「怎么显示」，不改文档，也不进撤销栈。
@@ -1207,13 +1207,13 @@ void MainWindow::buildUi() {
         });
         return button;
     };
-    auto* rulerButton = addToggleCommand(modeGroup, "标尺", "在页面上显示标尺", ":/icons/square.svg",
+    auto* rulerButton = addToggleCommand(modeGroup, "标尺", "在页面上显示标尺", ":/icons/ruler.svg",
                                           "view.ruler");
     connect(rulerButton, &QToolButton::clicked, this, [this](bool checked) {
         if (auto* view = currentView()) { view->setRulerVisible(checked); }
     });
     auto* rulerUnitButton = ribbonBar_->addCommand(modeGroup, tr("标尺单位"),
-                                                   QIcon(":/icons/square.svg"), tr("选择标尺单位"),
+                                                   QIcon(":/icons/ruler-unit.svg"), tr("选择标尺单位"),
                                                    true, "view.rulerUnit");
     auto* rulerUnitMenu = new QMenu(rulerUnitButton);
     // 单位用序号传给视图层，视图层再映射成领域层的枚举。
@@ -1231,12 +1231,12 @@ void MainWindow::buildUi() {
     rulerUnitButton->setPopupMode(QToolButton::InstantPopup);
     auto* autoScrollButton = addToggleCommand(modeGroup, "自动滚动",
                                               "拖动选区或批注到视口边缘时自动滚动",
-                                              ":/icons/square.svg", "view.autoScroll");
+                                              ":/icons/auto-scroll.svg", "view.autoScroll");
     connect(autoScrollButton, &QToolButton::clicked, this, [this](bool checked) {
         if (auto* view = currentView()) { view->setAutoScrollEnabled(checked); }
     });
     auto* transitionButton = ribbonBar_->addCommand(modeGroup, tr("翻页过渡"),
-                                                    QIcon(":/icons/square.svg"), tr("选择翻页过渡方式"),
+                                                    QIcon(":/icons/page-transition.svg"), tr("选择翻页过渡方式"),
                                                     true, "view.pageTransition");
     auto* transitionMenu = new QMenu(transitionButton);
     const QVector<QPair<QString, int>> transitions{
@@ -1253,17 +1253,17 @@ void MainWindow::buildUi() {
     transitionButton->setPopupMode(QToolButton::InstantPopup);
     auto* mirrorButton = addToggleCommand(modeGroup, "逆序镜像",
                                           "左右镜像显示（日漫式从右往左读）",
-                                          ":/icons/square.svg", "view.mirror");
+                                          ":/icons/mirror.svg", "view.mirror");
     connect(mirrorButton, &QToolButton::clicked, this, [this](bool checked) {
         if (auto* view = currentView()) { view->setMirrorEnabled(checked); }
     });
     auto* plainTextGroup = ribbonBar_->addGroup(viewTab, tr("纯文本"));
     addRibbonCommand(plainTextGroup, "本页文本", "把当前页按阅读顺序显示成纯文本",
-                     ":/icons/book.svg", [this] {
+                     ":/icons/page-text.svg", [this] {
         if (auto* view = currentView()) { view->showPlainTextViewer(); }
     }, true, "view.plainText");
     addRibbonCommand(plainTextGroup, "全文文本", "把整篇按阅读顺序显示成纯文本",
-                     ":/icons/book.svg", [this] {
+                     ":/icons/document-text.svg", [this] {
         if (auto* view = currentView()) { view->showWholeDocumentPlainText(); }
     }, true, "view.plainTextAll");
     auto* viewStatsGroup = ribbonBar_->addGroup(viewTab, tr("统计"));
