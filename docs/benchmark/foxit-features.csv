@@ -133,14 +133,14 @@ tab,group,command,status,capability,note
 注释,图章,图章,aligned,C7,四种文字图章
 注释,图章,自定义图章,aligned,C7,图片图章
 注释,符号,符号,aligned,—,符号面板：按分类挑选符号插入到光标处，面板不关可连续插；条目数与领域层符号目录一致（有单测）；`pdf::AnnotationToolkit`，`AnnotationToolkitTests`
-注释,符号,数字,partial,C7,只有文字图章，没有数字图章
-注释,符号,字母,partial,C7,同上
+注释,符号,数字,aligned,C7,编号图章（数字形式）：1、2、3 自动递增，可设起始序号、补零位数与前后缀；放之前先定规则，之后每点页面一次放一个；`pdf::formatStampNumber` / `pdf::StampNumberSequence`，`AnnotationToolkitTests`
+注释,符号,字母,aligned,C7,编号图章（字母形式）：A、B、C 自动递增，可切大写/小写，超过 Z 进位成 AA；`pdf::StampNumberStyle`，`AnnotationToolkitTests`
 注释,审阅,小结注释,aligned,C12,批注摘要 HTML/打印
 注释,审阅,导入,aligned,C12,XFDF 导入
 注释,审阅,导出,aligned,C12,XFDF/HTML 导出
 注释,审阅,邮件发送PDF,aligned,K1,调默认邮件客户端并复制路径供贴附件
-注释,审阅,管理注释,partial,C11,列表/跳转/删除/回复；无批量筛选
-注释,工具,保持工具选择,partial,C6,工具互斥；用后回到选择
+注释,审阅,管理注释,aligned,C11,批注面板可按类型与关键字（正文或作者）筛选、一键全选筛选结果、批量改外观与批量删除；`pdf::AnnotationFilter`，`AnnotationFilterTests`
+注释,工具,保持工具选择,aligned,C6,逐工具记住「放完别退回选择态」：注释页勾选「保持工具选择」后当前工具连着放，与全局的连续批注开关并存；`pdf::ToolRetentionSet`，`AnnotationToolkitTests`
 注释,工具,批注模式,aligned,—,连续批注模式：开关式；开时放完批注保持工具激活，关时放完回选择态；墨迹/橡皮/声音/附件等会越用越歪的工具仍放完即退；`pdf::ContinuousAnnotationMode`，`AnnotationToolkitTests`
 视图,阅读,阅读模式,partial,A4,专注模式隐藏面板；没有全屏沉浸阅读
 视图,阅读,重排,partial,A8,整篇重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面并丢图形 / 表格 / 页眉页脚**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝，不做启发式重排
@@ -155,7 +155,7 @@ tab,group,command,status,capability,note
 视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 22 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider
-视图,朗读,朗读,partial,J4,逐词朗读并逐词高亮；有专项单测；依赖系统语音合成，无音色/语速可调，长文逐词合成较慢
+视图,朗读,朗读,aligned,J4,逐词朗读并逐词高亮；朗读设置可调音色 / 语速 / 音量；依赖系统语音合成，长文逐词合成较慢；`speech::SpeechSettings`，`SpeechEngineTests`
 视图,比较,比较,partial,L7,文档比较已实现，两层结果并排给：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ 可选的像素级视觉比对（`pdf::compareDocuments` 的 `comparePixels`，界面「同时比较图形…」开关）：渲染成位图逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；默认关闭（渲染慢）；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`DocumentCompareOptions::autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（结果里的 `alignmentMode` / `alignmentNote` 会说清用的哪种）；**仍不做版面结构分析**（不比较版面块级 / 表格级结构差异，只到文字块与像素层）；`DocumentComparerTests` 26 条
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
@@ -224,7 +224,7 @@ tab,group,command,status,capability,note
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
 辅助工具,设置,设置助手,partial,J2,打开显示/字体/语言设置；不是无障碍配置向导
-辅助工具,阅读,阅读选项,partial,J4,当前指向阅读顺序预览；未接朗读设置
+辅助工具,阅读,阅读选项,aligned,J4,一个对话框两个页签：阅读顺序预览 + 朗读设置（音色、语速、音量），设置存到语音引擎、下次朗读生效；`speech::SpeechSettings`，`SpeechEngineTests`
 辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`），读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规
 辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；不支持表单域说明与自动生成
 辅助工具,阅读,设置区域阅读顺序,partial,J5,能看文档标签树里已写好的顺序；标签树只到行粒度，无替代文本与语言标记；行聚类与选区同规则（`PageTextLinesTests` 11 条）
@@ -267,7 +267,7 @@ tab,group,command,status,capability,note
 帮助,商业,订阅,na,—,无订阅
 AI助手,对话,AI聊天,aligned,L1,流式回答/停止/用量与费用
 AI助手,翻译,翻译文档,partial,L2,选区与当前页；整篇未做
-AI助手,朗读,智能朗读,aligned,J4,AI 智能朗读：自动取正文、清洗分段后逐段朗读，状态栏显示段数与预计时长，可被打断；走系统语音合成，**没有音色与语速可调**；`ai::AiNarration`，`AiNarrationTests`
+AI助手,朗读,智能朗读,aligned,J4,AI 智能朗读：自动取正文、清洗分段后逐段朗读，状态栏显示段数与预计时长，可被打断；走系统语音合成，**音色与语速可在「阅读选项」里调**；`ai::AiNarration`，`AiNarrationTests`
 AI助手,检测,AI内容检测,aligned,—,AI 内容检测：自动带入选区文字（无选区则当前页正文），输出判定与置信度，**模型解析失败时显示「无法判断」而不是编一个结论**；`ai::AiContentDetection`，`AiContentDetectionTests`
 AI助手,生成,生成图像,aligned,—,文生图：提示词 / 反向提示词 / 画风 / 尺寸 / 张数 1–4，生成后可直接插成图片批注；**需配置 Provider 密钥，没密钥直接报错，不做离线兜底**；`ai::AiImageGeneration`，`AiImageGenerationTests`
 AI助手,生成,AI总结生图,aligned,—,总结配图：先取当前页正文生成要点列表，再逐条生成配图并插入；走同一套 Provider 通路（需密钥）；`ai::AiImageGeneration`，`AiImageGenerationTests`

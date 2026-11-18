@@ -95,6 +95,12 @@ private slots:
     void retentionSetKeepsAfterPlacementOnlyForMarkedTool();
     void retentionSetIgnoresEmptyToolId();
     void retentionSetClearRemovesEverything();
+
+    // ---------------------------------------------- 放完要不要保持工具 ----
+    void keepsToolFollowsRetentionMark();
+    void keepsToolFollowsContinuousMode();
+    void keepsToolRejectsToolThatExitsContinuousMode();
+    void keepsToolRejectsWhenNothingIsOn();
 };
 
 // ---------------------------------------------------------- 计算器 ----
@@ -594,6 +600,50 @@ void AnnotationToolkitTests::retentionSetClearRemovesEverything() {
     set.clear();
     QVERIFY(set.isEmpty());
     QVERIFY(!set.isRetained(QStringLiteral("rect")));
+}
+
+// ---------------------------------------------- 放完要不要保持工具 ----
+
+void AnnotationToolkitTests::keepsToolFollowsRetentionMark() {
+    ToolRetentionSet retention;
+    ContinuousAnnotationMode continuous;
+    // 什么都没开：不保持。
+    QVERIFY(!keepsToolAfterPlacement(QStringLiteral("rect"), retention, continuous));
+
+    // 逐工具标记过：保持，不看全局开关。
+    retention.setRetained(QStringLiteral("rect"), true);
+    QVERIFY(keepsToolAfterPlacement(QStringLiteral("rect"), retention, continuous));
+    // 没标记的工具仍然不保持。
+    QVERIFY(!keepsToolAfterPlacement(QStringLiteral("arrow"), retention, continuous));
+}
+
+void AnnotationToolkitTests::keepsToolFollowsContinuousMode() {
+    ToolRetentionSet retention;
+    ContinuousAnnotationMode continuous;
+    continuous.activate(QStringLiteral("note"), true);
+    QVERIFY(keepsToolAfterPlacement(QStringLiteral("note"), retention, continuous));
+    // 连续模式挂着的是别的工具：这个工具不保持。
+    QVERIFY(!keepsToolAfterPlacement(QStringLiteral("rect"), retention, continuous));
+}
+
+void AnnotationToolkitTests::keepsToolRejectsToolThatExitsContinuousMode() {
+    ToolRetentionSet retention;
+    ContinuousAnnotationMode continuous;
+    // 墨迹这类工具放完就退出连续模式。
+    continuous.activate(QStringLiteral("ink"), false);
+    QVERIFY(!keepsToolAfterPlacement(QStringLiteral("ink"), retention, continuous));
+    // 但用户明确标记了它，就以标记为准。
+    retention.setRetained(QStringLiteral("ink"), true);
+    QVERIFY(keepsToolAfterPlacement(QStringLiteral("ink"), retention, continuous));
+}
+
+void AnnotationToolkitTests::keepsToolRejectsWhenNothingIsOn() {
+    ToolRetentionSet retention;
+    ContinuousAnnotationMode continuous;
+    continuous.deactivate();
+    QVERIFY(!keepsToolAfterPlacement(QStringLiteral("rect"), retention, continuous));
+    // 空工具 id 也保持不了：没有工具就谈不上保持。
+    QVERIFY(!keepsToolAfterPlacement(QString(), retention, continuous));
 }
 
 QTEST_GUILESS_MAIN(AnnotationToolkitTests)

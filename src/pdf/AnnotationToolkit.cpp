@@ -813,6 +813,20 @@ bool ToolRetentionSet::keepsAfterPlacement(const QString& toolId) const {
     return isRetained(toolId);
 }
 
+bool keepsToolAfterPlacement(const QString& toolId, const ToolRetentionSet& retention,
+                             const ContinuousAnnotationMode& continuous) {
+    // 逐工具标记过的优先：用户明确说了要保持，就不看全局开关。
+    if (!toolId.isEmpty() && retention.isRetained(toolId)) {
+        return true;
+    }
+    // 连续批注模式：开着、挂的就是**这个**工具、且放完不退出
+    //（墨迹、橡皮那类在连续模式里会自动退出）。
+    if (toolId.isEmpty() || continuous.activeTool() != toolId) {
+        return false;
+    }
+    return continuous.repeatsLastPlacement();
+}
+
 void ContinuousAnnotationMode::activate(const QString& toolId, bool repeatLastPlacement) {
     if (toolId.isEmpty()) {
         // 没有工具就谈不上连续。

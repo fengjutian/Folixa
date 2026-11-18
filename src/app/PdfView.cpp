@@ -8101,24 +8101,16 @@ void PdfView::activateNumberStampTool() {
 }
 
 bool PdfView::afterAnnotationPlacement() {
-    // 逐工具的「保持工具选择」优先：用户明确标记过的工具放完就留着，
-    // 不受全局连续批注开关的影响。
-    if (annotationController_ != nullptr) {
-        const QString toolId = continuousToolId(annotationController_->tool());
-        if (!toolId.isEmpty() && retainedTools_.keepsAfterPlacement(toolId)) {
-            return true;
-        }
-    }
-    if (!continuousModeEnabled_) {
+    const QString toolId =
+        annotationController_ != nullptr ? continuousToolId(annotationController_->tool()) : QString();
+    // 判据在领域层：先看逐工具的「保持工具选择」，再看全局的连续批注。
+    const bool keep = pdf::keepsToolAfterPlacement(toolId, retainedTools_, continuousMode_);
+    if (!keep) {
+        // 放完就退出的工具（墨迹、橡皮等）在连续模式里自己退出。
+        continuousMode_.afterPlacement();
         if (annotationController_ != nullptr) {
             annotationController_->setTool(AnnotationController::Tool::None);
         }
-        return false;
-    }
-    // 领域层决定这次放完要不要保持：放完就退出的工具（墨迹、橡皮等）在这里退出。
-    const bool keep = continuousMode_.afterPlacement();
-    if (!keep && annotationController_ != nullptr) {
-        annotationController_->setTool(AnnotationController::Tool::None);
     }
     return keep;
 }
