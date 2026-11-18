@@ -1803,97 +1803,103 @@ void MainWindow::buildUi() {
         else view->activateSignaturePlacement(signature.image, signature.name);
     };
     auto* signingGroup = ribbonBar_->addGroup(signatureTab, tr("签署"));
-    addRibbonCommand(signingGroup, "对外签署", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signingGroup, "对外签署", "需要电子签平台服务", ":/icons/sign-external.svg",
                      [] {}, false, "signature.external");
-    addRibbonCommand(signingGroup, "对内签署", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signingGroup, "对内签署", "需要电子签平台服务", ":/icons/sign-internal.svg",
                      [] {}, false, "signature.internal");
-    addRibbonCommand(signingGroup, "邀请他人签署", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signingGroup, "邀请他人签署", "需要电子签平台服务", ":/icons/sign-invite.svg",
                      [] {}, false, "signature.invite");
     addRibbonCommand(signingGroup, "完成签署", "保存当前已放置的签章", ":/icons/save.svg",
                      [this] { saveDocument(); }, true, "signature.finish");
     auto* certificateGroup = ribbonBar_->addGroup(signatureTab, tr("数字证书"));
     addRibbonCommand(certificateGroup, "数字签名", "使用 PKCS#12 证书创建 PAdES/CMS 数字签名",
-                     ":/icons/protect.svg", [this] { digitallySignDocument(); }, true,
+                     ":/icons/digital-signature.svg", [this] { digitallySignDocument(); }, true,
                      "signature.digitalSign");
     addRibbonCommand(certificateGroup, "验证签名", "验证签名完整性、证书链、时间戳和文档改动",
-                     ":/icons/search.svg", [this] { verifyDigitalSignatures(); }, true,
+                     ":/icons/verify-signature.svg", [this] { verifyDigitalSignatures(); }, true,
                      "signature.verify");
     addRibbonCommand(certificateGroup, "签名列表", "列出文档里的数字签名与证书链",
-                     ":/icons/protect.svg", [this] {
+                     ":/icons/signature-list.svg", [this] {
         if (auto* view = currentView()) { view->showSignatureListDialog(); }
     }, true, "signature.list");
     auto* sealGroup = ribbonBar_->addGroup(signatureTab, tr("签章"));
-    addRibbonCommand(sealGroup, "管理签章", "导入、手写或删除本地签章", ":/icons/annotation.svg",
+    addRibbonCommand(sealGroup, "管理签章", "导入、手写或删除本地签章", ":/icons/seal-manage.svg",
                      [this] { SignatureDialog(false, this).exec(); }, true, "signature.manage");
-    addRibbonCommand(sealGroup, "骑缝章", "把签章切分并放到文档每一页右侧", ":/icons/pages.svg",
+    addRibbonCommand(sealGroup, "骑缝章", "把签章切分并放到文档每一页右侧", ":/icons/seam-seal.svg",
                      [chooseSignature] { chooseSignature(true); }, true, "signature.seam");
     addRibbonCommand(sealGroup, "签章", "选择本地签章并在页面上放置", ":/icons/ink.svg",
                      [chooseSignature] { chooseSignature(false); }, true, "signature.place");
     auto* signatureFlowGroup = ribbonBar_->addGroup(signatureTab, tr("流程"));
     addRibbonCommand(signatureFlowGroup, "签署流程", "打开签署流程面板（签署流程 / 签署报告 / 签署记录）",
-                     ":/icons/protect.svg", [this] {
+                     ":/icons/signature-workflow.svg", [this] {
         if (auto* view = currentView()) { view->showSignatureWorkflowDialog(); }
     }, true, "signature.workflow");
     addRibbonCommand(signatureFlowGroup, "签署报告", "导出当前文档的批注与签章摘要",
-                     ":/icons/annotation.svg", [this] {
+                     ":/icons/signature-report.svg", [this] {
         if (auto* view = currentView()) view->exportAnnotationSummary();
     }, true, "signature.report");
-    addRibbonCommand(signatureFlowGroup, "签署记录", "打开批注与签章记录", ":/icons/annotation.svg",
+    addRibbonCommand(signatureFlowGroup, "签署记录", "打开批注与签章记录", ":/icons/signature-records.svg",
                      [this] { navigationDock_->setVisible(true); showNavigationPage(4); },
                      true, "signature.records");
     auto* signatureServiceGroup = ribbonBar_->addGroup(signatureTab, tr("服务"));
-    addRibbonCommand(signatureServiceGroup, "分享反馈", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signatureServiceGroup, "分享反馈", "需要电子签平台服务", ":/icons/signature-feedback.svg",
                      [] {}, false, "signature.feedback");
-    addRibbonCommand(signatureServiceGroup, "了解更多", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signatureServiceGroup, "了解更多", "需要电子签平台服务", ":/icons/signature-learn.svg",
                      [] {}, false, "signature.learn");
-    addRibbonCommand(signatureServiceGroup, "我的额度", "需要电子签平台服务", ":/icons/protect.svg",
+    addRibbonCommand(signatureServiceGroup, "我的额度", "需要电子签平台服务", ":/icons/signature-quota.svg",
                      [] {}, false, "signature.quota");
     addRibbonCommand(signatureServiceGroup, "签署设置", "管理本机签章", ":/icons/protect.svg",
                      [this] { SignatureDialog(false, this).exec(); }, true, "signature.settings");
     const int shareTab = ribbonBar_->addTab(tr("共享"));
     auto* shareSendGroup = ribbonBar_->addGroup(shareTab, tr("发送"));
     addRibbonCommand(shareSendGroup, "邮件", "用默认邮件客户端发送当前 PDF",
-                     ":/icons/send.svg", [this] { shareByEmail(); }, true, "share.email");
+                     ":/icons/mail.svg", [this] { shareByEmail(); }, true, "share.email");
     addRibbonCommand(shareSendGroup, "OneNote", "把整篇文档的每一页送进本机 OneNote",
-                     ":/icons/note.svg", [this] {
+                     ":/icons/onenote.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->sendToOneNote(); }
     }, true, "share.oneNote");
 
     auto* shareCollaborationGroup = ribbonBar_->addGroup(shareTab, tr("协作"));
     addRibbonCommand(shareCollaborationGroup, "共享协作", "复制当前 PDF 的文件链接",
-                     ":/icons/send.svg", [this] { copyDocumentLink(); }, true,
+                     ":/icons/share-link.svg", [this] { copyDocumentLink(); }, true,
                      "share.copyLink");
     addRibbonCommand(shareCollaborationGroup, "PDF 协作", "导出批注供他人审阅",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/pdf-collaboration.svg", [this] {
         if (auto* view = shareDocument()) { view->exportAnnotationsXfdf(); }
     }, true, "share.pdfCollaboration");
 
     auto* shareReviewGroup = ribbonBar_->addGroup(shareTab, tr("审阅"));
     addRibbonCommand(shareReviewGroup, "共享审阅", "导出 XFDF 审阅文件",
-                     ":/icons/send.svg", [this] {
+                     ":/icons/review-export.svg", [this] {
         if (auto* view = shareDocument()) { view->exportAnnotationsXfdf(); }
     }, true, "share.exportReview");
     addRibbonCommand(shareReviewGroup, "管理共享审阅", "导入收到的 XFDF 审阅文件",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/review-import.svg", [this] {
         if (auto* view = shareDocument()) { view->importAnnotationsXfdf(); }
     }, true, "share.importReview");
     addRibbonCommand(shareReviewGroup, "文件审阅", "导出可打印和转发的批注摘要",
-                     ":/icons/annotation.svg", [this] {
+                     ":/icons/file-review.svg", [this] {
         if (auto* view = shareDocument()) { view->exportAnnotationSummary(); }
     }, true, "share.fileReview");
     addRibbonCommand(shareReviewGroup, "邮件审阅", "用默认邮件客户端发起审阅",
-                     ":/icons/send.svg", [this] { shareByEmail(); }, true,
+                     ":/icons/mail-review.svg", [this] { shareByEmail(); }, true,
                      "share.emailReview");
     addRibbonCommand(shareReviewGroup, "追踪器", "打开批注面板跟踪审阅状态",
-                     ":/icons/annotation.svg", [this] { showReviewTracker(); }, true,
+                     ":/icons/review-tracker.svg", [this] { showReviewTracker(); }, true,
                      "share.tracker");
 
     auto* shareEnterpriseGroup = ribbonBar_->addGroup(shareTab, tr("企业"));
-    for (const char* connector : {"SharePoint", "iManage 9", "iManage 10", "eDOCS DM"}) {
-        addRibbonCommand(shareEnterpriseGroup, connector, "需要管理员配置企业内容管理连接器",
-                         ":/icons/book.svg", [] {}, false,
+    const struct { const char* label; const char* icon; } enterpriseConnectors[] = {
+        {"SharePoint", ":/icons/sharepoint.svg"},
+        {"iManage 9", ":/icons/imanage.svg"},
+        {"iManage 10", ":/icons/imanage.svg"},
+        {"eDOCS DM", ":/icons/edocs.svg"},
+    };
+    for (const auto& connector : enterpriseConnectors) {
+        addRibbonCommand(shareEnterpriseGroup, connector.label, "需要管理员配置企业内容管理连接器",
+                         QString::fromLatin1(connector.icon), [] {}, false,
                          QStringLiteral("share.enterprise.") +
-                             QString::fromLatin1(connector).replace(' ', '_'));
+                             QString::fromLatin1(connector.label).replace(' ', '_'));
     }
     const int accessibilityTab = ribbonBar_->addTab(tr("辅助工具"));
     auto* accessibilityTagGroup = ribbonBar_->addGroup(accessibilityTab, tr("标签"));
@@ -1982,11 +1988,11 @@ void MainWindow::buildUi() {
         ribbonBar_->addGroup(documentManagementTab, tr("组织"));
     addRibbonCommand(documentOrganizeGroup, "文档概述", "查看当前文档页数、大小和管理属性",
                      ":/icons/outline.svg", [this] { showDocumentOverview(); }, true, "documentManagement.radar");
-    addRibbonCommand(documentOrganizeGroup, "标签", "编辑当前文档的标签", ":/icons/bookmark.svg",
+    addRibbonCommand(documentOrganizeGroup, "标签", "编辑当前文档的标签", ":/icons/document-tag.svg",
                      [this] { editDocumentTags(); }, true, "documentManagement.tags");
-    addRibbonCommand(documentOrganizeGroup, "分类", "设置当前文档分类", ":/icons/bookmark.svg",
+    addRibbonCommand(documentOrganizeGroup, "分类", "设置当前文档分类", ":/icons/document-category.svg",
                      [this] { editDocumentCategory(); }, true, "documentManagement.categories");
-    addRibbonCommand(documentOrganizeGroup, "星标", "添加或取消星标", ":/icons/bookmark.svg",
+    addRibbonCommand(documentOrganizeGroup, "星标", "添加或取消星标", ":/icons/document-star.svg",
                      [this] { toggleDocumentStar(); }, true, "documentManagement.starred");
     addRibbonCommand(documentOrganizeGroup, "文件柜", "打开当前文档所在文件夹", ":/icons/outline.svg",
                      [this] { openDocumentCabinet(); }, true, "documentManagement.cabinet");
@@ -2007,21 +2013,21 @@ void MainWindow::buildUi() {
                      [this] { createReimbursementList(); }, true, "documentManagement.reimbursement");
     addRibbonCommand(invoiceGroup, "票据打印", "打印当前发票", ":/icons/pages.svg",
                      [this] { if (auto* view = currentView()) view->printDocument(); }, true, "documentManagement.invoicePrint");
-    addRibbonCommand(invoiceGroup, "发票转图片", "把当前发票逐页导出为图片", ":/icons/square.svg",
+    addRibbonCommand(invoiceGroup, "发票转图片", "把当前发票逐页导出为图片", ":/icons/invoice-image.svg",
                      [this] { if (auto* view = currentView()) view->exportPageImages(); }, true, "documentManagement.invoiceToImage");
-    addRibbonCommand(invoiceGroup, "发票合并", "把另一份发票合并到当前文档", ":/icons/page-insert.svg",
+    addRibbonCommand(invoiceGroup, "发票合并", "把另一份发票合并到当前文档", ":/icons/invoice-merge.svg",
                      [this] { if (auto* view = currentView()) view->mergeDocumentDialog(); }, true, "documentManagement.invoiceMerge");
 
     auto* documentBatchGroup = ribbonBar_->addGroup(documentManagementTab, tr("批量"));
     addRibbonCommand(documentBatchGroup, "批处理", "把一个目录里的 PDF 依次处理一遍并出 JSON 报告",
-                     ":/icons/convert.svg", [this] {
+                     ":/icons/batch-process.svg", [this] {
         if (auto* view = currentView()) { view->batchProcessDialog(); }
     }, true, "documentManagement.batch");
     addRibbonCommand(documentBatchGroup, "批量重命名", "按统一前缀和序号重命名多个文件",
-                     ":/icons/edit.svg", [this] { batchRenameDocuments(); }, true,
+                     ":/icons/batch-rename.svg", [this] { batchRenameDocuments(); }, true,
                      "documentManagement.batchRename");
     addRibbonCommand(documentBatchGroup, "OFD 批量转换", "调用已安装的 OFD 转换器批量转为 PDF",
-                     ":/icons/convert.svg", [this] { batchConvertOfd(); }, true,
+                     ":/icons/ofd-batch.svg", [this] { batchConvertOfd(); }, true,
                      "documentManagement.ofdConvert");
     // 录制：复用 Windows 自带的录屏能力，声音直接写成 PDF 声音批注；
     // 截图保存当前 Folixa 窗口，不把尚未实现的自有视频编码器伪装成可用功能。
@@ -2074,7 +2080,7 @@ void MainWindow::buildUi() {
                                      .arg(url.toString()));
         }
     };
-    addRibbonCommand(helpGroup, "用户手册", "打开 Folixa 用户手册", ":/icons/book.svg",
+    addRibbonCommand(helpGroup, "用户手册", "打开 Folixa 用户手册", ":/icons/user-manual.svg",
                      [this] {
                          QMessageBox manual(this);
                          manual.setWindowTitle(tr("Folixa 用户手册"));
@@ -2101,12 +2107,12 @@ void MainWindow::buildUi() {
                              close->setText(tr("关闭"));
                          manual.exec();
                      }, true, "help.userManual");
-    addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/tools.svg",
+    addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/help-center.svg",
                      [openHelpUrl] {
                          openHelpUrl(QUrl(QStringLiteral(
                              "https://github.com/fengjutian/Folixa/issues")));
                      }, true, "help.center");
-    addRibbonCommand(helpGroup, "命令行帮助", "查看命令行用法", ":/icons/note.svg", [this] {
+    addRibbonCommand(helpGroup, "命令行帮助", "查看命令行用法", ":/icons/command-line.svg", [this] {
         QMessageBox::information(
             this, tr("命令行帮助"),
             tr("用法：\n"
@@ -2115,22 +2121,22 @@ void MainWindow::buildUi() {
                "  AiPdfEditor.exe C:\\Documents\\example.pdf\n\n"
                "把 PDF 路径作为第一个参数传入，即可在启动时直接打开文档。"));
     }, true, "help.commandLine");
-    addRibbonCommand(helpGroup, "发表想法", "提交建议或问题", ":/icons/send.svg",
+    addRibbonCommand(helpGroup, "发表想法", "提交建议或问题", ":/icons/submit-idea.svg",
                      [openHelpUrl] {
                          openHelpUrl(QUrl(QStringLiteral(
                              "https://github.com/fengjutian/Folixa/issues/new/choose")));
                      }, true, "help.feedback");
-    addRibbonCommand(helpGroup, "在线教程", "查看构建与使用教程", ":/icons/book.svg",
+    addRibbonCommand(helpGroup, "在线教程", "查看构建与使用教程", ":/icons/tutorial.svg",
                      [openHelpUrl] {
                          openHelpUrl(QUrl(QStringLiteral(
                              "https://github.com/fengjutian/Folixa/blob/main/README.md")));
                      }, true, "help.tutorial");
     addRibbonCommand(helpGroup, "插件管理", "Folixa 当前不支持第三方插件",
-                     ":/icons/tools.svg", [] {}, false, "help.plugins");
+                     ":/icons/plugin-manage.svg", [] {}, false, "help.plugins");
 
     auto* aboutGroup = ribbonBar_->addGroup(helpTab, tr("关于"));
     addRibbonCommand(aboutGroup, "默认 PDF 阅读器", "打开 Windows 默认应用设置",
-                     ":/icons/book.svg", [this] {
+                     ":/icons/default-reader.svg", [this] {
 #ifdef Q_OS_WIN
         if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:defaultapps")))) {
             QMessageBox::warning(this, tr("无法打开设置"),
@@ -2143,8 +2149,8 @@ void MainWindow::buildUi() {
 #endif
     }, true, "help.defaultPdfReader");
     addRibbonCommand(aboutGroup, "插件商店", "Folixa 当前不提供插件商店",
-                     ":/icons/tools.svg", [] {}, false, "help.pluginStore");
-    addRibbonCommand(aboutGroup, "关于", "查看版本和项目信息", ":/icons/tools.svg", [this] {
+                     ":/icons/plugin-store.svg", [] {}, false, "help.pluginStore");
+    addRibbonCommand(aboutGroup, "关于", "查看版本和项目信息", ":/icons/about.svg", [this] {
         QMessageBox::about(
             this, tr("关于 Folixa"),
             tr("<h3>Folixa · AI PDF Editor %1</h3>"
@@ -2156,7 +2162,7 @@ void MainWindow::buildUi() {
     }, true, "help.about");
 
     auto* productGroup = ribbonBar_->addGroup(helpTab, tr("产品"));
-    addRibbonCommand(productGroup, "产品信息", "查看 Folixa 产品信息", ":/icons/note.svg",
+    addRibbonCommand(productGroup, "产品信息", "查看 Folixa 产品信息", ":/icons/product-info.svg",
                      [this] {
                          QMessageBox::information(
                              this, tr("产品信息"),
@@ -2167,7 +2173,7 @@ void MainWindow::buildUi() {
                                  .arg(QCoreApplication::applicationVersion()));
                      }, true, "help.productInfo");
     addRibbonCommand(productGroup, "订阅", "Folixa 当前不提供付费订阅",
-                     ":/icons/note.svg", [] {}, false, "help.subscription");
+                     ":/icons/subscription.svg", [] {}, false, "help.subscription");
 
     ribbonBar_->setTabOrder({tr("文件"), tr("主页"), tr("转换"), tr("编辑"),
                              tr("页面管理"), tr("注释"), tr("视图"), tr("表单"),
