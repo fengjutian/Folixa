@@ -7,6 +7,8 @@
 #include "app/Language.h"
 #include "app/TextController.h"
 #include "app/PdfView.h"
+#include "app/RegionPicker.h"
+#include "app/ScreenCapture.h"
 #include "app/SearchPanel.h"
 #include "app/ShareUtils.h"
 #include "app/BatchRename.h"
@@ -293,6 +295,11 @@ MainWindow::MainWindow(QWidget* parent)
     // 启动后看看有没有上次没保存完的工作。
     // 延后到事件循环起来之后再问：这时主窗口已经显示出来了。
     QTimer::singleShot(0, this, &MainWindow::checkRecovery);
+}
+
+MainWindow::~MainWindow() {
+    // 全局事件过滤器必须摘掉：否则窗口没了过滤器还挂着。
+    qApp->removeEventFilter(this);
 }
 
 void MainWindow::buildUi() {
@@ -1227,6 +1234,22 @@ void MainWindow::buildUi() {
     });
     addRibbonCommand(showGroup, "阅读配色", "切换夜间 / 护眼 / 高对比阅读底色", ":/icons/reading-theme.svg",
                      [this] { changeReadingScheme(); }, true, "view.readingScheme");
+    // 沉浸阅读：藏掉界面外壳、全屏、光标自动隐藏，Esc 退出。
+    QToolButton* immersiveButton = ribbonBar_->addCommand(
+        showGroup, tr("沉浸阅读"), QIcon(":/icons/book.svg"),
+        tr("隐藏界面进入全屏阅读，按 Esc 退出"), true, "view.immersiveReading");
+    immersiveButton->setCheckable(true);
+    texts_.bind([this, immersiveButton] {
+        immersiveButton->setText(tr("沉浸阅读"));
+        immersiveButton->setToolTip(tr("隐藏界面进入全屏阅读，按 Esc 退出"));
+    });
+    connect(immersiveButton, &QToolButton::toggled, this, [this](bool enabled) {
+        if (enabled) {
+            enterImmersiveReading();
+        } else {
+            leaveImmersiveReading();
+        }
+    });
     // 视图模式：标尺、边缘自动滚动、翻页过渡、纯文本查看器、逆序镜像。
     // 这一组只改「怎么显示」，不改文档，也不进撤销栈。
     auto* modeGroup = ribbonBar_->addGroup(viewTab, tr("视图模式"));
@@ -2585,6 +2608,7 @@ void MainWindow::buildUi() {
     focusAction->setCheckable(true);
     focusAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+F")));
     connect(focusAction, &QAction::toggled, this, [this](bool enabled) {
+        focusModeEnabled_ = enabled;
         if (enabled) {
             navigationWasVisible_ = navigationDock_->isVisible();
             aiWasVisible_ = aiDock_->isVisible();
@@ -2595,6 +2619,24 @@ void MainWindow::buildUi() {
             aiDock_->setVisible(aiWasVisible_);
         }
     });
+
+    // 沉浸阅读：Esc 退出。
+    //
+    // 放在主窗口的快捷键上：对话框是独立窗口，Esc 仍然关对话框，不会被这里抢走。
+    auto* immersiveShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    immersiveShortcut->setObjectName(QStringLiteral("immersiveReadingEscape"));
+    connect(immersiveShortcut, &QShortcut::activated, this, [this] {
+        if (!immersiveReading_) {
+            return;
+        }
+        leaveImmersiveReading();
+        // Ribbon 上的按钮要跟着回到未勾选状态。
+        if (auto* button = findChild<QToolButton*>(QStringLiteral("view.immersiveReading"))) {
+            button->setChecked(false);
+        }
+    });
+    // 沉浸阅读要盯全局鼠标事件：鼠标一动就把光标还回来。
+    qApp->installEventFilter(this);
 
     QSettings settings;
     // v6：修掉「退出时把面板可见性写成 false」的持久化错误。老配置里的 false
@@ -4402,6 +4444,35 @@ void MainWindow::startScreenRecording(bool presentPdf) {
 }
 
 void MainWindow::captureWindowScreenshot() {
+    // 两个范围：区域框选（默认）与整个窗口。
+    //
+    // 为什么不是直接进框选：用户想截整个窗口时（贴一段界面给别人看）
+    // 还得自己拖一遍框，那是白添一步。
+    bool accepted = false;
+    const QStringList choices{ tr("区域框选"), tr("整个窗口") };
+    const QString choice = QInputDialog::getItem(this, tr("截图"), tr("截图范围:"), choices, 0,
+                                                  false, &accepted);
+    if (!accepted) {
+        return;
+    }
+
+    QImage image;
+    if (choice == choices.at(0)) {
+        QRect region;
+        QImage screen;
+        if (!pickScreenRegion(this, &region, &screen)) {
+            statusBar()->showMessage(tr("已取消截图"), 3000);
+            return;
+        }
+        image = cropRegion(screen, region);
+    } else {
+        image = grab();
+    }
+    if (image.isNull()) {
+        QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
+        return;
+    }
+
     const QString suggested =
         QDir(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation))
             .filePath(QStringLiteral("Folixa-%1.png")
@@ -4409,11 +4480,108 @@ void MainWindow::captureWindowScreenshot() {
     const QString path = QFileDialog::getSaveFileName(
         this, tr("保存截图"), suggested, tr("PNG 图片 (*.png)"));
     if (path.isEmpty()) return;
-    if (!grab().save(path, "PNG")) {
+    if (!image.save(path, "PNG")) {
         QMessageBox::warning(this, tr("保存截图"), tr("截图无法写入所选位置。"));
         return;
     }
     statusBar()->showMessage(tr("截图已保存到 %1").arg(QDir::toNativeSeparators(path)), 8000);
+}
+
+// ------------------------------------------------------------ 沉浸阅读 ----
+
+void MainWindow::enterImmersiveReading() {
+    if (immersiveReading_) {
+        return;
+    }
+    const app::viewmodes::ImmersiveReadingPlan plan =
+        app::viewmodes::immersiveReadingPlan(focusModeEnabled_);
+
+    immersiveReading_ = true;
+    // 先把界面原来的样子记下来：退出时照原样恢复，
+    // 否则用户之前的布局就被这一次沉浸阅读改掉了。
+    immersiveRibbonWasVisible_ = ribbonBar_ != nullptr && ribbonBar_->isVisible();
+    immersiveTabsWasVisible_ = tabs_ != nullptr && tabs_->isVisible();
+    immersiveStatusWasVisible_ = statusBar()->isVisible();
+    immersiveNavigationWasVisible_ = navigationDock_ != nullptr && navigationDock_->isVisible();
+    immersiveAiWasVisible_ = aiDock_ != nullptr && aiDock_->isVisible();
+    immersiveWindowWasFullScreen_ = isFullScreen();
+
+    if (auto* ribbonDock = findChild<QDockWidget*>(QStringLiteral("ribbonDock"))) {
+        if (plan.hideRibbon) {
+            ribbonDock->hide();
+        }
+    }
+    if (plan.hideTabs && tabs_ != nullptr) {
+        tabs_->hide();
+    }
+    if (plan.hideStatusBar) {
+        statusBar()->hide();
+    }
+    if (plan.hideDocks) {
+        if (navigationDock_ != nullptr) navigationDock_->hide();
+        if (aiDock_ != nullptr) aiDock_->hide();
+    }
+    if (plan.fullScreen) {
+        showFullScreen();
+    }
+    if (plan.autoHideCursor) {
+        // 光标自动隐藏：鼠标一动就还回来，静止一会儿再藏。
+        if (immersiveCursorTimer_ == nullptr) {
+            immersiveCursorTimer_ = new QTimer(this);
+            immersiveCursorTimer_->setSingleShot(true);
+            immersiveCursorTimer_->setInterval(2500);
+            connect(immersiveCursorTimer_, &QTimer::timeout, this, []() {
+                QApplication::setOverrideCursor(Qt::BlankCursor);
+            });
+        }
+        immersiveCursorTimer_->start();
+    }
+    statusBar()->showMessage(tr("沉浸阅读：按 Esc 退出"), 3000);
+}
+
+void MainWindow::leaveImmersiveReading() {
+    if (!immersiveReading_) {
+        return;
+    }
+    immersiveReading_ = false;
+    if (immersiveCursorTimer_ != nullptr) {
+        immersiveCursorTimer_->stop();
+    }
+    QApplication::restoreOverrideCursor();
+
+    if (auto* ribbonDock = findChild<QDockWidget*>(QStringLiteral("ribbonDock"))) {
+        ribbonDock->setVisible(immersiveRibbonWasVisible_);
+    }
+    if (tabs_ != nullptr) {
+        tabs_->setVisible(immersiveTabsWasVisible_);
+    }
+    statusBar()->setVisible(immersiveStatusWasVisible_);
+    if (navigationDock_ != nullptr) {
+        navigationDock_->setVisible(immersiveNavigationWasVisible_);
+    }
+    if (aiDock_ != nullptr) {
+        aiDock_->setVisible(immersiveAiWasVisible_);
+    }
+    if (immersiveWindowWasFullScreen_) {
+        showFullScreen();
+    } else {
+        showNormal();
+    }
+}
+
+bool MainWindow::immersiveReadingActive() const {
+    return immersiveReading_;
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (immersiveReading_ && event->type() == QEvent::MouseMove) {
+        // 鼠标一动就把光标还回来，并重新开始静止计时。
+        QApplication::restoreOverrideCursor();
+        if (immersiveCursorTimer_ != nullptr) {
+            immersiveCursorTimer_->start();
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::openRecordingFolder() {

@@ -96,6 +96,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/AnnotationToolboxDialog.h
     app/StampNumberDialog.cpp
     app/StampNumberDialog.h
+    app/RegionPicker.cpp
+    app/RegionPicker.h
+    app/ScreenCapture.cpp
+    app/ScreenCapture.h
     app/ReadingOptionsDialog.cpp
     app/ReadingOptionsDialog.h
     app/AiToolsDialog.cpp

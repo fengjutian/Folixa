@@ -20,6 +20,7 @@ class QTableWidget;
 class QLineEdit;
 #include <QColor>
 class QTabWidget;
+class QTimer;
 class QTextBrowser;
 class QDockWidget;
 class QListWidget;
@@ -57,6 +58,7 @@ class MainWindow final : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    ~MainWindow() override;
 
     // 打开 PDF 文件；失败时在状态栏显示原因，不弹模态框。
     void openPdfFile(const QString& filePath);
@@ -69,6 +71,8 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    // 全局鼠标事件过滤：沉浸阅读时光标自动隐藏靠它。
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void buildUi();
@@ -176,6 +180,10 @@ private:
     void showRecordingCenter();
     void startScreenRecording(bool presentPdf);
     void captureWindowScreenshot();
+    // 沉浸阅读：藏掉界面外壳、全屏、光标自动隐藏。Esc 退出。
+    void enterImmersiveReading();
+    void leaveImmersiveReading();
+    bool immersiveReadingActive() const;
     void openRecordingFolder();
     PdfView* shareDocument();
     PdfView* savedShareDocument();
@@ -296,12 +304,23 @@ private:
     QPushButton* pageMoveUpButton_ = nullptr;
     QPushButton* pageMoveDownButton_ = nullptr;
     // 当前绑定的批注控制器；换文档时要把上一个的连接断掉。
-    AnnotationController* boundAnnotations_ = nullptr;
-    QMetaObject::Connection annotationConnection_;
+    AnnotationController* boundAnnotations_ = nullptr;    QMetaObject::Connection annotationConnection_;
     // 工具切换的连接（换文档时也要断，否则旧控制器的信号还会来）。
     QMetaObject::Connection annotationToolConnection_;
     // 「保持工具选择」按钮：勾选状态跟着当前选中的工具走。
     QToolButton* keepToolButton_ = nullptr;
+    // 沉浸阅读：进入前记下界面原来的样子，退出时照原样恢复。
+    bool immersiveReading_ = false;
+    // 专注模式（藏面板）是否开着：沉浸阅读要看它决定要不要再藏一次。
+    bool focusModeEnabled_ = false;
+    bool immersiveRibbonWasVisible_ = true;
+    bool immersiveTabsWereVisible_ = true;
+    bool immersiveStatusWasVisible_ = true;
+    bool immersiveNavigationWasVisible_ = true;
+    bool immersiveAiWasVisible_ = true;
+    bool immersiveWindowWasFullScreen_ = false;
+    // 光标自动隐藏的计时器：鼠标静止多久之后把光标藏起来。
+    QTimer* immersiveCursorTimer_ = nullptr;
     // 当前绑定的导航控制器；换文档时要把上一个的连接断掉。
     NavigationController* boundNavigation_ = nullptr;
     QMetaObject::Connection navigationConnection_;

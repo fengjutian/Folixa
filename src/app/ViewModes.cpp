@@ -319,4 +319,37 @@ QRectF mirrorRect(const QRectF& rect, double pageWidth) {
     return QRectF(mirroredLeft, rect.y(), mirroredRight - mirroredLeft, rect.height());
 }
 
+// ====================================================== 沉浸阅读 ==========
+
+ImmersiveReadingPlan immersiveReadingPlan(bool focusMode) {
+    ImmersiveReadingPlan plan;
+    // 专注模式里面板已经藏着了：不用再藏一次，但也别把它放出来。
+    plan.hideDocks = !focusMode;
+    return plan;
+}
+
+// ====================================================== 手型平移 ==========
+
+PanDragState beginPanDrag(const QPoint& pressPos, int scrollX, int scrollY) {
+    PanDragState state;
+    state.active = true;
+    state.anchor = pressPos;
+    state.startScrollX = scrollX;
+    state.startScrollY = scrollY;
+    return state;
+}
+
+int panScrollValue(int startValue, int startPointer, int currentPointer, int range) {
+    const int maxValue = range > 0 ? range : 0;
+    // 内容跟着手走：指针往右拖，滚动位置往回走。
+    const int value = startValue - (currentPointer - startPointer);
+    if (value < 0) {
+        return 0;
+    }
+    if (value > maxValue) {
+        return maxValue;
+    }
+    return value;
+}
+
 }  // namespace aipdf::app::viewmodes

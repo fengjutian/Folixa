@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QPoint>
 #include <QRectF>
 #include <QString>
 #include <QVector>
@@ -135,5 +136,59 @@ double mirrorX(double x, double pageWidth);
 // 镜像后的矩形：左右两边互换，宽度与高度不变。
 // 显示空间的 y 轴朝下，镜像只影响 x，所以 top/bottom 原样保留。
 QRectF mirrorRect(const QRectF& rect, double pageWidth);
+
+// ====================================================== 沉浸阅读 ==========
+
+// 沉浸阅读时界面要变成什么样。
+//
+// 为什么要有这个"计划"：沉浸阅读要做的事有好几件（藏 ribbon、藏标签栏、
+// 藏状态栏、藏面板、全屏、光标自动隐藏），它们必须**一起**开关。
+// 少做一件就成了"半沉浸"，用户看着别扭。
+struct ImmersiveReadingPlan {
+    // 藏掉功能区（Ribbon）。
+    bool hideRibbon = true;
+    // 藏掉文档标签栏。
+    bool hideTabs = true;
+    // 藏掉状态栏。
+    bool hideStatusBar = true;
+    // 藏掉左右面板（导航 / AI）。
+    bool hideDocks = true;
+    // 窗口全屏。
+    bool fullScreen = true;
+    // 鼠标静止一会儿就隐藏光标。
+    bool autoHideCursor = true;
+};
+
+// 算沉浸阅读的界面计划。
+//
+// focusMode 为真表示用户已经在专注模式里（面板本来就藏着了）：
+// 此时面板不用再藏一次，但全屏与光标自动隐藏照旧。
+// 反过来看，专注模式开着时进入沉浸阅读，退出沉浸阅读后仍留在专注模式 ——
+// 两个开关各自独立，谁也不吃掉谁。
+ImmersiveReadingPlan immersiveReadingPlan(bool focusMode);
+
+// ====================================================== 手型平移 ==========
+
+// 拖拽平移的状态。
+//
+// 为什么把状态放在领域层：平移的规则是"内容跟着手走"，
+// 这条规则可以用纯函数算出来，不必真的拖一次鼠标才知道对不对。
+struct PanDragState {
+    bool active = false;
+    // 按下位置（视口坐标）。
+    QPoint anchor;
+    // 按下时的水平 / 垂直滚动位置。
+    int startScrollX = 0;
+    int startScrollY = 0;
+};
+
+// 按下时建立平移状态。
+PanDragState beginPanDrag(const QPoint& pressPos, int scrollX, int scrollY);
+
+// 拖到 currentPointer 时的新滚动位置（夹到 [0, range]）。
+//
+// 方向：抓住内容往右拖 → 内容跟着往右走 → 滚动位置**变小**。
+// range 是滚动条的最大值（内容减去视口）；传 0 或负数时按 0 处理。
+int panScrollValue(int startValue, int startPointer, int currentPointer, int range);
 
 }  // namespace aipdf::app::viewmodes
