@@ -13,4 +13,11 @@ namespace aipdf::ocr {
 // 返回值裁剪到页面范围内；尺寸非法时返回空矩形。
 QRectF imageRectToPage(const QRectF& pixelRect, const QSize& imageSize, const QSizeF& pageSize);
 
+// 旋转后的页面坐标 → 原页面坐标。
+//
+// 扫描件横放时，引擎是在「转正后」的图上识别的，返回的框落在旋转后的页面坐标系里；
+// 要贴回原页面必须先反变换回去。degrees 是**图像被顺时针旋转的角度**（90 / 180 / 270），
+// pageSize 是**原页面**尺寸（不是旋转后的）。其他角度原样返回。
+QRectF unrotatePageRect(const QRectF& rect, const QSizeF& pageSize, int degrees);
+
 }  // namespace aipdf::ocr

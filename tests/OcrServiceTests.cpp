@@ -5,6 +5,8 @@
 #include "ocr/pipeline/OcrService.h"
 
 #include <QElapsedTimer>
+#include <QImage>
+#include <QPainter>
 #include <QSignalSpy>
 #include <QThread>
 #include <QtTest>
@@ -68,6 +70,30 @@ private:
     std::atomic<bool> started_{false};
 };
 
+// 只在「竖着的图」上认得出字：模拟扫描件横放、正向识别为空、转 90° 后才可读。
+class RotatedPageEngine final : public OcrEngine {
+public:
+    QString id() const override { return QStringLiteral("rotated-page"); }
+    bool isAvailable() const override { return true; }
+
+    OcrPageResult recognize(const OcrJob& job) override {
+        OcrPageResult result;
+        result.pageIndex = job.pageIndex;
+        result.engineId = id();
+        if (job.image.height() > job.image.width()) {
+            OcrLine line;
+            line.text = QStringLiteral("横放的一行字");
+            line.rect = QRectF(100.0, 200.0, 300.0, 100.0);  // 旋转后坐标系里的框
+            line.words.append({line.text, line.rect, 0.9});
+            result.lines.append(line);
+            result.meanConfidence = 0.9;
+        }
+        return result;
+    }
+
+    void cancel() override {}
+};
+
 OcrJob makeJob(int page) {
     OcrJob job;
     job.pageIndex = page;
@@ -87,6 +113,7 @@ private slots:
     void duplicatePageIsIgnored();
     void cancelDropsQueuedPages();
     void cancelInterruptsRunningRecognition();
+    void retriesRotatedPageWhenFirstPassEmpty();
 };
 
 void OcrServiceTests::requiresEngineBeforeEnqueue() {
@@ -172,6 +199,38 @@ void OcrServiceTests::cancelInterruptsRunningRecognition() {
     const auto result = spy.at(0).at(0).value<OcrPageResult>();
     QVERIFY(result.cancelled);
     QCOMPARE(result.pageIndex, 3);
+}
+
+void OcrServiceTests::retriesRotatedPageWhenFirstPassEmpty() {
+    // C-06：内容横放的扫描页，正向识别为空时要转 90° 再试，并且框要反变换回原页面。
+    OcrService service;
+    service.setEngine(std::make_unique<RotatedPageEngine>());
+    QSignalSpy spy(&service, &OcrService::pageReady);
+
+    OcrJob job = makeJob(0);
+    job.image = QImage(200, 100, QImage::Format_ARGB32);
+    job.image.fill(Qt::white);
+    {
+        // 画一块黑，别让 looksBlank() 把它当空白页跳过重试。
+        QPainter painter(&job.image);
+        painter.fillRect(QRect(60, 40, 80, 20), Qt::black);
+    }
+    job.pageSize = QSizeF(1000.0, 500.0);
+
+    service.enqueue(job);
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
+
+    const auto result = spy.at(0).at(0).value<OcrPageResult>();
+    QVERIFY(!result.cancelled);
+    QCOMPARE(result.lines.size(), 1);
+    QCOMPARE(result.lines.first().text, QStringLiteral("横放的一行字"));
+    // 旋转后坐标系里的 (100,200,300,100)，页面 1000×500，顺时针 90° 反变换：
+    // x = 1000 - (200+100) = 700，y = 100，宽高互换。
+    const QRectF rect = result.lines.first().rect;
+    QVERIFY2(qAbs(rect.x() - 700.0) < 0.01, qPrintable(QString::number(rect.x())));
+    QVERIFY2(qAbs(rect.y() - 100.0) < 0.01, qPrintable(QString::number(rect.y())));
+    QVERIFY2(qAbs(rect.width() - 100.0) < 0.01, qPrintable(QString::number(rect.width())));
+    QVERIFY2(qAbs(rect.height() - 300.0) < 0.01, qPrintable(QString::number(rect.height())));
 }
 
 QTEST_MAIN(OcrServiceTests)

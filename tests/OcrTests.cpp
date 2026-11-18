@@ -22,6 +22,8 @@ private slots:
     void mapsPixelRectToPage_data();
     void mapsPixelRectToPage();
     void flipsYAxis();
+    void unrotatesPageRects_data();
+    void unrotatesPageRects();
     void clampsToPageBounds();
     void invalidSizesReturnEmpty();
 };
@@ -102,6 +104,31 @@ void OcrTests::clampsToPageBounds() {
 void OcrTests::invalidSizesReturnEmpty() {
     QVERIFY(imageRectToPage(QRectF(0, 0, 10, 10), QSize(), QSizeF(100.0, 100.0)).isEmpty());
     QVERIFY(imageRectToPage(QRectF(0, 0, 10, 10), QSize(100, 100), QSizeF()).isEmpty());
+}
+
+void OcrTests::unrotatesPageRects_data() {
+    QTest::addColumn<int>("degrees");
+    QTest::addColumn<QRectF>("expected");
+
+    // 页面 1000×500，框在旋转后的坐标系里是 (100,200,300,100)。
+    // 90°：x = W - y'，y = x'；180°：两个轴都翻；270°：x = y'，y = H - x'。
+    QTest::newRow("90") << 90 << QRectF(700, 100, 100, 300);
+    QTest::newRow("180") << 180 << QRectF(600, 200, 300, 100);
+    QTest::newRow("270") << 270 << QRectF(200, 100, 100, 300);
+    QTest::newRow("0") << 0 << QRectF(100, 200, 300, 100);
+}
+
+void OcrTests::unrotatesPageRects() {
+    QFETCH(int, degrees);
+    QFETCH(QRectF, expected);
+
+    const QRectF mapped = unrotatePageRect(QRectF(100, 200, 300, 100), QSizeF(1000.0, 500.0), degrees);
+    QVERIFY2(qAbs(mapped.x() - expected.x()) < 0.01, qPrintable(QString::number(mapped.x())));
+    QVERIFY2(qAbs(mapped.y() - expected.y()) < 0.01, qPrintable(QString::number(mapped.y())));
+    QVERIFY2(qAbs(mapped.width() - expected.width()) < 0.01,
+             qPrintable(QString::number(mapped.width())));
+    QVERIFY2(qAbs(mapped.height() - expected.height()) < 0.01,
+             qPrintable(QString::number(mapped.height())));
 }
 
 QTEST_MAIN(OcrTests)

@@ -1527,6 +1527,8 @@ qt_add_executable(OcrServiceTests
     OcrServiceTests.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrService.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrService.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.h
     ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTypes.h
 )
 

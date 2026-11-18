@@ -1,16 +1,49 @@
 #include "ocr/pipeline/OcrService.h"
 
 #include "i18n/Translate.h"
+#include "ocr/core/OcrGeometry.h"
 
 #include <QMutex>
 #include <QMutexLocker>
 #include <QSet>
 #include <QThread>
+#include <QTransform>
 #include <QWaitCondition>
 
 #include <atomic>
 
 namespace aipdf::ocr {
+
+namespace {
+
+// 页面是不是基本空白：用来决定「识别结果为空」时要不要再试旋转。
+//
+// 判断很粗（缩到 48×48 灰度，看暗像素占比），够用就行：空白页不该为一次失败
+// 的识别多付三次；有字的页即使识别失败也一定有足够多的暗像素。
+bool looksBlank(const QImage& image) {
+    if (image.isNull()) {
+        return true;
+    }
+    const QImage small = image.scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+                             .convertToFormat(QImage::Format_Grayscale8);
+    if (small.isNull() || small.width() == 0 || small.height() == 0) {
+        return true;
+    }
+    int dark = 0;
+    for (int y = 0; y < small.height(); ++y) {
+        const uchar* line = small.constScanLine(y);
+        for (int x = 0; x < small.width(); ++x) {
+            if (line[x] < 160) {
+                ++dark;
+            }
+        }
+    }
+    const int total = small.width() * small.height();
+    // 暗像素少于 1%：当空白页处理。
+    return dark * 100 < total;
+}
+
+}  // namespace
 
 class OcrService::Worker final : public QThread {
 public:
@@ -124,6 +157,37 @@ protected:
             OcrPageResult result;
             if (engine_ != nullptr) {
                 result = engine_->recognize(job);
+                // 扫描件横放（内容侧着）时，正向识别会一个字都拿不到——这不等于这页没字。
+                // 依次试 90°/270°/180°：只有第一次结果为空才重试，空白页先筛掉，
+                // 免得给每张空白页多付三次识别。
+                if (result.lines.isEmpty() && result.error.isEmpty() && !result.cancelled &&
+                    !looksBlank(job.image)) {
+                    for (const int degrees : {90, 270, 180}) {
+                        OcrJob rotated = job;
+                        rotated.image = job.image.transformed(QTransform().rotate(degrees));
+                        // 旋转 90/270 后宽高互换，页面尺寸也要跟着换，否则比例尺全错。
+                        rotated.pageSize = degrees == 180
+                                               ? job.pageSize
+                                               : QSizeF(job.pageSize.height(), job.pageSize.width());
+                        OcrPageResult attempt = engine_->recognize(rotated);
+                        if (attempt.cancelled) {
+                            result = attempt;
+                            break;
+                        }
+                        if (attempt.lines.isEmpty()) {
+                            continue;
+                        }
+                        for (OcrLine& line : attempt.lines) {
+                            line.rect = unrotatePageRect(line.rect, job.pageSize, degrees);
+                            for (OcrWord& word : line.words) {
+                                word.rect = unrotatePageRect(word.rect, job.pageSize, degrees);
+                            }
+                        }
+                        attempt.pageIndex = job.pageIndex;
+                        result = attempt;
+                        break;
+                    }
+                }
             } else {
                 result.pageIndex = job.pageIndex;
                 result.error =
