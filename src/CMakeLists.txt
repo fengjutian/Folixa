@@ -32,6 +32,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/PageTransform.cpp
     app/TextLayout.h
     app/TextLayout.cpp
+    app/MouseShortcuts.h
+    app/MouseShortcuts.cpp
     app/TextController.h
     app/TextController.cpp
     app/NavigationController.h

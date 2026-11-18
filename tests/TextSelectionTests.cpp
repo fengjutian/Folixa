@@ -31,6 +31,8 @@ private slots:
     void layoutDoesNotInsertSpaceBetweenCjk();
     void layoutHitTestFindsNearestChar();
     void layoutWordRangeSelectsWholeWord();
+    void layoutLineRangeSelectsWholeLine();
+    void layoutParagraphRangeStopsAtParagraphGap();
     void layoutHandlesVerticalCjk();
     void layoutHighlightRectsSplitByLine();
 };
@@ -191,6 +193,56 @@ void TextSelectionTests::layoutWordRangeSelectsWholeWord() {
     QCOMPARE(start, 3);
     QCOMPARE(end, 5);
     QCOMPARE(layout.textForRange(start, end), QStringLiteral("Pd"));
+}
+
+void TextSelectionTests::layoutLineRangeSelectsWholeLine() {
+    // 两行，每行两个字符。
+    TextLayout layout;
+    layout.setChars({
+        makeChar("A", 0.0, 0.0, 10.0, 12.0),
+        makeChar("B", 12.0, 0.0, 10.0, 12.0),
+        makeChar("C", 0.0, 20.0, 10.0, 12.0),
+        makeChar("D", 12.0, 20.0, 10.0, 12.0),
+    });
+
+    int start = -1;
+    int end = -1;
+    QVERIFY(layout.lineRangeAt(1, &start, &end));
+    QCOMPARE(start, 0);
+    QCOMPARE(end, 2);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("AB"));
+
+    QVERIFY(layout.lineRangeAt(3, &start, &end));
+    QCOMPARE(start, 2);
+    QCOMPARE(end, 4);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("CD"));
+
+    QVERIFY(!layout.lineRangeAt(9, &start, &end));
+}
+
+void TextSelectionTests::layoutParagraphRangeStopsAtParagraphGap() {
+    // 四行：前两行行距 2px，第三行与上一行隔了 26px（段间距），第四行又紧接。
+    TextLayout layout;
+    layout.setChars({
+        makeChar("A", 0.0, 0.0, 10.0, 12.0),
+        makeChar("B", 0.0, 14.0, 10.0, 12.0),
+        makeChar("C", 0.0, 40.0, 10.0, 12.0),
+        makeChar("D", 0.0, 54.0, 10.0, 12.0),
+    });
+
+    int start = -1;
+    int end = -1;
+    // 第一行属于第一段：只合并前两行。
+    QVERIFY(layout.paragraphRangeAt(0, &start, &end));
+    QCOMPARE(start, 0);
+    QCOMPARE(end, 2);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("A\nB"));
+
+    // 第三行属于第二段：从第二段的第一行开始。
+    QVERIFY(layout.paragraphRangeAt(2, &start, &end));
+    QCOMPARE(start, 2);
+    QCOMPARE(end, 4);
+    QCOMPARE(layout.textForRange(start, end), QStringLiteral("C\nD"));
 }
 
 void TextSelectionTests::layoutHandlesVerticalCjk() {

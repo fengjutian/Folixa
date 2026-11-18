@@ -11,8 +11,11 @@
 #include "app/NavigationController.h"
 #include "app/AnnotationController.h"
 #include "app/InkGeometry.h"
+#include "app/MouseShortcuts.h"
 #include "pdf/Annotation.h"
 
+#include <QApplication>
+#include <QContextMenuEvent>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QFile>
@@ -25,6 +28,7 @@
 #include <QKeyEvent>
 #include <QScrollBar>
 #include <QTimer>
+#include <QWheelEvent>
 
 #include <algorithm>
 
@@ -117,6 +121,9 @@ PageCanvas::PageCanvas(QWidget* parent) : QAbstractScrollArea(parent) {
     // 鼠标跟踪：没有它就收不到「只是移过去」的移动事件，
     // 悬停在链接上时手型光标就不会出现。
     viewport()->setMouseTracking(true);
+    // 右键菜单挂在视口上：QAbstractScrollArea 的 contextMenuEvent 由视口转发，
+    // 直接依赖 QWidget 的冒泡在不同平台上位置坐标系不一致，统一在过滤器里取。
+    viewport()->installEventFilter(this);
 
     // 空画布的占位提示：常驻文案，登记后切换语言时就地重译并重画。
     texts_.bind([this] {
@@ -926,6 +933,21 @@ void PageCanvas::updateScrollRange() {
         bar->setSingleStep(std::max(1, viewportHeight / 20));
     }
 
+    // 横向：页面比视口宽时（放大、双页、宽幅文档）必须能滚到两侧。
+    // 以前只设纵向范围，放大后页面中间之外的部分永远看不到，
+    // 中键平移与 Shift+滚轮也就没有效果。
+    QScrollBar* horizontal = horizontalScrollBar();
+    const int viewportWidth = std::max(1, viewport()->width());
+    const int contentWidth =
+        static_cast<int>(std::ceil(layout_.totalWidth() + kPageMargin * 2.0));
+    if (contentWidth != lastContentWidth_ || viewportWidth != lastViewportWidth_) {
+        lastContentWidth_ = contentWidth;
+        lastViewportWidth_ = viewportWidth;
+        horizontal->setRange(0, std::max(0, contentWidth - viewportWidth));
+        horizontal->setPageStep(viewportWidth);
+        horizontal->setSingleStep(std::max(1, viewportWidth / 20));
+    }
+
     const int page = layout_.isEmpty() ? 0 : std::max(0, layout_.dominantPage(bar->value(), viewportHeight));
     if (page != currentPage_) {
         currentPage_ = page;
@@ -994,10 +1016,35 @@ bool PageCanvas::pagePointAt(const QPoint& viewportPos,
 
 void PageCanvas::mousePressEvent(QMouseEvent* event) {
     QAbstractScrollArea::mousePressEvent(event);
+    // 中键拖动平移：不管当前是哪个工具都能用，松开就恢复。
+    // 这是「临时手型」，不改 panMode_ 的开关状态。
+    if (event->button() == Qt::MiddleButton) {
+        viewport()->setFocus();
+        panDrag_ = viewmodes::beginPanDrag(event->pos(), horizontalScrollBar()->value(),
+                                            verticalScrollBar()->value());
+        middlePan_ = true;
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        trace(QStringLiteral("middle pan begin"));
+        event->accept();
+        return;
+    }
+    // 鼠标侧键：后退 / 前进，与 Alt+← / Alt+→ 同一套历史。
+    if (event->button() == Qt::BackButton) {
+        emit backRequested();
+        event->accept();
+        return;
+    }
+    if (event->button() == Qt::ForwardButton) {
+        emit forwardRequested();
+        event->accept();
+        return;
+    }
     if (event->button() != Qt::LeftButton) {
         return;
     }
     viewport()->setFocus();
+    // 连击计数要在工具分发之前记：三击 / 四击要选中整行 / 整段。
+    const int clickCount = registerClick(event->pos());
     // 手型工具：按住左键就是平移，页面外的空白区也一样能拖。
     // 必须在页面命中判定之前 —— 平移不关心指针压在哪一页上。
     if (panMode_) {
@@ -1269,6 +1316,11 @@ void PageCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
+    // 三击选行、四击选段：在普通拖选的锚点建立之前处理。
+    if (clickCount >= 3 && selectTextUnitAt(clickCount, pageIndex, order)) {
+        return;
+    }
+
     selecting_ = true;
     anchorPage_ = pageIndex;
     anchorOrder_ = order;
@@ -1468,6 +1520,14 @@ void PageCanvas::mouseReleaseEvent(QMouseEvent* event) {
     // 这一句必须放在最前面 —— 下面每条分支都会 return，
     // 放后面的话拖完直线/墨迹/方框后定时器还在跑，视口会一直自己滚。
     stopAutoScroll();
+    // 中键平移结束：只清临时状态，光标按当前工具 / 手型恢复。
+    if (middlePan_) {
+        middlePan_ = false;
+        panDrag_ = viewmodes::PanDragState();
+        viewport()->setCursor(panMode_ ? Qt::OpenHandCursor : Qt::ArrowCursor);
+        trace(QStringLiteral("middle pan end"));
+        return;
+    }
     if (event->button() != Qt::LeftButton) {
         return;
     }
@@ -1658,8 +1718,47 @@ void PageCanvas::setFormFieldPlacementKind(const QString& kind) {
     updateToolCursor();
 }
 
+void PageCanvas::wheelEvent(QWheelEvent* event) {
+    const QPoint delta = event->angleDelta();
+    switch (mouse::wheelGesture(event->modifiers(), delta)) {
+        case mouse::WheelGesture::Zoom: {
+            const int step = delta.y() != 0 ? delta.y() : delta.x();
+            const double factor = mouse::wheelZoomFactor(step);
+            if (qFuzzyCompare(factor, 1.0)) {
+                event->accept();
+                return;
+            }
+            // 指针下的页面坐标先记下来；缩放完由 PdfView 调 restoreZoomAnchor
+            // 把同一个点放回指针下面，视觉上就是「以指针为中心缩放」。
+            int pageIndex = -1;
+            QPointF pagePoint;
+            pagePointAt(event->position().toPoint(), &pageIndex, &pagePoint);
+            emit zoomAtRequested(factor, pageIndex, pagePoint, event->position().toPoint());
+            trace(QStringLiteral("wheel zoom factor=%1 page=%2").arg(factor).arg(pageIndex));
+            event->accept();
+            return;
+        }
+        case mouse::WheelGesture::HorizontalScroll: {
+            const int step = delta.y() != 0 ? delta.y() : delta.x();
+            horizontalScrollBar()->setValue(horizontalScrollBar()->value() - step);
+            event->accept();
+            return;
+        }
+        case mouse::WheelGesture::VerticalScroll:
+            break;
+    }
+    QAbstractScrollArea::wheelEvent(event);
+}
+
 void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
     QAbstractScrollArea::mouseDoubleClickEvent(event);
+    // Qt 的双击事件取代了第二次 press：连击计数在这里补成 2，
+    // 下一次 press 才能数到 3（选行）与 4（选段）。
+    if (event->button() == Qt::LeftButton) {
+        clickCount_ = 2;
+        lastClickMs_ = QDateTime::currentMSecsSinceEpoch();
+        lastClickPos_ = event->pos();
+    }
     // 多边形/云线/区域高亮：双击就是"收笔"。这条必须先于文字选词判定，
     // 否则双击最后一个顶点时会顺手选中一个词。
     if (polygonPoints_.size() >= 3 && polygonPage_ >= 0) {
@@ -1692,6 +1791,64 @@ void PageCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
         return;
     }
     textController_->setSelection(pageIndex, start, end);
+    viewport()->update();
+}
+
+int PageCanvas::registerClick(const QPoint& viewportPos) {
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const int distance = (viewportPos - lastClickPos_).manhattanLength();
+    clickCount_ = mouse::nextClickCount(clickCount_, now - lastClickMs_, distance,
+                                        QApplication::doubleClickInterval(),
+                                        QApplication::startDragDistance());
+    lastClickMs_ = now;
+    lastClickPos_ = viewportPos;
+    return clickCount_;
+}
+
+bool PageCanvas::selectTextUnitAt(int clickCount, int pageIndex, int order) {
+    if (textController_ == nullptr || clickCount < 3) {
+        return false;
+    }
+    const TextLayout* textLayout = textController_->layout(pageIndex);
+    if (textLayout == nullptr) {
+        return false;
+    }
+    int start = 0;
+    int end = 0;
+    // 三击选行，四击选段。四击的段落是启发式：行距正常就连在一起。
+    const bool selected = clickCount >= 4
+                              ? textLayout->paragraphRangeAt(order, &start, &end)
+                              : textLayout->lineRangeAt(order, &start, &end);
+    if (!selected || end <= start) {
+        return false;
+    }
+    selecting_ = false;
+    textController_->setSelection(pageIndex, start, end);
+    trace(QStringLiteral("click select page=%1 count=%2 range=%3..%4")
+              .arg(pageIndex)
+              .arg(clickCount)
+              .arg(start)
+              .arg(end));
+    viewport()->update();
+    return true;
+}
+
+void PageCanvas::restoreZoomAnchor(int pageIndex, const QPointF& pagePoint,
+                                   const QPoint& viewportPoint) {
+    if (pageIndex < 0 || pageIndex >= layout_.pageCount()) {
+        return;
+    }
+    const double zoom = layout_.zoom();
+    if (zoom <= 0.0) {
+        return;
+    }
+    // 缩放后页面在内容坐标里的位置：页面左边 + 页内坐标 × 新缩放。
+    const double contentX = pageContentLeft(pageIndex) + pagePoint.x() * zoom;
+    const double contentY = layout_.pageTop(pageIndex) + pagePoint.y() * zoom;
+    horizontalScrollBar()->setValue(mouse::anchoredScrollValue(
+        contentX, viewportPoint.x(), horizontalScrollBar()->maximum()));
+    verticalScrollBar()->setValue(mouse::anchoredScrollValue(
+        contentY, viewportPoint.y(), verticalScrollBar()->maximum()));
     viewport()->update();
 }
 
@@ -1755,6 +1912,13 @@ void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRect
 }
 
 bool PageCanvas::eventFilter(QObject* watched, QEvent* event) {
+    // 右键菜单：视口上的 QContextMenuEvent，位置用视口坐标交给界面。
+    if (watched == viewport() && event->type() == QEvent::ContextMenu) {
+        auto* menuEvent = static_cast<QContextMenuEvent*>(event);
+        emit contextMenuRequested(menuEvent->pos());
+        menuEvent->accept();
+        return true;
+    }
     if (watched == inlineEditor_ && inlineEditor_) {
         if (event->type() == QEvent::KeyPress) {
             auto* key = static_cast<QKeyEvent*>(event);
@@ -1855,7 +2019,7 @@ void PageCanvas::eraseAt(int pageIndex, const QPointF& displayPoint) {
     }
 }
 
-double PageCanvas::pageLeft(int index) const {
+double PageCanvas::pageContentLeft(int index) const {
     // 整行居中，页在行内按 pageRect().x() 偏移：纵向长卷时一页一行（x 恒为 0），
     // 双页模式时左页 0、右页 一列宽 + 间距。
     const QRectF rect = layout_.pageRect(index);
@@ -1873,6 +2037,11 @@ double PageCanvas::pageLeft(int index) const {
                   .arg(rowLeft));
     }
     return rowLeft + rect.x();
+}
+
+double PageCanvas::pageLeft(int index) const {
+    // 内容坐标减去横向滚动偏移，就是页面在视口里的左边缘。
+    return pageContentLeft(index) - horizontalScrollBar()->value();
 }
 
 QRectF PageCanvas::pageRectInViewport(int index) const {

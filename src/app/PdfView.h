@@ -534,6 +534,16 @@ private:
     void createCallout(int pageIndex, const QRectF& userBox, const QPointF& userTip);
     // 刷新批注工具栏的可用状态（撤销、重做、选区类按钮）。
     void updateAnnotationToolBar();
+    // 缩放的唯一入口：recordHistory=false 用于连续滚轮缩放，
+    // 避免一个手势往历史里塞几十条记录。
+    void applyZoom(double factor, bool recordHistory);
+    // Ctrl+滚轮：缩放后把指针下的页面坐标放回原处。
+    void zoomAtPoint(double factor, int pageIndex, const QPointF& pagePoint,
+                     const QPoint& viewportPoint);
+    // 画布右键菜单（复制 / 全选当前页 / 缩放 / 适应 / 前进后退）。
+    void showCanvasContextMenu(const QPoint& viewportPoint);
+    // 选中当前页的全部文字。
+    void selectAllOnCurrentPage();
 
     // 视图历史：只记用户主动换位置的动作（跳页、缩放），滚轮不记。
     NavigationHistory history_;

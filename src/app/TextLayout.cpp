@@ -268,6 +268,53 @@ bool TextLayout::wordRangeAt(int orderIndex, int* start, int* end) const {
     return true;
 }
 
+bool TextLayout::lineRangeAt(int orderIndex, int* start, int* end) const {
+    const int lineIndex = lineOfPosition(orderIndex);
+    if (lineIndex < 0) {
+        return false;
+    }
+    if (start != nullptr) {
+        *start = lines_[lineIndex].start;
+    }
+    if (end != nullptr) {
+        *end = lines_[lineIndex].end;
+    }
+    return true;
+}
+
+bool TextLayout::paragraphRangeAt(int orderIndex, int* start, int* end) const {
+    const int lineIndex = lineOfPosition(orderIndex);
+    if (lineIndex < 0) {
+        return false;
+    }
+    if (vertical_) {
+        return lineRangeAt(orderIndex, start, end);
+    }
+    // 相邻两行的上 / 下边缘之间是行距空隙。正常行距约为字高的 0.2–0.5 倍，
+    // 段间距通常超过一个行高；用 0.9 倍字高做阈值，既不会把段内行拆开，
+    // 也不会把两个紧挨着的段落并成一段。
+    const auto sameParagraph = [](const Line& above, const Line& below) {
+        const double reference = qMax(above.box.height(), below.box.height());
+        const double gap = below.box.top() - above.box.bottom();
+        return gap <= qMax(1.0, reference) * 0.9;
+    };
+    int first = lineIndex;
+    int last = lineIndex;
+    while (first > 0 && sameParagraph(lines_[first - 1], lines_[first])) {
+        --first;
+    }
+    while (last + 1 < lines_.size() && sameParagraph(lines_[last], lines_[last + 1])) {
+        ++last;
+    }
+    if (start != nullptr) {
+        *start = lines_[first].start;
+    }
+    if (end != nullptr) {
+        *end = lines_[last].end;
+    }
+    return true;
+}
+
 QString TextLayout::textForRange(int start, int end) const {
     const int from = qMax(0, start);
     const int to = qMin(order_.size(), end);

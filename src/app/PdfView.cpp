@@ -94,6 +94,7 @@
 #include <QListWidget>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QShortcut>
 #include <QSizePolicy>
@@ -548,6 +549,11 @@ void PdfView::buildUi() {
     // 画布的步骤提示（箭头框的第二步等）直接进状态栏。
     connect(canvas_, &PageCanvas::hintMessage, this,
             [this](const QString& text) { emit statusMessage(text); });
+    // 鼠标快捷操作：Ctrl+滚轮缩放、侧键前进后退、右键菜单。
+    connect(canvas_, &PageCanvas::zoomAtRequested, this, &PdfView::zoomAtPoint);
+    connect(canvas_, &PageCanvas::backRequested, this, &PdfView::navigateBack);
+    connect(canvas_, &PageCanvas::forwardRequested, this, &PdfView::navigateForward);
+    connect(canvas_, &PageCanvas::contextMenuRequested, this, &PdfView::showCanvasContextMenu);
     layout->addWidget(canvas_, 1);
 
     // 指标定期刷新：渲染是异步的，缓存占用和队列长度都在变化。
@@ -1562,6 +1568,10 @@ bool PdfView::replaceOutline(const std::vector<pdf::OutlineItem>& outline, QStri
 }
 
 void PdfView::setZoom(double factor) {
+    applyZoom(factor, true);
+}
+
+void PdfView::applyZoom(double factor, bool recordHistory) {
     const double clamped = std::clamp(factor, kMinZoom, kMaxZoom);
     if (qFuzzyCompare(clamped, zoom_)) {
         return;
@@ -1575,17 +1585,83 @@ void PdfView::setZoom(double factor) {
     }
     rebuildLayout();
     emit zoomChanged(zoom_);
-    if (!restoringHistory_) {
+    if (recordHistory && !restoringHistory_) {
         history_.record(captureViewState());
         emit historyChanged(history_.canGoBack(), history_.canGoForward());
     }
 }
 
-void PdfView::zoomIn() {
-    setZoom(zoom_ * kZoomStep);
+void PdfView::zoomAtPoint(double factor, int pageIndex, const QPointF& pagePoint,
+                          const QPoint& viewportPoint) {
+    if (!std::isfinite(factor) || factor <= 0.0 || canvas_ == nullptr) {
+        return;
+    }
+    const double before = zoom_;
+    // 滚轮缩放不进历史栈：一个手势会触发几十次 setZoom，
+    // 每次都记一条的话「后退」要按几十下才回到原处。
+    applyZoom(zoom_ * factor, false);
+    if (qFuzzyCompare(before, zoom_)) {
+        return;
+    }
+    if (pageIndex >= 0) {
+        canvas_->restoreZoomAnchor(pageIndex, pagePoint, viewportPoint);
+    }
+    trace(QStringLiteral("wheel zoom page=%1 factor=%2").arg(pageIndex).arg(zoom_));
 }
 
-void PdfView::zoomOut() {
+void PdfView::showCanvasContextMenu(const QPoint& viewportPoint) {
+    if (canvas_ == nullptr) {
+        return;
+    }
+    QMenu menu(this);
+    const QString selection = textController_ ? textController_->selectedText() : QString();
+
+    QAction* copyAction = menu.addAction(tr("复制"));
+    copyAction->setEnabled(!selection.isEmpty());
+    connect(copyAction, &QAction::triggered, this, &PdfView::copySelection);
+
+    QAction* selectAllAction = menu.addAction(tr("全选当前页"));
+    selectAllAction->setEnabled(textController_ != nullptr);
+    connect(selectAllAction, &QAction::triggered, this, &PdfView::selectAllOnCurrentPage);
+
+    menu.addSeparator();
+    QAction* zoomInAction = menu.addAction(tr("放大"));
+    connect(zoomInAction, &QAction::triggered, this, &PdfView::zoomIn);
+    QAction* zoomOutAction = menu.addAction(tr("缩小"));
+    connect(zoomOutAction, &QAction::triggered, this, &PdfView::zoomOut);
+    QAction* fitWidthAction = menu.addAction(tr("适宽"));
+    connect(fitWidthAction, &QAction::triggered, this, &PdfView::zoomToFitWidth);
+    QAction* fitPageAction = menu.addAction(tr("整页"));
+    connect(fitPageAction, &QAction::triggered, this, &PdfView::zoomToFitPage);
+
+    menu.addSeparator();
+    QAction* backAction = menu.addAction(tr("后退"));
+    backAction->setEnabled(history_.canGoBack());
+    connect(backAction, &QAction::triggered, this, &PdfView::navigateBack);
+    QAction* forwardAction = menu.addAction(tr("前进"));
+    forwardAction->setEnabled(history_.canGoForward());
+    connect(forwardAction, &QAction::triggered, this, &PdfView::navigateForward);
+
+    menu.exec(canvas_->viewport()->mapToGlobal(viewportPoint));
+}
+
+void PdfView::selectAllOnCurrentPage() {
+    if (textController_ == nullptr || canvas_ == nullptr) {
+        return;
+    }
+    const int page = canvas_->currentPage();
+    const TextLayout* layout = textController_->layout(page);
+    if (layout == nullptr || layout->charCount() == 0) {
+        return;
+    }
+    textController_->setSelection(page, 0, layout->charCount());
+    canvas_->viewport()->update();
+    trace(QStringLiteral("select all page=%1 chars=%2").arg(page).arg(layout->charCount()));
+}
+
+void PdfView::zoomIn() {
+    setZoom(zoom_ * kZoomStep);
+}void PdfView::zoomOut() {
     setZoom(zoom_ / kZoomStep);
 }
 

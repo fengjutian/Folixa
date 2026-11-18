@@ -18,6 +18,7 @@
 
 class QMouseEvent;
 class QKeyEvent;
+class QWheelEvent;
 class QPainter;
 class QPlainTextEdit;
 class QEvent;
@@ -121,6 +122,9 @@ public:
 public slots:
     // 滚到指定页（从 0 开始）。
     void goToPage(int index);
+    // Ctrl+滚轮缩放后把锚点放回指针下面：
+    // pagePoint 是缩放前的页面显示空间坐标，viewportPoint 是视口坐标。
+    void restoreZoomAnchor(int pageIndex, const QPointF& pagePoint, const QPoint& viewportPoint);
     // 下一次在页面上拖出的矩形用于创建表单字段；空字符串取消。
     void setFormFieldPlacementKind(const QString& kind);
     void beginObjectSelection();
@@ -176,6 +180,17 @@ signals:
     void objectDoubleClicked(int pageIndex, const QPointF& userSpacePoint);
     void inlineTextEditCommitted(int pageIndex, int objectIndex, const QString& text);
 
+    // Ctrl+滚轮：以指针所在位置为中心缩放。
+    // pageIndex < 0 表示指针不在页面上，按视口中心缩放。
+    // pagePoint 是缩放前的页面显示空间坐标，viewportPoint 是视口坐标。
+    void zoomAtRequested(double factor, int pageIndex, const QPointF& pagePoint,
+                         const QPoint& viewportPoint);
+    // 鼠标侧键（后退 / 前进），与 Alt+← / Alt+→ 等价。
+    void backRequested();
+    void forwardRequested();
+    // 右键菜单：坐标是视口坐标。
+    void contextMenuRequested(const QPoint& viewportPoint);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -184,6 +199,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -209,6 +225,9 @@ private:
     // 上一次设置滚动范围时的内容高度与视口高度，用来判断范围是否真的变了。
     int lastContentHeight_ = -1;
     int lastViewportHeight_ = -1;
+    // 横向滚动范围同样只在内容宽度 / 视口宽度变化时重设。
+    int lastContentWidth_ = -1;
+    int lastViewportWidth_ = -1;
     // 正在拖选：记录锚点页与锚点字符（阅读顺序下标）。
     bool selecting_ = false;
     // 指针当前是否停在链接上：用来在状态翻转时记一笔轨迹。
@@ -266,7 +285,13 @@ private:
 
     void updateScrollRange();
     void requestVisiblePages();
+    // 页面在内容坐标里的左边缘（不含横向滚动偏移）。
+    double pageContentLeft(int index) const;
     double pageLeft(int index) const;
+    // 记一次左键按下并返回当前连击数（1..4）。三击选行、四击选段靠它。
+    int registerClick(const QPoint& viewportPos);
+    // 按连击数扩大文字选区；返回 true 表示已处理。
+    bool selectTextUnitAt(int clickCount, int pageIndex, int order);
     // 某页在视口里的矩形（逻辑像素）。
     QRectF pageRectInViewport(int index) const;
     // 擦掉 displayPoint 附近命中的墨迹（整笔）。
@@ -326,6 +351,12 @@ private:
     bool mirrorEnabled_ = false;
     // 手型平移：手型工具开着，以及这一拖的起点与起始滚动位置。
     bool panMode_ = false;
+    // 中键拖动：不改手型工具状态，按下开始、松开结束，顺便临时进入平移。
+    bool middlePan_ = false;
+    // 连击计数：三击选行、四击选段。
+    int clickCount_ = 0;
+    qint64 lastClickMs_ = 0;
+    QPoint lastClickPos_;
     viewmodes::PanDragState panDrag_;
     // 自动滚动：定时器 + 指针位置 + 速度（像素/秒，正 = 向下）。
     QTimer* autoScrollTimer_ = nullptr;

@@ -8202,4 +8202,23 @@ Notes: %1</translation></message>
             <translation>Drag to select the screenshot region, release to confirm, Esc to cancel</translation>
         </message>
     </context>
+    <context>
+        <name>aipdf::app::PdfView</name>
+        <message>
+            <source>复制</source>
+            <translation>Copy</translation>
+        </message>
+        <message>
+            <source>全选当前页</source>
+            <translation>Select All on This Page</translation>
+        </message>
+        <message>
+            <source>后退</source>
+            <translation>Back</translation>
+        </message>
+        <message>
+            <source>前进</source>
+            <translation>Forward</translation>
+        </message>
+    </context>
 </TS>

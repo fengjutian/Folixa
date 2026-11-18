@@ -344,6 +344,21 @@ aipdf_deploy_qt_runtime(TextSelectionTests)
 
 add_test(NAME TextSelectionTests COMMAND TextSelectionTests)
 
+# 鼠标快捷操作：滚轮手势、缩放倍率、连击计数与锚点滚动都是纯函数，
+# 这里逐条钉死，界面层只负责接线。
+qt_add_executable(MouseShortcutsTests
+    MouseShortcutsTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MouseShortcuts.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/MouseShortcuts.h
+)
+
+target_link_libraries(MouseShortcutsTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(MouseShortcutsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(MouseShortcutsTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(MouseShortcutsTests)
+
+add_test(NAME MouseShortcutsTests COMMAND MouseShortcutsTests)
+
 qt_add_executable(TextExtractionTests
     TextExtractionTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/PdfiumAdapter.cpp

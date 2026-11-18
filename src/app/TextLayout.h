@@ -55,6 +55,14 @@ public:
     // 双击选词：阅读顺序下的 [start, end)；没命中返回 false。
     bool wordRangeAt(int orderIndex, int* start, int* end) const;
 
+    // 三击选中整行：阅读顺序下的 [start, end)；没命中返回 false。
+    bool lineRangeAt(int orderIndex, int* start, int* end) const;
+
+    // 四击选中整段：从当前行向上 / 向下合并「行距正常」的相邻行。
+    // 行间空隙超过行高的 0.9 倍就当作段落结束（空行、段间距都算断段）；
+    // 竖排文本不猜段落，退回整行。没命中返回 false。
+    bool paragraphRangeAt(int orderIndex, int* start, int* end) const;
+
     // 选区文本：阅读顺序区间 [start, end) 拼出的文本。
     QString textForRange(int start, int end) const;
 
