@@ -497,7 +497,25 @@ void MainWindow::buildUi() {
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
     appMenuButton->setFixedSize(112, 28);
     auto* appMenu = new QMenu(appMenuButton);
+    // 起点命令必须在菜单里各有一份：欢迎页把 Ribbon 整条收起来了，
+    // 否则空窗口上连「新建空白文档」都点不到。
+    auto* newDocumentAction = appMenu->addAction(QString());
+    newDocumentAction->setObjectName(QStringLiteral("menuFileNew"));
+    texts_.bind([this, newDocumentAction] { newDocumentAction->setText(tr("新建")); });
+    connect(newDocumentAction, &QAction::triggered, this, [this] {
+        if (wiringActions_ != nullptr) {
+            wiringActions_->newDocument();
+        }
+    });
     appMenu->addAction(openAction);
+    auto* fromFileAction = appMenu->addAction(QString());
+    fromFileAction->setObjectName(QStringLiteral("menuFileFromFile"));
+    texts_.bind([this, fromFileAction] { fromFileAction->setText(tr("从文件新建 PDF")); });
+    connect(fromFileAction, &QAction::triggered, this, [this] {
+        if (wiringActions_ != nullptr) {
+            wiringActions_->universalConvert();
+        }
+    });
     appMenu->addSeparator();
     appMenu->addAction(saveAction);
     appMenu->addAction(saveAsAction);
@@ -718,13 +736,16 @@ void MainWindow::buildUi() {
     auto* titleSpacerLeft = new QWidget(commandBar);
     titleSpacerLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     commandBar->addWidget(titleSpacerLeft);
-    auto* globalSearch = new QLineEdit(commandBar);
-    globalSearch->setObjectName(QStringLiteral("globalSearch"));
-    globalSearch->setClearButtonEnabled(true);
-    globalSearch->setMaximumWidth(420);
-    globalSearch->setMinimumWidth(300);
-    texts_.bind([this, globalSearch] { globalSearch->setPlaceholderText(tr("搜索")); });
-    commandBar->addWidget(globalSearch);
+    globalSearch_ = new QLineEdit(commandBar);
+    globalSearch_->setObjectName(QStringLiteral("globalSearch"));
+    globalSearch_->setClearButtonEnabled(true);
+    globalSearch_->setMaximumWidth(420);
+    globalSearch_->setMinimumWidth(300);
+    texts_.bind([this] { globalSearch_->setPlaceholderText(tr("搜索")); });
+    // 保存工具条动作：收起时隐藏的是动作，不是控件。
+    // 直接 setVisible(false) 那个 QLineEdit 不可靠——QToolBar::show() 重排动作时
+    // 会把它重新摆出来（欢迎页上就出现过「Ribbon 收了、搜索框还在」）。
+    globalSearchAction_ = commandBar->addWidget(globalSearch_);
     auto* titleSpacerRight = new QWidget(commandBar);
     titleSpacerRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     commandBar->addWidget(titleSpacerRight);
@@ -751,7 +772,7 @@ void MainWindow::buildUi() {
             searchPanel_->focusSearch();
         }
     });
-    connect(globalSearch, &QLineEdit::returnPressed, findAction, &QAction::trigger);
+    connect(globalSearch_, &QLineEdit::returnPressed, findAction, &QAction::trigger);
     // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
     // 未交付的保持纯文字并用分隔线隔开，一眼能看出「这些还不能点」。
     commandBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -886,12 +907,12 @@ void MainWindow::buildUi() {
     // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
     // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
     ribbonBar_->setFixedHeight(112);
-    auto* ribbonDock = new QDockWidget(QString(), this);
-    ribbonDock->setObjectName(QStringLiteral("ribbonDock"));
-    ribbonDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    ribbonDock->setTitleBarWidget(new QWidget(ribbonDock));
-    ribbonDock->setWidget(ribbonBar_);
-    addDockWidget(Qt::TopDockWidgetArea, ribbonDock);
+    ribbonDock_ = new QDockWidget(QString(), this);
+    ribbonDock_->setObjectName(QStringLiteral("ribbonDock"));
+    ribbonDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    ribbonDock_->setTitleBarWidget(new QWidget(ribbonDock_));
+    ribbonDock_->setWidget(ribbonBar_);
+    addDockWidget(Qt::TopDockWidgetArea, ribbonDock_);
     // 先隐藏：Ribbon 的宽度/高度还在收敛，隐藏后主窗口与画布保持原来的稳定布局。
 
     auto addRibbonCommand = [this](QHBoxLayout* group, const char* source, const char* tip,
@@ -2707,7 +2728,15 @@ void MainWindow::buildUi() {
         // 探针设置里残留的 navigationVisible=false 会让后续验收找不到 rail
         // 按钮，隐藏后面板也会改变画布偏移、拖垮依赖坐标的验收用例。
         // 收起形态的宽度问题由 setNavigationExpanded 负责。
-        navigationDock_->show();
+        //
+        // 但欢迎页例外：syncTabBar 已经把它收起来了（没有文档时那一列什么都点不动）。
+        // QMainWindow 首次 show() 还会把构造期隐藏的 dock 重新摆出来，所以这里不是
+        // 「不要 show」而是「按欢迎页的决定再收一次」。
+        if (navHiddenForWelcome_) {
+            navigationDock_->hide();
+        } else {
+            navigationDock_->show();
+        }
         setNavigationExpanded(false);
         positionFloatingUi();
     });
@@ -2950,6 +2979,16 @@ void MainWindow::syncTabBar() {
         if (onlyWelcome) {
             ribbonBar_->setCurrentTab(0);
         }
+    }
+    // 欢迎页不留命令区：标签条上十几页背后没有一份文档，点进去全是空命令组。
+    // 打开第一份文档时 openPdfFile 会再调一次 syncTabBar，Ribbon 随即回到原位。
+    // 沉浸阅读自己管 Ribbon 的显隐，这里不抢它的开关。
+    if (ribbonDock_ != nullptr && !immersiveReading_) {
+        ribbonDock_->setVisible(!onlyWelcome);
+    }
+    // 无文档时全局搜索没有搜索对象：留着只是一个按回车也搜不出东西的输入框。
+    if (globalSearchAction_ != nullptr) {
+        globalSearchAction_->setVisible(!onlyWelcome);
     }
     if (statusDocumentControls_ != nullptr) {
         statusDocumentControls_->setVisible(!onlyWelcome);
@@ -4568,10 +4607,8 @@ void MainWindow::enterImmersiveReading() {
     immersiveAiWasVisible_ = aiDock_ != nullptr && aiDock_->isVisible();
     immersiveWindowWasFullScreen_ = isFullScreen();
 
-    if (auto* ribbonDock = findChild<QDockWidget*>(QStringLiteral("ribbonDock"))) {
-        if (plan.hideRibbon) {
-            ribbonDock->hide();
-        }
+    if (ribbonDock_ != nullptr && plan.hideRibbon) {
+        ribbonDock_->hide();
     }
     if (plan.hideTabs && tabs_ != nullptr) {
         tabs_->hide();
@@ -4611,8 +4648,8 @@ void MainWindow::leaveImmersiveReading() {
     }
     QApplication::restoreOverrideCursor();
 
-    if (auto* ribbonDock = findChild<QDockWidget*>(QStringLiteral("ribbonDock"))) {
-        ribbonDock->setVisible(immersiveRibbonWasVisible_);
+    if (ribbonDock_ != nullptr) {
+        ribbonDock_->setVisible(immersiveRibbonWasVisible_);
     }
     if (tabs_ != nullptr) {
         tabs_->setVisible(immersiveTabsWereVisible_);

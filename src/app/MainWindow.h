@@ -261,6 +261,12 @@ private:
     WiringActions* wiringActions_ = nullptr;
     // 顶部 Ribbon（文件 / 主页 / 注释 / 页面管理 / 视图 / 保护 / AI）。
     RibbonBar* ribbonBar_ = nullptr;
+    // Ribbon 所在的顶部 Dock：欢迎页整条收起来（没有文档时标签条上的每一页都是空命令组）。
+    QDockWidget* ribbonDock_ = nullptr;
+    // 命令栏里的全局搜索框：欢迎页没有搜索对象，跟着 Ribbon 一起收。
+    QLineEdit* globalSearch_ = nullptr;
+    // 它在工具条里的动作：收起靠这个，靠控件自身的 setVisible 会被重排顶掉。
+    QAction* globalSearchAction_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
