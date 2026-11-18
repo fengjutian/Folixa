@@ -234,8 +234,23 @@ protected:
                     }
                     const std::optional<pdf::TextPage> text = page->extractText();
                     if (!text.has_value() || text->isEmpty()) {
-                        // 没有文本层的页（扫描件、空页）：记一个指纹，
-                        // 免得每次重建都当成「变了」。
+                        // 没有文本层的页（扫描件、空页）。
+                        //
+                        // 但这一页可能已经 OCR 过：识别结果是用 ocr: 前缀的指纹写进
+                        // 索引的（见 applyOcrPage）。重建时如果直接当成空页覆盖，
+                        // 识别出来的文字就没了 —— 所以先认指纹，是 OCR 页就原样搬过来。
+                        const QString existing = knownIndex.pageFingerprint(pageIndex);
+                        if (existing.startsWith(QStringLiteral("ocr:"))) {
+                            QVector<doc::DocumentChunk> chunks =
+                                knownIndex.chunksForPage(pageIndex);
+                            for (doc::DocumentChunk& chunk : chunks) {
+                                chunk.pageIndex = pageIndex;
+                                chunk.order = order++;
+                            }
+                            postPage(pageIndex, chunks, existing, true);
+                            continue;
+                        }
+                        // 记一个指纹，免得每次重建都当成「变了」。
                         const QString fingerprint = doc::LocalIndex::fingerprintOf(
                             QString(), QRectF(), QRectF());
                         postPage(pageIndex, {}, fingerprint, false);

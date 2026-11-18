@@ -79,6 +79,7 @@ private slots:
     void chunkCoordinatesStayOnPage();
     void searchFindsTextAcrossPages();
     void secondRunReusesUnchangedPages();
+    void rebuildKeepsOcrPages();
     void cancelStopsIndexing();
 
 private:
@@ -216,6 +217,42 @@ void PdfIndexTests::secondRunReusesUnchangedPages() {
     }
     // 块 id 与内容绑定：重建之后 id 不变，外部引用不会错位。
     QCOMPARE(secondIds, firstIds);
+}
+
+void PdfIndexTests::rebuildKeepsOcrPages() {
+    // 回归：扫描件没有文本层，OCR 结果靠 applyOcrPage 以 ocr: 指纹写进索引。
+    // 之后再重建索引时，如果把它当成「空页」覆盖，识别出来的文字就没了。
+    const QString scanned = QStringLiteral("empty.pdf");
+    const QString uniquePath =
+        QDir(indexDir_->path()).filePath(QStringLiteral("ocr-rebuild.pdf"));
+    QVERIFY(QFile::copy(fixturePath(scanned), uniquePath));
+
+    // 第一轮：正常建索引（扫描件各页没有文本层）。
+    {
+        const auto controller = buildIndexPath(uniquePath);
+        QVERIFY(controller != nullptr);
+        QCOMPARE(controller->state(), IndexController::State::Completed);
+
+        DocumentChunk chunk;
+        chunk.id = QStringLiteral("p0b0");
+        chunk.pageIndex = 0;
+        chunk.order = 0;
+        chunk.text = QStringLiteral("识别出来的文字");
+        chunk.fromOcr = true;
+        controller->applyOcrPage(0, {chunk});
+        QVERIFY2(!controller->search(QStringLiteral("识别出来的文字")).isEmpty(),
+                 "OCR 结果没有被写进索引");
+    }
+
+    // 第二轮：重新打开并重建索引，OCR 页必须原样保留。
+    const auto second = buildIndexPath(uniquePath);
+    QVERIFY(second != nullptr);
+    QCOMPARE(second->state(), IndexController::State::Completed);
+    QVERIFY2(!second->search(QStringLiteral("识别出来的文字")).isEmpty(),
+             "重建索引把 OCR 页覆盖成空块了");
+    const QVector<DocumentChunk> pageZero = second->index().chunksForPage(0);
+    QVERIFY(!pageZero.isEmpty());
+    QVERIFY2(pageZero.first().fromOcr, "保留下来的块丢了 fromOcr 标记");
 }
 
 void PdfIndexTests::cancelStopsIndexing() {
