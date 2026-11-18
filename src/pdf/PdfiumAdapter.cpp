@@ -430,16 +430,20 @@ constexpr auto kAnnotationNamePrefix = "Folixa:";
 bool isOurAnnotation(FPDF_ANNOTATION annot) {
     unsigned short buffer[64] = {0};
     const unsigned long length = FPDFAnnot_GetStringValue(annot, "NM", buffer, 64);
-    // 长度含结尾的 NUL：至少要装得下前缀本身。
-    if (length < sizeof(kAnnotationNamePrefix)) {
+    constexpr size_t prefixLength = sizeof(kAnnotationNamePrefix) - 1;
+    // 长度含结尾的 NUL：必须比“前缀 + 至少一位数字 + NUL”长。
+    if (length <= prefixLength * 2 + 2) {
         return false;
     }
-    for (size_t i = 0; i + 1 < sizeof(kAnnotationNamePrefix); ++i) {
+    for (size_t i = 0; i < prefixLength; ++i) {
         if (buffer[i] != static_cast<unsigned short>(kAnnotationNamePrefix[i])) {
             return false;
         }
     }
-    return true;
+    // 前缀后面必须紧跟数字：别人恰好写了 "Folixa:note" 这种 /NM 时不能认成
+    // 我们的批注——认错就会在同步时把它删掉。
+    const unsigned short first = buffer[prefixLength];
+    return first >= '0' && first <= '9';
 }
 
 // 从 /NM 里读回批注 id（"Folixa:<id>"）。不是我们的批注或解析失败返回 0。

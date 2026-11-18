@@ -57,9 +57,16 @@ int main(int argc, char* argv[]) {
     window.show();
 
     // 命令行直接打开 PDF：AiPdfEditor.exe <file.pdf>
+    // 跳过以 - 开头的参数：`--diagnostic-action=watermark` 不是文件路径，
+    // 以前会先尝试打开一个叫该选项的文件并弹一次“打不开”。
     const QStringList arguments = QCoreApplication::arguments();
-    if (arguments.size() > 1) {
-        window.openPdfFile(arguments.at(1));
+    for (int index = 1; index < arguments.size(); ++index) {
+        const QString& argument = arguments.at(index);
+        if (argument.startsWith(QLatin1Char('-'))) {
+            continue;
+        }
+        window.openPdfFile(argument);
+        break;
     }
 
     // 验收专用：--diagnostic-action=<name> 在窗口显示后触发一个动作，然后退出。

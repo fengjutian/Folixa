@@ -407,38 +407,44 @@ public:
             "/CMapName /Adobe-Identity-UCS def\n"
             "/CMapType 2 def\n"
             "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n";
-        out += QByteArray::number(codes_.size()) + " beginbfchar\n";
+        // 一个码点一条 bfchar；非 BMP 码点的目标值写两个 UTF-16 码元。
+        // 以前是“每个代理项各占一个 CID 各写一条”，写出来是 <cid> <D83D>
+        // 这种非法映射，复制出来就是乱码。
+        QVector<QByteArray> entries;
+        entries.reserve(codes_.size());
         for (auto it = codes_.constBegin(); it != codes_.constEnd(); ++it) {
-            const char32_t code = static_cast<char32_t>(it.key());
-            // 非 BMP 字符要拆成高、低两个代理项各写一条。
+            const quint32 code = it.key();
+            QByteArray line = "<" + hexWord(static_cast<quint16>(it.value())) + "> <";
             if (code > 0xFFFF) {
-                const char32_t value = code - 0x10000;
-                const quint16 high = static_cast<quint16>(0xD800 + (value >> 10));
-                const quint16 low = static_cast<quint16>(0xDC00 + (value & 0x3FF));
-                out += "<" + hexWord(codes_.value(high)) + "> <" + hexWord(high) + ">\n";
-                out += "<" + hexWord(codes_.value(low)) + "> <" + hexWord(low) + ">\n";
+                const quint32 value = code - 0x10000;
+                line += hexWord(static_cast<quint16>(0xD800 + (value >> 10)));
+                line += hexWord(static_cast<quint16>(0xDC00 + (value & 0x3FF)));
             } else {
-                out += "<" + hexWord(it.value()) + "> <" + hexWord(static_cast<quint16>(code)) + ">\n";
+                line += hexWord(static_cast<quint16>(code));
             }
+            line += ">\n";
+            entries.append(line);
         }
-        out += "endbfchar\nendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
+        // PDF 规范：一个 beginbfchar 段最多 100 条，超了部分阅读器会整段丢弃。
+        for (int start = 0; start < entries.size(); start += 100) {
+            const int count = qMin(100, entries.size() - start);
+            out += QByteArray::number(count) + " beginbfchar\n";
+            for (int i = 0; i < count; ++i) {
+                out += entries.at(start + i);
+            }
+            out += "endbfchar\n";
+        }
+        out += "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
         return out;
     }
 
     // 字符串按 CID 编码成十六进制串（<0001 0002>）。
     QByteArray encodeString(const QString& text) {
         QByteArray out = "<";
-        for (const QChar c : text) {
-            const char32_t code = c.unicode();
-            if (code > 0xFFFF) {
-                const char32_t value = code - 0x10000;
-                const quint16 high = static_cast<quint16>(0xD800 + (value >> 10));
-                const quint16 low = static_cast<quint16>(0xDC00 + (value & 0x3FF));
-                out += hexWord(codeFor(high));
-                out += hexWord(codeFor(low));
-            } else {
-                out += hexWord(codeFor(code));
-            }
+        // 按真实码点迭代：QChar 永远是 16 位，`code > 0xFFFF` 那个分支
+        // 在按 QChar 循环时永远不成立，代理对会被拆成两个字符分别编码。
+        for (const uint code : text.toUcs4()) {
+            out += hexWord(static_cast<quint16>(codeFor(static_cast<char32_t>(code))));
         }
         out += ">";
         return out;

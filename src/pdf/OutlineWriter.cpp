@@ -99,9 +99,47 @@ OutlineWriteResult rewriteOutline(const QByteArray& pdf, const std::vector<Outli
     for (Node& node : nodes) node.object = next++;
     for (int i = 0; i < nodes.size(); ++i) countChildren(i, &nodes);
     QByteArray rootBody = pdf.mid(root.begin, root.end - root.begin);
-    QString rootText = QString::fromLatin1(rootBody);
-    rootText.remove(QRegularExpression(QStringLiteral(R"(/Outlines\s+\d+\s+\d+\s+R)")));
-    rootBody = rootText.toLatin1();
+    // 直接在字节上删旧的 /Outlines 引用。先转 QString/Latin-1 再转回去，会把
+    // Catalog 里任何非 Latin-1 字节（UTF-8 名字、二进制字符串）替换成 '?'，
+    // 相当于把别人的 Catalog 写坏。QByteArray 没有正则替换，这里按 PDF 语法
+    // 手工匹配 `/Outlines <num> <gen> R`。
+    {
+        qsizetype pos = 0;
+        while ((pos = rootBody.indexOf("/Outlines", pos)) >= 0) {
+            qsizetype i = pos + 9;
+            auto skipSpace = [&] {
+                while (i < rootBody.size() &&
+                       (rootBody.at(i) == ' ' || rootBody.at(i) == '\r' ||
+                        rootBody.at(i) == '\n' || rootBody.at(i) == '\t')) {
+                    ++i;
+                }
+            };
+            auto readNumber = [&]() -> bool {
+                const qsizetype begin = i;
+                while (i < rootBody.size() && rootBody.at(i) >= '0' && rootBody.at(i) <= '9') {
+                    ++i;
+                }
+                return i > begin;
+            };
+            skipSpace();
+            if (!readNumber()) {
+                pos += 9;
+                continue;
+            }
+            skipSpace();
+            if (!readNumber()) {
+                pos += 9;
+                continue;
+            }
+            skipSpace();
+            if (i < rootBody.size() && rootBody.at(i) == 'R') {
+                ++i;
+                rootBody.remove(pos, i - pos);
+                continue;
+            }
+            pos += 9;
+        }
+    }
     if (outlineRoot) {
         const qsizetype close = rootBody.lastIndexOf(">>");
         if (close < 0) { result.error = QStringLiteral("Catalog 不是字典"); return result; }

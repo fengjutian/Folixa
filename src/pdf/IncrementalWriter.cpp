@@ -1,6 +1,8 @@
-﻿#include "pdf/IncrementalWriter.h"
+#include "pdf/IncrementalWriter.h"
 
 #include "i18n/Translate.h"
+
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <map>
@@ -241,6 +243,15 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
     }
     const QByteArray trailerDict = pdf.mid(trailerAt, startxrefAt - trailerAt);
 
+    // 加密文档不能做增量追加：正文对象是密文，新写入的对象是明文，而且新
+    // trailer 也不会带 /Encrypt。头注释说“遇到加密文件一律失败”，这里补上
+    // 真正的检查——否则会把批注字典明文塞进加密文件，阅读器按密文解出来就是乱码。
+    if (trailerDict.contains("/Encrypt")) {
+        result.error =
+            i18n::tr("aipdf::pdf::IncrementalWriter", "文档已加密：增量写入不支持加密文件");
+        return result;
+    }
+
     const qsizetype rootAt = trailerDict.indexOf("/Root");
     ObjectRef root;
     if (rootAt < 0 || !parseObjectRef(trailerDict, rootAt + 5, &root)) {
@@ -344,12 +355,29 @@ IncrementalWrite appendAnnotationAppearances(const QByteArray& pdf,
             extraNumbers.append(nextObject++);
         }
         auto substitute = [&extraNumbers, &markerObjects](QByteArray body) {
+            // 占位符替换必须带右边界：`@ANNOTFolixa:1` 是 `@ANNOTFolixa:10`
+            // 的前缀，直接 replace 会命中后者，写出错误的 /IRT 对象号。
+            // 这里用 indexOf 手工判断“后一个字符不是数字”，避免正则替换
+            // （QByteArray 不支持 QRegularExpression，转 QString 会把
+            // 二进制外观流写坏）。
+            auto replaceToken = [&body](const QByteArray& token, const QByteArray& value) {
+                qsizetype pos = 0;
+                while ((pos = body.indexOf(token, pos)) >= 0) {
+                    const qsizetype after = pos + token.size();
+                    if (after < body.size() && body.at(after) >= '0' && body.at(after) <= '9') {
+                        pos = after;  // 只是更长编号的前缀，跳过
+                        continue;
+                    }
+                    body.replace(pos, token.size(), value);
+                    pos += value.size();
+                }
+            };
             for (int i = 0; i < extraNumbers.size(); ++i) {
-                body.replace("@EXTRA" + QByteArray::number(i),
+                replaceToken("@EXTRA" + QByteArray::number(i),
                              QByteArray::number(extraNumbers.at(i)));
             }
             for (const auto& entry : markerObjects) {
-                body.replace("@ANNOT" + entry.first, QByteArray::number(entry.second));
+                replaceToken("@ANNOT" + entry.first, QByteArray::number(entry.second));
             }
             return body;
         };

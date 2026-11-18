@@ -36,9 +36,14 @@ AiToolService::AiToolService(QObject* parent) : QObject(parent) {
 }
 
 AiToolService::~AiToolService() {
-    // 后台线程要先收工：它还握着 this。
+    // 后台线程要先收工：它还握着 this，线程没停就析构会让 deliver* 打到悬空指针。
     if (imageThread_ != nullptr) {
-        imageThread_->wait();
+        if (!imageThread_->wait(3000)) {
+            // 网络请求可能半开，等不到 finished。进程马上就要退出，
+            // 这里只能强制停：比起 terminate 的“不安全”，析构后回调到 this 更糟。
+            imageThread_->terminate();
+            imageThread_->wait(1000);
+        }
         delete imageThread_;
         imageThread_ = nullptr;
     }
@@ -136,7 +141,15 @@ QByteArray AiToolService::askModelBlocking(const QString& systemPrompt,
 
 void AiToolService::requestImageGeneration(const QByteArray& payload) {
     if (imageThread_ != nullptr) {
-        imageThread_->wait();
+        if (imageThread_->isRunning()) {
+            // 不再在界面线程无条件 wait()：上一次生成没回来时，再点一次会把
+            // 窗口冻结到网络超时。直接告诉用户等一等。
+            emit failed(i18n::tr("aipdf::app::MainWindow",
+                                 "上一张图片还在生成，请等它完成再试。"));
+            emit finished();
+            return;
+        }
+        imageThread_->wait(1000);
         delete imageThread_;
         imageThread_ = nullptr;
     }
@@ -162,6 +175,15 @@ void AiToolService::requestImageGeneration(const QByteArray& payload) {
         QNetworkReply* reply = manager.post(request, payload);
         QEventLoop loop;
         QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        // 给请求一个硬超时：连接半开时 finished 可能永远不来，线程会一直挂着。
+        QTimer timeout;
+        timeout.setSingleShot(true);
+        QObject::connect(&timeout, &QTimer::timeout, &loop, [reply] {
+            if (reply->isRunning()) {
+                reply->abort();
+            }
+        });
+        timeout.start(60'000);
         loop.exec();
 
         const QByteArray body = reply->readAll();

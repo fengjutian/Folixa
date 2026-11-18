@@ -61,14 +61,12 @@ SaveBytes DocumentWriter::serializeForSave(const PdfDocument& document,
             dict += QByteArray::number(annotation.id);
             dict += ") /Sound @EXTRA0 0 R";
             if (!annotation.contents.isEmpty()) {
-                dict += " /Contents (";
-                dict += annotation.contents.toLatin1().replace("(", "\\(").replace(")", "\\)");
-                dict += ")";
+                dict += " /Contents ";
+                dict += annotationTextString(annotation.contents);
             }
             if (!annotation.author.isEmpty()) {
-                dict += " /T (";
-                dict += annotation.author.toLatin1().replace("(", "\\(").replace(")", "\\)");
-                dict += ")";
+                dict += " /T ";
+                dict += annotationTextString(annotation.author);
             }
             dict += " >>";
 

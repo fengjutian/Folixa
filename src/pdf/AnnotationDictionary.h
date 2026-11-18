@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QByteArray>
 
@@ -29,5 +29,11 @@ struct AnnotationDictionaryParts {
 };
 
 AnnotationDictionaryParts annotationDictionaryParts(const Annotation& annotation);
+
+// 把一个 QString 写成合法的 PDF 文本串（含定界符）。
+//
+// 能塞进 ASCII 时用 `(...)` 并转义 `( ) \`；否则写成 UTF-16BE 的十六进制串。
+// 手写 `/Contents (` + toLatin1() 会把中文变成 ?，反斜杠还会把右括号转义掉。
+QByteArray annotationTextString(const QString& text);
 
 }  // namespace aipdf::pdf

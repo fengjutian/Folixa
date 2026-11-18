@@ -93,11 +93,22 @@ protected:
     }
 
     void dragEnterEvent(QDragEnterEvent* event) override {
+        // 只接受本树自己拖出来的书签。以前不看来源直接 accept，加上
+        // draggedPath_ 用后不清，从资源管理器拖个文件进来就会把上一次的
+        // 书签搬走，点“应用”后大纲被静默改掉。
+        if (event->source() != this || draggedPath_.empty()) {
+            event->ignore();
+            return;
+        }
         event->setDropAction(Qt::MoveAction);
         event->accept();
     }
 
     void dragMoveEvent(QDragMoveEvent* event) override {
+        if (event->source() != this || draggedPath_.empty()) {
+            event->ignore();
+            return;
+        }
         if (hint_) {
             hint_(event->position().toPoint());
         }
@@ -106,11 +117,14 @@ protected:
     }
 
     void dropEvent(QDropEvent* event) override {
-        if (!handler_ || draggedPath_.empty()) {
+        if (!handler_ || draggedPath_.empty() || event->source() != this) {
             event->ignore();
             return;
         }
-        if (handler_(event->position().toPoint(), draggedPath_)) {
+        const bool moved = handler_(event->position().toPoint(), draggedPath_);
+        // 一次拖动只处理一次：不清空的话，下一次外部拖放会复用这条旧路径。
+        draggedPath_.clear();
+        if (moved) {
             event->setDropAction(Qt::MoveAction);
             event->accept();
         } else {

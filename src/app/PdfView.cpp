@@ -1313,7 +1313,17 @@ void PdfView::startRenderThread() {
                 cache_.insert(TileCache::Key{index, zoomKey, rotation}, image);
                 canvas_->viewport()->update();
             });
-    connect(renderThread_, &RenderThread::pageFailed, this, [](int, qint64, int) {});
+    // 渲染失败不能全吞掉：坏页会显示成空白，用户只会以为文档坏了。
+    // 只在失败的是当前页时报一句，避免一次缩放把几十页的失败刷满状态栏。
+    connect(renderThread_, &RenderThread::pageFailed, this,
+            [this](int pageIndex, qint64, int) {
+                trace(QStringLiteral("render failed page=%1").arg(pageIndex + 1));
+                if (pageIndex >= 0 && pageIndex == currentPage()) {
+                    emit statusMessage(
+                        tr("第 %1 页渲染失败：页面内容可能已损坏").arg(pageIndex + 1));
+                }
+            });
+
     renderThread_->start();
 }
 
@@ -1410,6 +1420,8 @@ void PdfView::clear() {
               .arg(layout_.totalWidth())
               .arg(zoom_));
     emit pageCountChanged(0);
+    // 控制器已经全部换掉：外界（主窗口、索引面板、AI 面板）拿着的旧指针必须重取。
+    emit controllersRefreshed();
     updateZoomLabel();
     updatePageInfo();
     // 没有文档了：批注工具一律不可用。

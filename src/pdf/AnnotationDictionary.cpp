@@ -1,4 +1,4 @@
-﻿#include "pdf/AnnotationDictionary.h"
+#include "pdf/AnnotationDictionary.h"
 #include <QChar>
 
 namespace aipdf::pdf {
@@ -258,6 +258,10 @@ QByteArray typeSpecificExtras(const Annotation& annotation) {
         default:
             return {};
     }
+}
+
+QByteArray annotationTextString(const QString& text) {
+    return textString(text);
 }
 
 }  // namespace aipdf::pdf

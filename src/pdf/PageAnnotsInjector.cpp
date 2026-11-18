@@ -1,4 +1,4 @@
-﻿#include "pdf/PageAnnotsInjector.h"
+#include "pdf/PageAnnotsInjector.h"
 
 #include <QVector>
 
@@ -91,10 +91,28 @@ bool findPageObject(const QByteArray& pdf, const QVector<ObjectSpan>& objects, i
 }
 
 // 在 [from, to) 里找与 '[' 匹配的 ']'。
+//
+// 必须跳过 PDF 字面字符串 `(...)`：字符串里的 `]` 不是结构符号。
+// 以前不跳，`/Annots [ << /Contents (见附件 ] 第2页) >> ]` 会在字符串里
+// 提前闭合，新批注字典被插进字符串中间，整个对象就坏了。
 qsizetype findMatchingBracket(const QByteArray& pdf, qsizetype openAt, qsizetype to) {
     int depth = 0;
     for (qsizetype i = openAt; i < to; ++i) {
         const char ch = pdf.at(i);
+        if (ch == '(') {
+            int nested = 1;
+            while (++i < to && nested > 0) {
+                const char current = pdf.at(i);
+                if (current == '\\') {
+                    ++i;  // 跳过转义的下一个字符（可能是括号）
+                } else if (current == '(') {
+                    ++nested;
+                } else if (current == ')') {
+                    --nested;
+                }
+            }
+            continue;
+        }
         if (ch == '[') {
             ++depth;
         } else if (ch == ']') {
