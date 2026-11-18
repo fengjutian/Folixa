@@ -243,36 +243,33 @@ QByteArray buildUaXmp() {
         "</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end=\"w\"?>");
 }
 
-}  // namespace
+// 扫内容 → 块 → 推断角色 → 语义树 + 替代文本。
+//
+// 为什么单独拎出来：「一键生成 PDF/UA」与「只写语义标签树」两条路
+// 的前四步完全一样。抄两遍很快就会走样（一边改了另一边没改），
+// 所以这一步只有一份实现，两条路共用。
+struct SemanticContent {
+    // 推断完的块（带角色与可靠性标记）。
+    QVector<SemanticBlock> blocks;
+    // 搭好的语义树（Document → Part → Sect → …）。
+    SemanticTree tree;
+    // 需要人工确认的地方（归类不可靠、缺替代文本）。
+    QStringList issues;
+};
 
-QString uaGenerationDisclaimer() {
-    return QStringLiteral(
-        "本功能按 PDF/UA-1（ISO 14289-1）给 PDF 加上标签结构，并用本项目自带的检查器复检产物。"
-        "它**不是** PDF/UA 合规认证：正式的认证要由 veraPDF 这类专业校验器完成，"
-        "读屏实测（NVDA / JAWS）也只能人工做。"
-        "检查器通过只说明文件结构符合本项目实现的那些条款。");
-}
-
-UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOptions& options,
-                                QString* error) {
-    UaGeneratorResult result;
-    if (error) error->clear();
-
-    if (pdfBytes.isEmpty()) {
-        result.error = i18n::tr("aipdf::pdf::UaGenerator", "输入的 PDF 内容为空");
-        if (error) *error = result.error;
-        return result;
-    }
-
+bool buildSemanticContent(const QByteArray& pdfBytes,
+                           SemanticContent* out,
+                           QString* error) {
     // ---- 1. 扫内容流 ----
     ScannedDocument scan;
     QString scanError;
     if (!scanDocumentContent(pdfBytes, &scan, &scanError)) {
-        result.error = scanError.isEmpty()
-                           ? i18n::tr("aipdf::pdf::UaGenerator", "扫描 PDF 内容失败")
-                           : scanError;
-        if (error) *error = result.error;
-        return result;
+        if (error) {
+            *error = scanError.isEmpty()
+                         ? i18n::tr("aipdf::pdf::UaGenerator", "扫描 PDF 内容失败")
+                         : scanError;
+        }
+        return false;
     }
 
     // ---- 2. 把页面上的东西整理成「块」 ----
@@ -339,14 +336,15 @@ UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOpt
     // ---- 3. 推断角色，搭语义树 ----
     const RoleInferenceResult inference = inferSemanticRoles(blocks);
     SemanticTree tree = inference.tree;
+    QStringList issues;
     for (const RoleInferenceIssue& issue : inference.issues) {
-        result.issues.append(QStringLiteral("%1：%2").arg(issue.where, issue.reason));
+        issues.append(QStringLiteral("%1：%2").arg(issue.where, issue.reason));
     }
 
     // ---- 4. 替代文本 ----
     const AltTextResult altTexts = generateAltTexts(inference.blocks);
     for (const AltTextIssue& issue : altTexts.issues) {
-        result.issues.append(QStringLiteral("%1：%2").arg(issue.where, issue.reason));
+        issues.append(QStringLiteral("%1：%2").arg(issue.where, issue.reason));
     }
     for (int i = 0; i < tree.nodes.size(); ++i) {
         SemanticNode& node = tree.nodes[i];
@@ -369,6 +367,41 @@ UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOpt
         }
     }
 
+    out->blocks = inference.blocks;
+    out->tree = tree;
+    out->issues = issues;
+    return true;
+}
+
+}  // namespace
+
+QString uaGenerationDisclaimer() {
+    return QStringLiteral(
+        "本功能按 PDF/UA-1（ISO 14289-1）给 PDF 加上标签结构，并用本项目自带的检查器复检产物。"
+        "它**不是** PDF/UA 合规认证：正式的认证要由 veraPDF 这类专业校验器完成，"
+        "读屏实测（NVDA / JAWS）也只能人工做。"
+        "检查器通过只说明文件结构符合本项目实现的那些条款。");
+}
+
+UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOptions& options,
+                                QString* error) {
+    UaGeneratorResult result;
+    if (error) error->clear();
+
+    if (pdfBytes.isEmpty()) {
+        result.error = i18n::tr("aipdf::pdf::UaGenerator", "输入的 PDF 内容为空");
+        if (error) *error = result.error;
+        return result;
+    }
+
+    // ---- 1~4. 扫内容 → 推断角色 → 语义树 + 替代文本 ----
+    SemanticContent content;
+    if (!buildSemanticContent(pdfBytes, &content, &result.error)) {
+        if (error) *error = result.error;
+        return result;
+    }
+    result.issues = content.issues;
+
     // ---- 5. 写语义树 + 补元数据 ----
     SemanticWriteOptions writeOptions;
     writeOptions.documentLanguage = options.language;
@@ -377,7 +410,7 @@ UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOpt
     writeOptions.writeTabsStructureOrder = true;
     writeOptions.xmpMetadata = buildUaXmp();
 
-    const SemanticWriteResult written = writeSemanticStructure(pdfBytes, inference.blocks, tree,
+    const SemanticWriteResult written = writeSemanticStructure(pdfBytes, content.blocks, content.tree,
                                                                 writeOptions);
     if (!written.ok) {
         result.error = written.error;
@@ -404,6 +437,35 @@ UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes, const UaGeneratorOpt
     if (!result.ok && error) {
         *error = QStringLiteral("产物仍有 %1 项检查没通过，已列出问题。").arg(result.report.errorCount);
     }
+    return result;
+}
+
+SemanticWriteResult writeSemanticTagTree(const QByteArray& pdfBytes,
+                                         const SemanticWriteOptions& options,
+                                         QString* error) {
+    SemanticWriteResult result;
+    if (error) error->clear();
+
+    if (pdfBytes.isEmpty()) {
+        result.error = i18n::tr("aipdf::pdf::UaGenerator", "输入的 PDF 内容为空");
+        if (error) *error = result.error;
+        return result;
+    }
+
+    // 扫内容 → 推断角色 → 搭树（跟一键生成 PDF/UA 共用同一份实现）。
+    SemanticContent content;
+    if (!buildSemanticContent(pdfBytes, &content, &result.error)) {
+        if (error) *error = result.error;
+        return result;
+    }
+
+    result = writeSemanticStructure(pdfBytes, content.blocks, content.tree, options);
+    if (!result.ok) {
+        if (error) *error = result.error;
+        return result;
+    }
+    // 归类不可靠、缺替代文本的地方要带出来：不写出来用户就以为机器全替他想好了。
+    result.issues = content.issues;
     return result;
 }
 

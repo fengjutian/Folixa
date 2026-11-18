@@ -251,6 +251,22 @@ try {
         '-RepositoryRoot', $root
     )
 
+    # H5 的验收门：同样是无 GUI 的（不启动应用、不合成鼠标、不抢前台），
+    # 所以放在这里而不是界面验收那一段。
+    # 独立解析器（python-docx / python-pptx / openpyxl）没装时门禁会降级：
+    # 标准库那几项照跑，缺包会打印「未装 X，跳过…」——降级不等于放行，
+    # 负例对照仍然必须红。
+    Write-Host '=== Office 四合一语料（双栏 / 表格 / 图片 / CJK）===' -ForegroundColor Cyan
+    Invoke-Native '生成 Office 四合一语料' 'python' @(
+        'scripts/gen-office-corpus.py', '--out', 'build/office-corpus', '--count', '50', '--quiet'
+    )
+    Invoke-Native 'Office 图片与表格导出验收' 'python' @(
+        'scripts/verify-office-images.py',
+        '--corpus', 'build/office-corpus',
+        '--dump', 'build/office-export',
+        '--exporter', 'build/windows-debug/bin/OfficeImagesTests.exe'
+    )
+
     # 文档与矩阵这一组门：矩阵 CSV 是唯一数据源，矩阵文档由脚本生成，
     # 评分卡与版本审计的数字必须互相对得上，i18n 覆盖率与功能宣称也要当场核。
     Write-Host '=== 文档、矩阵与 i18n 一致性 ===' -ForegroundColor Cyan

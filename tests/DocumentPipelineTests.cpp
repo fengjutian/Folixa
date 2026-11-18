@@ -861,7 +861,7 @@ void DocumentPipelineTests::mergeAddsPagesAndCarriesCrossFileOutlines() {
 // 分支流程
 // ---------------------------------------------------------------------------
 
-// 带标签的文档重排：产出能打开、页数大于 0、丢弃清单与丢弃计数一致。
+// 带标签的文档重排：产出能打开、页数大于 0、**一个对象都没丢**。
 void DocumentPipelineTests::reflowOfTaggedDocumentProducesOpenableOutput() {
     REQUIRE_QPDF();
     const aipdf::pdf::DocumentReflowResult result =
@@ -872,15 +872,23 @@ void DocumentPipelineTests::reflowOfTaggedDocumentProducesOpenableOutput() {
 
     // 丢弃清单与丢弃计数必须一致。
     QCOMPARE(result.report.droppedCount, result.report.dropped.size());
-    QVERIFY2(!result.report.dropped.isEmpty(),
-             "这份文档里有图片、表格与页眉，丢弃清单不该是空的");
-    QStringList droppedTags;
+    // **成功就没有丢东西**：重排写回前有门禁（重开、重统计、逐类对比），
+    // 少一类就会拦住写回并写明少了什么 —— 所以成功结果里清单必然是空的。
+    // 这条断言是 A8 的语义变化点：老口径是「丢掉并记账」，现在是「不许丢」。
+    QVERIFY2(result.report.dropped.isEmpty(),
+             qPrintable(result.report.dropped.size() == 1
+                            ? result.report.dropped.first().reason
+                            : QStringLiteral("重排成功了却记着丢弃，门禁没起作用")));
     for (const aipdf::pdf::ReflowDropped& item : result.report.dropped) {
         QVERIFY2(!item.reason.isEmpty(), "每一条丢弃都要写明原因");
-        droppedTags.append(item.tag);
     }
-    QVERIFY2(droppedTags.contains(QStringLiteral("Figure")), qPrintable(droppedTags.join(QLatin1Char(','))));
-    QVERIFY2(droppedTags.contains(QStringLiteral("Head")), qPrintable(droppedTags.join(QLatin1Char(','))));
+    // 门禁比对的两组计数逐类一致（文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚）。
+    QCOMPARE(result.report.outputCounts.textBlocks, result.report.sourceCounts.textBlocks);
+    QCOMPARE(result.report.outputCounts.images, result.report.sourceCounts.images);
+    QCOMPARE(result.report.outputCounts.vectors, result.report.sourceCounts.vectors);
+    QCOMPARE(result.report.outputCounts.tables, result.report.sourceCounts.tables);
+    QCOMPARE(result.report.outputCounts.headers, result.report.sourceCounts.headers);
+    QCOMPARE(result.report.outputCounts.footers, result.report.sourceCounts.footers);
 
     // 健康检查：产出能打开，页数与报告说的一致。
     const HealthReport health = checkHealth(result.bytes);

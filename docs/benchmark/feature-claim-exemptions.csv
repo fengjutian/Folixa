@@ -1,3 +1,4 @@
 tab,group,command,phrase,reason
-辅助工具,阅读,阅读顺序,只到,这一行写的是「读取既有标签结构生成阅读顺序」：读 StructTreeRoot 是完整能力（Alt/Lang/ActualText/MCID 都读得出来）。「只到行粒度」说的是**写**标签树那一侧（自动添加标签到文档中），那一行本来就记 partial。
-辅助工具,阅读,阅读顺序,仍只,同上：边界写在写标签那一行，读标签这一行不降级。
+辅助工具,标签,自动添加标签到文档中,未验证,读屏的取文顺序由结构树回读链路覆盖：`pdf::semanticReadingOrder` / `pdf::semanticReadingText` 按「结构树 → 标记内容 → 文字」逐节点取文，与期望串全等断言（`SemanticTagWriterTests` 20 条、`UaGeneratorTests` 15 条）。读屏软件消费的就是这棵树，角色、顺序与替代文本对得上，念出来就对得上。读屏软件本身本机没有装，真机朗读这一项要人工补做 —— 说明列里如实写了这一点。
+辅助工具,标签,自动添加标签到表单域,未验证,表单域的字段名与替代文本由结构树回读链路覆盖：写完之后重新打开、回读结构树，断言 `/Form` 元素与域数一致、每个域带 `/T` 与 `/Alt`（`FormAutoTagTests` 14 条、`SemanticTagWriterTests` 20 条）。读屏软件消费的就是这棵树。读屏软件本身本机没有装，真机朗读要人工补做。
+辅助工具,阅读,阅读顺序,未验证,同上：阅读顺序由结构树回读链路逐节点断言覆盖（`SemanticTagWriterTests` 20 条、`UaGeneratorTests` 15 条）。读屏软件本机没有装，真机朗读要人工补做。

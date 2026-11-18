@@ -73,6 +73,7 @@ qt_add_executable(LastWaveUiTests
 
 target_link_libraries(LastWaveUiTests PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test
+    ${AIPDF_PDFIUM_LIBRARY}
 )
 
 # 这一批任务里有一半是对象级信息（结构树、图层、PDF/UA、XFA、3D/多媒体），
@@ -89,6 +90,9 @@ endif()
 
 target_include_directories(LastWaveUiTests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    # 整篇重排那一路要读页面对象模型，它的头文件直接用 PDFium 的类型
+    # （FPDF_PAGEOBJECT 等），没有 PDFium 的头就编不过。
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
 )
 
 # 翻译目录的路径：测试要核对「新增的用户可见文案都登记进去了」。
@@ -98,5 +102,6 @@ target_compile_definitions(LastWaveUiTests PRIVATE
 
 set_target_properties(LastWaveUiTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(LastWaveUiTests)
+aipdf_deploy_pdfium(LastWaveUiTests)
 
 add_test(NAME LastWaveUiTests COMMAND LastWaveUiTests)

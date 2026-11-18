@@ -110,7 +110,9 @@ QByteArray compliantPdf() {
     objects.append(qMakePair(12, QByteArray("<< /Nums [0 [8 0 R]] >>")));
     objects.append(qMakePair(13, QByteArray("<< /Title (Accessible sample) >>")));
     objects.append(qMakePair(14, QByteArray("<< /Type /StructElem /S /Part /P 7 0 R /Pg 3 0 R /K [8 0 R] >>")));
-    return buildPdf(objects, 1, 14);
+    // 第三个参数是 /Info 的对象号：/Title 在对象 13（14 是 Part 结构元素，
+    // 指错了 PDF/UA 检查器就报「缺标题」）。
+    return buildPdf(objects, 1, 13);
 }
 
 // 各项都有问题的那一档：根元素不是 /Document、没有 /ParentTree、

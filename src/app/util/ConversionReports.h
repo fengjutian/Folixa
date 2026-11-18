@@ -69,6 +69,11 @@ QString htmlExportNoticeText();
 QString dxfExportNoticeText();
 QString ofdExportNoticeText();
 // 导出到 Office 的说明文案：带这次导出的实际结果（页数 / 工作表数 / 幻灯片数）。
-QString officeExportNoticeText(const QString& formatName, const QString& detail);
+//
+// keepsImages：这个格式带不带图片与表格（Word / PowerPoint 带，Excel 不带）。
+// 为什么要有它：Word 与 PPT 现在真的带图片与表格对象，界面文案不能再说
+// 「只包含文字层」——那会让用户以为图片丢了。
+QString officeExportNoticeText(const QString& formatName, const QString& detail,
+                               bool keepsImages = false);
 
 }  // namespace aipdf::app

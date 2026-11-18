@@ -1072,15 +1072,15 @@
             <source>Excel 工作簿 (*.xlsx)</source>
             <translation>Excel workbook (*.xlsx)</translation>
         </message>
+                <message>
+            <source>保留文字层与图片，表格按识别结果写成表格；精确版式、批注与字体样式会简化。</source>
+            <translation>Text layer and images are kept; tables are written as tables when recognised; exact layout, annotations and font styles are simplified.</translation>
+        </message>
+        <message>
+            <source>共 %1 张幻灯片（%2 张图片、%3 个表格）</source>
+            <translation>%1 slides (%2 images, %3 tables)</translation>
+        </message>
 <message>
-            <source>共 %1 页（页与页之间有分页符）</source>
-            <translation>%1 pages (with page breaks between them)</translation>
-        </message>
-        <message>
-            <source>共 %1 张幻灯片（一页一张）</source>
-            <translation>%1 slides (one per page)</translation>
-        </message>
-        <message>
             <source>共 %1 页、%2 张工作表（认出 %3 个表格）</source>
             <translation>%1 pages, %2 worksheets (%3 tables recognised)</translation>
         </message>
@@ -1096,11 +1096,19 @@
             <source>Word 文档（.docx）</source>
             <translation>Word document (.docx)</translation>
         </message>
+        <message>
+            <source>共 %1 页（%2 张图片、%3 个表格，页与页之间有分页符）</source>
+            <translation>%1 pages (%2 images, %3 tables; page breaks between pages)</translation>
+        </message>
 <message>
             <source>关闭</source>
             <translation>Close</translation>
         </message>
-                <message>
+                        <message>
+            <source>写标签树失败。</source>
+            <translation>Writing the tag tree failed.</translation>
+        </message>
+<message>
             <source>只包含文字层：图片、批注与精确版式不会带过去；表格按识别结果写成表格，认不出的按文字行导出。</source>
             <translation>Text layer only: images, annotations and exact layout are not carried over; tables are written as tables when recognised, otherwise as text lines.</translation>
         </message>
@@ -1108,7 +1116,23 @@
             <source>导出为 %1：%2</source>
             <translation>Exported as %1: %2</translation>
         </message>
+                        <message>
+            <source>生成 PDF/UA 文件</source>
+            <translation>Generate a PDF/UA file</translation>
+        </message>
+<message>
+            <source>结构元素类型：%1</source>
+            <translation>Structure element types: %1</translation>
+        </message>
         <message>
+            <source>已写入语义标签树：%1 个结构元素。</source>
+            <translation>Semantic tag tree written: %1 structure elements.</translation>
+        </message>
+        <message>
+            <source>自动添加文档标签</source>
+            <translation>Automatically tag the document</translation>
+        </message>
+<message>
             <source>要导出成哪种格式？</source>
             <translation>Which format do you want?</translation>
         </message>
@@ -1335,7 +1359,11 @@
             <source>装饰</source>
             <translation>Decorate</translation>
         </message>
-        <message>
+                <message>
+            <source>需人工确认：%1</source>
+            <translation>Needs manual confirmation: %1</translation>
+        </message>
+<message>
             <source>面板</source>
             <translation>Panels</translation>
         </message>
@@ -2750,6 +2778,8 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>把文字层导成一个 HTML 文件</source><translation>Export the text layer as one HTML file</translation></message>
     <message><source>把每一页渲染成位图，写成一份新的 PDF</source><translation>Render every page as a bitmap and write a new PDF</translation></message>
     <message><source>把文字层导成 OFD 包</source><translation>Export the text layer as an OFD package</translation></message>
+    <message><source>给整篇文档写一棵语义标签树（标题 / 段落 / 列表 / 表格 / 图 / 表单域）</source><translation>Write a semantic tag tree for the whole document (headings / paragraphs / lists / tables / figures / form fields)</translation></message>
+    <message><source>把整篇文档导成 Word / Excel / PPT（含图片与表格）</source><translation>Export the whole document as Word / Excel / PPT (with images and tables)</translation></message>
     <message><source>把当前页的文字层导成 Word 文档</source><translation>Export the text layer of the current page as a Word document</translation></message>
     <message><source>把页面上的矢量路径导成 DXF</source><translation>Export the vector paths on the page as DXF</translation></message>
     <message><source>把字体转成不再依赖字体的形式（视觉等价的栅格化版本）</source><translation>Turn the fonts into a form that no longer depends on them (a visually equivalent rasterized version)</translation></message>
@@ -3164,7 +3194,15 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
 </context>
     <context>
         <name>aipdf::app::PdfView</name>
-        <message>
+                <message>
+            <source>
+
+（显示的是标签树里每页的子元素顺序；语义树与行级树都能读，取决于这份文档最后写的是哪一棵。）</source>
+            <translation>
+
+(It shows the order of the child elements on each page of the tag tree; both semantic trees and line-level trees are readable, depending on which one was written last.)</translation>
+        </message>
+<message>
             <source>已用 %1 的第 %2 页替换第 %3 页（可撤销）</source>
             <translation>Replaced page %3 with page %2 of %1 (undoable)</translation>
         </message>
@@ -4782,14 +4820,6 @@ Write them into the document?</translation>
         <message>
             <source>第 %1 页：%2 个区域，顺序 %3</source>
             <translation>Page %1: %2 regions, order %3</translation>
-        </message>
-        <message>
-            <source>
-
-（只到行粒度：没有替代文本与语言标记，读屏软件能按顺序念，但不知道图是什么。）</source>
-            <translation>
-
-(Only down to line granularity: there is no alternative text or language tag, so a screen reader can read in this order but does not know what the pictures are.)</translation>
         </message>
         <message>
             <source>下面是当前页按视觉顺序排出的行。调整先后后写进 PDF 的标签树，读屏软件会按这个顺序念。</source>

@@ -6,6 +6,7 @@
 #include <QVector>
 
 #include "pdf/compliance/PdfUaChecker.h"
+#include "pdf/compliance/SemanticTagWriter.h"
 #include "pdf/compliance/StructTreeModel.h"
 
 namespace aipdf::pdf {
@@ -70,5 +71,17 @@ UaGeneratorResult generateUaPdf(const QByteArray& pdfBytes,
 // 为什么单独给一个函数：界面要显示「这不是合规认证」这句提示，
 // 但这句话属于 app 层的话术；领域层只提供这句技术说明的原文。
 QString uaGenerationDisclaimer();
+
+// 只写一棵**语义标签树**（不补 PDF/UA 元数据、不重跑检查器）。
+//
+// 与 generateUaPdf 的关系：前四步（扫内容 → 推断角色 → 搭树 → 替代文本）
+// 完全共用，后一步不同 —— 这里不写 XMP、不补 /Lang，也不跑 PDF/UA 检查器。
+// 界面上的「自动添加文档标签」走这一条，「生成 PDF/UA 文件」走那一条。
+//
+// 为什么声明在这个头文件里：共用的那段实现就在本文件里，
+// 抄两遍必然走样（一边改了另一边没改）。
+SemanticWriteResult writeSemanticTagTree(const QByteArray& pdfBytes,
+                                         const SemanticWriteOptions& options = SemanticWriteOptions(),
+                                         QString* error = nullptr);
 
 }  // namespace aipdf::pdf

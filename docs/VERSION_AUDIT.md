@@ -481,6 +481,111 @@ Debug / Release 全量 **146 / 146** 全绿。
 **命令矩阵 7 行的状态**（partial → aligned）。
 **第十五次（本轮）增至 65 / 102 与 69%（190 / 276）**。
 
+## 1.3 2026-11-18 第十六次重算（欠账整改批次：整篇重排写回 / 真竖排 / Office 导出带图 / 语义标签树与 PDF/UA 一键生成 / 版面块级差异）
+
+这一轮把 `docs/benchmark/scorecard-debt.csv` 里登记的 **12 项欠账**逐条对着代码做：
+7 项「要新实现」的**全部落地**，5 项「要新依赖」的**先查本机有没有现成系统组件**，路线待定（见文末）。
+
+### 本轮落地的 7 项
+
+- **A8 整篇重排写回**（原来会丢图形 / 表格 / 页眉页脚）：新增页面对象模型
+  `pdf::readPageObjectModel`（文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚，稳定 id 由
+  「种类 + 内容指纹 + 量化几何 + 序号」派生）+ 搬运与锚点 `pdf::ReflowPlan`
+  + PDFium 就地写回；**写回前有门禁**：重排结果重新打开、重新统计一遍，
+  文字块 / 图片 / 表格少一个就拦住写回并写明少了什么（`report.error` 写原因、`bytes` 置空）。
+  `PageObjectModelTests` 11 条 + `ReflowWriteBackTests` 14 条 + `DocumentReflowTests` 19 条。
+- **A12 真竖排（WMode 1）**：`pdf::readVerticalMetrics` 读字体 vhea / vmtx 竖排度量，
+  `pdf::layoutVerticalText` 列右→左、列内上→下；字体字典写 `/WMode 1` + `/DW2` + `/W2`，
+  Type0 用 `/Encoding /Identity-V`。
+  **实测纠正一处认知**：PDFium 判竖排看的是 **Encoding CMap**，不是 `/WMode` ——
+  只写 `/WMode 1` 仍按横排渲染。语料（`scripts/gen-cjk-corpus.py`）按阅读顺序排版，
+  验收脚本对这份夹具**断言抽取串全等期望串**并**查产物里确实有 `/WMode 1`**。
+  `VerticalWritingTests` 12 条。
+- **H5 PDF → Office 导出带图**：新增取图 API `PdfPage::extractImages`
+  （原生位图 / 渲染位图择优、通道按 `FPDFBitmap_GetFormat` 逐像素换、≤150 DPI、PNG 统一编码）
+  + OOXML 资源通道 `doc::OfficeMedia`；DOCX 出 `word/media/*.png` + `<w:drawing>`，
+  PPTX 出 `<p:pic>`，**两边都出真表格对象**（`<w:tbl>` / `<a:tbl>`）；
+  **顺带修掉双栏正文被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开、
+  通栏标题不被切开）与四个连带缺陷（通栏标题整段丢失 / 正文宽度判据用全页中位字高 /
+  空白带阈值同理 / 表格行既写成表格又写成段落）。
+  **50 份「双栏 + 表格 + 图片 + CJK」四合一语料**由**独立解析器**
+  （python-docx / python-pptx / openpyxl）回读核对页数 / 图片数 / 表格数
+  （`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）。
+  `OfficeImagesTests` 12 条。
+- **J5 语义标签树**：新增 `pdf::inferSemanticRoles`（标题看字号 / 加粗 / 编号层级；
+  列表看行首标记与连续编号；表格看多行的列位置在行间对不对得上）
+  + `pdf::writeSemanticStructure` + `pdf::generateAltTexts`；
+  搭出 Document → Part(每页) → Sect → H1..H6 / P / L / LI / Table(TR/TH/TD) / Figure / Form。
+  **归类不可靠的块如实标出来并写明原因**，没有依据的替代文本**不写**。
+  界面入口「辅助工具 → 标签 → 自动添加文档标签」原本是禁用占位，本轮启用。
+- **J6 PDF/UA 一键生成**：`pdf::generateUaPdf` —— 推断角色 → 写语义树 → 补 `/Lang`、
+  `/Info /Title`、`/DisplayDocTitle`、含 `pdfuaid:part="1"` 的 XMP → **对产物重跑检查器**；
+  产物仍有 Error 时 `ok=false` 并逐条列出问题，**绝不宣布「已通过 PDF/UA 校验」**。
+  `PdfUaChecker` 的条款从 28 条增到 43 条。
+- **J7 表单域层级**：`/Form` 挂到所在页的 `/Part` 之下并按页内阅读顺序排列
+  （`/Part` 优先复用），**重跑幂等**（`/Form` 元素数恒等于域数）；
+  表单域在语义树里带角色与层级。
+- **L7 版面块级差异归因**：新增 `pdf::compareDocumentLayout` —— 逐页抽版面块，
+  按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，
+  给出块级归因（哪一块从哪页哪处挪到哪页哪处、哪张图被换掉、哪张表少了几列或多了几行），
+  跨页移动也能归因；界面新增「版面差异」页签。
+  `LayoutDiffTests` 13 条 + `DocumentComparerTests` 28 条。
+
+### 顺带修掉的真缺陷
+
+- **主程序链接失败**（`undefined reference to aipdf::pdf::readDocumentProperties(..., DocumentPropertiesW*, ...)`）：
+  根因不是陈旧目标文件，而是 **Windows 的 `winspool.h` 把 `DocumentProperties` 定义成宏**
+  （UNICODE 下展开成 `DocumentPropertiesW`）——
+  任何先包含 `windows.h` 的编译单元里，本仓库 `struct DocumentProperties` 的**声明处**被改名，
+  而**实现处**（`DocumentProperties.cpp`）没包含 `windows.h`，两者不再是同一个类型。
+  修法：在 `pdf/document/DocumentProperties.h` 声明之前 `#undef DocumentProperties`。
+  全仓没有调用过 Win32 那个「打印机属性对话框」函数，去掉这个便捷宏不影响任何东西。
+- **J 组顺带修掉两个上游真 bug**：qpdf 的 `getKeys()` 返回**带前导 `/`** 的键名，
+  导致字宽 / 粗体 / 图像三张表从未被查到；`isDictionary()` 对**流对象**返回假，
+  导致图像完全扫不出来。
+- **重排对话框收尾是死代码**：关闭按钮触发 reject，`exec()` 永远返回 `Rejected`，
+  「重排完成」从未显示 —— 改成点「重排」时写回。
+- **文档比较的 `navigateToPage` 信号一直没接线** —— 本轮接上。
+- **一条既有断言的口径被推翻**：`DocumentPipelineTests::reflowOfTaggedDocumentProducesOpenableOutput`
+  原来断言「重排会丢掉 Figure 与 Head 并把丢弃记进清单」——
+  这是 A8 的**老口径**（丢掉并记账）。A8 改成「写回前有门禁：少一类就拦住写回」之后，
+  成功结果的丢弃清单必然是空的，这条断言已按新语义改写：
+  断言清单为空，并逐类比对门禁用的 `sourceCounts` 与 `outputCounts`。
+- **一条夹具指错了对象**：`PdfUaCheckerTests` 的 `compliantPdf()` 造了 `/Info` 字典（对象 13），
+  却把 trailer 的 `/Info` 指向了对象 14（那是 Part 结构元素）——
+  PDF/UA 检查器读不到 `/Title`，于是报「缺标题」，
+  「合规样例」这一档反而被判成不合规。已改为指向对象 13。
+
+### 测试与负例
+
+本轮新增 10 个测试目标、**85 条真实用例**（PageObjectModelTests 11 + ReflowWriteBackTests 14 +
+VerticalWritingTests 12 + LayoutDiffTests 13 + SemanticTagWriterTests 20 + UaGeneratorTests 15 +
+OfficeImagesTests 12 + OfficeCorpus 三道门），每条新不变量都做过**负例对照**
+（弄坏 → 当场变红 → 恢复）：① 漏写最后一个图片部件 → 2 条变红；② 关系号写错 → 1 条变红；
+③ BGRA 通道红蓝互换 → 1 条变红；④ 去掉「栏口要有空隙才断开」→ 1 条变红
+（这条用例是补出来的：原合成夹具没覆盖「通栏标题横跨栏口」）；
+⑤ 删掉 `/Part` → 检查器变红；⑥ `/K` 指到不存在的 MCID → 变红；
+⑦ 去掉替代文本 → 变红；⑧ 去掉 widget 的 `/StructParent` → 变红。
+
+### 还没做的（5 项新依赖）
+
+A11（3D / 音视频运行时）、F6（XFA 动态表单运行时）、G5（原生签名 + 证书链 / 撤销状态）、
+H7（veraPDF 认证）、H9（网页转 PDF 的浏览器引擎）——
+这 5 项**缺的是运行时 / 第三方软件**，不是代码：写清楚「本机能做什么、不能做什么」比
+硬凑一个假实现更重要。本机探测结果：Edge WebView2 Runtime 157.0.4341.0 ✓、Edge ✓、Chrome ✓、
+Media Foundation（`mf.dll`）✓、Windows 证书存储 ✓；**Java ✗**（veraPDF 要另装 JRE）、
+Ghostscript ✗、pyHanko 不在 PATH。路线待定。
+
+### 口径变化
+
+能力评分卡的状态词表与计分项没有变化（102 项，已具备 65、超越 4、对齐 33、未做 0）——
+本轮补的是这 7 条命令的**能力范围**，不产生新的计分项上调。
+**欠账清单从 12 项降到 5 项**（清掉 A8 / A12 / H5 / J5 / J6 / J7 / L7 这 7 项实现类欠账；
+剩余 5 项全是新依赖类）。
+
+对标口径同步重算第十六次：变的是**命令矩阵 6 行的状态**（partial → aligned）。
+**第十六次（本轮）增至 65 / 102 与 71%（196 / 276）**。
+
 ## 1. 结论
 
 计划中的 1.1 → 1.11 没有按顺序推进。实际代码集中在 **1.1–1.5、1.8、1.10，以及 1.11 的一部分**；

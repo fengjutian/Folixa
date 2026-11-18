@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QMap>
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QStandardPaths>
@@ -639,6 +640,8 @@ void WiringActions::exportOffice() {
 
     QByteArray bytes;
     QString detail;
+    // 这个格式带不带图片：Word / PPT 带图片与表格对象，Excel 不带（XLSX 里没有图片）。
+    bool keepsImages = false;
     if (formatIndex == 1) {
         const doc::ExcelExportResult result = doc::exportPdfToExcel(documentBytes);
         if (!result.ok) {
@@ -663,7 +666,11 @@ void WiringActions::exportOffice() {
             return;
         }
         bytes = result.bytes;
-        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 张幻灯片（一页一张）").arg(result.slideCount);
+        keepsImages = true;
+        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 张幻灯片（%2 张图片、%3 个表格）")
+                     .arg(result.slideCount)
+                     .arg(result.imageCount)
+                     .arg(result.tableCount);
     } else {
         const doc::WordExportResult result = doc::exportPdfToWord(documentBytes);
         if (!result.ok) {
@@ -674,7 +681,12 @@ void WiringActions::exportOffice() {
             return;
         }
         bytes = result.bytes;
-        detail = i18n::tr("aipdf::app::MainWindow", "共 %1 页（页与页之间有分页符）").arg(result.pageCount);
+        keepsImages = true;
+        detail = i18n::tr("aipdf::app::MainWindow",
+                          "共 %1 页（%2 张图片、%3 个表格，页与页之间有分页符）")
+                     .arg(result.pageCount)
+                     .arg(result.imageCount)
+                     .arg(result.tableCount);
     }
 
     if (!writeFile(path, bytes, &error)) {
@@ -682,7 +694,7 @@ void WiringActions::exportOffice() {
         return;
     }
     QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
-                             officeExportNoticeText(formats.at(formatIndex), detail));
+                             officeExportNoticeText(formats.at(formatIndex), detail, keepsImages));
 }
 
 void WiringActions::exportOfd() {
@@ -1542,6 +1554,58 @@ void WiringActions::autoTagFormFields() {
     }
     for (const pdf::FormTagIssue& issue : result.issues) {
         lines.append(QStringLiteral("- ") + issue.fieldName + QStringLiteral("：") + issue.reason);
+    }
+    QMessageBox::information(parentWidget_, title, lines.join(QLatin1Char('\n')));
+}
+
+void WiringActions::autoTagDocument() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "自动添加文档标签");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    // 写一棵语义标签树：Document → Part（每页） → Sect → 标题 / 段落 / 列表 / 表格 / 图 / 表单域。
+    pdf::SemanticWriteOptions options;
+    const pdf::SemanticWriteResult result = pdf::writeSemanticTagTree(bytes, options, &error);
+    if (!result.ok) {
+        QMessageBox::warning(parentWidget_, title,
+                             result.error.isEmpty()
+                                 ? i18n::tr("aipdf::app::MainWindow", "写标签树失败。")
+                                 : result.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    // 报告：写进去多少个结构元素、按角色怎么分布。
+    // 为什么说清楚：用户需要知道机器把什么归成了标题、什么归成了段落。
+    QMap<QString, int> roleCounts;
+    for (const pdf::SemanticNode& node : result.tree.nodes) {
+        roleCounts[pdf::roleToName(node.role)] += 1;
+    }
+    QStringList parts;
+    for (auto it = roleCounts.constBegin(); it != roleCounts.constEnd(); ++it) {
+        parts.append(QStringLiteral("%1×%2").arg(it.key()).arg(it.value()));
+    }
+    QStringList lines;
+    lines.append(i18n::tr("aipdf::app::MainWindow", "已写入语义标签树：%1 个结构元素。")
+                     .arg(result.tree.nodes.size()));
+    if (!parts.isEmpty()) {
+        lines.append(i18n::tr("aipdf::app::MainWindow", "结构元素类型：%1")
+                         .arg(parts.join(QStringLiteral("、"))));
+    }
+    // 需要人工确认的地方逐条列出来：机器归类拿不准的、缺替代文本的。
+    for (const QString& issue : result.issues) {
+        lines.append(QStringLiteral("- ") + issue);
     }
     QMessageBox::information(parentWidget_, title, lines.join(QLatin1Char('\n')));
 }

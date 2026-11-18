@@ -1614,7 +1614,7 @@ void MainWindow::buildUi() {
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOfd(); }
     }, true, "convert.exportOfd");
-    addRibbonCommand(convertExportGroup, "到 MS Office", "把整篇文档的文字层导成 Word / Excel / PPT",
+    addRibbonCommand(convertExportGroup, "到 MS Office", "把整篇文档导成 Word / Excel / PPT（含图片与表格）",
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOffice(); }
     }, true, "convert.exportOffice");
@@ -2038,8 +2038,10 @@ void MainWindow::buildUi() {
     const int accessibilityTab = ribbonBar_->addTab(tr("辅助工具"));
     auto* accessibilityTagGroup = ribbonBar_->addGroup(accessibilityTab, tr("标签"));
     addRibbonCommand(accessibilityTagGroup, "自动添加文档标签",
-                     "需要完整的 PDF 标签树写入支持", ":/icons/protect.svg",
-                     [] {}, false, "accessibility.autoTagDocument");
+                     "给整篇文档写一棵语义标签树（标题 / 段落 / 列表 / 表格 / 图 / 表单域）", ":/icons/protect.svg",
+                     [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->autoTagDocument(); }
+    }, true, "accessibility.autoTagDocument");
     // 自动给表单域写标签树 + 替代文本（替换原来的禁用占位）。
     addRibbonCommand(accessibilityTagGroup, "自动添加表单域标签",
                      "给表单域写标签树与替代文本，让读屏软件能念出来", ":/icons/form.svg",

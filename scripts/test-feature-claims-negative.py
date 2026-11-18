@@ -76,17 +76,36 @@ try:
     else:
         print("还原后复绿")
 
-    # 把豁免清单里的短语改成一个不存在的短语
+    # 把豁免清单里**第一条**豁免的短语改成一个不存在的短语。
+    #
+    # 为什么不能写死某个短语（原来写的是「只到」）：豁免清单会随实现变化，
+    # 写死的那个短语一旦被删掉，replace 就成了空操作 —— 负例自己失效了，
+    # 门禁还是绿的，却以为「证明过守卫会拦人」。所以这里从清单里现取第一条。
     exempt_text = original_exempt.decode("utf-8")
-    broken_exempt = exempt_text.replace("只到,", "不存在的短语,", 1)
-    with io.open(EXEMPT_PATH, "wb") as fh:
-        fh.write(broken_exempt.encode("utf-8"))
-    code, out = run_guard()
-    if code == 0:
-        failures.append("负例 2：豁免失效后守卫仍然放行（应该变红）")
+    exempt_lines = exempt_text.split("\n")
+    broken_lines = list(exempt_lines)
+    replaced = False
+    for index, line in enumerate(exempt_lines):
+        if not line.strip() or line.startswith("tab,"):
+            continue
+        fields = line.split(",")
+        if len(fields) < 4:
+            continue
+        fields[3] = "不存在的短语"
+        broken_lines[index] = ",".join(fields)
+        replaced = True
+        break
+    if not replaced:
+        failures.append("负例 2：豁免清单里找不到可改的短语")
     else:
-        print("负例 2 按预期变红：")
-        print("   " + [l for l in out.splitlines() if l.strip().startswith("-")][0].strip())
+        with io.open(EXEMPT_PATH, "wb") as fh:
+            fh.write("\n".join(broken_lines).encode("utf-8"))
+        code, out = run_guard()
+        if code == 0:
+            failures.append("负例 2：豁免失效后守卫仍然放行（应该变红）")
+        else:
+            print("负例 2 按预期变红：")
+            print("   " + [l for l in out.splitlines() if l.strip().startswith("-")][0].strip())
 finally:
     restore()
 

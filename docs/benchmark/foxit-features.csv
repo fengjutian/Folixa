@@ -60,7 +60,7 @@
 转换,组装,合并文件,aligned,D2,一次可多选多份合并，跨文件书签按层级搬运并加来源名前缀，内部跳转改指合并后页号；有专项单测（`DocumentMergerTests` 13 条）
 转换,组装,空白页,aligned,D1,插入空白页
 转换,输出,导出全部图像,aligned,H3,按 DPI 导出 PNG/JPEG
-转换,输出,到MS Office,partial,H5,PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现（`doc::PdfToOffice`，`PdfToOfficeTests` 6 条）：Word 页与页之间有分页符；Excel 按页拆工作表，**认得出的表格写成表格**（启发式识别，认不出的按文字行导出）；PPT 一页一张幻灯片；产物由 openpyxl / python-pptx / LibreOffice 独立打开验证（`scripts/verify-pdf-office-packages.py`）；**只含文字层**，图片、批注与精确版式不会带过去；`OfficeExportTests` 11 条
+转换,输出,到MS Office,aligned,H5,PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条
 转换,输出,到图片,aligned,H3,与导出图片同一条通路
 转换,输出,到HTML,partial,—,整篇导出 HTML；**不含图片与图形，字号按字形高度估算**；`pdf::exportPageToHtml`，`ExportFormatsTests`
 转换,输出,转为基于图像的PDF,aligned,—,整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests`
@@ -219,17 +219,17 @@
 共享,企业,iManage 9,excluded,—,同上
 共享,企业,iManage 10,excluded,—,同上
 共享,企业,eDOCS DM,excluded,—,同上
-辅助工具,标签,自动添加标签到文档中,partial,J5,标签树能写（`pdf::writeTaggedStructure`），但**只到行粒度**：按文本行推结构元素，不是语义级的自动打标签；`TagTreeWriterTests` 18 条
-辅助工具,标签,自动添加标签到表单域,partial,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**没有用读屏软件实测**，只做结构层回读校验；文档里没有表单域时明确失败，不生成空标签树；`FormAutoTagTests` 14 条
+辅助工具,标签,自动添加标签到文档中,aligned,J5,语义标签树已实现（`pdf::writeSemanticTagTree`，Ribbon「辅助工具 → 标签 → 自动添加文档标签」入口已启用）：扫内容流整理出「块」（文字 / 表格 / 图片 / 表单域）→ `pdf::inferSemanticRoles` 推断角色（标题看字号、加粗与「第 N 章」「1.2.3」这类编号层级；列表看行首标记与连续编号；表格看多行的列位置在行间对不对得上）→ 搭出 Document → Part(每页) → Sect → H1..H6 / P / L / LI / Table(TR/TH/TD) / Figure / Form 的语义树 → `pdf::writeSemanticStructure` 写回（`/StructTreeRoot`、`/RoleMap`、`/ParentTree`、每页 `/Tabs /S`）；**归类不可靠的块如实标出来并写明原因**（`reliable=false` + 中文原因），不静默给一棵看着整齐其实归错的树；**没有依据的替代文本不写**，改不成就把原因列进 issues 不编一句；**读屏取文顺序按读屏的取文路径回读验证**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`：结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`SemanticTagWriterTests` 20 条 + `TagTreeWriterTests` 18 条
+辅助工具,标签,自动添加标签到表单域,aligned,J7,给表单域写标签树已实现：每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**表单域挂到所在页的 `/Part` 之下并按页内阅读顺序排列**（页面没有 `/Part` 就新建；已有 `/Part` 优先复用而不是再造一个），**重跑幂等**：上一轮写下的 `/Form` 元素会被摘掉换成新的，结构树里 `/Form` 元素的数量与域数始终一致；**表单域在语义树里带角色与层级**（`pdf::inferSemanticRoles` 把域归成 `/Form` 角色并挂进 Document → Part → Sect → …，`/T` 与 `/Alt` 一起写进去）；**XFA 表单域不在这一条路径里**（覆盖范围是 AcroForm 字段与页上的 widget 注解）；文档里没有表单域时明确失败，不生成空标签树；**读屏软件实测未验证**（本机没有读屏软件；字段名与替代文本改用结构树回读链路逐节点断言）；`FormAutoTagTests` 14 条 + `SemanticTagWriterTests` 20 条
 辅助工具,检查,完整检查,aligned,J3,本地无障碍检查并给出结论
 辅助工具,检查,辅助功能报告,aligned,J3,导出 HTML 报告
 辅助工具,设置,设置助手,aligned,J2,设置助手：无障碍配置向导分三步（显示与阅读 / 朗读 / 摘要）配好界面字号、阅读配色、导航面板与朗读参数，规则在 `app::AccessibilityPlan`，`AccessibilityWizardTests` 8 条
 辅助工具,阅读,阅读选项,aligned,J4,一个对话框两个页签：阅读顺序预览 + 朗读设置（音色、语速、音量），设置存到语音引擎、下次朗读生效；`speech::SpeechSettings`，`SpeechEngineTests`
-辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`），读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规
-辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；不支持表单域说明与自动生成
-辅助工具,阅读,设置区域阅读顺序,partial,J5,能看文档标签树里已写好的顺序；标签树只到行粒度，无替代文本与语言标记；行聚类与选区同规则（`PageTextLinesTests` 11 条）
-辅助工具,阅读,更改区域顺序,partial,J5,可调整当前页各行先后并写进标签树；只到行粒度，未过 PDF/A 标签合规；行聚类与选区同规则（`PageTextLinesTests` 11 条）
-辅助工具,阅读,应用区域顺序,partial,J5,整篇按从上到下的默认顺序写标签树；只到行粒度，未过 PDF/A 标签合规
+辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：能读既有 StructTreeRoot（`pdf::readStructTree`），支持 `/K` 三种形态、`/Parent` 反查、防环，读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；**语义树的阅读顺序按读屏的取文路径回读**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`：结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`StructTreeReaderTests` 18 条 + `SemanticTagWriterTests` 20 条 + `UaGeneratorTests` 15 条
+辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；**图像与表单域的替代文本由 `pdf::generateAltTexts` 自动推断**（表格取表头文字、图像取邻近的说明文字、表单域取提示文字与字段名），**没有依据的不写**并把原因列进 issues，不编一句；**界面上的这条命令作用在选中的批注上**，图像与表单域的替代文本随语义标签树一起写进文档（见「自动添加标签到文档中」）；`AltTextGeneratorTests`（在 `SemanticTagWriterTests` 里）
+辅助工具,阅读,设置区域阅读顺序,partial,J5,能看文档标签树里已经写好的顺序；这条命令读的是**行级**顺序（`pdf::readTaggedOrder`），语义树的顺序在「读取标签树」那条命令里看；行聚类与选区同规则（`PageTextLinesTests` 11 条）
+辅助工具,阅读,更改区域顺序,partial,J5,可调整当前页各行先后并写进标签树；这条命令是行级操作（`pdf::writeTaggedStructure`），语义树由「自动添加标签到文档中」那条命令生成；行聚类与选区同规则（`PageTextLinesTests` 11 条）
+辅助工具,阅读,应用区域顺序,partial,J5,整篇按从上到下的默认顺序写标签树（行级）；语义树（Document / Part / Sect / 标题 / 段落 / 列表 / 表格 / 图 / 表单域）由「自动添加标签到文档中」那条命令生成
 论文工具,查重,论文查重,aligned,—,本地重复度检测并输出报告
 论文工具,查重,查重历史,aligned,—,历史存在本地设置里
 文档管理,组织,文档雷达,aligned,—,本地文档概述显示页数、大小、时间与管理属性

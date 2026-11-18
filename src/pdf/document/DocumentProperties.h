@@ -3,6 +3,20 @@
 #include <QByteArray>
 #include <QString>
 
+// Windows 的 winspool.h 把 DocumentProperties 定义成宏（UNICODE 下展开成
+// DocumentPropertiesW）。本结构体与它同名：只要某个编译单元先包含了
+// windows.h，**声明处**的类型就被改名成 DocumentPropertiesW，而
+// **实现处**（本头文件 + DocumentProperties.cpp）没有包含 windows.h，
+// 仍是 DocumentProperties —— 两者不再是同一个类型，
+// 链接阶段才报 undefined reference，排查起来很绕。
+//
+// 这里在声明之前把这个宏去掉，保证声明处与实现处永远是同一个类型。
+// 去掉的是 Win32 那个「打印机属性对话框」便捷宏，本仓库用 QPrintDialog，
+// 全仓没有调用过 Win32 的 DocumentProperties()，去掉它不影响任何东西。
+#ifdef DocumentProperties
+#undef DocumentProperties
+#endif
+
 namespace aipdf::pdf {
 
 // 文档属性（对应 PDF 的 /Info 字典）。

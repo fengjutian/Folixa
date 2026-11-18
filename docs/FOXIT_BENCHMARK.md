@@ -108,7 +108,7 @@
 | H2 | 批注随打印输出 | ✓ | 已具备 | 1.2.0 | 打印前先补 /AP 再渲染，同一条路径 |
 | H3 | 导出图片（PNG / JPEG，可选 DPI） | ✓ | 已具备 | 1.2.0 | 尺寸与 DPI 断言 |
 | H4 | 导出纯文本（按阅读顺序） | ✓ | 已具备 | 1.2.0 | 与抽取结果一致 |
-| H5 | PDF → Word / Excel / PPT | ✓ | 对齐 | 1.9.0 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符；Excel 按页拆工作表、**认得出的表格写成表格**（启发式识别，认不出的按文字行导出）；PPT 一页一张幻灯片；产物由 openpyxl / python-pptx / LibreOffice **独立打开验证**（`scripts/verify-pdf-office-packages.py`）；`PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条；**仍只含文字层，图片、批注与精确版式不会带过去** |
+| H5|PDF → Word / Excel / PPT|✓|对齐| 1.9.0 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条。 
 | H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 25 条），有界面入口；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），界面会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体并如实报出替换了多少字符；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」），本项不重复计分；`TrueTypeSubsetTests` 7 条 |
 | H7 | PDF/A 转换 | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**现在有 PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**但预检不是合规认证** —— 认证要 veraPDF（Java 依赖），本仓库不引入新依赖，所以界面只说「预检发现 N 个问题」；`PdfACheckerTests` 34 条 |
 | H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`，带自检负例）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的 |
@@ -134,9 +134,9 @@
 | J2 | 键盘全路径可达 | ✓ | 对齐 | 1.10.0 | Ribbon 每个按钮都有**全 Ribbon 唯一的助记符**（ASCII 字母优先，没有字母时用首个汉字），主命令区可用 Alt+字母到达；并显式声明 Tab 顺序（Ribbon → 侧栏 → 主视图 → 状态栏）；助记符唯一性有单测守 |
 | J3 | 屏幕阅读器 / UIA 暴露 | ✓ | 对齐 | 1.10.0 | Ribbon 按钮逐个设 `accessibleName`（去掉助记符后的文字），屏幕阅读器能读出主命令区；新增的 20 个按钮逐个断言；`UiWiringTests` |
 | J4 | 朗读（逐词高亮） | ✓ | **已具备** | 1.10.0 | 走 Windows 系统语音合成（PowerShell + System.Speech）逐词朗读，页面上逐词高亮；**朗读设置可调音色 / 语速 / 音量**（音色取自系统语音列表，`speech::SpeechSettings`）；`SpeechTextTests` 13 条 + `SpeechEngineTests` 11 条；逐词合成长文较慢，系统无语音时优雅降级 |
-| J5 | 读取标签结构生成阅读顺序 | ✓ | 对齐 | 1.10.0 | 除能写标签树外，**能读既有 StructTreeRoot**（`pdf::readStructTree`）：支持 `/K` 三种形态、`/Parent` 反查、防环，能读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，并有界面入口；`StructTreeReaderTests` 18 条。仍只到行粒度，未过 PDF/A 标签合规 |
-| J6 | PDF/UA 合规检查 | ✓ | 对齐 | — | PDF/UA **合规检查器**已实现：给出「通过 / 警告 / 不通过」三档结论与逐条修复建议（`pdf::checkPdfUa`，`PdfUaCheckerTests` 19 条）；**只做检查与修复建议，不能一键生成合规文件**，界面文案如实 |
-| J7 | 自动打标签到表单域 | ✓ | 对齐 | — | 每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**结构元素只到域粒度，不是语义级自动打标签**；**只处理 AcroForm 域，XFA 表单域不做**；**没有用读屏软件实测**，只做结构层回读校验；`FormAutoTagTests` 14 条 |
+| J5|读取标签结构生成阅读顺序|✓|对齐| 1.10.0 | 能读既有 StructTreeRoot（`pdf::readStructTree`）：支持 `/K` 三种形态、`/Parent` 反查、防环，能读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，并有界面入口；**语义标签树已实现**（`pdf::writeSemanticTagTree`，Ribbon「辅助工具 → 标签 → 自动添加文档标签」入口已启用）：扫内容流整理出「块」→ `pdf::inferSemanticRoles` 推断角色（标题看字号、加粗与编号层级；列表看行首标记与连续编号；表格看多行的列位置在行间对不对得上）→ 搭出 Document → Part(每页) → Sect → H1..H6 / P / L / LI / Table(TR/TH/TD) / Figure / Form 的语义树 → `pdf::writeSemanticStructure` 写回（`/StructTreeRoot`、`/RoleMap`、`/ParentTree`、每页 `/Tabs /S`）；**归类不可靠的块如实标出来并写明原因**，不静默给一棵看着整齐其实归错的树；**没有依据的替代文本不写**，改不成就把原因列出来，不编一句；**读屏取文顺序按读屏的取文路径回读验证**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`，结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`StructTreeReaderTests` 18 条 + `SemanticTagWriterTests` 20 条 + `UaGeneratorTests` 15 条。 
+| J6|PDF/UA 合规检查|✓|对齐| — | PDF/UA **合规检查器**已实现：给出「通过 / 警告 / 不通过」三档结论与逐条修复建议（`pdf::checkPdfUa`，条款 28 → 43，`PdfUaCheckerTests` 19 条）；**一键生成合规文件已实现**（`pdf::generateUaPdf`，Ribbon「辅助工具 → 标签 → 生成 PDF/UA 文件」入口已启用）：推断语义角色 → 写语义树 → 补 `/Lang`、`/Info /Title`、`/DisplayDocTitle`、含 `pdfuaid:part="1"` 的 XMP 元数据、每页 `/Tabs /S` → **对产物重跑检查器**；产物仍有 Error 时 `ok=false` 并逐条列出问题，**绝不宣布「已通过 PDF/UA 校验」**——界面结论用生成器给的摘要（`result.summaryText`），边界说明原样用 `pdf::uaGenerationDisclaimer()`；**支持的是 PDF/UA-1**（ISO 14289-1），PDF/UA-2 不支持；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`UaGeneratorTests` 15 条 + `PdfUaCheckerTests` 19 条。 
+| J7|自动打标签到表单域|✓|对齐| — | 每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**表单域挂到所在页的 `/Part` 之下并按页内阅读顺序排列**（页面没有 `/Part` 就新建；已有 `/Part` 优先复用而不是再造一个），**重跑幂等**：上一轮写下的 `/Form` 元素会被摘掉换成新的，结构树里 `/Form` 元素的数量与域数始终一致；**表单域在语义树里带角色与层级**（`pdf::inferSemanticRoles` 把域归成 `/Form` 角色并挂进 Document → Part → Sect → …，`/T` 与 `/Alt` 一起写进去）；**XFA 表单域不在这一条路径里**（覆盖范围是 AcroForm 字段与页上的 widget 注解）；**读屏软件实测未验证**（本机没有读屏软件；字段名与替代文本改用结构树回读链路逐节点断言）；`FormAutoTagTests` 14 条 + `SemanticTagWriterTests` 20 条。 
 
 ### K. 性能与兼容（6 项）
 
@@ -171,7 +171,7 @@
 | Must（待补齐） | 33 | Must 共 102 项（102 − 0 Nice − 0 不做），已达「对齐」及以上 69 |
 | Nice（可延后） | 0 | 全部已实现，见评分卡 |
 | 未做（未实现） | 0 | L7 文档比较本轮已实现（文字层 + 可选的像素比对），**没有未实现项** |
-| 欠账（对齐但承诺范围未达成） | 9 | A11 / F6 / G5 / H5 / H7 / H9 / J5 / J6 / J7；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
+| 欠账（对齐但承诺范围未达成） | 5 | A11 / F6 / G5 / H7 / H9；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
 | 不做（含理由） | 0 | 本轮已全部有实现，1.2 相应条目已移出 |
 
 校准记录：
@@ -499,8 +499,8 @@
 | L AI 能力 | 6 / 8 | 文生图、总结配图、PPT 四模式、内容检测、智能朗读、本地离线问答已补齐；本地离线问答是抽取式，不是模型推理；**文档比较已补像素级视觉比对**（默认关闭）与**跨文档自动对齐**（页指纹 + 相似度贪心配对，插页 / 删页不再让配对整体后移），但仍不做版面结构分析，**矩阵这一行仍是「部分」** |
 | **合计** | **69 / 102（68%）** | 本轮把上一版记成「不做 / 未做 / 部分」的那一批补上了 |
 
-**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 193 条完全对齐、54 条部分、
-0 条未做，**对齐率 70%**（去掉 🚫/➖ 的 247 条里占 78%）。能力评分卡按域计，
+**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 196 条完全对齐、51 条部分、
+0 条未做，**对齐率 71%**（去掉 🚫/➖ 的 247 条里占 79%）。能力评分卡按域计，
 命令矩阵按按钮计，两者不可互相换算。
 
 **这一段动的三项都来自同一条通路。** 打印、导出图片、导出文本共用

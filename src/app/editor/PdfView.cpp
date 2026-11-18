@@ -7705,8 +7705,8 @@ void PdfView::showRegionReadingOrderDialog() {
                                   : QStringLiteral("1")));
     }
     QMessageBox::information(this, tr("区域阅读顺序"),
-                             lines.join('\n') + tr("\n\n（只到行粒度：没有替代文本与语言标记，"
-                                                  "读屏软件能按顺序念，但不知道图是什么。）"));
+                             lines.join('\n') + tr("\n\n（显示的是标签树里每页的子元素顺序；"
+                                                  "语义树与行级树都能读，取决于这份文档最后写的是哪一棵。）"));
 }
 
 // 调整当前页各行的先后顺序，然后写进标签树。
