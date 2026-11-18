@@ -65,6 +65,14 @@ struct ExportResult {
 ExportResult exportPageTo(ExportFormat format, const pdf::TextPage& text,
                            const QSizeF& pageSizePt);
 
+// 把**整篇**文档导成指定格式（页与页之间插分页符）。
+//
+// 为什么要有这个：原来的导出只吃一页，用户导 30 页的合同只能拿到第一页——
+// 命令叫「导出到 Word」，产出却只有一页，这是**命令名与产出不符**。
+// 页面尺寸统一取第一页（各页尺寸不一致时以第一页为准，并在说明里讲清楚）。
+ExportResult exportPagesTo(ExportFormat format, const QVector<pdf::TextPage>& pages,
+                            const QSizeF& pageSizePt);
+
 // ---------------------------------------------------------------------------
 // 行重建：PDF 的字符流不是按行组织的，导出必须先把字符重建成行。
 //

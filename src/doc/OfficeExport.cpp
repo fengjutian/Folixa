@@ -159,7 +159,7 @@ QByteArray packageRelsXml() {
     return out.toUtf8();
 }
 
-QByteArray documentXml(const QVector<TextExportLine>& lines, const QSizeF& pageSizePt) {
+QByteArray documentXml(const QVector<QVector<TextExportLine>>& pageLines, const QSizeF& pageSizePt) {
     double widthPoints = pageSizePt.width();
     double heightPoints = pageSizePt.height();
     if (!(widthPoints > 0.0) || !(heightPoints > 0.0)) {
@@ -172,10 +172,16 @@ QByteArray documentXml(const QVector<TextExportLine>& lines, const QSizeF& pageS
     out.append(QStringLiteral(
         "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
         "<w:body>"));
-    for (const TextExportLine& line : lines) {
-        // xml:space="preserve"：不加它，行首行尾的空格会被 Word 吃掉。
-        out.append(QStringLiteral("<w:p><w:r><w:t xml:space=\"preserve\">%1</w:t></w:r></w:p>")
-                       .arg(escapeXml(line.text)));
+    for (int pageIndex = 0; pageIndex < pageLines.size(); ++pageIndex) {
+        // 页与页之间插分页符：不插的话 30 页会连成一大段，Word 里看不出页的边界。
+        if (pageIndex > 0) {
+            out.append(QStringLiteral("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>"));
+        }
+        for (const TextExportLine& line : pageLines.at(pageIndex)) {
+            // xml:space="preserve"：不加它，行首行尾的空格会被 Word 吃掉。
+            out.append(QStringLiteral("<w:p><w:r><w:t xml:space=\"preserve\">%1</w:t></w:r></w:p>")
+                           .arg(escapeXml(line.text)));
+        }
     }
     out.append(QStringLiteral("<w:sectPr><w:pgSz w:w=\"%1\" w:h=\"%2\"/></w:sectPr>")
                    .arg(qRound(widthPoints * kPointsToTwips))
@@ -184,14 +190,15 @@ QByteArray documentXml(const QVector<TextExportLine>& lines, const QSizeF& pageS
     return out.toUtf8();
 }
 
-QByteArray exportWordOpenXml(const QVector<TextExportLine>& lines, const QSizeF& pageSizePt) {
+QByteArray exportWordOpenXml(const QVector<QVector<TextExportLine>>& pageLines,
+                             const QSizeF& pageSizePt) {
     // 说明：产出的是**zip 打包的 .docx**（[Content_Types].xml + _rels/.rels +
     // word/document.xml），不是 Flat OPC 单文件。Word / WPS / LibreOffice
     // 都能直接打开这种包。
     zip::Writer writer;
     writer.addFile(QStringLiteral("[Content_Types].xml"), contentTypesXml());
     writer.addFile(QStringLiteral("_rels/.rels"), packageRelsXml());
-    writer.addFile(QStringLiteral("word/document.xml"), documentXml(lines, pageSizePt));
+    writer.addFile(QStringLiteral("word/document.xml"), documentXml(pageLines, pageSizePt));
     return writer.toByteArray();
 }
 
@@ -308,7 +315,7 @@ ExportResult exportPageTo(ExportFormat format, const pdf::TextPage& text,
     case ExportFormat::WordOpenXml: {
         result.suggestedSuffix = QStringLiteral("docx");
         const QVector<TextExportLine> lines = buildTextLines(text);
-        result.bytes = exportWordOpenXml(lines, pageSizePt);
+        result.bytes = exportWordOpenXml(QVector<QVector<TextExportLine>>{lines}, pageSizePt);
         result.ok = !result.bytes.isEmpty();
         if (!result.ok) {
             result.bytes.clear();
@@ -334,6 +341,67 @@ ExportResult exportPageTo(ExportFormat format, const pdf::TextPage& text,
         result.ok = false;
         result.bytes.clear();
         result.suggestedSuffix.clear();
+        result.error = QStringLiteral("导出失败：不支持的导出格式。");
+        break;
+    }
+    return result;
+}
+
+ExportResult exportPagesTo(ExportFormat format, const QVector<pdf::TextPage>& pages,
+                            const QSizeF& pageSizePt) {
+    ExportResult result;
+    if (pages.isEmpty()) {
+        result.error = QStringLiteral("导出失败：文档里没有可导出的文字层。");
+        return result;
+    }
+    QVector<QVector<TextExportLine>> pageLines;
+    pageLines.reserve(pages.size());
+    for (const pdf::TextPage& page : pages) {
+        pageLines.append(buildTextLines(page));
+    }
+    switch (format) {
+    case ExportFormat::WordOpenXml: {
+        result.suggestedSuffix = QStringLiteral("docx");
+        result.bytes = exportWordOpenXml(pageLines, pageSizePt);
+        result.ok = !result.bytes.isEmpty();
+        if (!result.ok) {
+            result.bytes.clear();
+            result.error = QStringLiteral("导出 Word 文档失败：生成的压缩包为空。");
+        }
+        break;
+    }
+    case ExportFormat::Rtf: {
+        result.suggestedSuffix = QStringLiteral("rtf");
+        // RTF 没有分页符的说法，用换页（\page）隔开。
+        QVector<TextExportLine> merged;
+        for (int pageIndex = 0; pageIndex < pageLines.size(); ++pageIndex) {
+            if (pageIndex > 0) {
+                TextExportLine separator;
+                separator.text = QStringLiteral("\\page");
+                merged.append(separator);
+            }
+            merged.append(pageLines.at(pageIndex));
+        }
+        result.bytes = exportRtf(merged);
+        result.ok = true;
+        break;
+    }
+    case ExportFormat::PlainText: {
+        result.suggestedSuffix = QStringLiteral("txt");
+        QVector<TextExportLine> merged;
+        for (int pageIndex = 0; pageIndex < pageLines.size(); ++pageIndex) {
+            if (pageIndex > 0) {
+                TextExportLine separator;
+                separator.text = QStringLiteral("\f");
+                merged.append(separator);
+            }
+            merged.append(pageLines.at(pageIndex));
+        }
+        result.bytes = exportPlainText(merged);
+        result.ok = true;
+        break;
+    }
+    default:
         result.error = QStringLiteral("导出失败：不支持的导出格式。");
         break;
     }

@@ -749,6 +749,40 @@ def form_pdf():
     objects.append((4, b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content), content)))
     return _build_pdf(objects, 1)
 
+def table_pdf():
+    """带表格的页面：用于「表格识别 → 导出成 Excel 表格」的验收。
+
+    版式：标题一行（表格外的文字）+ 3 列 × 3 行的表格。
+    每一列的 x 固定，行距固定——这样表格检测（按 y 聚行、按 x 分列）
+    才认得出这是表格，而不是一段散文。
+    """
+    page = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 400] "
+        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+    )
+    objects = [
+        (1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        (2, b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        (3, page),
+        (4, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]
+
+    rows = [
+        ("Item", "Qty", "Price"),
+        ("Apple", "12", "3.50"),
+        ("Pear", "7", "5.25"),
+    ]
+    lines = [("Quarterly report", 18, 60, 350)]
+    for row_index, row in enumerate(rows):
+        y = 300 - row_index * 40
+        for column_index, cell in enumerate(row):
+            lines.append((cell, 12, 60 + column_index * 140, y))
+
+    objects.append((5, b"<< /Length %d >>\nstream\n%s\nendstream"
+                    % (len(_page_content_stream(lines)), _page_content_stream(lines))))
+    return _build_pdf(objects, 1)
+
+
 FIXTURES = {
     "normal.pdf": normal_pdf,
     "nested-form.pdf": nested_form_pdf,
@@ -764,6 +798,7 @@ FIXTURES = {
     "navigation.pdf": navigation_pdf,
     "annotation.pdf": annotation_pdf,
     "form.pdf": form_pdf,
+    "table.pdf": table_pdf,
 }
 
 
