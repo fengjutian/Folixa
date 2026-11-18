@@ -375,35 +375,39 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 //
 // 只管 `color:` 后面的色值。同样是蓝，深底上的蓝字要提亮，
 // 不然 #365AA8 那种深蓝直接糊在深色底上看不见。
+//
+// 色阶取自 docs/UI_DESIGN_SYSTEM.md §5.3 的 Neutral 表：
+// text.primary #EDF2F8、text.secondary #B5C0D0、text.muted #8491A5、
+// text.disabled #667287。
 QMap<QString, QString> darkTextColors() {
     return {
         // —— 正文与标题：浅色下的深字，在深色下反过来 ——
-        {"#202A3A", "#E8EAEE"},      // 正文
-        {"#27272A", "#E4E7EC"},      // 选中标签、输入框文字
-        {"#18181B", "#F2F4F7"},      // 标题类文字
-        {"#1B2432", "#E8EAEE"},      // 品牌字
-        {"#39475D", "#C2C9D4"},      // AI 快捷动作文字
-        {"#344156", "#C2C9D4"},      // AI 快捷动作文字
-        {"#465267", "#B9C1CD"},      // 次级文字
-        {"#4A576E", "#A5AEBC"},      // 命令栏文字
-        {"#5A6779", "#A5AEBC"},      // 标签文字
-        {"#596579", "#A5AEBC"},      // AI 按钮文字
-        {"#52525B", "#A8B0BE"},      // 状态栏文字
-        {"#67748A", "#8E98A8"},      // AI 副标题
-        {"#6C7890", "#8E98A8"},      // AI 副标题
-        {"#7C8799", "#8E98A8"},      // AI 说明文字
-        {"#7C8AA5", "#8E98A8"},      // 欢迎页副标题
-        {"#8792A3", "#8E98A8"},      // 次要说明文字
-        {"#8A95A8", "#7E8899"},      // AI 服务商标签
-        {"#94A0B4", "#7E8899"},      // 最近文档路径
-        {"#98A2B3", "#7C8697"},      // Ribbon 分组标题、欢迎页分组说明
-        {"#9AA3B4", "#737D8D"},      // 空状态提示
-        {"#9AA5B8", "#737D8D"},      // 欢迎页脚注
-        {"#AAB2C0", "#5C6472"},      // 禁用文字
-        {"#A1A1AA", "#5C6472"},      // 纯图标按钮禁用文字
-        {"#B4BDCB", "#646C7A"},      // 禁用文字
-        {"#B7C1D2", "#6B7382"},      // 最近文档箭头
-        {"#B8C0CC", "#646C7A"},      // Ribbon 禁用文字
+        {"#202A3A", "#EDF2F8"},      // 正文（text.primary）
+        {"#27272A", "#E2E9F2"},      // 选中标签、输入框文字
+        {"#18181B", "#F4F8FC"},      // 标题类文字
+        {"#1B2432", "#EDF2F8"},      // 品牌字
+        {"#39475D", "#C3CEDD"},      // AI 快捷动作文字
+        {"#344156", "#C3CEDD"},      // AI 快捷动作文字
+        {"#465267", "#B5C0D0"},      // 次级文字（text.secondary）
+        {"#4A576E", "#A9B4C4"},      // 命令栏文字
+        {"#5A6779", "#A9B4C4"},      // 标签文字
+        {"#596579", "#A9B4C4"},      // AI 按钮文字
+        {"#52525B", "#AFBAC9"},      // 状态栏文字
+        {"#67748A", "#8491A5"},      // AI 副标题（text.muted）
+        {"#6C7890", "#8491A5"},      // AI 副标题
+        {"#7C8799", "#8491A5"},      // AI 说明文字
+        {"#7C8AA5", "#8491A5"},      // 欢迎页副标题
+        {"#8792A3", "#8491A5"},      // 次要说明文字
+        {"#8A95A8", "#7A8699"},      // AI 服务商标签
+        {"#94A0B4", "#7A8699"},      // 最近文档路径
+        {"#98A2B3", "#6F7B8F"},      // Ribbon 分组标题、欢迎页分组说明
+        {"#9AA3B4", "#68748A"},      // 空状态提示
+        {"#9AA5B8", "#68748A"},      // 欢迎页脚注
+        {"#AAB2C0", "#667287"},      // 禁用文字（text.disabled）
+        {"#A1A1AA", "#667287"},      // 纯图标按钮禁用文字
+        {"#B4BDCB", "#6E7B90"},      // 禁用文字
+        {"#B7C1D2", "#77839A"},      // 最近文档箭头
+        {"#B8C0CC", "#6E7B90"},      // Ribbon 禁用文字
         // —— 主色文字：深底上的蓝字要提亮 ——
         {"#365AA8", "#8FB4FF"},
         {"#3555B7", "#8FB4FF"},
@@ -423,6 +427,11 @@ QMap<QString, QString> darkTextColors() {
 //
 // 管背景、描边、滚动条这些「不是文字」的色值。
 //
+// 色阶取自 docs/UI_DESIGN_SYSTEM.md §5.3：
+// foundation #111827（应用背景）、surface.primary #1B2432（主表面）、
+// surface.secondary #222D3D（次级表面）、surface.tertiary #2A3648（hover）、
+// border.default #344156、border.strong #4A5870。
+//
 // 分组按「这张颜色在界面里扮演什么角色」，不按色相：
 // 同一个蓝色可能既是选中底也是 hover 底，角色不同，给法就不同。
 //
@@ -431,89 +440,89 @@ QMap<QString, QString> darkTextColors() {
 QMap<QString, QString> darkSurfaceColors() {
     return {
         // —— 表面：浅色下的白与浅灰，在暗色下换成三档深灰 ——
-        {"#FFFFFF", "#1D2027"},      // 面板、菜单、输入框、卡片
-        {"#FAFAFB", "#1A1D23"},      // 命令栏、状态栏、导航轨、设置卡片
-        {"#F7F7F8", "#191C22"},      // 设置导航列表
-        {"#F8F9FB", "#232730"},      // AI 次级按钮
-        {"#FBFCFE", "#20242B"},      // 停靠面板标题
-        {"#FAFAFD", "#1A1D23"},      // AI 快捷动作禁用底
-        {"#F7F8FB", "#191C22"},      // 缩略图列表底
-        {"#F6F8FB", "#191C22"},      // AI 面板底
-        {"#F5F7FA", "#22262E"},      // AI 范围按钮底
-        {"#F3F4F6", "#15171C"},      // 窗口底
-        {"#EFF2F8", "#242832"},      // 最近文档分隔线
-        {"#F0F0F2", "#232730"},      // 搜索框底
-        {"#ECECEF", "#2A2E38"},      // 搜索框 hover 底
-        {"#F5F8FD", "#262B36"},      // 按钮 hover 底
-        {"#F7F8FA", "#1F232B"},      // 按钮禁用底
-        {"#FAFBFD", "#1F232B"},      // 工具栏按钮禁用底
-        {"#EEEFF2", "#262A33"},      // 纯图标按钮 hover 底
+        {"#FFFFFF", "#1B2432"},      // 面板、菜单、输入框、卡片（surface.primary）
+        {"#FAFAFB", "#161F2E"},      // 命令栏、状态栏、导航轨、设置卡片
+        {"#F7F7F8", "#151D2B"},      // 设置导航列表
+        {"#F8F9FB", "#222D3D"},      // AI 次级按钮（surface.secondary）
+        {"#FBFCFE", "#1E2837"},      // 停靠面板标题
+        {"#FAFAFD", "#161F2E"},      // AI 快捷动作禁用底
+        {"#F7F8FB", "#151D2B"},      // 缩略图列表底
+        {"#F6F8FB", "#151D2B"},      // AI 面板底
+        {"#F5F7FA", "#222D3D"},      // AI 范围按钮底
+        {"#F3F4F6", "#111827"},      // 窗口底（foundation）
+        {"#EFF2F8", "#26334A"},      // 最近文档分隔线
+        {"#F0F0F2", "#222D3D"},      // 搜索框底
+        {"#ECECEF", "#2A3648"},      // 搜索框 hover 底（surface.tertiary）
+        {"#F5F8FD", "#2A3648"},      // 按钮 hover 底
+        {"#F7F8FA", "#1A2333"},      // 按钮禁用底
+        {"#FAFBFD", "#1A2333"},      // 工具栏按钮禁用底
+        {"#EEEFF2", "#2A3648"},      // 纯图标按钮 hover 底
         {"#EAF0F8", "rgba(120,140,180,0.14)"},  // 导航轨 hover
         {"#F7F9FC", "rgba(120,140,180,0.12)"},  // Ribbon 标签 hover
-        {"#F2F6FD", "rgba(76,123,232,0.14)"},    // AI 命令按钮底
-        {"#F1F4FF", "rgba(76,123,232,0.14)"},    // 菜单选中
-        {"#F2F6FC", "rgba(76,123,232,0.14)"},    // AI 命令按钮 hover
-        {"#F1F5FC", "rgba(76,123,232,0.16)"},    // AI 摘要按钮 hover
-        {"#F3F7FC", "rgba(76,123,232,0.16)"},    // AI 快捷动作 hover
-        {"#EEF3FC", "rgba(76,123,232,0.16)"},    // 主色淡底
-        {"#EDF2FC", "rgba(76,123,232,0.16)"},    // 最近文档行 pressed
-        {"#E8F0FB", "rgba(76,123,232,0.14)"},    // AI 命令按钮 hover
-        {"#EAF1FF", "rgba(76,123,232,0.18)"},    // AI 范围按钮选中
-        {"#EEF3FF", "rgba(76,123,232,0.20)"},    // 工具栏 / 缩略图选中
-        {"#EEF2FF", "rgba(76,123,232,0.20)"},    // 缩略图选中
-        {"#E9F0FB", "rgba(76,123,232,0.24)"},    // 按钮 pressed
-        {"#E8EFFB", "rgba(76,123,232,0.24)"},    // 命令栏按钮 pressed
-        {"#E7EEF9", "rgba(76,123,232,0.24)"},    // Ribbon 命令 pressed
-        {"#E5EDF9", "rgba(76,123,232,0.26)"},    // AI 快捷动作 primary hover
+        {"#F2F6FD", "rgba(62,99,190,0.16)"},     // AI 命令按钮底
+        {"#F1F4FF", "rgba(62,99,190,0.18)"},     // 菜单选中
+        {"#F2F6FC", "rgba(62,99,190,0.16)"},     // AI 命令按钮 hover
+        {"#F1F5FC", "rgba(62,99,190,0.20)"},     // AI 摘要按钮 hover
+        {"#F3F7FC", "rgba(62,99,190,0.20)"},     // AI 快捷动作 hover
+        {"#EEF3FC", "rgba(62,99,190,0.18)"},     // 主色淡底
+        {"#EDF2FC", "rgba(62,99,190,0.20)"},     // 最近文档行 pressed
+        {"#E8F0FB", "rgba(62,99,190,0.16)"},     // AI 命令按钮 hover
+        {"#EAF1FF", "rgba(62,99,190,0.22)"},     // AI 范围按钮选中
+        {"#EEF3FF", "rgba(62,99,190,0.26)"},     // 工具栏 / 缩略图选中
+        {"#EEF2FF", "rgba(62,99,190,0.26)"},     // 缩略图选中
+        {"#E9F0FB", "rgba(62,99,190,0.28)"},     // 按钮 pressed
+        {"#E8EFFB", "rgba(62,99,190,0.28)"},     // 命令栏按钮 pressed
+        {"#E7EEF9", "rgba(62,99,190,0.28)"},     // Ribbon 命令 pressed
+        {"#E5EDF9", "rgba(62,99,190,0.30)"},     // AI 快捷动作 primary hover
 
         // —— 描边：浅灰描边在深色下要比底色亮一档，否则边界消失 ——
-        {"#E4E4E7", "#2C313B"},      // 通用细描边
-        {"#E3E7EE", "#2E333D"},      // 控件描边
-        {"#E3E8F0", "#2C313B"},      // AI 卡片描边
-        {"#E0E5ED", "#2E333D"},      // AI 设置按钮描边
-        {"#DCE3EC", "#2E333D"},      // AI 摘要按钮描边
-        {"#DFE6F0", "#2C313B"},      // AI 快捷动作描边
-        {"#C9D5E6", "#39404E"},      // AI 输入区描边
-        {"#CBD2DE", "#3A404C"},      // 输入框描边、滚动条滑块
-        {"#D4D4D8", "#353A44"},      // 搜索框 hover 描边
-        {"#E6EAF2", "#262B34"},      // 菜单栏描边
-        {"#E8ECF3", "#272C35"},      // 文档工具栏描边
-        {"#E8EBF0", "#262B34"},      // Ribbon 分组描边
-        {"#EDF0F5", "#272C35"},      // 导航面板描边
-        {"#E4EAF5", "#2C313B"},      // 标签关闭按钮 hover
-        {"#EEECF6", "#262A33"},      // AI 快捷动作禁用描边
-        {"#EEF1F6", "#272C35"},      // 工具栏按钮禁用描边
-        {"#D9DEE7", "#2A2F38"},      // Ribbon 描边
-        {"#D5DCE8", "#3C4250"},      // Ribbon 滚动条滑块
-        {"#D9E3F2", "#33405C"},      // 选中态描边
-        {"#D9E3FA", "#33405C"},      // 选中态描边
-        {"#DCE5F2", "#33405C"},      // Ribbon 命令 hover 描边
-        {"#DCE7F7", "#33405C"},      // 状态栏按钮 hover
-        {"#CBD8EA", "#3C4E7A"},      // Ribbon 命令 pressed 描边
-        {"#C3D0F3", "#3C4E7A"},      // 按钮 hover 描边
-        {"#9FB4EF", "#4E67A6"},      // 按钮 pressed 描边
-        {"#B9CBEA", "rgba(76,123,232,0.42)"},   // AI 按钮描边
-        {"#C4D3EA", "rgba(76,123,232,0.42)"},   // AI 按钮 hover 描边
-        {"#CAD7EA", "rgba(76,123,232,0.42)"},   // AI 按钮 hover 描边
-        {"#B8CAE6", "rgba(76,123,232,0.48)"},   // AI primary hover 描边
-        {"#DCE7FF", "rgba(76,123,232,0.35)"},   // 输入框选中文本底
+        {"#E4E4E7", "#344156"},      // 通用细描边（border.default）
+        {"#E3E7EE", "#344156"},      // 控件描边
+        {"#E3E8F0", "#344156"},      // AI 卡片描边
+        {"#E0E5ED", "#38455C"},      // AI 设置按钮描边
+        {"#DCE3EC", "#38455C"},      // AI 摘要按钮描边
+        {"#DFE6F0", "#344156"},      // AI 快捷动作描边
+        {"#C9D5E6", "#46566F"},      // AI 输入区描边
+        {"#CBD2DE", "#4A5870"},      // 输入框描边、滚动条滑块（border.strong）
+        {"#D4D4D8", "#3E4C63"},      // 搜索框 hover 描边
+        {"#E6EAF2", "#2B374B"},      // 菜单栏描边
+        {"#E8ECF3", "#2E3B50"},      // 文档工具栏描边
+        {"#E8EBF0", "#2B374B"},      // Ribbon 分组描边
+        {"#EDF0F5", "#2E3B50"},      // 导航面板描边
+        {"#E4EAF5", "#344156"},      // 标签关闭按钮 hover
+        {"#EEECF6", "#2A3648"},      // AI 快捷动作禁用描边
+        {"#EEF1F6", "#2E3B50"},      // 工具栏按钮禁用描边
+        {"#D9DEE7", "#2F3C52"},      // Ribbon 描边
+        {"#D5DCE8", "#4A5870"},      // Ribbon 滚动条滑块
+        {"#D9E3F2", "#3C4C68"},      // 选中态描边
+        {"#D9E3FA", "#3C4C68"},      // 选中态描边
+        {"#DCE5F2", "#3C4C68"},      // Ribbon 命令 hover 描边
+        {"#DCE7F7", "#3C4C68"},      // 状态栏按钮 hover
+        {"#CBD8EA", "#46566F"},      // Ribbon 命令 pressed 描边
+        {"#C3D0F3", "#46566F"},      // 按钮 hover 描边
+        {"#9FB4EF", "#5A7096"},      // 按钮 pressed 描边
+        {"#B9CBEA", "rgba(62,99,190,0.45)"},   // AI 按钮描边
+        {"#C4D3EA", "rgba(62,99,190,0.45)"},   // AI 按钮 hover 描边
+        {"#CAD7EA", "rgba(62,99,190,0.45)"},   // AI 按钮 hover 描边
+        {"#B8CAE6", "rgba(62,99,190,0.52)"},   // AI primary hover 描边
+        {"#DCE7FF", "rgba(62,99,190,0.40)"},   // 输入框选中文本底
 
         // —— 主色（当底色用）：深色主题里要压深，白字才压得住 ——
         {"#4169C1", "#3E63BE"},      // 主色底
         {"#365AA8", "#4A72CC"},      // 主色 hover 底、描边
         {"#3159B8", "#4A72CC"},      // 主色 hover 底
         {"#2E4E93", "#2F4F9E"},      // 主色 pressed 底
-        {"#5277E8", "#5B87F5"},      // 聚焦描边
+        {"#5277E8", "#6C93F0"},      // 聚焦描边
 
         // —— 状态色 ——
-        {"#FDECEE", "rgba(255,122,133,0.14)"},   // 危险标签底
-        {"#FFF3F0", "rgba(224,128,90,0.12)"},    // 取消按钮底
+        {"#FDECEE", "rgba(255,122,133,0.16)"},   // 危险标签底
+        {"#FFF3F0", "rgba(224,128,90,0.14)"},    // 取消按钮底
 
         // —— 滚动条 hover 滑块（同时也是一处文字色，两张表里都有） ——
-        {"#8792A3", "#59606E"},      // 滚动条滑块 hover
+        {"#8792A3", "#4A5870"},      // 滚动条滑块 hover
 
         // —— 半透明叠加：AI 快捷卡片 ——
-        {"rgba(255,255,255,252)", "rgba(30,34,42,0.94)"},
+        {"rgba(255,255,255,252)", "rgba(27,36,50,0.94)"},
     };
 }
 
@@ -612,38 +621,39 @@ QPalette lightPalette() {
 
 QPalette darkPalette() {
     QPalette palette = QApplication::style()->standardPalette();
-    palette.setColor(QPalette::Window, QColor(0x15, 0x17, 0x1C));
-    palette.setColor(QPalette::WindowText, QColor(0xE8, 0xEA, 0xEE));
-    palette.setColor(QPalette::Base, QColor(0x23, 0x27, 0x30));
-    palette.setColor(QPalette::AlternateBase, QColor(0x1D, 0x20, 0x27));
-    palette.setColor(QPalette::Text, QColor(0xE8, 0xEA, 0xEE));
-    palette.setColor(QPalette::Button, QColor(0x1D, 0x20, 0x27));
-    palette.setColor(QPalette::ButtonText, QColor(0xE8, 0xEA, 0xEE));
+    // 色阶取自 docs/UI_DESIGN_SYSTEM.md §5.3 的 Neutral 表。
+    palette.setColor(QPalette::Window, QColor(0x11, 0x18, 0x27));       // foundation
+    palette.setColor(QPalette::WindowText, QColor(0xED, 0xF2, 0xF8));  // text.primary
+    palette.setColor(QPalette::Base, QColor(0x22, 0x2D, 0x3D));        // surface.secondary
+    palette.setColor(QPalette::AlternateBase, QColor(0x1B, 0x24, 0x32));// surface.primary
+    palette.setColor(QPalette::Text, QColor(0xED, 0xF2, 0xF8));
+    palette.setColor(QPalette::Button, QColor(0x1B, 0x24, 0x32));
+    palette.setColor(QPalette::ButtonText, QColor(0xED, 0xF2, 0xF8));
     palette.setColor(QPalette::BrightText, QColor(0xFF, 0x7A, 0x85));
-    palette.setColor(QPalette::Light, QColor(0x2A, 0x2F, 0x38));
-    palette.setColor(QPalette::Midlight, QColor(0x24, 0x28, 0x32));
-    palette.setColor(QPalette::Mid, QColor(0x1A, 0x1D, 0x23));
-    palette.setColor(QPalette::Dark, QColor(0x12, 0x14, 0x19));
-    palette.setColor(QPalette::Shadow, QColor(0x0B, 0x0D, 0x10));
-    palette.setColor(QPalette::Highlight, QColor(0x3A, 0x4C, 0x7A));
-    palette.setColor(QPalette::HighlightedText, QColor(0xF2, 0xF4, 0xF7));
-    palette.setColor(QPalette::ToolTipBase, QColor(0x24, 0x28, 0x32));
-    palette.setColor(QPalette::ToolTipText, QColor(0xE8, 0xEA, 0xEE));
+    palette.setColor(QPalette::Light, QColor(0x2A, 0x36, 0x48));       // surface.tertiary
+    palette.setColor(QPalette::Midlight, QColor(0x26, 0x33, 0x4A));
+    palette.setColor(QPalette::Mid, QColor(0x16, 0x1F, 0x2E));
+    palette.setColor(QPalette::Dark, QColor(0x0D, 0x13, 0x20));
+    palette.setColor(QPalette::Shadow, QColor(0x08, 0x0C, 0x14));
+    palette.setColor(QPalette::Highlight, QColor(0x3C, 0x4C, 0x68));
+    palette.setColor(QPalette::HighlightedText, QColor(0xF4, 0xF8, 0xFC));
+    palette.setColor(QPalette::ToolTipBase, QColor(0x26, 0x33, 0x4A));
+    palette.setColor(QPalette::ToolTipText, QColor(0xED, 0xF2, 0xF8));
     palette.setColor(QPalette::Link, QColor(0x8F, 0xB4, 0xFF));
     palette.setColor(QPalette::LinkVisited, QColor(0xB3, 0x9D, 0xFF));
-    palette.setColor(QPalette::PlaceholderText, QColor(0x7E, 0x88, 0x99));
-    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0x5C, 0x64, 0x72));
-    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0x5C, 0x64, 0x72));
-    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0x5C, 0x64, 0x72));
+    palette.setColor(QPalette::PlaceholderText, QColor(0x7A, 0x86, 0x99));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(0x66, 0x72, 0x87));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0x66, 0x72, 0x87));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0x66, 0x72, 0x87));
     return palette;
 }
 
 QColor interfaceTextColor() {
-    return darkActive() ? QColor(0xE8, 0xEA, 0xEE) : QColor(0x20, 0x2A, 0x3A);
+    return darkActive() ? QColor(0xED, 0xF2, 0xF8) : QColor(0x20, 0x2A, 0x3A);
 }
 
 QColor surfaceColor() {
-    return darkActive() ? QColor(0x1D, 0x20, 0x27) : QColor(0xFF, 0xFF, 0xFF);
+    return darkActive() ? QColor(0x1B, 0x24, 0x32) : QColor(0xFF, 0xFF, 0xFF);
 }
 
 bool isDarkInterface() {

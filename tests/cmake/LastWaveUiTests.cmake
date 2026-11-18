@@ -16,6 +16,8 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_CURRENT_LIST_DIR}/../LastWaveUiTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.cpp
     ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.h
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
     ${CMAKE_SOURCE_DIR}/src/app/LastWaveBridge.cpp
     ${CMAKE_SOURCE_DIR}/src/app/LastWaveBridge.h
     ${CMAKE_SOURCE_DIR}/src/app/LastWavePanels.cpp

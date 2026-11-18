@@ -16,6 +16,8 @@ qt_add_executable(UiWiringTests
     ${CMAKE_CURRENT_LIST_DIR}/../UiWiringTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.cpp
     ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.h
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationToolboxDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AnnotationToolboxDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/ConversionReports.cpp

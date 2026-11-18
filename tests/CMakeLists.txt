@@ -1324,6 +1324,10 @@ qt_add_executable(AiPanelTests
     AiPanelTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.cpp
     ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.h
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
     ${CMAKE_SOURCE_DIR}/src/app/AiPanel.h
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.cpp
@@ -1696,6 +1700,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OutlineEditorTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BookmarkTreePanelTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PdfRevisionCounterTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/LanguagePackTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ThemeTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModalScrimTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficePackageTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PageAssemblyTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/RedactionTests.cmake)
