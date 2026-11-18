@@ -4,6 +4,7 @@
 #include "pdf/compliance/SemanticTagWriter.h"
 #include "pdf/compliance/StructTreeModel.h"
 #include "pdf/compliance/TagTreeWriter.h"
+#include "pdf/forms/FormAutoTag.h"
 
 #include <QHash>
 #include <QSet>
@@ -11,6 +12,9 @@
 #include <QStringList>
 #include <QTest>
 #include <QVector>
+
+#include <algorithm>
+#include <functional>
 
 #ifdef AIPDF_WITH_QPDF
 #include <qpdf/QPDF.hh>
@@ -261,6 +265,141 @@ QByteArray twoLinePdf() {
     return buildPdf(objects, 1);
 }
 
+// ---------------------------------------------------------------- J7 ----
+//
+// J7：表单域要挂在**它所在那一页的 /Part** 下面（PDF/UA-1 §7.3 的三层结构），
+// 而且同一页里的域要按**页面阅读顺序**排。
+//
+// 下面这一段**不复用写入端的任何代码**：自己用 qpdf 把产物重新读一遍，
+// 自己拼出父子关系与页归属。写入端说「挂对了」不算数，读回来对才算。
+
+// 独立读出来的一个结构元素。
+struct RawNode {
+    QString type;      // /S
+    QString title;     // /T
+    int parent = -1;   // 父节点在数组里的下标（按 /K 的挂接关系读出来的）
+    int pageIndex = -1;// 所属页（0 基）；-1 表示文件里没写 /Pg
+    QVector<int> children;
+    int objectId = -1;        // 这个元素自己的对象号
+    int parentPointerId = -1; // /P 指着的对象号（反向指针）
+};
+
+// 独立读出结构树（先序展开）。
+QVector<RawNode> readTreeRaw(const QByteArray& bytes, QString* error) {
+    QVector<RawNode> nodes;
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        pdf.setSuppressWarnings(true);
+        pdf.processMemoryFile("j7-read.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
+        QHash<int, int> pageOfObject;
+        const std::vector<QPDFObjectHandle> pages = pdf.getAllPages();
+        for (size_t i = 0; i < pages.size(); ++i) {
+            if (!pages.at(i).isIndirect()) continue;
+            pageOfObject.insert(pages.at(i).getObjectID(), static_cast<int>(i));
+        }
+        const QPDFObjectHandle root = pdf.getRoot().getKey("/StructTreeRoot");
+        if (!root.isDictionary()) {
+            if (error) *error = QStringLiteral("产物里没有 /StructTreeRoot");
+            return nodes;
+        }
+        std::function<void(QPDFObjectHandle, int, int)> walk =
+            [&](QPDFObjectHandle element, int parent, int inheritedPage) {
+                if (!element.isDictionary()) return;
+                RawNode node;
+                node.parent = parent;
+                node.objectId = element.isIndirect() ? element.getObjectID() : -1;
+                const QPDFObjectHandle parentPointer = element.getKey("/P");
+                node.parentPointerId =
+                    parentPointer.isDictionary() && parentPointer.isIndirect()
+                        ? parentPointer.getObjectID()
+                        : -1;
+                const QPDFObjectHandle type = element.getKey("/S");
+                node.type = type.isName() ? QString::fromLatin1(type.getName().c_str() + 1) : QString();
+                const QPDFObjectHandle title = element.getKey("/T");
+                node.title = title.isString() ? QString::fromUtf8(title.getUTF8Value().c_str()) : QString();
+                int page = inheritedPage;
+                const QPDFObjectHandle pg = element.getKey("/Pg");
+                if (pg.isDictionary() && pg.isIndirect()) {
+                    const auto found = pageOfObject.constFind(pg.getObjectID());
+                    if (found != pageOfObject.constEnd()) page = found.value();
+                }
+                node.pageIndex = page;
+                const int index = nodes.size();
+                nodes.append(node);
+                QVector<int> childIndices;
+                const QPDFObjectHandle kids = element.getKey("/K");
+                std::vector<QPDFObjectHandle> kidList;
+                if (kids.isArray()) {
+                    kidList = kids.getArrayAsVector();
+                } else if (kids.isDictionary()) {
+                    kidList.push_back(kids);
+                }
+                for (const QPDFObjectHandle& kid : kidList) {
+                    // widget 注解不是结构元素（它没有 /S）。
+                    if (!kid.isDictionary()) continue;
+                    if (!kid.getKey("/S").isName()) continue;
+                    const int childIndex = nodes.size();
+                    walk(kid, index, page);
+                    childIndices.append(childIndex);
+                }
+                // 递归会让 nodes 重新分配，所以按值回填，不留引用。
+                nodes[index].children = childIndices;
+            };
+        const QPDFObjectHandle rootKids = root.getKey("/K");
+        std::vector<QPDFObjectHandle> kidList;
+        if (rootKids.isArray()) {
+            kidList = rootKids.getArrayAsVector();
+        } else if (rootKids.isDictionary()) {
+            kidList.push_back(rootKids);
+        }
+        for (const QPDFObjectHandle& kid : kidList) {
+            if (!kid.isDictionary()) continue;
+            if (!kid.getKey("/S").isName()) continue;
+            walk(kid, -1, -1);
+        }
+    } catch (const std::exception& exception) {
+        if (error) *error = QString::fromUtf8(exception.what());
+    }
+#else
+    if (error) *error = QStringLiteral("当前构建没有启用 qpdf");
+#endif
+    return nodes;
+}
+
+// 树里某类元素的全部下标。
+QVector<int> nodesOfType(const QVector<RawNode>& nodes, const QString& type) {
+    QVector<int> result;
+    for (int i = 0; i < nodes.size(); ++i) {
+        if (nodes.at(i).type == type) result.append(i);
+    }
+    return result;
+}
+
+// J7 夹具：两页，每页都有表单域。
+//
+// 第 1 页的两个域在**表单定义**里的次序与页面上的位置相反：
+// 视觉上「姓名」在上、「电话」在下，而 AcroForm 里先写「电话」。
+// 打标签必须按**页面阅读顺序**排（姓名在前），不能照抄表单定义的次序。
+QByteArray j7FormPdf() {
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append(qMakePair(1, QByteArray("<< /Type /Catalog /Pages 2 0 R "
+                                           "/AcroForm << /Fields [6 0 R 7 0 R 8 0 R] "
+                                           "/DA (/Helv 0 Tf 0 g) >> >>")));
+    objects.append(qMakePair(2, QByteArray("<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>")));
+    objects.append(qMakePair(3, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                                           "/Annots [6 0 R 7 0 R] >>")));
+    objects.append(qMakePair(4, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                                           "/Annots [8 0 R] >>")));
+    objects.append(qMakePair(6, QByteArray("<< /Type /Annot /Subtype /Widget /FT /Tx /T (phone) "
+                                           "/TU (Phone) /Rect [72 400 200 420] /P 3 0 R >>")));
+    objects.append(qMakePair(7, QByteArray("<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) "
+                                           "/TU (Name) /Rect [72 600 200 620] /P 3 0 R >>")));
+    objects.append(qMakePair(8, QByteArray("<< /Type /Annot /Subtype /Widget /FT /Tx /T (city) "
+                                           "/TU (City) /Rect [72 300 200 320] /P 4 0 R >>")));
+    return buildPdf(objects, 1);
+}
+
 }  // namespace
 
 class SemanticTagWriterTests : public QObject {
@@ -284,6 +423,9 @@ private slots:
     void altTextGeneratorNeverInventsText();
     void semanticWriterProducesDocumentPartSectTree();
     void legacyWriteTaggedStructureStillWorks();
+    void j7FormFieldsHangUnderOwningPagePart();
+    void j7FormFieldsFollowPageReadingOrder();
+    void j7RerunKeepsOnePartPerPage();
 };
 
 void SemanticTagWriterTests::goldenFixtureIsCompliant() {
@@ -622,6 +764,18 @@ void SemanticTagWriterTests::altTextGeneratorNeverInventsText() {
         nameless.formField = true;
         blocks.append(nameless);
     }
+    {
+        // 一张**旁边没有说明文字**的图：它离说明文字很远，横向也不重叠。
+        //
+        // 为什么单独放这一块：这一块是「不许编」的守门用例。
+        // 上面的图有说明文字（能取到），这一张没有——
+        // 替它编一句「图片」出来，读屏软件就会念出一句没意义的说明。
+        SemanticBlock lonely;
+        lonely.pageIndex = 0;
+        lonely.rect = QRectF(400, 100, 100, 100);
+        lonely.image = true;
+        blocks.append(lonely);
+    }
 
     const AltTextResult result = generateAltTexts(blocks);
     QCOMPARE(result.alternatives.size(), blocks.size());
@@ -631,7 +785,14 @@ void SemanticTagWriterTests::altTextGeneratorNeverInventsText() {
     QCOMPARE(result.alternatives.at(2), QStringLiteral("名字"));
     // 既没有提示文字也没有字段名：不编，记一条问题。
     QVERIFY(result.alternatives.at(3).isEmpty());
-    QCOMPARE(result.issues.size(), 1);
+    // 旁边没有说明文字的图：同样不编，也记一条问题。
+    QVERIFY(result.alternatives.at(4).isEmpty());
+    // 两条问题：没有替代文本的表单域、旁边没有说明文字的图。
+    QCOMPARE(result.issues.size(), 2);
+    QStringList reasons;
+    for (const AltTextIssue& issue : result.issues) reasons.append(issue.reason);
+    QVERIFY(reasons.join(QLatin1Char('\n')).contains(QString::fromUtf8("替代文本")));
+    QVERIFY(reasons.join(QLatin1Char('\n')).contains(QString::fromUtf8("说明")));
 }
 
 void SemanticTagWriterTests::semanticWriterProducesDocumentPartSectTree() {
@@ -727,6 +888,109 @@ void SemanticTagWriterTests::legacyWriteTaggedStructureStillWorks() {
     QCOMPARE(spans.size(), 1u);
     QCOMPARE(spans.at(0).getKey("/S").getName(), std::string("/Span"));
 #endif
+}
+
+// J7：表单域挂在**它所在那一页的 /Part** 下面。
+//
+// 负例就在实现里：把 /Form 挂回 /Document 下面（平铺），
+// 这个用例会立刻红——父节点的类型不是 Part。
+void SemanticTagWriterTests::j7FormFieldsHangUnderOwningPagePart() {
+    REQUIRE_QPDF();
+    const aipdf::pdf::FormAutoTagResult result = aipdf::pdf::autoTagFormFields(j7FormPdf());
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.taggedFieldCount, 3);
+
+    QString error;
+    const QVector<RawNode> nodes = readTreeRaw(result.bytes, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(!nodes.isEmpty());
+
+    // 文档元素下面：两个 /Part（有表单域的两页各一个）。
+    const QVector<int> documents = nodesOfType(nodes, QStringLiteral("Document"));
+    QCOMPARE(documents.size(), 1);
+    const QVector<int> parts = nodesOfType(nodes, QStringLiteral("Part"));
+    QCOMPARE(parts.size(), 2);
+    for (int index : parts) {
+        QCOMPARE(nodes.at(index).parent, documents.first());
+    }
+    // 两个 /Part 分别管第 1 页与第 2 页。
+    QVector<int> partPages;
+    for (int index : parts) partPages.append(nodes.at(index).pageIndex);
+    std::sort(partPages.begin(), partPages.end());
+    QCOMPARE(partPages, QVector<int>({0, 1}));
+
+    // 每个 /Form 的父节点是**它自己那一页**的 /Part。
+    const QVector<int> forms = nodesOfType(nodes, QStringLiteral("Form"));
+    QCOMPARE(forms.size(), 3);
+    for (int index : forms) {
+        const int parent = nodes.at(index).parent;
+        QVERIFY(parent >= 0);
+        QCOMPARE(nodes.at(parent).type, QStringLiteral("Part"));
+        QCOMPARE(nodes.at(parent).pageIndex, nodes.at(index).pageIndex);
+        // 反向指针 /P 也要指着同一个 /Part：别的工具顺着 /P 往上走。
+        QCOMPARE(nodes.at(index).parentPointerId, nodes.at(parent).objectId);
+    }
+}
+
+// J7：同一页里的域按**页面阅读顺序**排（上到下、左到右），
+// 而不是照抄 AcroForm 里的定义次序。
+void SemanticTagWriterTests::j7FormFieldsFollowPageReadingOrder() {
+    REQUIRE_QPDF();
+    const aipdf::pdf::FormAutoTagResult result = aipdf::pdf::autoTagFormFields(j7FormPdf());
+    QVERIFY2(result.ok, qPrintable(result.error));
+
+    QString error;
+    const QVector<RawNode> nodes = readTreeRaw(result.bytes, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+
+    // 第 1 页的 /Part 下面：「姓名」在上、「电话」在下。
+    int firstPagePart = -1;
+    for (int index : nodesOfType(nodes, QStringLiteral("Part"))) {
+        if (nodes.at(index).pageIndex == 0) firstPagePart = index;
+    }
+    QVERIFY(firstPagePart >= 0);
+
+    QStringList titles;
+    for (int child : nodes.at(firstPagePart).children) {
+        if (nodes.at(child).type != QStringLiteral("Form")) continue;
+        titles.append(nodes.at(child).title);
+    }
+    QCOMPARE(titles, QStringList({QStringLiteral("name"), QStringLiteral("phone")}));
+
+    // 第 2 页的 /Part 下面只有「城市」。
+    int secondPagePart = -1;
+    for (int index : nodesOfType(nodes, QStringLiteral("Part"))) {
+        if (nodes.at(index).pageIndex == 1) secondPagePart = index;
+    }
+    QVERIFY(secondPagePart >= 0);
+    QStringList secondTitles;
+    for (int child : nodes.at(secondPagePart).children) {
+        if (nodes.at(child).type != QStringLiteral("Form")) continue;
+        secondTitles.append(nodes.at(child).title);
+    }
+    QCOMPARE(secondTitles, QStringList({QStringLiteral("city")}));
+}
+
+// J7：重跑不叠加——每页仍然只有一个 /Part，域的个数也不变。
+void SemanticTagWriterTests::j7RerunKeepsOnePartPerPage() {
+    REQUIRE_QPDF();
+    const aipdf::pdf::FormAutoTagResult first = aipdf::pdf::autoTagFormFields(j7FormPdf());
+    QVERIFY2(first.ok, qPrintable(first.error));
+
+    const aipdf::pdf::FormAutoTagResult second = aipdf::pdf::autoTagFormFields(first.bytes);
+    QVERIFY2(second.ok, qPrintable(second.error));
+    QCOMPARE(second.taggedFieldCount, 3);
+
+    QString error;
+    const QVector<RawNode> nodes = readTreeRaw(second.bytes, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+
+    // /Part 没有变成 4 个：上一轮的 /Part 被复用了。
+    QCOMPARE(nodesOfType(nodes, QStringLiteral("Part")).size(), 2);
+    // /Form 也没有翻倍。
+    QCOMPARE(nodesOfType(nodes, QStringLiteral("Form")).size(), 3);
+    // 第二轮是合并：上一轮的 /Part 变成了「既有元素」。
+    QVERIFY(second.mergedIntoExistingTree);
 }
 
 QTEST_GUILESS_MAIN(SemanticTagWriterTests)

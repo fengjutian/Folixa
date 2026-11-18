@@ -254,6 +254,17 @@ QVector<StructElement> formElements(const StructTreeReport& report) {
     return result;
 }
 
+// 找出某个标签的元素下标；找不到返回 -1。
+//
+// 为什么需要：J7 之后表单域挂在**页的 /Part** 下面，不再平铺在文档元素下，
+// 所以断言父节点时要先找到那个 /Part 在哪。
+int indexOfTag(const StructTreeReport& report, const QString& tag) {
+    for (int i = 0; i < report.elements.size(); ++i) {
+        if (report.elements.at(i).tag == tag) return i;
+    }
+    return -1;
+}
+
 #ifdef AIPDF_WITH_QPDF
 // 读出所有 widget 注解的 /StructParent（没有就是 -1）。
 QVector<int> widgetStructParents(const QByteArray& bytes, QString* error) {
@@ -577,10 +588,13 @@ void FormAutoTagTests::mergesIntoExistingTagTreeKeepingOtherElements() {
              QStringList({QStringLiteral("Document"), QStringLiteral("H1"), QStringLiteral("Span"),
                           QStringLiteral("P"), QStringLiteral("Span")}));
 
-    // 新的 /Form 元素挂在**已有的**文档元素下面。
+    // 新的 /Form 元素挂在**所在页的 /Part** 下面（J7 之后不再平铺在文档元素下：
+    // 域平铺在文档下时，读屏念出来的域顺序与页面上看到的顺序对不上）。
     const QVector<StructElement> forms = formElements(report);
     QCOMPARE(forms.size(), 1);
-    QCOMPARE(forms.first().parentIndex, 0);
+    const int partIndex = indexOfTag(report, QStringLiteral("Part"));
+    QVERIFY2(partIndex >= 0, "生成的标签树里应当有 /Part");
+    QCOMPARE(forms.first().parentIndex, partIndex);
 }
 
 // 树里旧的 /Form 元素 → 被替换掉，不是叠加成两份。
@@ -681,10 +695,14 @@ void FormAutoTagTests::mergesIntoNestedDocumentElement() {
     QVERIFY(tags.contains(QStringLiteral("H1")));
     QVERIFY(tags.contains(QStringLiteral("P")));
 
-    // 新的 /Form 挂在这个已有的文档元素下面。
+    // 新的 /Form 挂在这个文档的**页 /Part** 下面。
     const QVector<StructElement> forms = formElements(report);
     QCOMPARE(forms.size(), 1);
-    QCOMPARE(forms.first().parentIndex, documentIndex);
+    const int partIndex = indexOfTag(report, QStringLiteral("Part"));
+    QVERIFY2(partIndex >= 0, "生成的标签树里应当有 /Part");
+    QCOMPARE(forms.first().parentIndex, partIndex);
+    // 这个 /Part 仍然挂在那个既有的文档元素下面 —— 没另起一棵文档分支。
+    QCOMPARE(report.elements.at(partIndex).parentIndex, documentIndex);
 }
 
 QTEST_GUILESS_MAIN(FormAutoTagTests)

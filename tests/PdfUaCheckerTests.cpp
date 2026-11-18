@@ -92,21 +92,25 @@ QByteArray compliantPdf() {
                                            "/DisplayDocTitle true /Metadata 9 0 R >>")));
     objects.append(qMakePair(2, QByteArray("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")));
     objects.append(qMakePair(3, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Tabs /S "
+                                           "/StructParents 0 "
                                            "/Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>")));
     objects.append(qMakePair(4, QByteArray("<< /Type /StructTreeRoot /K 7 0 R /ParentTree 12 0 R >>")));
     objects.append(qMakePair(5, QByteArray("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
                                            "/FontDescriptor 10 0 R >>")));
     objects.append(qMakePair(6, streamObject(QByteArray(), content)));
-    objects.append(qMakePair(7, QByteArray("<< /Type /StructElem /S /Document /P 4 0 R /K [8 0 R] >>")));
-    objects.append(qMakePair(8, QByteArray("<< /Type /StructElem /S /Figure /P 4 0 R /Pg 3 0 R /K 0 "
+    objects.append(qMakePair(7, QByteArray("<< /Type /StructElem /S /Document /P 4 0 R /K [14 0 R] >>")));
+    // 图挂在**页的 /Part** 下面：PDF/UA-1 要求 Document 的直接子元素是 Part。
+    objects.append(qMakePair(8, QByteArray("<< /Type /StructElem /S /Figure /P 14 0 R /Pg 3 0 R /K 0 "
                                            "/Alt (Company logo) >>")));
     objects.append(qMakePair(9, streamObject(QByteArray("/Type /Metadata /Subtype /XML"), xmp)));
     objects.append(qMakePair(10, QByteArray("<< /Type /FontDescriptor /FontName /Helvetica /Flags 32 "
                                             "/FontFile 11 0 R >>")));
     objects.append(qMakePair(11, streamObject(QByteArray(), QByteArray(64, '\0'))));
-    objects.append(qMakePair(12, QByteArray("<< /Nums [8 0] >>")));
+    // ParentTree：键 = 页的 /StructParents，值 = 该页「MCID → 结构元素」。
+    objects.append(qMakePair(12, QByteArray("<< /Nums [0 [8 0 R]] >>")));
     objects.append(qMakePair(13, QByteArray("<< /Title (Accessible sample) >>")));
-    return buildPdf(objects, 1, 13);
+    objects.append(qMakePair(14, QByteArray("<< /Type /StructElem /S /Part /P 7 0 R /Pg 3 0 R /K [8 0 R] >>")));
+    return buildPdf(objects, 1, 14);
 }
 
 // 各项都有问题的那一档：根元素不是 /Document、没有 /ParentTree、

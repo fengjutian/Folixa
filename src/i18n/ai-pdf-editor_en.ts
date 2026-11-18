@@ -5598,7 +5598,130 @@ Write them into the document?</translation>
             <translation>Page</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::pdf::DocumentReflow</name>
+        <message>
+            <source>%1 个文字块</source>
+            <translation>%1 text blocks</translation>
+        </message>
+        <message>
+            <source>%1 个图片对象</source>
+            <translation>%1 image objects</translation>
+        </message>
+        <message>
+            <source>%1 个矢量图形</source>
+            <translation>%1 vector graphics</translation>
+        </message>
+        <message>
+            <source>%1 个表格</source>
+            <translation>%1 tables</translation>
+        </message>
+        <message>
+            <source>%1 个对象</source>
+            <translation>%1 objects</translation>
+        </message>
+        <message>
+            <source>PDFium 建不出文字对象</source>
+            <translation>PDFium could not create the text object</translation>
+        </message>
+        <message>
+            <source>文字对象放不进页面</source>
+            <translation>The text object does not fit on the page</translation>
+        </message>
+        <message>
+            <source>PDFium 建不出表格边框</source>
+            <translation>PDFium could not create the table border</translation>
+        </message>
+        <message>
+            <source>表格边框放不进页面</source>
+            <translation>The table border does not fit on the page</translation>
+        </message>
+        <message>
+            <source>PDFium 打不开这份 PDF，重排失败</source>
+            <translation>PDFium could not open this PDF; the reflow failed</translation>
+        </message>
+        <message>
+            <source>新页面建不出来</source>
+            <translation>The new page could not be created</translation>
+        </message>
+        <message>
+            <source>第 %1 页上的图形对象找不到了，搬不过去</source>
+            <translation>A graphics object on page %1 could not be found, so it cannot be moved</translation>
+        </message>
+        <message>
+            <source>图形对象放不进新页面</source>
+            <translation>The graphics object does not fit on the new page</translation>
+        </message>
+        <message>
+            <source>PDFium 没有写出重排后的 PDF</source>
+            <translation>PDFium did not write the reflowed PDF</translation>
+        </message>
+        <message>
+            <source>这一段在新页宽下排不进去：%1</source>
+            <translation>This paragraph does not fit at the new page width: %1</translation>
+        </message>
+        <message>
+            <source>这张表在新页宽下放不下一整页，没能搬过去</source>
+            <translation>This table does not fit on a whole page at the new width, so it was not moved</translation>
+        </message>
+        <message>
+            <source>这个对象没有尺寸，搬不过去</source>
+            <translation>This object has no size, so it cannot be moved</translation>
+        </message>
+        <message>
+            <source>有 %1 段包含标准 14 号字体表示不了的字符，排版时按仓库既有做法写成 '?' 占位符</source>
+            <translation>%1 paragraphs contain characters the standard 14 fonts cannot represent; they were written as '?' placeholders</translation>
+        </message>
+        <message>
+            <source>重排结果写不出来</source>
+            <translation>The reflow result could not be written</translation>
+        </message>
+        <message>
+            <source>新文档没能重新打上标签：%1</source>
+            <translation>The new document could not be tagged again: %1</translation>
+        </message>
+        <message>
+            <source>本次构建没有启用 qpdf，新文档没能重新打上标签</source>
+            <translation>This build has no qpdf, so the new document could not be tagged again</translation>
+        </message>
+        <message>
+            <source>重排结果打不开，统计不了页面对象：%1</source>
+            <translation>The reflow result cannot be opened, so page objects cannot be counted: %1</translation>
+        </message>
+        <message>
+            <source>重排后少了 %1，已阻止写回</source>
+            <translation>%1 is missing after the reflow; writing back was blocked</translation>
+        </message>
+        <message>
+            <source>页眉「%1」</source>
+            <translation>running head “%1”</translation>
+        </message>
+        <message>
+            <source>页脚「%1」</source>
+            <translation>running foot “%1”</translation>
+        </message>
+        <message>
+            <source>重排后的版面与原文档不同：页数从 %1 页变成 %2 页</source>
+            <translation>The reflowed layout differs from the original: the page count changed from %1 to %2</translation>
+        </message>
+        <message>
+            <source>图片 %1 个、矢量图形 %2 个、表格 %3 个已按新版面搬过去</source>
+            <translation>%1 images, %2 vector graphics and %3 tables were moved to the new layout</translation>
+        </message>
+        <message>
+            <source>页眉 %1 处、页脚 %2 处已按每页重复放到每一页</source>
+            <translation>%1 running heads and %2 running feet were repeated on every page</translation>
+        </message>
+        <message>
+            <source>表格边框是新画的线，矢量图形的计数因此比原文档多</source>
+            <translation>Table borders are newly drawn lines, so the vector graphics count is higher than in the source document</translation>
+        </message>
+        <message>
+            <source>重排不保留书签与内部链接的目标：页码变了，那些指向已经旧了</source>
+            <translation>The reflow does not preserve bookmark and internal link targets: page numbers changed, so those targets are stale</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::pdf::DocumentWriter</name>
         <message>
             <source>文档序列化失败</source>
@@ -5738,7 +5861,22 @@ Write them into the document?</translation>
             <translation>Nothing to verify</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::pdf::SemanticTagWriter</name>
+        <message>
+            <source>输入的 PDF 内容为空</source>
+            <translation>The input PDF content is empty</translation>
+        </message>
+        <message>
+            <source>语义树是空的，没有可写的结构元素</source>
+            <translation>The semantic tree is empty; there are no structure elements to write</translation>
+        </message>
+        <message>
+            <source>写语义标签树失败</source>
+            <translation>Writing the semantic tag tree failed</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::pdf::SoundFormat</name>
         <message>
             <source>data 块出现在 fmt 之前</source>
@@ -5769,7 +5907,18 @@ Write them into the document?</translation>
             <translation>No data chunk found</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::pdf::UaGenerator</name>
+        <message>
+            <source>输入的 PDF 内容为空</source>
+            <translation>The input PDF content is empty</translation>
+        </message>
+        <message>
+            <source>扫描 PDF 内容失败</source>
+            <translation>Scanning the PDF content failed</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::tools::ProposalValidator</name>
         <message>
             <source>%1 不接受参数 %2</source>
@@ -6569,7 +6718,11 @@ AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
             <source>qpdf 没有给出细节</source>
             <translation>qpdf gave no details</translation>
         </message>
-        <message>
+                <message>
+            <source>内容流无法解析：%1</source>
+            <translation>The content stream cannot be parsed: %1</translation>
+        </message>
+<message>
             <source>写出的 PDF 无法重新打开：%1</source>
             <translation>The written PDF cannot be reopened: %1</translation>
         </message>
@@ -6581,11 +6734,19 @@ AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
             <source>当前构建没有启用 qpdf，无法写入标签树</source>
             <translation>This build does not have qpdf enabled, so the tag tree cannot be written</translation>
         </message>
-        <message>
+                <message>
+            <source>当前构建没有启用 qpdf，无法扫描内容流</source>
+            <translation>This build has no qpdf, so the content stream cannot be scanned</translation>
+        </message>
+<message>
             <source>当前构建没有启用 qpdf，无法读取标签树</source>
             <translation>This build does not have qpdf enabled, so the tag tree cannot be read</translation>
         </message>
-        <message>
+                <message>
+            <source>标签树计划里没有结构元素</source>
+            <translation>The tag tree plan has no structure elements</translation>
+        </message>
+<message>
             <source>第 %1 页的内容流无法解析：%2</source>
             <translation>The content stream of page %1 cannot be parsed: %2</translation>
         </message>
@@ -6691,8 +6852,11 @@ Notes: %1</translation></message>
     <message><source>这份文档不是 XFA 表单（没有 /XFA 数据）。</source><translation>This document is not an XFA form (no /XFA data).</translation></message>
     <message><source>这份文档没有图层（没有 /OCProperties）。</source><translation>This document has no layers (no /OCProperties).</translation></message>
     <message><source>这份文档没有标签树（文件里没有 /StructTreeRoot）。</source><translation>This document has no tag tree (no /StructTreeRoot in the file).</translation></message>
-    <message><source>重排会改变版面：页数会变，图表与表格的位置会变，页眉页脚不会搬过来，图形、表格与公式不会重排。</source><translation>Reflowing changes the layout: the page count changes, figures and tables move, headers and footers are not carried over, and graphics, tables and formulas are not reflowed.</translation></message>
-    <message><source>重排完成：原来 %1 页，现在 %2 页；重排了 %3 段正文。</source><translation>Reflow done: %1 page(s) before, %2 page(s) now; %3 body block(s) reflowed.</translation></message>
+            <message>
+            <source>重排会改变版面：页数会变，图表与表格的位置会变，页眉页脚会按每页重复放到每一页，图形、表格与公式按原位置搬过去、不重排。</source>
+            <translation>Reflowing changes the layout: the page count changes, figures and tables move, headers and footers are repeated on every page, and graphics, tables and formulas are moved to their original positions without being reflowed.</translation>
+        </message>
+<message><source>重排完成：原来 %1 页，现在 %2 页；重排了 %3 段正文。</source><translation>Reflow done: %1 page(s) before, %2 page(s) now; %3 body block(s) reflowed.</translation></message>
     <message><source>重新识别会替换上一次写入的隐藏文字层（不是再叠一层）：两层叠在同一坐标上时，阅读器只会保留其中一层。</source><translation>Recognising again replaces the hidden text layer written last time (it is not stacked): with two layers at the same coordinates a reader keeps only one of them.</translation></message>
     <message><source>（%1）</source><translation>(%1)</translation></message>
     <message><source>（原第 %1 页）</source><translation>(page %1 of the original)</translation></message>

@@ -1,5 +1,6 @@
 #include "doc/export/OfficeExport.h"
 
+#include <QRectF>
 #include <QStringList>
 #include <QtMath>
 
@@ -57,8 +58,10 @@ QString buildLineText(const QVector<pdf::TextChar>& chars) {
     bool hasPrevious = false;
     double previousRight = 0.0;
     double previousHeight = 0.0;
+    QChar previousChar;
     for (const pdf::TextChar& character : chars) {
         const double height = qMax(character.box.height(), 1.0);
+        const QChar currentChar = character.text.isEmpty() ? QChar() : character.text.at(0);
         if (hasPrevious) {
             const double gap = character.box.left() - previousRight;
             // 阈值取字高的三成：正常字距（约 0.1 倍字高）远小于它，
@@ -69,13 +72,17 @@ QString buildLineText(const QVector<pdf::TextChar>& chars) {
             const double threshold = 0.3 * qMax(previousHeight, 1.0);
             const bool previousIsSpace = out.endsWith(QLatin1Char(' '));
             const bool currentIsSpace = character.text.startsWith(QLatin1Char(' '));
-            if (gap > threshold && !previousIsSpace && !currentIsSpace) {
+            // 两个 CJK 字符之间不补空格。
+            const bool cjkPair = !previousChar.isNull() && !currentChar.isNull() &&
+                                 isCjkChar(previousChar) && isCjkChar(currentChar);
+            if (gap > threshold && !previousIsSpace && !currentIsSpace && !cjkPair) {
                 out.append(QLatin1Char(' '));
             }
         }
         out.append(character.text);
         previousRight = character.box.right();
         previousHeight = height;
+        previousChar = currentChar;
         hasPrevious = true;
     }
     return out;
@@ -155,6 +162,20 @@ constexpr int kMinColumnSupport = 3;
 
 // 一个空白带至少要出现在这么比例的行里。
 constexpr double kMinColumnSupportRatio = 0.15;
+
+// 空白带候选的最小宽度（相对该行的字高）。
+//
+// 词距大约是字高的 0.3 倍，栏间距与表格列间距都在一个字高以上，
+// 所以一个字高是「词距」与「版式空白」的分界。
+//
+// 为什么按**该行自己的字高**算，不按全页中位字高：全页中位字高会被
+// 小写字母的字盒拖小（11pt 的小写 e 只有 5.7pt 高），阈值随之偏低，
+// 全角标点左右的空白（全角句号「。」的墨迹只占字身框的一小块，
+// 左右能空出 7pt 左右）就够着阈值了——于是「。」前面凭空多出一个栏口，
+// 把整页的正文切碎。
+double gapThresholdFor(double fontSize) {
+    return qMax(3.0, fontSize * kGapWidthFactor);
+}
 
 }  // namespace
 
@@ -260,9 +281,10 @@ QVector<GapCluster> detectGapClusters(const QVector<RawRow>& rows, double median
         int row = -1;
     };
     QVector<Gap> gaps;
-    const double gapThreshold = qMax(3.0, medianFontSize * kGapWidthFactor);
     for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
         const RawRow& row = rows.at(rowIndex);
+        // 阈值按这一行自己的字高算（见 gapThresholdFor 的说明）。
+        const double gapThreshold = gapThresholdFor(row.fontSize);
         for (int index = 0; index + 1 < row.chars.size(); ++index) {
             const double gap = row.chars.at(index + 1).box.left() - row.chars.at(index).box.right();
             if (gap <= gapThreshold) {
@@ -525,6 +547,37 @@ QString docxPicture(int shapeId, const QString& relationship, double widthPoints
         .arg(relationship);
 }
 
+// 这一行是不是落在某张表里。
+//
+// 表格的行已经写成 <w:tbl> 了，正文里再写一遍就成了重复：
+// Word 里会看到同一张表既是一串段落，又是一个表格对象。
+//
+// 判据用「行的中心点」：表格的一行横跨好几列，中心点落在表格范围内就算在表里；
+// 表格上方或下方的说明文字中心点在范围外，就不算。
+bool lineInsideTable(const TextExportLine& line, const office::TableGrid& table) {
+    const QRectF bounds(table.leftPoints, table.bottomPoints, table.widthPoints,
+                        table.heightPoints);
+    if (bounds.isEmpty()) {
+        return false;
+    }
+    const QPointF center((line.left + line.right) * 0.5, (line.bottom + line.top) * 0.5);
+    return bounds.contains(center);
+}
+
+// 这一行是不是落在「属于这条带」的表里。
+bool lineInsideBandTable(const TextExportLine& line, const QVector<office::TableGrid>& tables,
+                          int band) {
+    for (const office::TableGrid& table : tables) {
+        if (table.bandIndex != band) {
+            continue;
+        }
+        if (lineInsideTable(line, table)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // 一个表格。
 //
 // 列宽用缇（twip）；单元格宽度与 tblGrid 一致，Word 才会照着画。
@@ -623,6 +676,11 @@ QByteArray documentXml(const QVector<OfficePageContent>& contents, const QSizeF&
         for (int band = 0; band < page.bands.size(); ++band) {
             const TextBand& textBand = page.bands.at(band);
             for (int line = 0; line < textBand.lines.size(); ++line) {
+                // 表格里的行不再写成段落：表格对象里已经有它们了，
+                // 两边都写就是重复内容。
+                if (lineInsideBandTable(textBand.lines.at(line), page.tables, band)) {
+                    continue;
+                }
                 DocxBlock block;
                 block.kind = DocxBlock::Paragraph;
                 block.order = textBand.lines.at(line).top;
@@ -711,6 +769,22 @@ QByteArray exportWordOpenXml(const QVector<OfficePageContent>& contents, const Q
 
 }  // namespace
 
+// CJK 表意文字、假名、谚文与全角标点：这些字符之间不插空格、不切单元格。
+//
+// 为什么：中文不用空格分词，"第一 行" 是错的；把汉字之间的墨迹空隙
+// 当成列间距，一整句话会被切成一堆「单元格」，整页正文会被误判成一张表。
+// 仓库里 app/layout/TextLayout.cpp 有同样的约定，导出这一侧照它来。
+// （这个函数对外可见：doc/export/PdfToOffice.cpp 切单元格时也要用同一把尺子。）
+bool isCjkChar(QChar ch) {
+    const ushort code = ch.unicode();
+    return (code >= 0x4E00 && code <= 0x9FFF) ||    // 统一表意文字
+           (code >= 0x3400 && code <= 0x4DBF) ||    // 扩展 A
+           (code >= 0x3040 && code <= 0x30FF) ||    // 假名
+           (code >= 0xAC00 && code <= 0xD7AF) ||    // 谚文
+           (code >= 0x3000 && code <= 0x303F) ||    // CJK 标点
+           (code >= 0xFF00 && code <= 0xFFEF);      // 全角形式
+}
+
 QVector<TextBand> buildTextBands(const pdf::TextPage& text) {
     QVector<pdf::TextChar> chars;
     chars.reserve(text.chars.size());
@@ -781,15 +855,24 @@ QVector<TextBand> buildTextBands(const pdf::TextPage& text) {
         //
         // 注意不能只看「有没有字符横跨空白带」——空白带落在两个词**之间**
         // 时根本没有字符横跨它，按横跨判断会一行都拆不开。
+        //
+        // 但也不能只看「中心越过就断开」：通栏标题会**横跨**栏口
+        // （它的字一直排到右栏那一侧），按中心越过就断开，标题会被切成两段。
+        // 真正的分栏行在栏口那里是**断开的**（有空白），
+        // 所以断开的依据是「那里有没有空隙」。
         QVector<QVector<pdf::TextChar>> segments;
         QVector<pdf::TextChar> current;
         int separatorIndex = 0;
+        const double gapThreshold = gapThresholdFor(row.fontSize);
         for (const pdf::TextChar& character : row.chars) {
             const double center = (character.box.left() + character.box.right()) * 0.5;
             while (separatorIndex < separatorX.size() && center >= separatorX.at(separatorIndex)) {
                 if (!current.isEmpty()) {
-                    segments.append(current);
-                    current.clear();
+                    const double gap = character.box.left() - current.constLast().box.right();
+                    if (gap > gapThreshold) {
+                        segments.append(current);
+                        current.clear();
+                    }
                 }
                 ++separatorIndex;
             }
@@ -861,7 +944,9 @@ QVector<TextBand> buildTextBands(const pdf::TextPage& text) {
     above.right = pageRight;
     above.bottom = regionTop;
     above.top = pageTop;
-    bands.append(above);
+    // 注意：上面这条带**不能**在这里就 append 进 bands——
+    // 它的行是下面派发时才填进去的，先 append 进去的是一份**空副本**，
+    // 页面上方的通栏标题（横跨两栏的那种）会整段丢掉。
 
     QVector<TextBand> columnBands;
     for (int column = 0; column < columnCount; ++column) {
@@ -945,6 +1030,7 @@ QVector<TextBand> buildTextBands(const pdf::TextPage& text) {
         }
     }
 
+    bands.append(above);
     bands.append(columnBands);
     bands.append(below);
 

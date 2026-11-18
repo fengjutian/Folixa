@@ -2046,6 +2046,13 @@ void MainWindow::buildUi() {
                      [this] {
         if (wiringActions_ != nullptr) { wiringActions_->autoTagFormFields(); }
     }, true, "accessibility.autoTagForms");
+    // 一键生成 PDF/UA：推断语义角色 → 写语义树 → 补元数据 → 对产物重跑检查器。
+    // 界面上必须写清楚「不是合规认证」——正式认证要 veraPDF。
+    addRibbonCommand(accessibilityTagGroup, "生成 PDF/UA 文件",
+                     "按语义标签树生成一份 PDF/UA 文件（这是本项目检查器的判定，不是合规认证）",
+                     ":/icons/protect.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->generateUaPdf(); }
+    }, true, "accessibility.generateUaPdf");
 
     auto* accessibilityCheckGroup = ribbonBar_->addGroup(accessibilityTab, tr("检查"));
     addRibbonCommand(accessibilityCheckGroup, "完整检查",

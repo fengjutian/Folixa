@@ -125,6 +125,8 @@ public:
     void togglePresentationLoop();
     // 给 PDF 里的表单域写标签树与替代文本。
     void autoTagFormFields();
+    // 一键生成 PDF/UA 文件：推断语义角色 → 写语义树 → 补元数据 → 对产物重跑检查器。
+    void generateUaPdf();
     // 把当前页面送进本机 OneNote。
     void sendToOneNote();
 

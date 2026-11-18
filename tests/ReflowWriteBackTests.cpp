@@ -418,6 +418,19 @@ private slots:
             QCOMPARE(object.rowCount, 2);
             QCOMPARE(object.columnCount, 2);
             QCOMPARE(object.cells.size(), 4);
+            // 单元格文字必须还在**原来那一格**：行 0 是最上面一行
+            // （原文档里 A1/B1 在 y=220，A2/B2 在 y=200）。
+            // 行序要是翻了，格子还是 2×2、单元格还是 4 个，
+            // 但 A1 跑到下面去了——只看行列数是发现不了的。
+            QStringList rowMajor;
+            for (const auto& cell : object.cells) {
+                rowMajor.append(QStringLiteral("%1,%2=%3").arg(cell.row).arg(cell.column).arg(cell.text));
+            }
+            rowMajor.sort();
+            const QStringList expected = {
+                QStringLiteral("0,0=A1"), QStringLiteral("0,1=B1"),
+                QStringLiteral("1,0=A2"), QStringLiteral("1,1=B2")};
+            QCOMPARE(rowMajor, expected);
         }
     }
 

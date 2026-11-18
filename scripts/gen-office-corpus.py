@@ -377,6 +377,9 @@ RIGHT_LINES = [
 ]
 
 # 中文的正文（同样要长：汉字一个字就是一个字宽）。
+#
+# 行数要与参数里的 column_lines 对得上（最多 8 行）：行池不够长的话，
+# 后面的行会从头重复，导出时看着像「同样的句子出现了两遍」。
 CJK_LEFT_LINES = [
     "左栏第一行正文，用来验证双栏。",
     "左栏第二行正文，逐行保留版式。",
@@ -384,6 +387,8 @@ CJK_LEFT_LINES = [
     "左栏第四行正文，提醒表格另认。",
     "左栏第五行正文，足够高才认得出。",
     "左栏第六行正文，右栏与之并列。",
+    "左栏第七行正文，导出要逐行对齐。",
+    "左栏第八行正文，下面是表格与图。",
 ]
 
 CJK_RIGHT_LINES = [
@@ -393,15 +398,24 @@ CJK_RIGHT_LINES = [
     "右栏第四行正文，图片另走通道。",
     "右栏第五行正文，双栏到此讲完。",
     "右栏第六行正文，下面是表与图。",
+    "右栏第七行正文，两栏各自成流。",
+    "右栏第八行正文，双栏结束在表前。",
 ]
 
+# 混排的一行：中文（内嵌字体）+ 西文（标准 14 号字体）。
+#
+# 为什么西文不跟中文用同一个字体：SimHei 的西文字形很窄（墨迹只有字身框
+# 一小半），相邻字母之间能空出 4pt，导出的「按词距补空格」会把 English
+# 拆成 "Eng l i sh"。真实 PDF 里混排也常用两套字体（中文一套、西文一套）。
 MIXED_LEFT_LINES = [
-    "左栏第一行混排 English 与中文。",
-    "左栏第二行混排 English 与中文。",
-    "左栏第三行混排 English 与中文。",
-    "左栏第四行混排 English 与中文。",
-    "左栏第五行混排 English 与中文。",
-    "左栏第六行混排 English 与中文。",
+    ("左栏第一行混排", " Mixed English", " 与中文。"),
+    ("左栏第二行混排", " Mixed English", " 与中文。"),
+    ("左栏第三行混排", " Mixed English", " 与中文。"),
+    ("左栏第四行混排", " Mixed English", " 与中文。"),
+    ("左栏第五行混排", " Mixed English", " 与中文。"),
+    ("左栏第六行混排", " Mixed English", " 与中文。"),
+    ("左栏第七行混排", " Mixed English", " 与中文。"),
+    ("左栏第八行混排", " Mixed English", " 与中文。"),
 ]
 
 
@@ -448,6 +462,13 @@ def measure_text(text, size, font=None):
             continue
         total += HELVETICA_WIDTHS.get(char, 556) / 1000.0 * size
     return total
+
+
+def measure_mixed(parts, font):
+    """量一行混排文字的宽度（点）：中文 11pt、西文 10pt。"""
+    cjk_text, latin_text, cjk_tail = parts
+    return (measure_text(cjk_text, 11.0, font) + measure_text(latin_text, 10.0) +
+            measure_text(cjk_tail, 11.0, font))
 
 
 def latin_text(s):
@@ -574,12 +595,18 @@ def build_document(index, params, font):
     left_x = 50.0
     right_x = left_x + params["column_width"] + params["gutter"]
     min_gap = 14.0
-    for line in LEFT_LINES + RIGHT_LINES + CJK_LEFT_LINES + CJK_RIGHT_LINES + MIXED_LEFT_LINES:
+    for line in LEFT_LINES + RIGHT_LINES + CJK_LEFT_LINES + CJK_RIGHT_LINES:
         width = measure_text(line, 11.0, font)
         if left_x + width > right_x - min_gap:
             raise RuntimeError(
                 "左栏正文太宽，会压到右栏上（行宽 %.1f 点，右栏起点 %.1f 点）：%s"
                 % (width, right_x, line))
+    for parts in MIXED_LEFT_LINES:
+        width = measure_mixed(parts, font)
+        if left_x + width > right_x - min_gap:
+            raise RuntimeError(
+                "左栏混排正文太宽，会压到右栏上（行宽 %.1f 点，右栏起点 %.1f 点）：%s"
+                % (width, right_x, parts[0]))
     for line in RIGHT_LINES + CJK_RIGHT_LINES:
         width = measure_text(line, 10.0, font)
         if right_x + width > 595.0 - 12.0:
@@ -605,9 +632,14 @@ def build_document(index, params, font):
                 page.cjk(font, left_text, 11, left_x, y)
                 page.cjk(font, right_text, 11, right_x, y)
             elif ratio > 0.0:
-                left_text = MIXED_LEFT_LINES[line_index % len(MIXED_LEFT_LINES)]
+                parts = MIXED_LEFT_LINES[line_index % len(MIXED_LEFT_LINES)]
+                cjk_text, latin_text, cjk_tail = parts
                 right_text = RIGHT_LINES[line_index % len(RIGHT_LINES)]
-                page.cjk(font, left_text, 11, left_x, y)
+                # 一行里用两套字体：中文走内嵌字体，西文走标准 14 号字体。
+                latin_x = left_x + measure_text(cjk_text, 11.0, font)
+                page.cjk(font, cjk_text, 11, left_x, y)
+                page.latin(latin_text, 10, latin_x, y)
+                page.cjk(font, cjk_tail, 11, latin_x + measure_text(latin_text, 10.0), y)
                 page.latin(right_text, 10, right_x, y)
             else:
                 page.latin(LEFT_LINES[line_index % len(LEFT_LINES)], 11, left_x, y)
@@ -639,6 +671,17 @@ def build_document(index, params, font):
             page.image(name, width, height, x, y)
             image_count += 1
 
+    # 左右栏各取第一行当**锚点**：验收脚本拿它确认「左栏的话还在左栏、
+    # 右栏的话还在右栏」，而且**没有被并成同一段**。
+    ratio = params["cjk_ratio"]
+    if ratio >= 0.99:
+        anchors = {"left": CJK_LEFT_LINES[0], "right": CJK_RIGHT_LINES[0]}
+    elif ratio > 0.0:
+        parts = MIXED_LEFT_LINES[0]
+        anchors = {"left": parts[0] + parts[1] + parts[2], "right": RIGHT_LINES[0]}
+    else:
+        anchors = {"left": LEFT_LINES[0], "right": RIGHT_LINES[0]}
+
     return builder.build(), {
         "pages": page_count,
         "images": image_count,
@@ -646,6 +689,7 @@ def build_document(index, params, font):
         "table_rows": params["table_rows"],
         "table_columns": params["table_columns"],
         "images_per_page": params["images_per_page"],
+        "anchors": anchors,
     }
 
 
@@ -653,6 +697,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="生成 PDF → Office 的四合一语料")
     parser.add_argument("--out", default=DEFAULT_OUT, help="输出目录")
     parser.add_argument("--count", type=int, default=50, help="造多少份（默认 50）")
+    parser.add_argument("--full-font", action="store_true",
+                        help="不切字体子集，内嵌完整字体（排查用：体积大很多）")
     parser.add_argument("--quiet", action="store_true", help="不打印进度")
     args = parser.parse_args(argv)
 
@@ -668,19 +714,35 @@ def main(argv=None):
         raw_font = handle.read()
 
     # 语料里会出现的全部汉字（子集时要用）。
+    # 混排那组只有中文部分要进子集——西文走标准 14 号字体，不内嵌。
     used = set()
-    for group in (CJK_LEFT_LINES, CJK_RIGHT_LINES, MIXED_LEFT_LINES):
+    for group in (CJK_LEFT_LINES, CJK_RIGHT_LINES):
         for line in group:
             used.update(line)
+    for parts in MIXED_LEFT_LINES:
+        used.update(parts[0])
+        used.update(parts[2])
     subset = _subset_ttf(raw_font, used)
     if not args.quiet:
-        print("字体子集：%.1f MB → %.1f KB（%d 个字形）" %
-              (len(raw_font) / 1048576.0, len(subset) / 1024.0, len(used)))
+        if args.full_font:
+            print("字体：不切子集，内嵌完整字体（%.1f MB）" % (len(raw_font) / 1048576.0))
+        else:
+            print("字体子集：%.1f MB → %.1f KB（%d 个字形）" %
+                  (len(raw_font) / 1048576.0, len(subset) / 1024.0, len(used)))
 
     font = cjk.EmbeddedFont("cjk", "F2")
+    # 强制**横排**。
+    #
+    # 为什么：仓库的 gen-cjk-corpus.py 在字体带 vhea/vmtx 时，会把 Type0 的
+    # /Encoding 写成 Identity-V（那是给竖排夹具准备的：PDFium 判竖排看的是
+    # Encoding CMap）。SimHei 正好带 vhea/vmtx，于是横排的正文也会被 PDFium
+    # 按竖排摆——字竖着排下去，抽取出来的字符框全叠在同一列上，
+    # 导出的正文会碎成一行一个字。
+    # 这份语料是横排的，所以明确按横排写。
+    font.vertical = None
     # 用子集替掉字体内容（EmbeddedFont 读的是完整文件，这里直接换掉 bytes）。
     # GID 保持不变，所以 cmap 查出来的 GID 在子集里依然是对的。
-    font.data = subset
+    font.data = subset if not args.full_font else raw_font
 
     documents = []
     for index in range(args.count):

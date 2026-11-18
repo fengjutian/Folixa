@@ -2,7 +2,6 @@
 
 #include <QByteArray>
 #include <QPointF>
-#include <QRectF>
 #include <QString>
 #include <QVector>
 
@@ -54,7 +53,7 @@ struct VerticalGlyph {
     int rowIndex = 0;
     // 文字原点（PDF user space，原点左下、y 向上）。
     //
-    // 竖排下这个原点落在**字身框的顶边**：字形按竖排原点（w1y / w1x）往下挪，
+    // 竖排下这个原点落在**字身框的顶边**：字形按竖排原点（v_x / v_y）挪位，
     // 整个字身框从原点往下占 advance 那么多高。
     QPointF origin;
     // 这个字在列内往下推进的距离（点）。
@@ -67,8 +66,10 @@ struct VerticalGlyph {
 struct VerticalColumn {
     // 这一列第一个字的文字原点（PDF user space）。
     QPointF origin;
-    // 这一列的字，自上而下。
-    QVector<VerticalGlyph> glyphs;
+    // 这一列的第一个字在 VerticalLayout::glyphs 里的下标。
+    int firstGlyph = 0;
+    // 这一列有几个字。
+    int glyphCount = 0;
 };
 
 // 竖排切列的结果。
@@ -77,7 +78,9 @@ struct VerticalLayout {
     QVector<VerticalColumn> columns;
     // 按阅读顺序展开的字：列自右向左、列内自上而下。
     //
-    // 这就是「内容流顺序 == 阅读顺序」的那份顺序，写内容流时按它写就对了。
+    // 这是「内容流顺序 == 阅读顺序」的那份顺序，写内容流时按它写就对了。
+    // **这一份是权威的**：列的视图（columns）只是几何信息，
+    // 字符码填在 glyphs 上就会进内容流。
     QVector<VerticalGlyph> glyphs;
     // 文字没排完（框里放不下剩下的部分）。
     bool overflow = false;
@@ -146,24 +149,30 @@ QByteArray buildVerticalContentStream(const VerticalLayout& layout,
                                        double fontSize = 12.0);
 
 // 一个 CID 的竖排度量（1/1000 em）。
+//
+// 三个数的顺序按 ISO 32000-1 §9.7.4.3：**w1y（竖排位移）、v_x、v_y**。
+//   * w1y 是竖排位移（沿书写轴的推进量），**向下为负**（PDF user space 的 y 向上，
+//     而竖排往下走，所以是负数；一个全角字是 -1000）；
+//   * v_x、v_y 是「从字形的横排原点到竖排原点」的向量分量：
+//     v_x 取 500（半个 em）时字身框居中于列心，v_y 取 880 时竖排原点在字身框顶边附近。
 struct VerticalCidMetrics {
     // CID（字形号，Identity 映射下就是 GID）。
     int cid = 0;
-    // w1y：竖排原点的 y。
-    double originY = 0.0;
-    // w1x：竖排原点的 x。取半个 em（500）时字身框居中于列心。
-    double originX = 0.0;
-    // vy：竖排位移。**向下为负**（PDF 规范与 PDFium 都按这个符号约定）。
+    // w1y：竖排位移（向下为负）。
     double displacement = 0.0;
+    // v_x：竖排原点的 x 分量。
+    double originX = 0.0;
+    // v_y：竖排原点的 y 分量。
+    double originY = 0.0;
 };
 
-// 生成 /W2 数组（PDF 1.7 表 116：c [w1y w1x vy]）。
+// 生成 /W2 数组（ISO 32000-1 §9.7.4.3：c [w1y v_x v_y]）。
 //
 // 说明两点：
-//   * 每个 CID **三个数**（w1y / w1x / vy）。只给一个数是不对的：
-//     PDFium 读 /W2 时按每组三个数取（w1y、w1x、vy），缺一个就会读歪。
+//   * 每个 CID **三个数**（w1y / v_x / v_y）。只给一个数是不对的：
+//     PDFium 读 /W2 时按每组三个数取，缺一个就会读歪。
 //   * CID 是**绝对编号**（从 0 起算），不是相对偏移；连续且度量相同的 CID
-//     会并成一条 `c [w1y w1x vy w1y w1x vy ...]`。
+//     会并成一条 `c [w1y v_x v_y w1y v_x v_y ...]`。
 QByteArray buildVerticalWidthArray(const QVector<VerticalCidMetrics>& cids);
 
 // 生成竖排字体字典的片段：/WMode 1 + /DW2 [w1y vy]（+ /W2）。

@@ -124,13 +124,17 @@ VerticalLayout layoutVerticalText(const QString& text, const VerticalLayoutOptio
         glyph.origin = QPointF(columnX, y);
         glyph.advance = advance;
         glyph.width = glyphWidth;
+        // 空白也占一个字身框（竖排里空格是全角宽的），
+        // 但它没有字符码时不会被写进内容流。
 
         if (layout.columns.size() <= columnIndex) {
             VerticalColumn column;
             column.origin = glyph.origin;
+            column.firstGlyph = layout.glyphs.size();
+            column.glyphCount = 0;
             layout.columns.append(column);
         }
-        layout.columns[columnIndex].glyphs.append(glyph);
+        layout.columns[columnIndex].glyphCount += 1;
         layout.glyphs.append(glyph);
 
         y -= advance;
@@ -155,22 +159,27 @@ QByteArray buildVerticalContentStream(const VerticalLayout& layout,
     }
 
     QByteArray out;
-    for (const VerticalColumn& column : layout.columns) {
-        if (column.glyphs.isEmpty()) {
+    int currentColumn = -1;
+    for (const VerticalGlyph& glyph : layout.glyphs) {
+        if (glyph.columnIndex != currentColumn) {
+            if (currentColumn >= 0) {
+                out += "ET\n";
+            }
+            // 每一列单独一个 BT/ET：列的起点用 Tm 摆到位，
+            // 列内字与字之间的推进交给字体的竖排量（/W2、/DW2）。
+            out += "BT\n";
+            out += "/" + resource + " " + number(fontSize) + " Tf\n";
+            out += "1 0 0 1 " + number(glyph.origin.x()) + " " + number(glyph.origin.y()) +
+                   " Tm\n";
+            currentColumn = glyph.columnIndex;
+        }
+        if (glyph.code.isEmpty()) {
+            // 没有字符码就不写：写了会画出错字。
             continue;
         }
-        // 每一列单独一个 BT/ET：列的起点用 Tm 摆到位，
-        // 列内字与字之间的推进交给字体的竖排量（/W2、/DW2）。
-        out += "BT\n";
-        out += "/" + resource + " " + number(fontSize) + " Tf\n";
-        out += "1 0 0 1 " + number(column.origin.x()) + " " + number(column.origin.y()) + " Tm\n";
-        for (const VerticalGlyph& glyph : column.glyphs) {
-            if (glyph.code.isEmpty()) {
-                // 没有字符码就不写：写了会画出错字。
-                continue;
-            }
-            out += "<" + glyph.code + "> Tj\n";
-        }
+        out += "<" + glyph.code + "> Tj\n";
+    }
+    if (currentColumn >= 0) {
         out += "ET\n";
     }
     return out;
@@ -195,14 +204,15 @@ QByteArray buildVerticalWidthArray(const QVector<VerticalCidMetrics>& cids) {
     bool first = true;
     while (index < sorted.size()) {
         const VerticalCidMetrics& head = sorted.at(index);
-        QVector<double> values{head.originY, head.originX, head.displacement};
+        // 三元组的顺序：w1y（竖排位移）、v_x、v_y。
+        QVector<double> values{head.displacement, head.originX, head.originY};
         int next = index + 1;
-        // 连续的、度量相同的 CID 并成一条：c [w1y w1x vy w1y w1x vy ...]。
+        // 连续的、度量相同的 CID 并成一条：c [w1y v_x v_y w1y v_x v_y ...]。
         while (next < sorted.size() && sorted.at(next).cid == sorted.at(next - 1).cid + 1 &&
                sameMetrics(sorted.at(next), sorted.at(next - 1))) {
-            values.append(sorted.at(next).originY);
-            values.append(sorted.at(next).originX);
             values.append(sorted.at(next).displacement);
+            values.append(sorted.at(next).originX);
+            values.append(sorted.at(next).originY);
             ++next;
         }
         if (!first) {
@@ -211,12 +221,15 @@ QByteArray buildVerticalWidthArray(const QVector<VerticalCidMetrics>& cids) {
         first = false;
         out += number(head.cid) + " [";
         for (int valueIndex = 0; valueIndex < values.size(); ++valueIndex) {
-            out += " " + number(values.at(valueIndex));
+            if (valueIndex > 0) {
+                out += " ";
+            }
+            out += number(values.at(valueIndex));
         }
-        out += " ]";
+        out += "]";
         index = next;
     }
-    out += " ]";
+    out += "]";
     return out;
 }
 

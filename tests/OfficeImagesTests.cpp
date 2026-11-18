@@ -109,7 +109,11 @@ QByteArray testImagePixels() {
 //   图片甲    120×90，(60, 440)
 //   图片乙    100×80，(340, 440)
 //   表格      3 列 × 3 行，列 x=60/200/340，行 y=380/350/320
-QByteArray buildSamplePdf() {
+//
+// title 可以换：换成**横跨右栏起点**的长标题时，标题的字会一直排到
+// 栏口那一侧（这是双栏版面的常见形态：通栏大标题 + 下面两栏正文）。
+// 那种标题在栏口那里是**连着的**（没有空隙），不该被当成两栏切开。
+QByteArray buildSamplePdf(const QString& title = QStringLiteral("Quarterly export report")) {
     PdfBuilder builder;
     builder.add("<< /Type /Catalog /Pages 2 0 R >>");
 
@@ -135,7 +139,7 @@ QByteArray buildSamplePdf() {
     };
 
     QString content;
-    content += "BT /F1 18 Tf 50 760 Td (Quarterly export report) Tj ET\n";
+    content += QStringLiteral("BT /F1 18 Tf 50 760 Td (%1) Tj ET\n").arg(title);
     for (int index = 0; index < columnLines.size(); ++index) {
         const int y = 700 - index * 20;
         content += QStringLiteral("BT /F1 12 Tf 50 %1 Td (%2) Tj ET\n")
@@ -407,6 +411,7 @@ private slots:
     void wordExportWritesRealTables();
     void pptxExportWritesRealTables();
     void twoColumnTextIsNotMergedIntoOneLine();
+    void fullWidthHeadingIsNotCutByTheColumnSeparator();
     void exportIsReproducible();
     void brokenPdfIsRejectedHonestly();
     void corpusExportsMatchTheDeclaredExpectations();
@@ -588,6 +593,35 @@ void OfficeImagesTests::twoColumnTextIsNotMergedIntoOneLine() {
     // 两栏的行数都要在（各 8 行）。
     QCOMPARE(countOf(document, QByteArray("Left column body text line")), 8);
     QCOMPARE(countOf(document, QByteArray("Right column body text line")), 8);
+}
+
+// 通栏标题横跨栏口时，标题不能被切成两段。
+//
+// 为什么这条要单独守：双栏页面的大标题常常是通栏的（横跨两栏），
+// 它的字会一直排到右栏起点那一侧。栏口在那里**没有空隙**
+// （标题是连着排下来的），所以它不是「两栏的分界」，只是「一行字」。
+// 按「字符中心越过栏口就断开」来切，标题会被切成两半——
+// Word 里看到的就是「Quarterly export report for every region」
+// 变成两段，第一段在左栏、第二段在右栏。
+void OfficeImagesTests::fullWidthHeadingIsNotCutByTheColumnSeparator() {
+    // 标题要**长到跨过栏口之后还剩下一大段**：只有右边那一段也够宽，
+    // 「被切成两段」才会真的发生（右边只剩一两个字时，切了也不算错）。
+    const QString title = QStringLiteral("Quarterly export report for every region of the company");
+    const WordExportResult result = exportPdfToWord(buildSamplePdf(title));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    const QByteArray document = zip::readEntry(result.bytes, QStringLiteral("word/document.xml"));
+    QVERIFY(!document.isEmpty());
+
+    // 标题必须**完整地**出现在某一段里。
+    QVERIFY2(document.contains(title.toUtf8()), document.constData());
+    // 而且只能出现一次（被切成两段的话，两半拼不到一起，各自都不完整）。
+    QCOMPARE(countOf(document, title.toUtf8()), 1);
+
+    // 左右两栏照旧要分开。
+    QVERIFY2(document.contains("Left column body text line one of eight"), document.constData());
+    QVERIFY2(document.contains("Right column body text line one of eight"), document.constData());
+    QVERIFY2(!document.contains("Left column body text line one of eight Right column body text"),
+              "左右两栏被串成一行了");
 }
 
 void OfficeImagesTests::exportIsReproducible() {

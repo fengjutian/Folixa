@@ -24,6 +24,8 @@ qt_add_executable(SemanticTagWriterTests
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/TagTreeWriter.h
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/PdfUaChecker.h
+    ${AIPDF_REPO_ROOT}/src/pdf/forms/FormAutoTag.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/forms/FormAutoTag.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.h
 )

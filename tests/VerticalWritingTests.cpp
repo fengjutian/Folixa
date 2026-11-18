@@ -85,7 +85,9 @@ QByteArray buildTestFont(bool withVerticalTables, int unitsPerEm = 1000, int gly
     appendS16(hhea, static_cast<qint16>(descent));
     appendS16(hhea, 0);
     appendU16(hhea, static_cast<quint16>(unitsPerEm));
-    for (int index = 0; index < 9; ++index) appendS16(hhea, 0);
+    // minLeftSideBearing / minTopSideBearing / xMaxExtent / caretSlopeRise /
+    // caretSlopeRun / caretOffset + 4 个保留位：共 10 个 int16。
+    for (int index = 0; index < 10; ++index) appendS16(hhea, 0);
     appendS16(hhea, 0);  // metricDataFormat
     appendU16(hhea, static_cast<quint16>(glyphCount));
     tables.append(qMakePair(QByteArrayLiteral("hhea"), hhea));
@@ -97,6 +99,12 @@ QByteArray buildTestFont(bool withVerticalTables, int unitsPerEm = 1000, int gly
     }
     tables.append(qMakePair(QByteArrayLiteral("hmtx"), hmtx));
 
+    // loca / glyf：子集化要它们（字形全是空的也没关系，编号不变即可）。
+    QByteArray loca;
+    for (int gid = 0; gid <= glyphCount; ++gid) appendU16(loca, 0);
+    tables.append(qMakePair(QByteArrayLiteral("loca"), loca));
+    tables.append(qMakePair(QByteArrayLiteral("glyf"), QByteArray()));
+
     if (withVerticalTables) {
         QByteArray vhea;
         appendU16(vhea, 1);
@@ -105,7 +113,7 @@ QByteArray buildTestFont(bool withVerticalTables, int unitsPerEm = 1000, int gly
         appendS16(vhea, static_cast<qint16>(descent));
         appendS16(vhea, 0);
         appendU16(vhea, static_cast<quint16>(unitsPerEm));
-        for (int index = 0; index < 9; ++index) appendS16(vhea, 0);
+        for (int index = 0; index < 10; ++index) appendS16(vhea, 0);
         appendS16(vhea, 0);  // metricDataFormat
         appendU16(vhea, static_cast<quint16>(numberOfVMetrics));
         tables.append(qMakePair(QByteArrayLiteral("vhea"), vhea));
@@ -254,7 +262,7 @@ void VerticalWritingTests::laysOutColumnsRightToLeftAndTopToBottom() {
     options.left = 0.0;
     options.right = 100.0;
     options.bottom = 0.0;
-    options.top = 300.0;
+    options.top = 100.0;
     options.metrics = sampleMetrics();
 
     const QString text = QStringLiteral("甲乙丙丁戊己庚辛");
@@ -262,23 +270,26 @@ void VerticalWritingTests::laysOutColumnsRightToLeftAndTopToBottom() {
     QVERIFY2(layout.error.isEmpty(), qPrintable(layout.error));
     QCOMPARE(layout.glyphs.size(), 8);
     QCOMPARE(layout.columns.size(), 2);
-    // 一列放 5 个字（300 / 20），剩下的到左边一列。
-    QCOMPARE(layout.columns.at(0).glyphs.size(), 5);
-    QCOMPARE(layout.columns.at(1).glyphs.size(), 3);
+    // 一列放 5 个字（100 / 20），剩下的到左边一列。
+    QCOMPARE(layout.columns.at(0).glyphCount, 5);
+    QCOMPARE(layout.columns.at(1).glyphCount, 3);
+    QCOMPARE(layout.columns.at(0).firstGlyph, 0);
+    QCOMPARE(layout.columns.at(1).firstGlyph, 5);
     // **列自右向左**：第 0 列在右边。
     QVERIFY(layout.columns.at(0).origin.x() > layout.columns.at(1).origin.x());
     QCOMPARE(layout.columns.at(0).origin.x(), 90.0);
     QCOMPARE(layout.columns.at(1).origin.x(), 70.0);
     // **列内自上而下**：PDF user space 里 y 递减。
-    const QVector<VerticalGlyph>& first = layout.columns.at(0).glyphs;
-    QCOMPARE(first.at(0).origin.y(), 300.0);
-    QCOMPARE(first.at(1).origin.y(), 280.0);
-    QCOMPARE(first.at(4).origin.y(), 220.0);
-    QCOMPARE(first.at(0).columnIndex, 0);
-    QCOMPARE(first.at(0).rowIndex, 0);
-    QCOMPARE(first.at(4).rowIndex, 4);
+    QCOMPARE(layout.glyphs.at(0).origin.y(), 100.0);
+    QCOMPARE(layout.glyphs.at(1).origin.y(), 80.0);
+    QCOMPARE(layout.glyphs.at(4).origin.y(), 20.0);
+    QCOMPARE(layout.glyphs.at(0).columnIndex, 0);
+    QCOMPARE(layout.glyphs.at(0).rowIndex, 0);
+    QCOMPARE(layout.glyphs.at(4).rowIndex, 4);
+    QCOMPARE(layout.glyphs.at(5).columnIndex, 1);
+    QCOMPARE(layout.glyphs.at(5).rowIndex, 0);
     // 步进用的是竖排度量（1 em），不是横排宽度。
-    QCOMPARE(first.at(1).advance, 20.0);
+    QCOMPARE(layout.glyphs.at(1).advance, 20.0);
     QCOMPARE(layout.consumedLength, text.size());
     QVERIFY(!layout.overflow);
     QVERIFY(!layout.verticalMetricsDegraded);
@@ -328,6 +339,8 @@ void VerticalWritingTests::writesContentStreamInReadingOrder() {
         QVERIFY2(at > previous, qPrintable(QStringLiteral("字符 %1 的位置不对").arg(glyph.text)));
         previous = at;
     }
+    // 字的数量与内容流里 Tj 的数量一致。
+    QCOMPARE(stream.count("Tj"), 8);
 
     // 每一列一个 BT/ET，列的顺序是右→左。
     const int firstTm = stream.indexOf("Tm");
@@ -348,32 +361,33 @@ void VerticalWritingTests::writesContentStreamInReadingOrder() {
     QCOMPARE(seen, 2);
 }
 
-// /W2 数组：CID 从 0 起连续，每组三个数（w1y / w1x / vy）。
+// /W2 数组：CID 从 0 起连续，每组三个数（w1y / v_x / v_y）。
 void VerticalWritingTests::buildsWidthArrayByCid() {
     QVector<VerticalCidMetrics> cids;
-    cids.append({0, 880.0, 500.0, -1000.0});
-    cids.append({1, 880.0, 500.0, -900.0});
-    cids.append({2, 880.0, 500.0, -900.0});
+    cids.append({0, -1000.0, 500.0, 880.0});
+    cids.append({1, -900.0, 500.0, 880.0});
+    cids.append({2, -900.0, 500.0, 880.0});
     const QByteArray array = buildVerticalWidthArray(cids);
     // 连续且度量相同的 CID 并成一条。
-    QCOMPARE(array, QByteArray("[0 [880 500 -1000] 1 [880 500 -900 880 500 -900]]"));
+    QCOMPARE(array, QByteArray("[0 [-1000 500 880] 1 [-900 500 880 -900 500 880]]"));
 
     // CID 是绝对编号：中间空出来的 CID 不影响后面的编号。
     QVector<VerticalCidMetrics> sparse;
-    sparse.append({7, 880.0, 500.0, -1000.0});
-    sparse.append({9, 880.0, 500.0, -1000.0});
+    sparse.append({7, -1000.0, 500.0, 880.0});
+    sparse.append({9, -1000.0, 500.0, 880.0});
     QCOMPARE(buildVerticalWidthArray(sparse),
-             QByteArray("[7 [880 500 -1000] 9 [880 500 -1000]]"));
+             QByteArray("[7 [-1000 500 880] 9 [-1000 500 880]]"));
 }
 
 // 字体字典片段：/WMode 1 + /DW2（+ /W2）。
 void VerticalWritingTests::buildsFontEntriesWithWMode() {
     QVector<VerticalCidMetrics> cids;
-    cids.append({0, 880.0, 500.0, -1000.0});
+    cids.append({0, -1000.0, 500.0, 880.0});
     const QByteArray entries = buildVerticalFontEntries(sampleMetrics(), cids);
     QVERIFY(entries.startsWith("/WMode 1"));
+    // /DW2 是 [v_y w1y]：竖排原点 y 在前，竖排位移在后（向下为负）。
     QVERIFY(entries.contains("/DW2 [880 -1000]"));
-    QVERIFY(entries.contains("/W2 [0 [880 500 -1000]]"));
+    QVERIFY(entries.contains("/W2 [0 [-1000 500 880]]"));
 
     // 没有竖排度量：只给 /WMode 1 与规范默认的 /DW2，**不给 /W2**。
     const QByteArray degraded = buildVerticalFontEntries(VerticalMetrics(), QVector<VerticalCidMetrics>());
@@ -384,7 +398,7 @@ void VerticalWritingTests::buildsFontEntriesWithWMode() {
     // 按字体字节生成：读得到竖排度量就带上 /W2，读不到就不给。
     const QByteArray withVertical = buildVerticalFontEntriesForFont(buildTestFont(true), {0, 1});
     QVERIFY(withVertical.contains("/WMode 1"));
-    QVERIFY(withVertical.contains("/W2 [0 [880 500 -1000] 1 [880 500 -900]]"));
+    QVERIFY(withVertical.contains("/W2 [0 [-1000 500 880] 1 [-900 500 880]]"));
     const QByteArray withoutVertical = buildVerticalFontEntriesForFont(buildTestFont(false), {0, 1});
     QVERIFY(withoutVertical.contains("/WMode 1"));
     QVERIFY(!withoutVertical.contains("/W2"));
@@ -420,8 +434,10 @@ void VerticalWritingTests::usesVerticalAdvanceInVerticalReflow() {
     style.verticalDescent = -120.0;
     style.verticalDefaultWidth = 1000.0;
 
+    // 用窄的拉丁字母：横排 advance 远小于一个 em，
+    // 一旦竖排步进退回横排 advance，这里的步距立刻就不对。
     const ReflowResult result =
-        TextReflow::layoutParagraph(QStringLiteral("甲乙丙"), QRectF(0, 0, 80, 400), style);
+        TextReflow::layoutParagraph(QStringLiteral("iii"), QRectF(0, 0, 80, 400), style);
     QCOMPARE(result.lines.size(), 3);
     // 步进 = 竖排度量（1 em = 20 点），不是横排 advance。
     QCOMPARE(result.lines.at(1).baseline.y() - result.lines.at(0).baseline.y(), 20.0);
@@ -431,7 +447,7 @@ void VerticalWritingTests::usesVerticalAdvanceInVerticalReflow() {
     // 竖排度量给成 2 em，步进就跟着变成 2 em。
     style.verticalDefaultWidth = 2000.0;
     const ReflowResult wide = TextReflow::layoutParagraph(
-        QStringLiteral("甲乙丙"), QRectF(0, 0, 80, 400), style);
+        QStringLiteral("iii"), QRectF(0, 0, 80, 400), style);
     QCOMPARE(wide.lines.size(), 3);
     QCOMPARE(wide.lines.at(1).baseline.y() - wide.lines.at(0).baseline.y(), 40.0);
 }

@@ -42,6 +42,7 @@
 #include "doc/export/PdfToOffice.h"
 #include "doc/convert/UniversalConverter.h"
 #include "i18n/Translate.h"
+#include "pdf/compliance/UaGenerator.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/ops/DocumentReflow.h"
 #include "pdf/convert/ExportFormats.h"
@@ -1543,6 +1544,49 @@ void WiringActions::autoTagFormFields() {
         lines.append(QStringLiteral("- ") + issue.fieldName + QStringLiteral("：") + issue.reason);
     }
     QMessageBox::information(parentWidget_, title, lines.join(QLatin1Char('\n')));
+}
+
+void WiringActions::generateUaPdf() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "生成 PDF/UA 文件");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    // 选项：语言默认 zh-CN（中文文档最常见），标题留空 = 沿用原文件里的标题。
+    pdf::UaGeneratorOptions options;
+    const pdf::UaGeneratorResult result = pdf::generateUaPdf(bytes, options, &error);
+    if (result.bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             result.error.isEmpty() ? error : result.error);
+        return;
+    }
+    // 写回打开的文档：生成的标签树要落在用户正在看的这份文件上。
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    // 报告：结论用生成器自己的摘要（不是「已通过 PDF/UA 校验」），
+    // 边界说明原样用生成器给的那句 —— 检查器判定不等于合规认证。
+    PdfUaReportDialog dialog(parentWidget_);
+    dialog.setReport(result.report);
+    dialog.setConclusionText(result.summaryText);
+    QString scope = pdf::uaGenerationDisclaimer();
+    if (!result.issues.isEmpty()) {
+        scope += QStringLiteral("\n");
+        scope += i18n::tr("aipdf::app::MainWindow", "需人工确认：%1")
+                     .arg(result.issues.join(QStringLiteral("；")));
+    }
+    dialog.setScopeNotice(scope);
+    dialog.exec();
+    notify(result.summaryText);
 }
 
 

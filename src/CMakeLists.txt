@@ -165,6 +165,10 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/content/TextReflow.h
     pdf/kernel/TableStructure.cpp
     pdf/kernel/TableStructure.h
+    pdf/kernel/PageObjectModel.cpp
+    pdf/kernel/PageObjectModel.h
+    pdf/content/ReflowPlan.cpp
+    pdf/content/ReflowPlan.h
     pdf/content/TableIntegration.cpp
     pdf/annot/Annotation.cpp
     pdf/annot/Annotation.h
@@ -211,6 +215,16 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/security/SignatureInspector.h
     pdf/compliance/TagTreeWriter.cpp
     pdf/compliance/TagTreeWriter.h
+    pdf/compliance/StructTreeModel.cpp
+    pdf/compliance/StructTreeModel.h
+    pdf/compliance/RoleInference.cpp
+    pdf/compliance/RoleInference.h
+    pdf/compliance/AltTextGenerator.cpp
+    pdf/compliance/AltTextGenerator.h
+    pdf/compliance/SemanticTagWriter.cpp
+    pdf/compliance/SemanticTagWriter.h
+    pdf/compliance/UaGenerator.cpp
+    pdf/compliance/UaGenerator.h
     pdf/annot/AnnotationShapes.cpp
     pdf/annot/AnnotationShapes.h
     pdf/ops/DocumentReflow.cpp

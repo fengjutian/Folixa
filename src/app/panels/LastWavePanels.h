@@ -157,10 +157,21 @@ public:
     int warningCount() const;
     int errorCount() const;
 
+    // 覆盖顶部结论与边界说明。
+    //
+    // 为什么需要：「一键生成 PDF/UA」用的不是检查器那套话术 ——
+    // 检查器的结论是「本项目检查器判定」，不是合规认证；
+    // 生成器要显示它自己的摘要与边界说明。
+    // 留空就用默认（检查器那套）。
+    void setConclusionText(const QString& text);
+    void setScopeNotice(const QString& text);
+
 private:
     void rebuild();
 
     pdf::PdfUaReport report_;
+    QString conclusionOverride_;
+    QString scopeOverride_;
     QLabel* conclusionLabel_ = nullptr;
     QLabel* scopeLabel_ = nullptr;
     QTreeWidget* passTree_ = nullptr;

@@ -125,11 +125,17 @@ QByteArray samplePdf() {
 }
 
 // 与 samplePdf 相同，但多一个**位置不同**的图片。
-// 用来验证：稳定 id 不依赖「页面对象数组的下标」。
+//
+// 多出来的图刻意插在**页眉之后、正文之前**：
+// 插在最后面的话，后面没有对象，页内下标不会漂移，
+// 「稳定 id 不依赖页内下标」这条就验不到东西了。
 QByteArray samplePdfWithExtraImage() {
     const QByteArray pageContent =
         "/Tag << /MCID 0 >> BDC\n"
         "BT /F1 12 Tf 40 285 Td (Running head) Tj ET\n"
+        "EMC\n"
+        "/Tag << /MCID 7 >> BDC\n"
+        "q 20 0 0 20 300 150 cm /Im2 Do Q\n"
         "EMC\n"
         "/Tag << /MCID 1 >> BDC\n"
         "BT /F1 12 Tf 40 260 Td (Body paragraph text) Tj ET\n"
@@ -148,8 +154,6 @@ QByteArray samplePdfWithExtraImage() {
         "EMC\n"
         "/Tag << /MCID 6 >> BDC\n"
         "q 100 0 0 50 40 60 cm /Im1 Do Q\n"
-        "EMC\n"
-        "q 20 0 0 20 300 150 cm /Im2 Do Q\n"
         "EMC";
 
     QVector<QPair<int, QByteArray>> objects;

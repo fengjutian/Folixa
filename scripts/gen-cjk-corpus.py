@@ -138,6 +138,61 @@ def parse_hmtx(data):
     return widths
 
 
+def parse_vhea_vmtx(data):
+    """读 TrueType 的 vhea / vmtx，返回竖排度量（font units）。
+
+    返回 (metrics, reason)：
+      metrics = {"ascent":…, "descent":…, "default_advance":…, "advances": {gid: advance}}
+      没有 vhea / vmtx 时返回 (None, 原因) —— **如实说没有，不编数**。
+
+    表结构：
+      * vhea 与 hhea 一样是 36 字节定长表，ascender 在偏移 4、descender 在 6、
+        lineGap 在 8、metricDataFormat 在 32、numberOfVMetrics 在 34；
+      * vmtx 的前 numberOfVMetrics 个字形各占 4 字节（advanceHeight + topSideBearing），
+        其余字形沿用最后一条记录的 advanceHeight（TrueType 规范如此）。
+    """
+    if len(data) < 12:
+        return None, "字体太小，读不出竖排度量"
+    num_tables = struct.unpack(">H", data[4:6])[0]
+    tables = {}
+    for index in range(num_tables):
+        entry = 12 + index * 16
+        if entry + 16 > len(data):
+            break
+        tag = data[entry:entry + 4].decode("latin-1")
+        offset, length = struct.unpack(">II", data[entry + 8:entry + 16])
+        tables[tag] = (offset, length)
+    if "vhea" not in tables or "vmtx" not in tables:
+        return None, "字体没有竖排度量（缺 vhea / vmtx 表）"
+    vhea_offset, vhea_length = tables["vhea"]
+    if vhea_length < 36:
+        return None, "vhea 表太短，读不出竖排度量"
+    ascent, descent = struct.unpack(">hh", data[vhea_offset + 4:vhea_offset + 8])
+    number_of_vmetrics = struct.unpack(">H", data[vhea_offset + 34:vhea_offset + 36])[0]
+    if number_of_vmetrics <= 0:
+        return None, "vhea 里的 numberOfVMetrics 非法"
+    vmtx_offset, vmtx_length = tables["vmtx"]
+    if vmtx_length < number_of_vmetrics * 4:
+        return None, "vmtx 表太短，放不下竖排度量"
+    advances = {}
+    last_advance = 0
+    for gid in range(number_of_vmetrics):
+        last_advance = struct.unpack(">H", data[vmtx_offset + gid * 4:vmtx_offset + gid * 4 + 2])[0]
+        advances[gid] = last_advance
+    glyph_count = 0
+    if "maxp" in tables:
+        maxp_offset = tables["maxp"][0]
+        glyph_count = struct.unpack(">H", data[maxp_offset + 4:maxp_offset + 6])[0]
+    for gid in range(number_of_vmetrics, glyph_count):
+        advances[gid] = last_advance
+    return {
+        "ascent": ascent,
+        "descent": descent,
+        "default_advance": last_advance,
+        "advances": advances,
+    }, ""
+
+
 # ---------------------------------------------------------------------------
 # PDF 组装
 # ---------------------------------------------------------------------------
@@ -184,6 +239,33 @@ class EmbeddedFont:
         self.units_per_em = parse_units_per_em(self.data)
         self.base_name = "Folixa" + os.path.splitext(os.path.basename(self.path))[0].replace(" ", "")
         self.used = {}
+        # 竖排度量（vhea / vmtx）。没有就是 None —— 如实说没有，不编数。
+        self.vertical, self.vertical_reason = parse_vhea_vmtx(self.data)
+
+    def vertical_scale(self):
+        """字体单位 -> 1/1000 em。"""
+        return 1000.0 / float(self.units_per_em or 1000)
+
+    def vertical_origin_y(self):
+        """竖排原点的高度（1/1000 em）。"""
+        if not self.vertical:
+            return 0
+        return int(round(self.vertical["ascent"] * self.vertical_scale()))
+
+    def vertical_default_advance(self):
+        """竖排默认宽度：一个字身框有多高（1/1000 em）。"""
+        if not self.vertical:
+            return 0
+        return int(round(self.vertical["default_advance"] * self.vertical_scale()))
+
+    def vertical_advance(self, gid):
+        """某个字形的竖排 advance（1/1000 em）。"""
+        if not self.vertical:
+            return 0
+        raw = self.vertical["advances"].get(gid)
+        if raw is None:
+            raw = self.vertical["default_advance"]
+        return int(round(raw * self.vertical_scale()))
 
     def gid_for(self, char):
         """字 -> GID；字体里没有就返回 None。"""
@@ -228,6 +310,54 @@ class EmbeddedFont:
             # 多写会让解析器把后面的条目当成新的 CID，字体字典直接被读歪。
             parts.append("%d [%s]" % (start, " ".join(str(w) for w in widths)))
         return "[%s]" % " ".join(parts)
+
+    def vertical_width_array(self):
+        """竖排的 /W2 数组：c [w1y v_x v_y]。
+
+        三个数的顺序按 ISO 32000-1 §9.7.4.3：
+          * w1y 是竖排位移（沿书写轴的推进量），**向下为负**（PDF user space 的 y 向上，
+            竖排往下走，所以是负数；一个全角字是 -1000）；
+          * v_x、v_y 是「从字形的横排原点到竖排原点」的向量分量
+            （v_x = 500 让字身框居中于列心，v_y = 字体的竖排 ascent）。
+
+        只给一个数会把 /W2 读歪：PDFium 按每组三个数取，缺一个就串位。
+        CID 是**绝对编号**（Identity 映射下就是 GID），连续且度量相同的会并成一条。
+        """
+        if not self.vertical:
+            return None
+        origin_y = self.vertical_origin_y()
+        entries = []
+        for gid in sorted(self.used):
+            values = [-self.vertical_advance(gid), 500, origin_y]
+            entries.append((gid, values))
+        parts = []
+        index = 0
+        while index < len(entries):
+            gid, values = entries[index]
+            group = list(values)
+            nxt = index + 1
+            while (nxt < len(entries) and entries[nxt][0] == entries[nxt - 1][0] + 1
+                   and entries[nxt][1] == entries[nxt - 1][1]):
+                group.extend(entries[nxt][1])
+                nxt += 1
+            parts.append("%d [%s]" % (gid, " ".join(str(value) for value in group)))
+            index = nxt
+        return "[%s]" % " ".join(parts)
+
+    def vertical_font_entries(self):
+        """CID 字体字典里的竖排条目：/WMode 1 + /DW2（+ /W2）。
+
+        没有竖排度量时只给 /WMode 1 与规范默认的 /DW2 [880 -1000]，
+        **不给 /W2**（不编数）。
+        """
+        if not self.vertical:
+            return "/WMode 1 /DW2 [880 -1000]"
+        entries = "/WMode 1 /DW2 [%d %d]" % (self.vertical_origin_y(),
+                                              -self.vertical_default_advance())
+        widths = self.vertical_width_array()
+        if widths:
+            entries += " /W2 %s" % widths
+        return entries
 
 
 def to_unicode_cmap(entries):
@@ -279,6 +409,24 @@ class Page:
         for index, char in enumerate(text):
             self.text(font, char, size, x, top - index * leading)
 
+    def vertical_wmode(self, font, text, size, x, top):
+        """竖排一列（真竖排，WMode 1）：内容流按阅读顺序写。
+
+        与上面那个「模拟竖排」的区别：
+          * 模拟竖排是**一个字一个字定位**（每个字一个 Td），字体并不知道自己在竖排；
+          * 这里只摆一次列的起点（Tm），字与字之间的推进交给字体的竖排量
+            （/W2、/DW2），这才是 PDF 规范里的竖排书写模式。
+
+        内容流的顺序就是阅读顺序（列内自上而下），所以抽取出来的顺序与渲染一致。
+        """
+        self.use_font(font)
+        codes = font.encode(text)
+        parts = ["BT /%s %d Tf 1 0 0 1 %d %d Tm" % (font.resource, size, x, top)]
+        for index in range(0, len(codes), 4):
+            parts.append("<%s> Tj" % codes[index:index + 4])
+        parts.append("ET")
+        self.parts.append(" ".join(parts))
+
     def content(self):
         return "\n".join(self.parts).encode("ascii")
 
@@ -326,11 +474,21 @@ class DocumentBuilder:
              "/CapHeight 880 /StemV 80 /FontFile2 %d 0 R >>" %
              (font.base_name, file_id)).encode("ascii"))
 
+        # 竖排字体（真竖排）：CID 字体字典上写 /WMode 1 + /DW2（+ /W2）。
+        #
+        # 另外 Type0 的 /Encoding 要用 Identity-V：PDF 规范里竖排由 CID 字体的
+        # /WMode 1 声明，但 **PDFium 判竖排看的是 Encoding CMap**
+        # （CPDF_CIDFont::IsVertWriting 走的是 cmap_->IsVertWriting()），
+        # 两处都写，PDFium 才会真的按竖排排、也才会按竖排推进。
+        vertical_extra = font.vertical_font_entries() if font.vertical else ""
+        encoding = "Identity-V" if font.vertical else "Identity-H"
+
         cid_font_id = self.document.add(
             ("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /%s "
              "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
-             "/FontDescriptor %d 0 R /DW 1000 /W %s /CIDToGIDMap %d 0 R >>" %
+             "/FontDescriptor %d 0 R /DW 1000 /W %s%s /CIDToGIDMap %d 0 R >>" %
              (font.base_name, descriptor_id, font.width_array(),
+              (" " + vertical_extra) if vertical_extra else "",
               map_id)).encode("ascii"))
 
         cmap = to_unicode_cmap(entries)
@@ -339,9 +497,9 @@ class DocumentBuilder:
             b"<< /Length %d >>\nstream\n%s\nendstream" % (len(cmap_bytes), cmap_bytes))
 
         type0_id = self.document.add(
-            ("<< /Type /Font /Subtype /Type0 /BaseFont /%s /Encoding /Identity-H "
+            ("<< /Type /Font /Subtype /Type0 /BaseFont /%s /Encoding /%s "
              "/DescendantFonts [%d 0 R] /ToUnicode %d 0 R >>" %
-             (font.base_name, cid_font_id, to_unicode_id)).encode("ascii"))
+             (font.base_name, encoding, cid_font_id, to_unicode_id)).encode("ascii"))
 
         self.fonts[font.resource] = type0_id
         return type0_id
@@ -383,8 +541,9 @@ LONG_PARAGRAPH = (
 )
 
 
-def _meta(name, feature, pages, anchors, notes, ink_pages=None, fonts=None):
-    return {
+def _meta(name, feature, pages, anchors, notes, ink_pages=None, fonts=None,
+          exact_pages=None, wmode=0):
+    meta = {
         "name": name,
         "file": "%s.pdf" % name,
         "feature": feature,
@@ -394,6 +553,13 @@ def _meta(name, feature, pages, anchors, notes, ink_pages=None, fonts=None):
         "fonts": fonts or [],
         "notes": notes,
     }
+    # 逐页期望的抽取串：**顺序敏感**，全等才算过（与「锚点子串命中」是两回事）。
+    if exact_pages:
+        meta["exact_pages"] = list(exact_pages)
+    # 字体字典里应当带 /WMode 1 时填 1（验收脚本会真的去查字体字典）。
+    if wmode:
+        meta["wmode"] = wmode
+    return meta
 
 
 def fixture_rare_glyphs():
@@ -609,6 +775,53 @@ def fixture_huge_charset():
     return builder.build(), meta
 
 
+def fixture_vertical_wmode1():
+    """竖排文字（真的 WMode 1）：字体字典写 /WMode 1，内容流按阅读顺序写。
+
+    这是「模拟竖排」那份 vertical 夹具的对照：
+      * vertical：逐字定位（每个字一个 Td），字体并不知道自己在竖排 —— 模拟；
+      * vertical-wmode1：CID 字体字典带 /WMode 1 + /DW2 + /W2，
+        内容流按阅读顺序（列右→左、列内上→下）写 —— 真正的竖排书写模式。
+
+    两份样本放在一起，才能证明「模拟竖排」与「真竖排」在 PDF 里不是一回事。
+    """
+    builder = DocumentBuilder()
+    cjk = EmbeddedFont("cjk", "F1")
+    if not cjk.vertical:
+        # 没有竖排度量就造不出真竖排：老实报错，不拿横排宽度凑数。
+        raise RuntimeError("字体 %s 没有竖排度量（%s），真竖排夹具造不出来" %
+                            (cjk.path, cjk.vertical_reason or "未知原因"))
+
+    size = 22
+    columns = [
+        ("竖排第一列自上而下", 300),
+        ("第二列继续往下排", 270),
+        ("第三列收尾", 240),
+    ]
+
+    page_one = builder.add_page(Page())
+    for text, x in columns:
+        page_one.vertical_wmode(cjk, text, size, x, 700)
+
+    page_two = builder.add_page(Page())
+    page_two.vertical_wmode(cjk, "竖排里也有English和123", size, 300, 700)
+    page_two.vertical_wmode(cjk, "标点，。！？；", size, 270, 700)
+
+    page_one_text = "竖排第一列自上而下" + "第二列继续往下排" + "第三列收尾"
+    page_two_text = "竖排里也有English和123" + "标点，。！？；"
+    meta = _meta("vertical-wmode1", "竖排文字（WMode 1 真竖排）", 2,
+                 ["竖排第一列自上而下", "第二列继续往下排", "第三列收尾",
+                  "竖排里也有English和123", "标点，。！？；"],
+                 "字体字典带 /WMode 1 + /DW2 + /W2（竖排度量取自字体的 vhea / vmtx），"
+                 "内容流按阅读顺序写（列右→左、列内上→下），"
+                 "所以抽取顺序与渲染顺序一致；这份与 vertical 那份（逐字定位的模拟竖排）"
+                 "是对照组。",
+                 exact_pages=[page_one_text, page_two_text],
+                 wmode=1,
+                 fonts=[os.path.basename(cjk.path)])
+    return builder.build(), meta
+
+
 FIXTURES = [
     ("rare-glyphs", fixture_rare_glyphs),
     ("cjk-punctuation", fixture_cjk_punctuation),
@@ -616,6 +829,7 @@ FIXTURES = [
     ("combining", fixture_combining),
     ("mixed-script", fixture_mixed_script),
     ("vertical", fixture_vertical),
+    ("vertical-wmode1", fixture_vertical_wmode1),
     ("long-paragraph", fixture_long_paragraph),
     ("huge-charset", fixture_huge_charset),
 ]
@@ -628,7 +842,8 @@ FIXTURE_INFO = {
     "fullwidth": "全角字符",
     "combining": "基字 + 变音符的组合字符",
     "mixed-script": "中英混排",
-    "vertical": "竖排文字",
+    "vertical": "竖排文字（模拟竖排：逐字定位）",
+    "vertical-wmode1": "竖排文字（WMode 1 真竖排）",
     "long-paragraph": "长段落",
     "huge-charset": "超大字符集（单页 3000 字）",
 }

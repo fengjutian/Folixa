@@ -1,4 +1,4 @@
-﻿#include "pdf/ops/DocumentReflow.h"
+#include "pdf/ops/DocumentReflow.h"
 
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/compliance/TagTreeWriter.h"

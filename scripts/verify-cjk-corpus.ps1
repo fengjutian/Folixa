@@ -11,6 +11,12 @@
     本脚本只断言**关键锚点**（去空白后子串命中），不做整篇字符串相等：
     抽取顺序、空格与换行都不是语料要锁住的东西，锚点才是。
 
+    两份夹具例外，它们是竖排（A12）要锁的东西：
+      * vertical-wmode1 声明了 exact_pages：逐页断言抽取串与期望串**全等**
+        （去空白后逐字比，顺序敏感 —— 内容流按阅读顺序写，抽取就该是阅读顺序）；
+      * vertical-wmode1 声明了 wmode=1：断言**字体字典里真的有 /WMode 1**
+        （直接查产物字节，并用 qpdf 展开对象确认它落在 CID 字体字典里）。
+
     引擎说明：
       - 文字抽取与渲染都用仓库固定的 PDFium（tools\pdfium\bin\pdfium.dll），
         通过 scripts\gen-cjk-corpus.py 的 probe 子命令调用（ctypes 直连，不装第三方包）。
@@ -106,6 +112,53 @@ function Invoke-Probe {
     return ($text | ConvertFrom-Json)
 }
 
+function Test-VerticalWritingMode {
+    # 真的去查字体字典里有没有 /WMode 1 —— 不是看生成器的意图，是看产物。
+    #
+    # 两层：
+    #   1) 直接读 PDF 的字节，找 /WMode 1；
+    #   2) 有 qpdf 时把对象展开，确认 /WMode 1 落在 CID 字体字典
+    #      （/Subtype /CIDFontType2）里，而不是别处。
+    param([string]$Path, [string]$WorkDir)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    $raw = $latin1.GetString($bytes)
+    if (-not $raw.Contains('/WMode 1')) {
+        return [pscustomobject]@{ Ok = $false; Detail = 'PDF 里找不到 /WMode 1' }
+    }
+    if (-not (Test-Path -LiteralPath $QpdfPath)) {
+        return [pscustomobject]@{
+            Ok = $true
+            Detail = 'PDF 里有 /WMode 1（没有 qpdf，没能再核对它在哪个字典里）'
+        }
+    }
+    $qdf = Join-Path $WorkDir ('qdf-' + [guid]::NewGuid().ToString('N') + '.pdf')
+    $result = Invoke-Native -FilePath $QpdfPath -Arguments @('--qdf', '--object-streams=disable', $Path, $qdf)
+    if ($result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $qdf)) {
+        Remove-Item -LiteralPath $qdf -Force -ErrorAction SilentlyContinue
+        return [pscustomobject]@{
+            Ok = $true
+            Detail = 'PDF 里有 /WMode 1（qpdf 展开失败，没能再核对它在哪个字典里）'
+        }
+    }
+    $qdfText = Get-Content -LiteralPath $qdf -Raw -Encoding UTF8
+    Remove-Item -LiteralPath $qdf -Force -ErrorAction SilentlyContinue
+    $found = $false
+    foreach ($object in ($qdfText -split 'endobj')) {
+        if ($object -match '/Subtype\s*/CIDFontType2' -and $object -match '/WMode\s+1') {
+            $found = $true
+            break
+        }
+    }
+    if ($found) {
+        return [pscustomobject]@{ Ok = $true; Detail = 'CID 字体字典里有 /WMode 1' }
+    }
+    return [pscustomobject]@{
+        Ok = $false
+        Detail = 'PDF 里有 /WMode 1，但没落在 CID 字体字典（/Subtype /CIDFontType2）里'
+    }
+}
+
 # ---------------------------------------------------------------------------
 # 单份夹具的判定
 # ---------------------------------------------------------------------------
@@ -173,7 +226,11 @@ function Invoke-FixtureCheck {
     }
 
     $text = ''
-    foreach ($pageText in $document.page_texts) { $text += $pageText }
+    $pageTexts = @()
+    foreach ($pageText in $document.page_texts) {
+        $pageTexts += [string]$pageText
+        $text += $pageText
+    }
     $checks.Add((New-Check '文字能抽出' ($document.text_chars -gt 0) ("{0} 字符" -f $document.text_chars)))
 
     # 只断言关键锚点：去空白后子串命中即可（抽取顺序与换行不是要锁住的东西）。
@@ -191,6 +248,35 @@ function Invoke-FixtureCheck {
         $anchorDetail += "；缺：" + (($missing | ForEach-Object { "'" + $_ + "'" }) -join ' ')
     }
     $checks.Add((New-Check '锚点命中' ($missing.Count -eq 0) $anchorDetail))
+
+    # 逐页全等（顺序敏感）：真竖排那份夹具要锁住「内容流顺序 == 阅读顺序」。
+    #
+    # 与上面的锚点检查不是一回事：锚点是子串命中（顺序不管），
+    # 这里是把整页的抽取串与期望串**逐字**比 —— 顺序错了就判红。
+    if ($Meta.PSObject.Properties.Name -contains 'exact_pages' -and @($Meta.exact_pages).Count -gt 0) {
+        $expectedPages = @($Meta.exact_pages)
+        $mismatch = New-Object System.Collections.Generic.List[string]
+        for ($pageIndex = 0; $pageIndex -lt $expectedPages.Count; $pageIndex++) {
+            $actual = ''
+            if ($pageIndex -lt $pageTexts.Count) { $actual = $pageTexts[$pageIndex] }
+            $actualCompact = $actual -replace '\s', ''
+            $expectedCompact = ([string]$expectedPages[$pageIndex]) -replace '\s', ''
+            if ($actualCompact -cne $expectedCompact) {
+                $mismatch.Add(("第 {0} 页：期望 '{1}'，实际 '{2}'" -f ($pageIndex + 1), $expectedCompact, $actualCompact))
+            }
+        }
+        $exactDetail = "{0} 页逐字全等" -f $expectedPages.Count
+        if ($mismatch.Count -gt 0) {
+            $exactDetail += "；" + ($mismatch -join '；')
+        }
+        $checks.Add((New-Check '抽取串全等' ($mismatch.Count -eq 0) $exactDetail))
+    }
+
+    # 竖排夹具：字体字典里必须真的有 /WMode 1（真检查产物，不是看生成器的意图）。
+    if ($Meta.PSObject.Properties.Name -contains 'wmode' -and [int]$Meta.wmode -eq 1) {
+        $wmode = Test-VerticalWritingMode -Path $Path -WorkDir $WorkDir
+        $checks.Add((New-Check '字体字典带 /WMode 1' $wmode.Ok $wmode.Detail))
+    }
 
     # 渲染：不崩，且声明要有墨迹的页必须真的有墨迹
     if ($SkipRender) {
@@ -372,6 +458,7 @@ Write-Host "    语料目录 ：$CorpusDir"
 Write-Host "    夹具数量 ：$($fixtures.Count)"
 Write-Host "    渲染宽度 ：$RenderWidth"
 Write-Host "    检查项   ：结构有效 / 能打开 / 页数正确 / 文字能抽出 / 锚点命中 / 渲染不崩"
+Write-Host "                （竖排夹具另加：抽取串全等、字体字典带 /WMode 1）"
 Write-Host ''
 
 $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ('aipdf-cjk-' + [guid]::NewGuid().ToString('N'))

@@ -31,24 +31,34 @@ constexpr int kLinesPerSlide = 15;
 // 切之前导出的工作表里是「Apple 1 2 3 50」这种糊在一起的内容）。
 //
 // 阈值取字高的 0.9 倍：词距（≈0.3 倍字高）远小于它，列距通常远大于它。
+//
+// 两个 CJK 字符之间**不切**：汉字的墨迹空隙（全角标点尤其明显）会超过
+// 阈值，一整句中文会被切成一堆「单元格」，整页正文就被误判成一张表。
+// 中文不用空格分词，汉字之间本来就不该是单元格的边界。
 QVector<QVector<pdf::TextChar>> splitLineIntoCells(const TextExportLine& line) {
     QVector<QVector<pdf::TextChar>> cells;
     QVector<pdf::TextChar> current;
     double previousRight = 0.0;
+    QChar previousChar;
     bool hasPrevious = false;
     const double threshold = qMax(3.0, line.fontSize * 0.9);
     for (const pdf::TextChar& character : line.chars) {
+        const QChar currentChar = character.text.isEmpty() ? QChar() : character.text.at(0);
         if (hasPrevious) {
             const double gap = character.box.left() - previousRight;
-            if (gap > threshold && !current.isEmpty()) {
+            const bool cjkPair = !previousChar.isNull() && !currentChar.isNull() &&
+                                 isCjkChar(previousChar) && isCjkChar(currentChar);
+            if (gap > threshold && !current.isEmpty() && !cjkPair) {
                 cells.append(current);
                 current.clear();
             }
         }
         current.append(character);
         previousRight = character.box.right();
+        previousChar = currentChar;
         hasPrevious = true;
-    }    if (!current.isEmpty()) {
+    }
+    if (!current.isEmpty()) {
         cells.append(current);
     }
     return cells;
@@ -224,9 +234,12 @@ bool lineInsideTable(const TextExportLine& line, const pdf::TableStructure& tabl
 }
 
 // 表格之外的文字行（跨所有带）。
-QVector<QVector<QString>> linesOutsideTables(const QVector<TextBand>& bands,
-                                              const QVector<DetectedTable>& tables) {
-    QVector<QVector<QString>> rows;
+//
+// 为什么要有这个：表格的行已经写成表格对象了，正文里（Word 的段落、
+// PPT 的要点）再写一遍就是重复内容。
+QVector<TextExportLine> linesOutsideTables(const QVector<TextBand>& bands,
+                                           const QVector<DetectedTable>& tables) {
+    QVector<TextExportLine> lines;
     for (int band = 0; band < bands.size(); ++band) {
         const pdf::TableStructure* structure = nullptr;
         for (const DetectedTable& table : tables) {
@@ -235,16 +248,24 @@ QVector<QVector<QString>> linesOutsideTables(const QVector<TextBand>& bands,
                 break;
             }
         }
-        const QVector<TextExportLine> lines = bands.at(band).lines;
-        for (const TextExportLine& line : lines) {
+        for (const TextExportLine& line : bands.at(band).lines) {
             if (line.text.trimmed().isEmpty()) {
                 continue;
             }
             if (structure != nullptr && lineInsideTable(line, *structure)) {
                 continue;
             }
-            rows.append(QVector<QString>{line.text});
+            lines.append(line);
         }
+    }
+    return lines;
+}
+
+// 表格之外的文字行 → 单列的工作表。
+QVector<QVector<QString>> rowsFromLines(const QVector<TextExportLine>& lines) {
+    QVector<QVector<QString>> rows;
+    for (const TextExportLine& line : lines) {
+        rows.append(QVector<QString>{line.text});
     }
     return rows;
 }
@@ -413,7 +434,7 @@ ExcelExportResult exportPdfToExcel(const QByteArray& pdfBytes) {
         // 表以外的文字单独一张表：混在表格工作表里会破坏行列结构。
         SheetGrid rest;
         rest.name = QStringLiteral("第 %1 页 文字").arg(index + 1);
-        rest.rows = linesOutsideTables(bands, tables);
+        rest.rows = rowsFromLines(linesOutsideTables(bands, tables));
         if (!rest.rows.isEmpty()) {
             sheets.append(rest);
         }
@@ -452,9 +473,11 @@ PptxExportResult exportPdfToPptx(const QByteArray& pdfBytes) {
     deck.title = QStringLiteral("PDF 导出");
     for (int index = 0; index < collected.pages.size(); ++index) {
         const QVector<TextBand> bands = buildTextBands(collected.pages.at(index));
-        const QVector<TextExportLine> lines = concatLines(bands);
-        const QStringList texts = textsOf(lines);
         const QVector<DetectedTable> tables = tablesOfBands(bands);
+        // 要点只放表以外的文字：表格的行已经写成表格对象（<a:tbl>）了，
+        // 再当要点写一遍就是幻灯片上同一张内容出现两次。
+        const QVector<TextExportLine> lines = linesOutsideTables(bands, tables);
+        const QStringList texts = textsOf(lines);
 
         // 文字太多就拆成「（续）」：宁可多几页，也不让文字溢出到框外。
         // 拆完之后，图片与表格按**纵向位置**落到对应的那一张上，

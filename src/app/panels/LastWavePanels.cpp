@@ -588,9 +588,20 @@ void PdfUaReportDialog::setReport(const pdf::PdfUaReport& report) {
     rebuild();
 }
 
+void PdfUaReportDialog::setConclusionText(const QString& text) {
+    conclusionOverride_ = text;
+    rebuild();
+}
+
+void PdfUaReportDialog::setScopeNotice(const QString& text) {
+    scopeOverride_ = text;
+    rebuild();
+}
+
 void PdfUaReportDialog::rebuild() {
-    conclusionLabel_->setText(pdfUaConclusionText(report_));
-    scopeLabel_->setText(pdfUaScopeNoticeText());
+    conclusionLabel_->setText(conclusionOverride_.isEmpty() ? pdfUaConclusionText(report_)
+                                                           : conclusionOverride_);
+    scopeLabel_->setText(scopeOverride_.isEmpty() ? pdfUaScopeNoticeText() : scopeOverride_);
     QVector<pdf::PdfUaFinding> passes;
     QVector<pdf::PdfUaFinding> warnings;
     QVector<pdf::PdfUaFinding> errors;
