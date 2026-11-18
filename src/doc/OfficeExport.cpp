@@ -283,7 +283,11 @@ QVector<TextExportLine> buildTextLines(const pdf::TextPage& text) {
                   [](const pdf::TextChar& left, const pdf::TextChar& right) {
                       return left.box.left() < right.box.left();
                   });
-        line.text = buildLineText(line.chars);
+        // 行首行尾的空白要去掉：PDFium 的文本流里夹着**排版产生的空白**
+        // （两个文本对象之间的换行会被当成一个字符抽出来）。
+        // 不去掉的话，导出的 Excel 单元格里会是 "Item " 这种带尾巴的值，
+        // Word 里也会多出一堆空段落（实测过：openpyxl 读到 "Price\r\n"）。
+        line.text = buildLineText(line.chars).trimmed();
     }
     return lines;
 }

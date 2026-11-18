@@ -135,6 +135,8 @@ private slots:
     void printTemplateValidationReportsReason();
     // 16) 批量打印的总页数恒为未知，界面上不能显示假数字。
     void printBatchTotalPagesStaysUnknown();
+    // 17) 导出到 Office 的说明：要说清导了什么、不保什么。
+    void officeExportNoticeStatesWhatIsKept();
 };
 
 // ---------------------------------------------------------------- 1 / 2 ----
@@ -557,6 +559,19 @@ void UiWiringTests::printBatchTotalPagesStaysUnknown() {
     QVERIFY(dialog.totalPagesText().contains(QStringLiteral("未知")));
     // 界面上不能显示一个假数字。
     QVERIFY(!dialog.totalPagesText().contains(QStringLiteral("-1")));
+}
+
+// ------------------------------------------------------------------ 17 ----
+
+void UiWiringTests::officeExportNoticeStatesWhatIsKept() {
+    const QString notice = aipdf::app::officeExportNoticeText(
+        QStringLiteral("Excel 工作簿"), QStringLiteral("共 12 页、12 张工作表（认出 2 个表格）"));
+    // 说了导的是什么、导了多少。
+    QVERIFY2(notice.contains(QStringLiteral("Excel 工作簿")), qPrintable(notice));
+    QVERIFY2(notice.contains(QStringLiteral("12")), qPrintable(notice));
+    // 负例守卫：只含文字层——不许吹成「图片也带过去了」。
+    QVERIFY2(!notice.contains(QStringLiteral("图片已")), qPrintable(notice));
+    QVERIFY2(notice.contains(QStringLiteral("文字层")), qPrintable(notice));
 }
 
 QTEST_MAIN(UiWiringTests)

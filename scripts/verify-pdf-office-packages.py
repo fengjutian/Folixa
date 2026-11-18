@@ -76,9 +76,10 @@ def verify_xlsx(path: Path) -> None:
         check_xml_parts(archive, "XLSX")
         sheet = xml_texts(archive.read("xl/worksheets/sheet1.xml"))
         for expected in ("Item", "Qty", "Price", "Apple", "Pear", "5.25"):
-            check(expected in sheet, "表格工作表里没有「%s」" % expected)
+            check(any(expected == text for text in sheet),
+                  "表格工作表里没有「%s」" % expected)
         text_sheet = xml_texts(archive.read("xl/worksheets/sheet2.xml"))
-        check("Quarterly report" in text_sheet,
+        check(any(text == "Quarterly report" for text in text_sheet),
               "文字工作表里没有表格外的标题")
 
     try:
@@ -92,9 +93,10 @@ def verify_xlsx(path: Path) -> None:
     rows = [[cell.value for cell in row] for row in book[names[0]].iter_rows()]
     check(rows and rows[0][:3] == ["Item", "Qty", "Price"],
           "openpyxl 读到的表头不对：%s" % (rows[0] if rows else None))
-    check(len(rows) >= 3 and rows[1][:3] == ["Apple", 12, 3.5],
+    # 单元格是 inlineStr：读出来是字符串（"12"），不是数字（12）。
+    check(len(rows) >= 3 and rows[1][:3] == ["Apple", "12", "3.50"],
           "openpyxl 读到的第二行不对：%s" % (rows[1] if len(rows) > 1 else None))
-    check(len(rows) >= 3 and rows[2][:3] == ["Pear", 7, 5.25],
+    check(len(rows) >= 3 and rows[2][:3] == ["Pear", "7", "5.25"],
           "openpyxl 读到的第三行不对：%s" % (rows[2] if len(rows) > 2 else None))
     print("  openpyxl 打开成功：工作表 %s" % names)
 
@@ -134,8 +136,9 @@ def verify_docx(path: Path) -> None:
             check(name in names, "DOCX 缺部件：%s" % name)
         check_xml_parts(archive, "DOCX")
         document = xml_texts(archive.read("word/document.xml"))
-        check("Folixa" in document, "DOCX 里没有第一页的文字")
-        check("Search hits" in document, "DOCX 里没有第二页的文字（整篇导出没生效）")
+        check(any("Folixa" in text for text in document), "DOCX 里没有第一页的文字")
+        check(any("Search hits" in text for text in document),
+              "DOCX 里没有第二页的文字（整篇导出没生效）")
         raw = archive.read("word/document.xml").decode("utf-8", "replace")
         check('w:br w:type="page"' in raw, "DOCX 里没有分页符（页与页没隔开）")
 

@@ -600,10 +600,10 @@ void WiringActions::exportOffice() {
         i18n::tr("aipdf::app::MainWindow", "PowerPoint 演示文稿（.pptx）"),
     };
     bool accepted = false;
+    // Qt 6 的 getItem 没有 nitems 参数了：项目数由 items 自己决定。
     const QString choice = QInputDialog::getItem(
         parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
-        i18n::tr("aipdf::app::MainWindow", "要导出成哪种格式？"), static_cast<int>(formats.size()),
-        formats, 0, false, &accepted);
+        i18n::tr("aipdf::app::MainWindow", "要导出成哪种格式？"), formats, 0, false, &accepted);
     if (!accepted) {
         return;
     }

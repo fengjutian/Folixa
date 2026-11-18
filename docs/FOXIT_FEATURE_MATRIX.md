@@ -157,7 +157,7 @@
 | 组装 | 合并文件 | ✅ | D2 | 一次可多选多份合并，跨文件书签按层级搬运并加来源名前缀，内部跳转改指合并后页号；有专项单测（`DocumentMergerTests` 13 条） |
 | 组装 | 空白页 | ✅ | D1 | 插入空白页 |
 | 输出 | 导出全部图像 | ✅ | H3 | 按 DPI 导出 PNG/JPEG |
-| 输出 | 到MS Office | 🟨 | H5 | PDF→Word（DOCX，真 zip 包）/ RTF / 纯文本；**只导一页文本层，不含图片、表格与样式**，Excel 与 PPT 未做；`doc::exportPageTo`，`OfficeExportTests` |
+| 输出 | 到MS Office | 🟨 | H5 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现（`doc::PdfToOffice`，`PdfToOfficeTests` 6 条）：Word 页与页之间有分页符；Excel 按页拆工作表，**认得出的表格写成表格**（启发式识别，认不出的按文字行导出）；PPT 一页一张幻灯片；产物由 openpyxl / python-pptx / LibreOffice 独立打开验证（`scripts/verify-pdf-office-packages.py`）；**只含文字层**，图片、批注与精确版式不会带过去；`OfficeExportTests` 11 条 |
 | 输出 | 到图片 | ✅ | H3 | 与导出图片同一条通路 |
 | 输出 | 到HTML | 🟨 | — | 整篇导出 HTML；**不含图片与图形，字号按字形高度估算**；`pdf::exportPageToHtml`，`ExportFormatsTests` |
 | 输出 | 转为基于图像的PDF | ✅ | — | 整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests` |

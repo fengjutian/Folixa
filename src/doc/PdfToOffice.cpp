@@ -63,7 +63,10 @@ QString cellText(const QVector<pdf::TextChar>& chars) {
     for (const pdf::TextChar& character : chars) {
         out.append(character.text);
     }
-    return out;
+    // 两头空白去掉：PDFium 的文本流里夹着排版产生的空白
+    // （两个文本对象之间的换行会被当成一个字符抽出来）。
+    // 不去掉的话，单元格里会是 "Item " 这种带尾巴的值（openpyxl 读得出来）。
+    return out.trimmed();
 }
 
 // 把一页的文本行变成表格检测用的对象（每个单元格一个对象）。
