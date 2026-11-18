@@ -1,9 +1,9 @@
-#include "app/controllers/OcrController.h"
+#include "app/editor/OcrController.h"
 
 #include "app/controllers/IndexController.h"
 #include "app/editor/PdfView.h"
 #include "app/controllers/TextController.h"
-#include "app/editor/TextLayout.h"
+#include "app/layout/TextLayout.h"
 #include "ocr/pipeline/OcrChunkBridge.h"
 #include "ocr/pipeline/ScannedPageDetector.h"
 #include "ocr/engines/OcrEngineFactory.h"

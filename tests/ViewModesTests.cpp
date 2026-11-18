@@ -1,4 +1,4 @@
-#include "app/editor/ViewModes.h"
+#include "app/layout/ViewModes.h"
 
 #include "pdf/kernel/PdfiumAdapter.h"
 

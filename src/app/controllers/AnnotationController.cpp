@@ -1,7 +1,7 @@
 #include "app/controllers/AnnotationController.h"
 #include "pdf/annot/SoundFormat.h"
 
-#include "app/editor/PdfPageOperations.h"
+#include "app/layout/PdfPageOperations.h"
 #include "doc/edit/EditCommand.h"
 #include "doc/edit/PageCommand.h"
 

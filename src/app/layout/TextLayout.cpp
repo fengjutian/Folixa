@@ -1,4 +1,4 @@
-#include "app/editor/TextLayout.h"
+#include "app/layout/TextLayout.h"
 
 #include <algorithm>
 #include <cmath>

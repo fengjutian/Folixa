@@ -7,7 +7,7 @@
 #include "app/ui/Language.h"
 #include "app/controllers/LastWaveBridge.h"
 #include "app/controllers/TextController.h"
-#include "app/editor/TextLayout.h"
+#include "app/layout/TextLayout.h"
 #include "app/dialogs/UploadPreviewDialog.h"
 #include "ai/settings/AuditLog.h"
 #include "ai/chat/ChatTypes.h"

@@ -9,7 +9,7 @@
 // 单元测试里不碰界面。
 
 #include "app/controllers/AnnotationController.h"
-#include "app/editor/PdfPageOperations.h"
+#include "app/layout/PdfPageOperations.h"
 #include "doc/edit/EditCommand.h"
 #include "doc/edit/PageCommand.h"
 #include "doc/persist/SafeSave.h"

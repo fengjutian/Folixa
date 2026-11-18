@@ -1,4 +1,4 @@
-#include "app/editor/PageTextLines.h"
+#include "app/layout/PageTextLines.h"
 
 #include "pdf/kernel/PdfiumAdapter.h"
 

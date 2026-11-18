@@ -6,11 +6,11 @@
 #include "app/editor/RenderThread.h"
 #include "app/ui/Language.h"
 #include "app/controllers/TextController.h"
-#include "app/editor/TextLayout.h"
+#include "app/layout/TextLayout.h"
 #include "app/ui/TraceText.h"
 #include "app/controllers/NavigationController.h"
 #include "app/controllers/AnnotationController.h"
-#include "app/editor/InkGeometry.h"
+#include "app/layout/InkGeometry.h"
 #include "app/editor/MouseShortcuts.h"
 #include "pdf/annot/Annotation.h"
 

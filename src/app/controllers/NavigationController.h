@@ -5,7 +5,7 @@
 #include <QPointF>
 #include <QVector>
 
-#include "app/editor/PageTransform.h"
+#include "app/layout/PageTransform.h"
 #include "pdf/document/Navigation.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

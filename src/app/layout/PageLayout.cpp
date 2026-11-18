@@ -1,4 +1,4 @@
-#include "app/editor/PageLayout.h"
+#include "app/layout/PageLayout.h"
 
 #include <QtGlobal>
 

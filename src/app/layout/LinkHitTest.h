@@ -4,7 +4,7 @@
 #include <QRectF>
 #include <QVector>
 
-#include "app/editor/PageTransform.h"
+#include "app/layout/PageTransform.h"
 #include "pdf/document/Navigation.h"
 
 namespace aipdf::app {

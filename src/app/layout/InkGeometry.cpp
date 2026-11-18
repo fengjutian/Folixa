@@ -1,4 +1,4 @@
-#include "app/editor/InkGeometry.h"
+#include "app/layout/InkGeometry.h"
 
 #include <algorithm>
 #include <cmath>

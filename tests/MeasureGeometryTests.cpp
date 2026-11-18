@@ -2,7 +2,7 @@
 //
 // 面积算错在界面上看不出来：数字总是显示得很自信。所以三种口径都钉死具体数值。
 
-#include "app/editor/MeasureGeometry.h"
+#include "app/layout/MeasureGeometry.h"
 
 #include <QTest>
 

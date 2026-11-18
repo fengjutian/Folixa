@@ -123,50 +123,52 @@ print   -> model   1
 也就是说 `edit`、`export`、`persist`、`batch` 内部是闭合的，改动不外溢；
 真正被共享的只有 `model/`（`BlankDocument` 与分块模型）。
 
-## `src/app` 的七个模块
+## `src/app` 的八个模块
 
-`app/` 是 UI 层，163 个源文件。它和前三层不同：没有"底层库"，只有一条自上而下的调用链
-加几个装配点。按角色分：
+`app/` 是 UI 层，163 个源文件。它的边界和前三层不同：没有"底层库"，只有一条自上而下的
+调用链加几个装配点。按"这些文件会不会因为同一个需求一起改"分：
 
 | 模块 | 文件数 | 职责 | 主要文件 |
 | --- | ---: | --- | --- |
 | `shell/` | 9 | 入口、主窗口、Ribbon、欢迎页、动作装配 | `main`、`MainWindow`、`WiringActions`、`RibbonBar`、`WelcomePage` |
 | `ui/` | 14 | 主题、语言、阅读方案、模态遮罩、品牌标记、字体 | `Theme`、`Language`、`ReadingScheme`、`ModalScrim`、`SystemCjkFont` |
-| `editor/` | 38 | 渲染面与页面几何：视图、画布、布局、缓存、命中测试、手势 | `PdfView`、`PageCanvas`、`PageLayout`、`PageTransform`、`TextLayout`、`TileCache`、`RenderThread` |
-| `controllers/` | 36 | 功能控制器与后台桥 | `TextController`、`AnnotationController`、`NavigationController`、`IndexController`、`OcrController`、`LastWaveBridge` |
+| `editor/` | 20 | 视图与渲染：画布、缓存、渲染线程、缩放、命中、手势、OCR 交互 | `PdfView`、`PageCanvas`、`TileCache`、`RenderThread`、`ViewFit`、`OcrController` |
+| `layout/` | 20 | 纯几何与排版计算，不依赖任何控件 | `PageLayout`、`PageTransform`、`TextLayout`、`PageTextLines`、`PageChunkBuilder`、`PdfPageOperations` |
+| `controllers/` | 34 | 功能控制器与后台桥 | `TextController`、`AnnotationController`、`NavigationController`、`IndexController`、`LastWaveBridge`、`DocumentOutput` |
 | `panels/` | 12 | 常驻面板 | `SearchPanel`、`AiPanel`、`IndexPanel`、`AttachmentPanel`、`LastWavePanels` |
 | `dialogs/` | 42 | 对话框与向导 | `SettingsDialog`、`SignatureDialog`、`AccessibilityWizard`、`RegionPicker` |
 | `util/` | 12 | 无状态工具 | `BatchRename`、`SearchMatcher`、`ShareUtils`、`ConversionReports` |
 
-实测依赖（模块间 include 条数）：
+实测依赖是一个 DAG：
 
 ```
-shell       -> controllers 17   dialogs 16   ui 10   panels 6   editor 5   util 5
-editor      -> controllers 15   ui 10   dialogs 4   panels 1
-controllers -> editor 12   util 2   ui 1
+shell       -> editor 5   controllers 15   dialogs 16   panels 6   ui 10   layout 2   util 5
+editor      -> controllers 17   layout 13   ui 10   dialogs 4   panels 1
+controllers -> layout 10   util 2   ui 1
+panels      -> controllers 7   ui 5   dialogs 2   layout 1
 dialogs     -> ui 10   controllers 2   util 1
-panels      -> controllers 7   ui 5   dialogs 2   editor 1
 ```
 
-和前三层不一样：**这里有一个四模块的强连通分量**（`controllers`、`dialogs`、`editor`、
-`panels`），只有 `shell`（顶）和 `ui`/`util`（底）是干净的。成环的边只有 7 类，
-都能定位到具体文件：
+这个结果是调出来的，过程值得记一笔。第一版按角色拆（`editor` = 视图 + 几何，`controllers` =
+全部控制器）得到的是四个模块的强连通分量（`controllers`/`dialogs`/`editor`/`panels`）。
+定位后发现 `controllers -> editor` 的 11 条边里只有 1 条真的碰控件
+（`OcrController` 用 `PdfView`），其余 10 条都是 `PageTransform`、`TextLayout`、
+`PageChunkBuilder` 这类**纯计算类型**——它们本来就不该和 `PdfView` 挤在一个目录里。于是：
 
-| 反向边 | 条数 | 来源 | 拆法 |
-| --- | ---: | --- | --- |
-| `controllers` → `editor` | 12 | `OcrController`、`IndexController`、`NavigationController`、`AnnotationController`、`TextController` 直接 include `PdfView`/`PageCanvas`/`TextLayout` | 抽一个 `EditorSurface` 接口，控制器只依赖接口，`PdfView` 去实现 |
-| `editor` → `controllers` | 15 | `PdfView`/`PageCanvas` 直接持有 5 个控制器 | 同上；方向反过来后只剩"实现类依赖接口" |
-| `editor` → `dialogs` | 4 | `PdfView` 直接构造 `EncryptionDialog`/`HiddenDataDialog`/`ReadingOptionsDialog`/`StampNumberDialog` | 改由 `WiringActions` 注入，视图只发信号 |
-| `editor` → `panels` | 1 | `PdfView` 直接构造 `LastWavePanels` | 同上，交给 `shell` 装配 |
-| `panels` → `dialogs` | 2 | `AiPanel` 构造 `AiSettingsDialog`/`UploadPreviewDialog` | 面板只发信号，由 `shell` 弹对话框 |
-| `panels` → `editor` | 1 | `AiPanel` 用 `TextLayout` 算选区 | 改走 `TextController` 已暴露的接口 |
-| `dialogs` → `controllers` | 2 | `AiToolsDialog` 调 `AiToolService`、`RegionPicker` 调 `ScreenCapture` | 改成接口/回调注入 |
+1. 把 10 个纯几何/排版文件从 `editor/` 拆出成 `layout/`，`editor/` 只剩视图与渲染；
+   `layout/` 成为不依赖任何 Qt 控件的计算层。
+2. 把唯一直接依赖 `PdfView` 的 `OcrController` 并入 `editor/`——它本来就是编辑器内的
+   OCR 交互。
 
-这些拆完（都是局部改，不用动 163 个文件），app 也会变成 DAG：
-`shell` → {`editor`,`controllers`,`panels`,`dialogs`} → `ui`/`util`。
+调整后 `editor → layout`、`controllers → layout`、`panels → layout` 都是单向的，
+环消失。
 
-在那之前，**拆目录仍然值得做**：它把"改一个对话框要在 163 个文件里翻"变成"只翻 `dialogs/`"，
-但物理目录不能替你消除耦合——这一点 `app/` 比前三个目录诚实。
+**但这不等于解耦**：`OcrController` 仍然直接持有 `PdfView`，只是现在两者同属 `editor/`，
+这条依赖不再跨模块。真要让它可测试，还是得抽一个 `EditorSurface` 接口（见 P2）。
+
+还剩一处单向但值得收的：`PdfView` 直接构造 4 个对话框和 `LastWavePanels`
+（`editor -> dialogs 4`、`editor -> panels 1`）。它不成环，所以不阻塞；但要让
+`editor/` 能脱离 UI 单测，应该改由 `WiringActions` 注入。
 
 ## `src/ocr` 的三个模块
 
@@ -216,6 +218,8 @@ pipeline -> core 2
 | `src/doc` | 57 | 119 | 458 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 | `src/app` | 163 | 160 | 660 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 | `src/ocr` | 20 | 27 | 90 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
+
+注：src/app 在第一版按角色拆完之后又做了一次内聚重分类（22 个文件移动、39 个文件引用改写），最终 8 个模块、无环，见上文。
 
 注：SpeechEngineTests 依赖本机语音栈，偶发失败，单跑即过；上表统计的是首轮结果。
 

@@ -4,7 +4,7 @@
 #include <QImage>
 
 #include "app/editor/NavigationHistory.h"
-#include "app/editor/PageLayout.h"
+#include "app/layout/PageLayout.h"
 #include "app/ui/ReadingScheme.h"
 #include "app/editor/TileCache.h"
 #include "app/controllers/AnnotationController.h"

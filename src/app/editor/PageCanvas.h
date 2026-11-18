@@ -8,11 +8,11 @@
 #include <QVector>
 #include <limits>
 
-#include "app/editor/PageLayout.h"
+#include "app/layout/PageLayout.h"
 #include "app/ui/ReadingScheme.h"
 #include "app/editor/TileCache.h"
-#include "app/editor/MeasureGeometry.h"
-#include "app/editor/ViewModes.h"
+#include "app/layout/MeasureGeometry.h"
+#include "app/layout/ViewModes.h"
 #include "pdf/annot/Annotation.h"
 #include "i18n/Translate.h"
 

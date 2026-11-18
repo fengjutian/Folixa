@@ -26,12 +26,12 @@ qt_add_executable(AiPdfEditor WIN32
     app/editor/PdfView.cpp
     app/editor/PageCanvas.h
     app/editor/PageCanvas.cpp
-    app/editor/PageLayout.h
-    app/editor/PageLayout.cpp
-    app/editor/PageTransform.h
-    app/editor/PageTransform.cpp
-    app/editor/TextLayout.h
-    app/editor/TextLayout.cpp
+    app/layout/PageLayout.h
+    app/layout/PageLayout.cpp
+    app/layout/PageTransform.h
+    app/layout/PageTransform.cpp
+    app/layout/TextLayout.h
+    app/layout/TextLayout.cpp
     app/editor/MouseShortcuts.h
     app/editor/MouseShortcuts.cpp
     app/controllers/TextController.h
@@ -40,14 +40,14 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/NavigationController.cpp
     app/controllers/AnnotationController.h
     app/controllers/AnnotationController.cpp
-    app/editor/PdfPageOperations.h
-    app/editor/PageChunkBuilder.h
-    app/editor/PdfPageOperations.cpp
-    app/editor/PageChunkBuilder.cpp
-    app/editor/PageTextLines.h
-    app/editor/PageTextLines.cpp
-    app/editor/LinkHitTest.h
-    app/editor/LinkHitTest.cpp
+    app/layout/PdfPageOperations.h
+    app/layout/PageChunkBuilder.h
+    app/layout/PdfPageOperations.cpp
+    app/layout/PageChunkBuilder.cpp
+    app/layout/PageTextLines.h
+    app/layout/PageTextLines.cpp
+    app/layout/LinkHitTest.h
+    app/layout/LinkHitTest.cpp
     app/panels/SearchPanel.h
     app/panels/SearchPanel.cpp
     app/panels/AiPanel.h
@@ -112,8 +112,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/AiToolService.h
     app/dialogs/UploadPreviewDialog.h
     app/dialogs/UploadPreviewDialog.cpp
-    app/controllers/OcrController.cpp
-    app/controllers/OcrController.h
+    app/editor/OcrController.cpp
+    app/editor/OcrController.h
     app/controllers/IndexController.h
     app/controllers/IndexController.cpp
     app/panels/IndexPanel.h
@@ -140,12 +140,12 @@ qt_add_executable(AiPdfEditor WIN32
     app/editor/ViewFit.cpp
     app/editor/ZoomMemory.h
     app/editor/ZoomMemory.cpp
-    app/editor/InkGeometry.h
-    app/editor/InkGeometry.cpp
-    app/editor/MeasureGeometry.h
+    app/layout/InkGeometry.h
+    app/layout/InkGeometry.cpp
+    app/layout/MeasureGeometry.h
     app/controllers/AudioRecorder.h
     app/controllers/AudioRecorder.cpp
-    app/editor/MeasureGeometry.cpp
+    app/layout/MeasureGeometry.cpp
     app/controllers/DocumentOutput.cpp
     app/editor/RenderThread.h
     app/editor/RenderThread.cpp
@@ -266,8 +266,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/annot/AnnotationToolkit.h
     pdf/annot/AnnotationFilter.cpp
     pdf/annot/AnnotationFilter.h
-    app/editor/ViewModes.cpp
-    app/editor/ViewModes.h
+    app/layout/ViewModes.cpp
+    app/layout/ViewModes.h
     doc/print/PrintTemplate.cpp
     doc/print/PrintTemplate.h
     doc/print/PrintBatch.cpp
