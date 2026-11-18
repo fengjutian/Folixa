@@ -96,10 +96,6 @@ QString ofdExportNoticeText() {
     return i18n::tr("aipdf::app::MainWindow", "OFD 导出：只导文本对象，不含图片、图形与签章；坐标单位是毫米。");
 }
 
-QString officeExportNoticeText(const QString& formatName) {
-    return i18n::tr("aipdf::app::MainWindow", "导出为 %1：只包含文字层，不含图片、表格结构与批注。").arg(formatName);
-}
-
 QString officeExportNoticeText(const QString& formatName, const QString& detail) {
     // detail 是这次导出的实际结果（页数 / 工作表数 / 幻灯片数）。
     // 为什么要有它：光说「导出了」用户不知道拿到的是什么，

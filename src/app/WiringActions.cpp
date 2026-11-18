@@ -602,8 +602,8 @@ void WiringActions::exportOffice() {
     bool accepted = false;
     const QString choice = QInputDialog::getItem(
         parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 MS Office"),
-        i18n::tr("aipdf::app::MainWindow", "要导出成哪种格式？"), formats.size(),
-        formats.first(), false, &accepted);
+        i18n::tr("aipdf::app::MainWindow", "要导出成哪种格式？"), static_cast<int>(formats.size()),
+        formats, 0, false, &accepted);
     if (!accepted) {
         return;
     }

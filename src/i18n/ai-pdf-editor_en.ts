@@ -1068,11 +1068,51 @@
     </context>
     <context>
         <name>aipdf::app::MainWindow</name>
+                        <message>
+            <source>Excel 工作簿 (*.xlsx)</source>
+            <translation>Excel workbook (*.xlsx)</translation>
+        </message>
+<message>
+            <source>共 %1 页（页与页之间有分页符）</source>
+            <translation>%1 pages (with page breaks between them)</translation>
+        </message>
         <message>
+            <source>共 %1 张幻灯片（一页一张）</source>
+            <translation>%1 slides (one per page)</translation>
+        </message>
+        <message>
+            <source>共 %1 页、%2 张工作表（认出 %3 个表格）</source>
+            <translation>%1 pages, %2 worksheets (%3 tables recognised)</translation>
+        </message>
+        <message>
+            <source>PowerPoint 演示文稿（.pptx）</source>
+            <translation>PowerPoint presentation (.pptx)</translation>
+        </message>
+        <message>
+            <source>Excel 工作簿（.xlsx）</source>
+            <translation>Excel workbook (.xlsx)</translation>
+        </message>
+        <message>
+            <source>Word 文档（.docx）</source>
+            <translation>Word document (.docx)</translation>
+        </message>
+<message>
             <source>关闭</source>
             <translation>Close</translation>
         </message>
+                <message>
+            <source>只包含文字层：图片、批注与精确版式不会带过去；表格按识别结果写成表格，认不出的按文字行导出。</source>
+            <translation>Text layer only: images, annotations and exact layout are not carried over; tables are written as tables when recognised, otherwise as text lines.</translation>
+        </message>
         <message>
+            <source>导出为 %1：%2</source>
+            <translation>Exported as %1: %2</translation>
+        </message>
+        <message>
+            <source>要导出成哪种格式？</source>
+            <translation>Which format do you want?</translation>
+        </message>
+<message>
             <source>设置</source>
             <translation>Settings</translation>
         </message>
@@ -2530,7 +2570,6 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>存为 Markdown</source><translation>Save as Markdown</translation></message>
     <message><source>导出 CAD 文件</source><translation>Export CAD File</translation></message>
     <message><source>导出 HTML</source><translation>Export HTML</translation></message>
-    <message><source>导出为 %1：只包含文字层，不含图片、表格结构与批注。</source><translation>Export to %1: text layer only; images, table structure and annotations are not included.</translation></message>
     <message><source>导出到 MS Office</source><translation>Export to MS Office</translation></message>
     <message><source>导出到 OFD</source><translation>Export to OFD</translation></message>
     <message><source>导出图像化 PDF</source><translation>Export Image-based PDF</translation></message>

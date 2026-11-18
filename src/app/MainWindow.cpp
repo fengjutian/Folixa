@@ -1598,7 +1598,7 @@ void MainWindow::buildUi() {
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOfd(); }
     }, true, "convert.exportOfd");
-    addRibbonCommand(convertExportGroup, "到 MS Office", "把当前页的文字层导成 Word 文档",
+    addRibbonCommand(convertExportGroup, "到 MS Office", "把整篇文档的文字层导成 Word / Excel / PPT",
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOffice(); }
     }, true, "convert.exportOffice");
