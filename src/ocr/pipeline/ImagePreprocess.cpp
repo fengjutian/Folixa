@@ -1,4 +1,4 @@
-#include "ocr/ImagePreprocess.h"
+#include "ocr/pipeline/ImagePreprocess.h"
 
 #include <QVector>
 

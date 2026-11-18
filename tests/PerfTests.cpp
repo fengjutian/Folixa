@@ -10,7 +10,7 @@
 #include "app/util/BlankPageDetector.h"
 #include "doc/model/ChunkBuilder.h"
 #include "doc/index/LocalIndex.h"
-#include "ocr/ImagePreprocess.h"
+#include "ocr/pipeline/ImagePreprocess.h"
 #include "tools/ProposalValidator.h"
 
 #include <QElapsedTimer>

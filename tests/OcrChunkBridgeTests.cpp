@@ -2,7 +2,7 @@
 //
 // 守两件事：OCR 页产出与文本页同样形状的块；fromOcr 标记能落盘再读回来。
 #include "doc/index/LocalIndex.h"
-#include "ocr/OcrChunkBridge.h"
+#include "ocr/pipeline/OcrChunkBridge.h"
 
 #include <QDir>
 #include <QTemporaryDir>

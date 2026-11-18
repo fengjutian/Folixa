@@ -372,26 +372,26 @@ qt_add_executable(AiPdfEditor WIN32
     doc/edit/UndoStack.h
     doc/index/VectorIndex.cpp
 
-    ocr/OcrEngine.h
-    ocr/OcrTypes.h
-    ocr/OcrGeometry.cpp
-    ocr/OcrGeometry.h
-    ocr/ScannedPageDetector.cpp
-    ocr/ScannedPageDetector.h
-    ocr/OcrService.cpp
-    ocr/OcrService.h
-    ocr/ImagePreprocess.cpp
-    ocr/ImagePreprocess.h
-    ocr/OcrChunkBridge.cpp
-    ocr/OcrChunkBridge.h
-    ocr/TesseractCliEngine.cpp
-    ocr/TesseractCliEngine.h
-    ocr/OcrEngineFactory.cpp
-    ocr/OcrEngineFactory.h
-    ocr/WindowsOcrEngine.cpp
-    ocr/WindowsOcrEngine.h
-    ocr/OcrTextUtils.cpp
-    ocr/OcrTextUtils.h
+    ocr/core/OcrEngine.h
+    ocr/core/OcrTypes.h
+    ocr/core/OcrGeometry.cpp
+    ocr/core/OcrGeometry.h
+    ocr/pipeline/ScannedPageDetector.cpp
+    ocr/pipeline/ScannedPageDetector.h
+    ocr/pipeline/OcrService.cpp
+    ocr/pipeline/OcrService.h
+    ocr/pipeline/ImagePreprocess.cpp
+    ocr/pipeline/ImagePreprocess.h
+    ocr/pipeline/OcrChunkBridge.cpp
+    ocr/pipeline/OcrChunkBridge.h
+    ocr/engines/TesseractCliEngine.cpp
+    ocr/engines/TesseractCliEngine.h
+    ocr/engines/OcrEngineFactory.cpp
+    ocr/engines/OcrEngineFactory.h
+    ocr/engines/WindowsOcrEngine.cpp
+    ocr/engines/WindowsOcrEngine.h
+    ocr/core/OcrTextUtils.cpp
+    ocr/core/OcrTextUtils.h
     speech/SpeechText.h
     speech/SpeechText.cpp
     speech/SpeechSettings.h

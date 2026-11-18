@@ -1,9 +1,9 @@
-#include "ocr/TesseractCliEngine.h"
+#include "ocr/engines/TesseractCliEngine.h"
 
 #include "i18n/Translate.h"
-#include "ocr/ImagePreprocess.h"
-#include "ocr/OcrGeometry.h"
-#include "ocr/OcrTextUtils.h"
+#include "ocr/pipeline/ImagePreprocess.h"
+#include "ocr/core/OcrGeometry.h"
+#include "ocr/core/OcrTextUtils.h"
 
 #include <QCoreApplication>
 #include <QDir>

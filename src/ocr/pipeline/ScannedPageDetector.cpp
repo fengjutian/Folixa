@@ -1,4 +1,4 @@
-#include "ocr/ScannedPageDetector.h"
+#include "ocr/pipeline/ScannedPageDetector.h"
 
 namespace aipdf::ocr {
 

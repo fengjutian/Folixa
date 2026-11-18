@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ocr/OcrTypes.h"
+#include "ocr/core/OcrTypes.h"
 
 #include <QImage>
 #include <QString>

@@ -2,10 +2,10 @@
 
 这份文档回答一个问题：`src/` 里按功能模块分目录行不行、怎么分、代价多大。
 结论先说：**行，而且 src/ 下的四个大目录已经全部落地**——src/pdf 130 个文件拆成 9 个模块，
-src/ai 40 个拆成 5 个，src/doc 57 个拆成 8 个，src/app 163 个拆成 7 个。
+src/ai 40 个拆成 5 个，src/doc 57 个拆成 8 个，src/app 163 个拆成 7 个，src/ocr 20 个拆成 3 个。
 引用改写量都是可枚举的（pdf 130 次移动 / 282 个文件 / 1213 行引用；ai 40 / 76 / 299；
-doc 57 / 119 / 458；app 163 / 160 / 660），四个都走同一个脚本
-`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app>`。
+doc 57 / 119 / 458；app 163 / 160 / 660；ocr 20 / 27 / 90），五个都走同一个脚本
+`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app|ocr>`。
 
 ## 现状
 
@@ -17,7 +17,7 @@ doc 57 / 119 / 458；app 163 / 160 / 660），四个都走同一个脚本
 | `pdf/` | 130 | PDF 底层：注释、表单、签名、合规、读写、转换全在一个目录 |
 | `doc/` | 57 | 文档模型、导出、命令栈 |
 | `ai/` | 40 | AI 供应商、凭据、索引 |
-| `ocr/` | 20 | OCR 引擎与几何 |
+| `ocr/` | 20 | OCR 引擎与几何（已拆成 3 个模块） |
 | 其它 | 15 | `ipc/`、`speech/`、`tools/`、`i18n/` |
 
 三个最大的单文件是 `PdfView.cpp`（356 KB）、`MainWindow.cpp`（324 KB）、
@@ -168,6 +168,26 @@ panels      -> controllers 7   ui 5   dialogs 2   editor 1
 在那之前，**拆目录仍然值得做**：它把"改一个对话框要在 163 个文件里翻"变成"只翻 `dialogs/`"，
 但物理目录不能替你消除耦合——这一点 `app/` 比前三个目录诚实。
 
+## `src/ocr` 的三个模块
+
+20 个文件，按"契约 / 流水线 / 引擎实现"分：
+
+| 模块 | 文件数 | 职责 | 主要文件 |
+| --- | ---: | --- | --- |
+| `core/` | 6 | OCR 契约、几何与文本工具 | `OcrTypes`、`OcrEngine`、`OcrGeometry`、`OcrTextUtils` |
+| `pipeline/` | 8 | 服务编排、图像预处理、扫描页判定、分块桥接 | `OcrService`、`ImagePreprocess`、`ScannedPageDetector`、`OcrChunkBridge` |
+| `engines/` | 6 | 两种引擎实现与工厂 | `TesseractCliEngine`、`WindowsOcrEngine`、`OcrEngineFactory` |
+
+依赖是干净的三层，没有环：
+
+```
+engines  -> core 7    pipeline 2
+pipeline -> core 2
+```
+
+`engines` 之所以多一条指向 `pipeline`，是两个引擎都直接用了 `ImagePreprocess` 做预处理；
+这条边方向正确（实现层用工具），没有回指。
+
 ## 落地分三步
 
 ### P0 逻辑模块（零风险）
@@ -178,7 +198,7 @@ panels      -> controllers 7   ui 5   dialogs 2   editor 1
 
 ### P1 物理拆目录（已完成，一次机械改动）
 
-`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app> -Apply` 做的就是这件事：
+`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app|ocr> -Apply` 做的就是这件事：
 
 1. 按划分表把文件 `git mv` 到 `src/<area>/<模块>/`（`git mv` 保留历史）；
 2. 把全仓库的 `<area>/Xxx.h` / `<area>/Xxx.cpp` 引用改成 `<area>/<模块>/Xxx.h`，
@@ -187,7 +207,7 @@ panels      -> controllers 7   ui 5   dialogs 2   editor 1
 4. 自检：每个 `<area>/<模块>/<文件>` 引用都能解析到真实文件，且没有残留的
    未加模块段的 `<area>/<文件>` 引用。
 
-四个目录都已执行完，并各跑过一次全量构建与 `ctest`：
+五个目录都已执行完，并各跑过一次全量构建与 `ctest`：
 
 | 目录 | 移动 | 重写文件 | 引用行数 | 构建 | 测试 |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -195,6 +215,9 @@ panels      -> controllers 7   ui 5   dialogs 2   editor 1
 | `src/ai` | 40 | 76 | 299 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 | `src/doc` | 57 | 119 | 458 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 | `src/app` | 163 | 160 | 660 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
+| `src/ocr` | 20 | 27 | 90 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
+
+注：SpeechEngineTests 依赖本机语音栈，偶发失败，单跑即过；上表统计的是首轮结果。
 
 因为都是纯路径替换，review 时可以只看 `git diff -M --stat` 和几个抽样文件；
 脚本本身也会核对"每一行改动都含目录名"，确保没有混进内容改动。
@@ -205,27 +228,11 @@ panels      -> controllers 7   ui 5   dialogs 2   editor 1
 好处是编译期就能挡住反向依赖、并减少增量编译范围。**不建议和 P1 一起做**：
 那会把"路径替换"和"目标拆分"两类问题混在一个 PR 里，出问题不好二分。
 
-## `src/app` 的草案
-
-`app/` 163 个文件更挤，但它的边界比 `pdf/` 模糊，因为 `MainWindow` 和 `PdfView`
-同时持有视图、控制器和业务逻辑，很多文件两边都被引。所以 `app/` 建议先拆类再拆目录，
-不套用 `pdf/` 的做法。可按下面的骨架逐步收：
-
-| 子目录 | 收敛什么 | 大致文件 |
-| --- | --- | --- |
-| `shell/` | 主窗口骨架、Ribbon、欢迎页、主题、语言、模态遮罩 | `MainWindow`、`RibbonBar`、`WelcomePage`、`Theme`、`Language`、`ModalScrim` |
-| `view/` | 渲染与页面几何 | `PdfView`、`PageCanvas`、`PageLayout`、`PageTransform`、`TileCache`、`RenderThread`、`ViewFit` |
-| `controllers/` | 交互控制器与后台桥 | `TextController`、`NavigationController`、`AnnotationController`、`OcrController`、`LastWaveBridge` |
-| `panels/` | 常驻面板 | `SearchPanel`、`AiPanel`、`IndexPanel`、`AttachmentPanel`、`LastWavePanels` |
-| `dialogs/` | 20 多个对话框与向导 | `*Dialog`、`AccessibilityWizard`、`RegionPicker` |
-| `util/` | 无状态工具 | `BatchRename`、`SearchMatcher`、`ShareUtils`、`BlankPageDetector` |
-
-`src/doc/`、`src/ai/`、`src/ocr/` 内部同样可以按"格式/供应商/引擎"再分一层，
-优先级低于 `pdf/` 和 `app/`。
-
 ## 不做什么
 
 - 不动命名空间。`aipdf::pdf` 保持不变，避免把"搬文件"变成"改符号"，
   命名空间要不要细分是另一个决定。
 - 不顺手改文件内容。除路径替换外一个字符都不动，保证能 `git diff -M` 看穿。
 - 不在同一个 PR 里拆类。`PdfView.cpp` 356 KB 的拆分单独做，和目录调整互不阻塞。
+- 不为了"看起来像 DAG"硬挪文件。`app/` 那几个环只能靠抽接口/改注入解决，
+  把文件挪到别的目录只是把问题藏起来。

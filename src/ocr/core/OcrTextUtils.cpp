@@ -1,4 +1,4 @@
-#include "ocr/OcrTextUtils.h"
+#include "ocr/core/OcrTextUtils.h"
 
 namespace aipdf::ocr {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ocr/OcrEngine.h"
+#include "ocr/core/OcrEngine.h"
 
 #include <QImage>
 #include <QObject>

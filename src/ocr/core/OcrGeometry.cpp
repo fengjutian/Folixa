@@ -1,4 +1,4 @@
-#include "ocr/OcrGeometry.h"
+#include "ocr/core/OcrGeometry.h"
 
 #include <algorithm>
 

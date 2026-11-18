@@ -2,7 +2,7 @@
 
 #include "doc/model/ChunkBuilder.h"
 #include "doc/model/DocumentChunk.h"
-#include "ocr/OcrTypes.h"
+#include "ocr/core/OcrTypes.h"
 
 #include <QString>
 #include <QVector>

@@ -1,4 +1,4 @@
-#include "ocr/OcrChunkBridge.h"
+#include "ocr/pipeline/OcrChunkBridge.h"
 
 namespace aipdf::ocr {
 

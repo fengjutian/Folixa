@@ -1510,10 +1510,10 @@ add_test(NAME PromptInjectionTests COMMAND PromptInjectionTests)
 
 qt_add_executable(OcrTests
     OcrTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/ScannedPageDetector.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ScannedPageDetector.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ScannedPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ScannedPageDetector.h
 )
 
 target_link_libraries(OcrTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1525,9 +1525,9 @@ add_test(NAME OcrTests COMMAND OcrTests)
 
 qt_add_executable(OcrServiceTests
     OcrServiceTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrService.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrService.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrService.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrService.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTypes.h
 )
 
 target_link_libraries(OcrServiceTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1539,8 +1539,8 @@ add_test(NAME OcrServiceTests COMMAND OcrServiceTests)
 
 qt_add_executable(ImagePreprocessTests
     ImagePreprocessTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.h
 )
 
 target_link_libraries(ImagePreprocessTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1552,9 +1552,9 @@ add_test(NAME ImagePreprocessTests COMMAND ImagePreprocessTests)
 
 qt_add_executable(OcrChunkBridgeTests
     OcrChunkBridgeTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrChunkBridge.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrChunkBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/OcrChunkBridge.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTypes.h
     ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
@@ -1571,16 +1571,16 @@ add_test(NAME OcrChunkBridgeTests COMMAND OcrChunkBridgeTests)
 
 qt_add_executable(TesseractCliEngineTests
     TesseractCliEngineTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/TesseractCliEngine.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrEngine.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/engines/TesseractCliEngine.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/engines/TesseractCliEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.h
 )
 
 target_link_libraries(TesseractCliEngineTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1592,16 +1592,16 @@ add_test(NAME TesseractCliEngineTests COMMAND TesseractCliEngineTests)
 
 qt_add_executable(WindowsOcrEngineTests
     WindowsOcrEngineTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/WindowsOcrEngine.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/WindowsOcrEngine.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrEngine.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrGeometry.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/OcrTextUtils.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/engines/WindowsOcrEngine.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/engines/WindowsOcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrEngine.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/core/OcrTextUtils.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.h
 )
 
 target_link_libraries(WindowsOcrEngineTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -1672,8 +1672,8 @@ qt_add_executable(PerfTests
     ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
     ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.cpp
     ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.h
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
-    ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.cpp
+    ${CMAKE_SOURCE_DIR}/src/ocr/pipeline/ImagePreprocess.h
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp

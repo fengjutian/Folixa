@@ -2,8 +2,8 @@
 //
 // 这两件事都不依赖识别引擎，所以能先于引擎落地并被守住：
 // 判定错了，扫描页永远不会进索引；坐标错了，引用会高亮到错误的位置。
-#include "ocr/OcrGeometry.h"
-#include "ocr/ScannedPageDetector.h"
+#include "ocr/core/OcrGeometry.h"
+#include "ocr/pipeline/ScannedPageDetector.h"
 
 #include <QRectF>
 #include <QtTest>

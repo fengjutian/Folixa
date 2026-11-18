@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ocr/OcrService.h"
+#include "ocr/pipeline/OcrService.h"
 
 #include <QHash>
 #include <QObject>

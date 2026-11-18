@@ -2,7 +2,7 @@
 //
 // 解析逻辑单独公开，就是为了能在没装 tesseract 的机器上测：
 // 一段固定 TSV 进，页面坐标的行走出来。
-#include "ocr/TesseractCliEngine.h"
+#include "ocr/engines/TesseractCliEngine.h"
 
 #include <QRectF>
 #include <QtTest>

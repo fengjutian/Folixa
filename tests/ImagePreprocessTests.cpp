@@ -1,7 +1,7 @@
 // v0.13.0：OCR 前图像预处理的单元测试。
 //
 // 预处理是「纯函数」，所以这里不需要任何图片素材：用 QImage 现画几个像素就能断言。
-#include "ocr/ImagePreprocess.h"
+#include "ocr/pipeline/ImagePreprocess.h"
 
 #include <QImage>
 #include <QtTest>

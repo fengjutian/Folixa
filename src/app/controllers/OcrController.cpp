@@ -4,9 +4,9 @@
 #include "app/editor/PdfView.h"
 #include "app/controllers/TextController.h"
 #include "app/editor/TextLayout.h"
-#include "ocr/OcrChunkBridge.h"
-#include "ocr/ScannedPageDetector.h"
-#include "ocr/OcrEngineFactory.h"
+#include "ocr/pipeline/OcrChunkBridge.h"
+#include "ocr/pipeline/ScannedPageDetector.h"
+#include "ocr/engines/OcrEngineFactory.h"
 
 #include "i18n/Translate.h"
 

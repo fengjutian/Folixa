@@ -1,9 +1,9 @@
-#include "ocr/WindowsOcrEngine.h"
+#include "ocr/engines/WindowsOcrEngine.h"
 
 #include "i18n/Translate.h"
-#include "ocr/ImagePreprocess.h"
-#include "ocr/OcrGeometry.h"
-#include "ocr/OcrTextUtils.h"
+#include "ocr/pipeline/ImagePreprocess.h"
+#include "ocr/core/OcrGeometry.h"
+#include "ocr/core/OcrTextUtils.h"
 
 #include <QDir>
 #include <QElapsedTimer>

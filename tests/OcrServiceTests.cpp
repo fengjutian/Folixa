@@ -2,7 +2,7 @@
 //
 // 用假引擎把「什么时候回来」变成确定的：真引擎一页几百毫秒，
 // 拿它测取消只会测出机器快慢。
-#include "ocr/OcrService.h"
+#include "ocr/pipeline/OcrService.h"
 
 #include <QElapsedTimer>
 #include <QSignalSpy>

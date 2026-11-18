@@ -2,7 +2,7 @@
 //
 // 系统 OCR 同样靠「在临时目录里跑 PowerShell」调用，跑不了的地方也能测解析：
 // 一段固定 JSON 进，页面坐标的行走出来。
-#include "ocr/WindowsOcrEngine.h"
+#include "ocr/engines/WindowsOcrEngine.h"
 
 #include <QRectF>
 #include <QtTest>

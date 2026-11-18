@@ -1,7 +1,7 @@
-#include "ocr/OcrEngineFactory.h"
+#include "ocr/engines/OcrEngineFactory.h"
 
-#include "ocr/TesseractCliEngine.h"
-#include "ocr/WindowsOcrEngine.h"
+#include "ocr/engines/TesseractCliEngine.h"
+#include "ocr/engines/WindowsOcrEngine.h"
 
 namespace aipdf::ocr {
 

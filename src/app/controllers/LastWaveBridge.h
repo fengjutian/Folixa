@@ -10,7 +10,7 @@
 #include "doc/convert/InvoiceLayout.h"
 #include "doc/convert/UniversalConverter.h"
 #include "i18n/Translate.h"
-#include "ocr/OcrTypes.h"
+#include "ocr/core/OcrTypes.h"
 #include "pdf/ops/DocumentReflow.h"
 #include "pdf/content/InvisibleTextLayer.h"
 #include "pdf/ops/OptionalContent.h"
