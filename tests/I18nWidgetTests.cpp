@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QEvent>
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
@@ -28,6 +29,7 @@ private slots:
     void cleanupTestCase();
 
     void welcomePageRetranslatesLive();
+    void welcomePageRecentListRefreshes();
 
 private:
     QTemporaryDir settingsDir_;
@@ -70,6 +72,43 @@ void I18nWidgetTests::welcomePageRetranslatesLive() {
     QVERIFY(LanguageManager::instance().setPreference(QStringLiteral("zh_CN")));
     QCOMPARE(openButton->text(), QStringLiteral("打开 PDF"));
     QCOMPARE(title->text(), QStringLiteral("把 PDF 拖到这里"));
+}
+
+// 工作台的「最近打开」不能只在启动时铺一次：打开一份文档后叫 setRecentFiles，
+// 列表、计数与空状态都要就地换掉（行控件可以重建，但不能留下旧行或旧数字）。
+void I18nWidgetTests::welcomePageRecentListRefreshes() {
+    const QString first = QStringLiteral("C:/docs/first.pdf");
+    const QString second = QStringLiteral("C:/docs/second.pdf");
+    const QString third = QStringLiteral("C:/docs/third.pdf");
+
+    WelcomePage page(QStringList{first, second});
+    auto* count = page.findChild<QLabel*>(QStringLiteral("welcomeSectionMeta"));
+    QVERIFY2(count != nullptr, "最近文档的计数标签没建出来");
+    QCOMPARE(count->text(), QStringLiteral("2 份文档"));
+    QCOMPARE(page.findChildren<QPushButton*>(QStringLiteral("recentRow")).size(), 2);
+
+    // 新打开一份：插到最前面，行数与计数跟着变，旧行不能残留。
+    page.setRecentFiles(QStringList{third, first, second});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCOMPARE(count->text(), QStringLiteral("3 份文档"));
+    const auto rows = page.findChildren<QPushButton*>(QStringLiteral("recentRow"));
+    QCOMPARE(rows.size(), 3);
+    QCOMPARE(rows.first()->toolTip(), third);
+    QCOMPARE(rows.last()->toolTip(), second);
+
+    // 传同样的一份不该重建：行指针保持不变，避免每打开一次就闪一下。
+    QPushButton* head = rows.first();
+    page.setRecentFiles(QStringList{third, first, second});
+    QCOMPARE(page.findChildren<QPushButton*>(QStringLiteral("recentRow")).first(), head);
+
+    // 全部消失时回到空状态，计数收起而不是显示「0 份文档」。
+    page.setRecentFiles(QStringList{});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(page.findChildren<QPushButton*>(QStringLiteral("recentRow")).isEmpty());
+    QVERIFY(count->isHidden());
+    auto* emptyTitle = page.findChild<QLabel*>(QStringLiteral("recentEmptyTitle"));
+    QVERIFY(emptyTitle != nullptr);
+    QCOMPARE(emptyTitle->text(), QStringLiteral("暂无最近文档"));
 }
 
 QTEST_MAIN(I18nWidgetTests)

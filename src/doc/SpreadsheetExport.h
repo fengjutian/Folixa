@@ -37,4 +37,23 @@ struct SheetRow {
 // 领域层不该写死中文；Excel 也要求它 ≤31 字符且不含 []:*?/\。
 QByteArray rowsToXlsx(const QVector<SheetRow>& rows, const QString& sheetName);
 
+// 一张工作表：行 → 单元格。
+//
+// 为什么用二维字符串而不是 SheetRow：SheetRow 是「字段名 → 字段值」的两列形态，
+// 那是表单导出的形状。PDF → Excel 导出的是**表格**，行列数不固定，
+// 硬塞进两列结构只会把表格拆散。
+struct SheetGrid {
+    // 工作表名。Excel 要求 ≤31 字符且不含 []:*?/\，写入前会收拾一遍。
+    QString name;
+    // 逐行；每行里的单元格按列序排列。行数、列数可以不一样（缺格就是短行）。
+    QVector<QVector<QString>> rows;
+};
+
+// 把多张工作表写成一个 Excel 工作簿（.xlsx）。
+//
+// 为什么要有多表版本：PDF → Excel 导出的是**整篇文档**，
+// 一页一张表（或一页一张文字表）才对得上「页数 / 表格数一致」这个验收口径。
+// 单表版本（rowsToXlsx）只能塞下一张表。
+QByteArray workbookToXlsx(const QVector<SheetGrid>& sheets);
+
 }  // namespace aipdf::doc

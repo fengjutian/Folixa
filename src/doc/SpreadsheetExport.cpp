@@ -47,7 +47,7 @@ QString columnName(int index) {
     return out;
 }
 
-QByteArray contentTypesXml() {
+QByteArray contentTypesXml(int sheetCount) {
     QString out;
     out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
     out.append(QStringLiteral(
@@ -57,11 +57,16 @@ QByteArray contentTypesXml() {
         "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
         "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd."
         "openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>"
-        "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd."
-        "openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
         "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd."
-        "openxmlformats-officedocument.spreadsheetml.styles+xml\"/>"
-        "</Types>"));
+        "openxmlformats-officedocument.spreadsheetml.styles+xml\"/>"));
+    // 每张工作表都要在 [Content_Types].xml 里有一条 Override：
+    // 少一条，Excel 会说「工作簿里有个部件没声明内容类型」。
+    for (int index = 1; index <= sheetCount; ++index) {
+        out.append(QStringLiteral(
+            "<Override PartName=\"/xl/worksheets/sheet%1.xml\" ContentType=\"application/vnd."
+            "openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>").arg(index));
+    }
+    out.append(QStringLiteral("</Types>"));
     return out.toUtf8();
 }
 
@@ -77,29 +82,40 @@ QByteArray packageRelsXml() {
     return out.toUtf8();
 }
 
-QByteArray workbookXml(const QString& sheetName) {
+QByteArray workbookXml(const QVector<SheetGrid>& sheets) {
     QString out;
     out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
     out.append(QStringLiteral(
         "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" "
         "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
-        "<sheets><sheet name=\"%1\" sheetId=\"1\" r:id=\"rId1\"/></sheets>"
-        "</workbook>").arg(escapeOoxmlText(sheetName)));
+        "<sheets>"));
+    for (int index = 0; index < sheets.size(); ++index) {
+        out.append(QStringLiteral("<sheet name=\"%1\" sheetId=\"%2\" r:id=\"rId%3\"/>")
+                       .arg(escapeOoxmlText(sanitizeSheetName(sheets.at(index).name)))
+                       .arg(index + 1)
+                       .arg(index + 1));
+    }
+    out.append(QStringLiteral("</sheets></workbook>"));
     return out.toUtf8();
 }
 
-QByteArray workbookRelsXml() {
+QByteArray workbookRelsXml(int sheetCount) {
     QString out;
     out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
     out.append(QStringLiteral(
-        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
-        "<Relationship Id=\"rId1\" "
-        "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" "
-        "Target=\"worksheets/sheet1.xml\"/>"
-        "<Relationship Id=\"rId2\" "
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"));
+    for (int index = 1; index <= sheetCount; ++index) {
+        out.append(QStringLiteral(
+            "<Relationship Id=\"rId%1\" "
+            "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" "
+            "Target=\"worksheets/sheet%2.xml\"/>").arg(index).arg(index));
+    }
+    // 样式表的编号排在所有工作表之后。
+    out.append(QStringLiteral(
+        "<Relationship Id=\"rId%1\" "
         "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" "
-        "Target=\"styles.xml\"/>"
-        "</Relationships>"));
+        "Target=\"styles.xml\"/>").arg(sheetCount + 1));
+    out.append(QStringLiteral("</Relationships>"));
     return out.toUtf8();
 }
 
@@ -131,26 +147,21 @@ QByteArray textCell(const QString& reference, const QString& value) {
         .toUtf8();
 }
 
-QByteArray sheetXml(const QVector<SheetRow>& rows) {
+QByteArray sheetXml(const QVector<QVector<QString>>& rows) {
     QString out;
     out.append(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"));
     out.append(QStringLiteral(
         "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
         "<sheetData>"));
-    // 表头与 CSV 保持一致（name / value）：同一份数据的两种导出，
-    // 表头不一样就没法对着看。
-    out.append(QStringLiteral("<row r=\"1\">"));
-    out.append(textCell(QStringLiteral("A1"), QStringLiteral("name")));
-    out.append(textCell(QStringLiteral("B1"), QStringLiteral("value")));
-    out.append(QStringLiteral("</row>"));
-
-    int row = 2;
-    for (const SheetRow& field : rows) {
-        out.append(QStringLiteral("<row r=\"%1\">").arg(row));
-        out.append(textCell(QStringLiteral("%1%2").arg(columnName(0)).arg(row), field.name));
-        out.append(textCell(QStringLiteral("%1%2").arg(columnName(1)).arg(row), field.value));
+    for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+        const int rowNumber = rowIndex + 1;
+        out.append(QStringLiteral("<row r=\"%1\">").arg(rowNumber));
+        const QVector<QString>& cells = rows.at(rowIndex);
+        for (int column = 0; column < cells.size(); ++column) {
+            out.append(textCell(QStringLiteral("%1%2").arg(columnName(column)).arg(rowNumber),
+                                cells.at(column)));
+        }
         out.append(QStringLiteral("</row>"));
-        ++row;
     }
     out.append(QStringLiteral("</sheetData></worksheet>"));
     return out.toUtf8();
@@ -159,13 +170,31 @@ QByteArray sheetXml(const QVector<SheetRow>& rows) {
 }  // namespace
 
 QByteArray rowsToXlsx(const QVector<SheetRow>& rows, const QString& sheetName) {
+    QVector<QVector<QString>> grid;
+    grid.append(QVector<QString>{QStringLiteral("name"), QStringLiteral("value")});
+    for (const SheetRow& field : rows) {
+        grid.append(QVector<QString>{field.name, field.value});
+    }
+    SheetGrid sheet;
+    sheet.name = sheetName;
+    sheet.rows = grid;
+    return workbookToXlsx(QVector<SheetGrid>{sheet});
+}
+
+QByteArray workbookToXlsx(const QVector<SheetGrid>& sheets) {
+    if (sheets.isEmpty()) {
+        return QByteArray();
+    }
     zip::Writer writer;
-    writer.addFile(QStringLiteral("[Content_Types].xml"), contentTypesXml());
+    writer.addFile(QStringLiteral("[Content_Types].xml"), contentTypesXml(sheets.size()));
     writer.addFile(QStringLiteral("_rels/.rels"), packageRelsXml());
-    writer.addFile(QStringLiteral("xl/workbook.xml"), workbookXml(sanitizeSheetName(sheetName)));
-    writer.addFile(QStringLiteral("xl/_rels/workbook.xml.rels"), workbookRelsXml());
+    writer.addFile(QStringLiteral("xl/workbook.xml"), workbookXml(sheets));
+    writer.addFile(QStringLiteral("xl/_rels/workbook.xml.rels"), workbookRelsXml(sheets.size()));
     writer.addFile(QStringLiteral("xl/styles.xml"), stylesXml());
-    writer.addFile(QStringLiteral("xl/worksheets/sheet1.xml"), sheetXml(rows));
+    for (int index = 0; index < sheets.size(); ++index) {
+        writer.addFile(QStringLiteral("xl/worksheets/sheet%1.xml").arg(index + 1),
+                       sheetXml(sheets.at(index).rows));
+    }
     return writer.toByteArray();
 }
 
