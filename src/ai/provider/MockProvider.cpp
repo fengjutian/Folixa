@@ -1,4 +1,4 @@
-#include "ai/MockProvider.h"
+#include "ai/provider/MockProvider.h"
 
 #include "i18n/Translate.h"
 

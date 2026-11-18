@@ -11,8 +11,8 @@
 
 qt_add_executable(AiNarrationTests
     ${CMAKE_CURRENT_LIST_DIR}/../AiNarrationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiNarration.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiNarration.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiNarration.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiNarration.h
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechText.cpp
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechText.h
 )

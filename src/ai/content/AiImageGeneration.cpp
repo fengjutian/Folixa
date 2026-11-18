@@ -1,4 +1,4 @@
-#include "ai/AiImageGeneration.h"
+#include "ai/content/AiImageGeneration.h"
 
 #include <QEventLoop>
 #include <QJsonArray>

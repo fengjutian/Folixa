@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/DataPolicy.h"
+#include "ai/settings/DataPolicy.h"
 
 #include <QString>
 
@@ -17,7 +17,7 @@ namespace aipdf::ai {
 // 主程序叫 AiPdfEditor、Worker 叫 PdfAiWorker，两个进程会找到不同目录。
 struct ProviderConfig {
     // 服务商标识：demo / minimax / deepseek / qwen / kimi / ollama / openai（自定义兼容）。
-    // 预设（默认地址、要不要密钥）见 ai/ProviderPreset.h。
+    // 预设（默认地址、要不要密钥）见 ai/settings/ProviderPreset.h。
     QString providerId = QStringLiteral("demo");
     // 服务地址（到 /v1 为止）。
     QString baseUrl = QStringLiteral("https://api.openai.com/v1");

@@ -221,8 +221,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/XfaSupport.h
     pdf/compliance/PdfUaChecker.cpp
     pdf/compliance/PdfUaChecker.h
-    ai/OfflineQa.cpp
-    ai/OfflineQa.h
+    ai/rag/OfflineQa.cpp
+    ai/rag/OfflineQa.h
     doc/UniversalConverter.cpp
     doc/UniversalConverter.h
     pdf/compliance/StructTreeReader.cpp
@@ -274,16 +274,16 @@ qt_add_executable(AiPdfEditor WIN32
     doc/PrintBatch.h
     doc/BlankDocument.cpp
     doc/BlankDocument.h
-    ai/PptGeneration.cpp
-    ai/PptGeneration.h
-    ai/PptxExport.cpp
-    ai/PptxExport.h
-    ai/AiNarration.cpp
-    ai/AiNarration.h
-    ai/AiContentDetection.cpp
-    ai/AiContentDetection.h
-    ai/AiImageGeneration.cpp
-    ai/AiImageGeneration.h
+    ai/content/PptGeneration.cpp
+    ai/content/PptGeneration.h
+    ai/content/PptxExport.cpp
+    ai/content/PptxExport.h
+    ai/content/AiNarration.cpp
+    ai/content/AiNarration.h
+    ai/content/AiContentDetection.cpp
+    ai/content/AiContentDetection.h
+    ai/content/AiImageGeneration.cpp
+    ai/content/AiImageGeneration.h
     pdf/security/SignatureWorkflow.cpp
     pdf/security/SignatureWorkflow.h
     pdf/security/SignatureVerifier.cpp
@@ -325,25 +325,25 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/document/Navigation.h
     pdf/kernel/TextPage.cpp
     pdf/kernel/TextPage.h
-    ai/ChatTypes.cpp
-    ai/ChatTypes.h
-    ai/CredentialStore.cpp
-    ai/CredentialStore.h
-    ai/ProviderConfig.cpp
-    ai/ProviderConfig.h
-    ai/ProviderPreset.cpp
-    ai/ProviderPreset.h
-    ai/ProviderSelection.cpp
-    ai/ProviderSelection.h
-    ai/UploadPreview.cpp
-    ai/UploadPreview.h
-    ai/DataPolicy.cpp
-    ai/DataPolicy.h
-    ai/AuditLog.cpp
-    ai/AuditLog.h
-    ai/EmbeddingProvider.h
-    ai/LocalHashEmbedding.cpp
-    ai/LocalHashEmbedding.h
+    ai/chat/ChatTypes.cpp
+    ai/chat/ChatTypes.h
+    ai/settings/CredentialStore.cpp
+    ai/settings/CredentialStore.h
+    ai/settings/ProviderConfig.cpp
+    ai/settings/ProviderConfig.h
+    ai/settings/ProviderPreset.cpp
+    ai/settings/ProviderPreset.h
+    ai/settings/ProviderSelection.cpp
+    ai/settings/ProviderSelection.h
+    ai/settings/UploadPreview.cpp
+    ai/settings/UploadPreview.h
+    ai/settings/DataPolicy.cpp
+    ai/settings/DataPolicy.h
+    ai/settings/AuditLog.cpp
+    ai/settings/AuditLog.h
+    ai/chat/EmbeddingProvider.h
+    ai/rag/LocalHashEmbedding.cpp
+    ai/rag/LocalHashEmbedding.h
     doc/AnnotationModel.cpp
     doc/AnnotationModel.h
     doc/ChunkBuilder.cpp

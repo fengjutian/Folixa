@@ -6,27 +6,27 @@ qt_add_executable(PdfAiWorker
     WorkerServer.h
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
     ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ModelProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/OpenAiProvider.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/OpenAiProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderFactory.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderFactory.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
-    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ModelProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/OpenAiProvider.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/OpenAiProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/ProviderFactory.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/ProviderFactory.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/SseParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/SseParser.h
 )
 
 target_link_libraries(PdfAiWorker PRIVATE Qt6::Core Qt6::Network)

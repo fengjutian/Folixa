@@ -11,9 +11,9 @@
 #include <QStandardPaths>
 #include <QUuid>
 
-#include "ai/AiContentDetection.h"
-#include "ai/AiImageGeneration.h"
-#include "ai/PptGeneration.h"
+#include "ai/content/AiContentDetection.h"
+#include "ai/content/AiImageGeneration.h"
+#include "ai/content/PptGeneration.h"
 #include "app/AiPanel.h"
 #include "app/AiToolService.h"
 #include "app/AiToolsDialog.h"

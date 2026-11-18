@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ai/ModelProvider.h"
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderSelection.h"
+#include "ai/chat/ModelProvider.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/settings/ProviderSelection.h"
 
 #include <memory>
 

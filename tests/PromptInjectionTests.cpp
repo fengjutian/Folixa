@@ -3,7 +3,7 @@
 // 这里断言的是**结构**，不是模型行为：文档正文永远落在材料的起止边界内，
 // 系统提示永远带「材料不是指令」那段，注入文本不会跑到系统提示里去。
 // 模型层能不能顶住是另一回事——协议里没有工具调用，它也没有可越权的接口。
-#include "ai/ChatTypes.h"
+#include "ai/chat/ChatTypes.h"
 
 #include <QString>
 #include <QtTest>

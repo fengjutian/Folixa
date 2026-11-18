@@ -1,6 +1,6 @@
-#include "ai/AiContentDetection.h"
+#include "ai/content/AiContentDetection.h"
 
-#include "ai/ChatTypes.h"
+#include "ai/chat/ChatTypes.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>

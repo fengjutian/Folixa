@@ -2,7 +2,7 @@
 
 #include "i18n/Translate.h"
 
-#include "ai/LocalHashEmbedding.h"
+#include "ai/rag/LocalHashEmbedding.h"
 
 #include <QRegularExpression>
 #include <QSet>

@@ -1,7 +1,7 @@
-#include "ai/ChatTypes.h"
-#include "ai/CredentialStore.h"
-#include "ai/ProviderConfig.h"
-#include "ai/SseParser.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/settings/CredentialStore.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/chat/SseParser.h"
 
 #include <QDir>
 #include <QFile>

@@ -9,7 +9,7 @@
 #include "app/TileCache.h"
 #include "app/AnnotationController.h"
 #include "app/DocumentOutput.h"
-#include "ai/AiNarration.h"
+#include "ai/content/AiNarration.h"
 #include "doc/ActionWizard.h"
 #include "doc/DocumentChunk.h"
 #include "pdf/kernel/PdfiumAdapter.h"

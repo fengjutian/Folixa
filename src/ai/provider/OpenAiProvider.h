@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ai/ModelProvider.h"
-#include "ai/SseParser.h"
+#include "ai/chat/ModelProvider.h"
+#include "ai/chat/SseParser.h"
 
 #include <QJsonObject>
 #include <QNetworkReply>

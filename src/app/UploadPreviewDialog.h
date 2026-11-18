@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/UploadPreview.h"
+#include "ai/settings/UploadPreview.h"
 #include "i18n/Translate.h"
 
 #include <QDialog>

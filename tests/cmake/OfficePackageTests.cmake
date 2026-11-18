@@ -13,9 +13,9 @@ qt_add_executable(OfficePackageTests
     ${CMAKE_SOURCE_DIR}/src/doc/SpreadsheetExport.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/SpreadsheetExport.h
     ${CMAKE_SOURCE_DIR}/src/doc/XmlText.h
-    ${CMAKE_SOURCE_DIR}/src/ai/PptGeneration.h
-    ${CMAKE_SOURCE_DIR}/src/ai/PptxExport.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/PptxExport.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/PptGeneration.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/PptxExport.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/content/PptxExport.h
     # pptx 的打包在 doc 层（AI 生成的 PPT 与 PDF 导出的 PPT 共用同一套）。
     ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/PptxWriter.h

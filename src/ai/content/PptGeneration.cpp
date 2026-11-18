@@ -1,6 +1,6 @@
-#include "ai/PptGeneration.h"
+#include "ai/content/PptGeneration.h"
 
-#include "ai/ChatTypes.h"
+#include "ai/chat/ChatTypes.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

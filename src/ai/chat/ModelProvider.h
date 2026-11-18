@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/ChatTypes.h"
+#include "ai/chat/ChatTypes.h"
 
 #include <QObject>
 #include <QString>

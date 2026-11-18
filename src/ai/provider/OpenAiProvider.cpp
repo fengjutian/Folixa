@@ -1,4 +1,4 @@
-#include "ai/OpenAiProvider.h"
+#include "ai/provider/OpenAiProvider.h"
 
 #include "i18n/Translate.h"
 

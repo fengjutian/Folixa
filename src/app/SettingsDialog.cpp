@@ -1,7 +1,7 @@
 #include "app/SettingsDialog.h"
 
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderPreset.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/settings/ProviderPreset.h"
 #include "app/Language.h"
 #include "app/Theme.h"
 #include "i18n/Translate.h"

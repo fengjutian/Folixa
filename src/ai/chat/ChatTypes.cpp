@@ -1,4 +1,4 @@
-#include "ai/ChatTypes.h"
+#include "ai/chat/ChatTypes.h"
 
 namespace aipdf::ai {
 

@@ -1,6 +1,6 @@
-#include "ai/ProviderSelection.h"
+#include "ai/settings/ProviderSelection.h"
 
-#include "ai/ProviderPreset.h"
+#include "ai/settings/ProviderPreset.h"
 
 namespace aipdf::ai {
 

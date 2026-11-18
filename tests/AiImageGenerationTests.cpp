@@ -6,7 +6,7 @@
 //   3. 总结配图：正文能变成要点，要点能变成可发送的提示词。
 //
 // 整组测试不联网：图片链接那一路走的是注入的取字节回调。
-#include "ai/AiImageGeneration.h"
+#include "ai/content/AiImageGeneration.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

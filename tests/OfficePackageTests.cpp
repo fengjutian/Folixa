@@ -16,8 +16,8 @@
 #include <QXmlStreamReader>
 #include <QVector>
 
-#include "ai/PptGeneration.h"
-#include "ai/PptxExport.h"
+#include "ai/content/PptGeneration.h"
+#include "ai/content/PptxExport.h"
 #include "doc/SpreadsheetExport.h"
 #include "doc/ZipWriter.h"
 

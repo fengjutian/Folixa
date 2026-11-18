@@ -1,9 +1,9 @@
 #include "WorkerServer.h"
 
-#include "ai/ChatTypes.h"
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderFactory.h"
-#include "ai/ProviderPreset.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/provider/ProviderFactory.h"
+#include "ai/settings/ProviderPreset.h"
 #include "ipc/IpcProtocol.h"
 
 #include <QCoreApplication>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/ProviderConfig.h"
+#include "ai/settings/ProviderConfig.h"
 
 namespace aipdf::ai {
 

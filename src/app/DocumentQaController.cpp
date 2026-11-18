@@ -1,6 +1,6 @@
 #include "app/DocumentQaController.h"
 
-#include "ai/LocalHashEmbedding.h"
+#include "ai/rag/LocalHashEmbedding.h"
 #include "app/IndexController.h"
 #include "doc/DocumentChunk.h"
 

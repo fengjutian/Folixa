@@ -3,11 +3,11 @@
 // 覆盖四块纯逻辑：本地嵌入、向量索引、混合检索（RRF）、引用核验。
 // 这四块都不碰 PDFium、也不联网，所以能单独跑、结果可复现。
 // 真正把 PDF 读进来的那部分由 PdfIndexTests 覆盖。
-#include "ai/ChatTypes.h"
-#include "ai/EmbeddingProvider.h"
-#include "ai/LocalHashEmbedding.h"
-#include "ai/MockProvider.h"
-#include "ai/ModelProvider.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/chat/EmbeddingProvider.h"
+#include "ai/rag/LocalHashEmbedding.h"
+#include "ai/provider/MockProvider.h"
+#include "ai/chat/ModelProvider.h"
 #include "doc/CitationVerifier.h"
 #include "doc/DocumentChunk.h"
 #include "doc/HybridRetriever.h"

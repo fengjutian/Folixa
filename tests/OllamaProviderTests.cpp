@@ -12,10 +12,10 @@
 //
 // 这条链路（OpenAiProvider）与云端服务商是同一套实现，
 // 所以本机模型能用，就说明云端那几家走的也是同一条路。
-#include "ai/ChatTypes.h"
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderFactory.h"
-#include "ai/ProviderPreset.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/provider/ProviderFactory.h"
+#include "ai/settings/ProviderPreset.h"
 
 #include <QByteArray>
 #include <QSignalSpy>

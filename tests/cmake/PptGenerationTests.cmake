@@ -15,10 +15,10 @@
 
 qt_add_executable(PptGenerationTests
     ${CMAKE_CURRENT_LIST_DIR}/../PptGenerationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/PptGeneration.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/PptGeneration.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/PptGeneration.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/content/PptGeneration.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
 )
 
 target_link_libraries(PptGenerationTests PRIVATE Qt6::Core Qt6::Network Qt6::Test)

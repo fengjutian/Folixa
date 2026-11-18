@@ -1,6 +1,6 @@
-#include "ai/UploadPreview.h"
+#include "ai/settings/UploadPreview.h"
 
-#include "ai/ProviderPreset.h"
+#include "ai/settings/ProviderPreset.h"
 
 #include <QUrl>
 

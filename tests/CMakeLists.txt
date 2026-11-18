@@ -1274,22 +1274,22 @@ add_test(NAME RenderThreadTests COMMAND RenderThreadTests)
 
 qt_add_executable(AiProviderTests
     AiProviderTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
-    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/SseParser.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/SseParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/SseParser.h
 )
 
 target_link_libraries(AiProviderTests PRIVATE Qt6::Core Qt6::Test)
@@ -1309,14 +1309,14 @@ add_test(NAME AiProviderTests COMMAND AiProviderTests)
 
 qt_add_executable(DocumentQaTests
     DocumentQaTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ai/EmbeddingProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ModelProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/MockProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ModelProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/provider/MockProvider.h
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
     ${CMAKE_SOURCE_DIR}/src/doc/DocumentChunk.h
@@ -1349,8 +1349,8 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.h
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
     ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.cpp
     ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.h
@@ -1366,25 +1366,25 @@ qt_add_executable(AiPanelTests
     ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
-    ${CMAKE_SOURCE_DIR}/src/ai/EmbeddingProvider.h
-    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/LocalHashEmbedding.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/EmbeddingProvider.h
+    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/rag/LocalHashEmbedding.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.h
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/CitationVerifier.h
     ${CMAKE_SOURCE_DIR}/src/doc/ChunkBuilder.cpp
@@ -1449,20 +1449,20 @@ add_test(NAME IconResourceTests COMMAND IconResourceTests)
 
 qt_add_executable(DataPolicyTests
     DataPolicyTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/DataPolicy.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderSelection.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderPreset.h
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/UploadPreview.h
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AuditLog.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ProviderConfig.h
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/CredentialStore.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/DataPolicy.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderSelection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderPreset.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/AuditLog.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/ProviderConfig.h
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.h
 )
 
 target_link_libraries(DataPolicyTests PRIVATE Qt6::Core Qt6::Test)
@@ -1495,8 +1495,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PdfToOfficeTests.cmake)
 
 qt_add_executable(PromptInjectionTests
     PromptInjectionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
 )
 
 target_link_libraries(PromptInjectionTests PRIVATE Qt6::Core Qt6::Test)

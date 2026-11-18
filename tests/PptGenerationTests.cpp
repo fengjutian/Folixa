@@ -11,7 +11,7 @@
 //
 // 有一条贯穿全篇的底线：**失败绝不能长得像成功**。
 // 凡是出错的地方都断言 error 非空、slides 为空、isValid() 为假。
-#include "ai/PptGeneration.h"
+#include "ai/content/PptGeneration.h"
 
 #include <QtTest>
 

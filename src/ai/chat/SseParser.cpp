@@ -1,4 +1,4 @@
-#include "ai/SseParser.h"
+#include "ai/chat/SseParser.h"
 
 namespace aipdf::ai {
 

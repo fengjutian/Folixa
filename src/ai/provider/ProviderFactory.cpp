@@ -1,9 +1,9 @@
-#include "ai/ProviderFactory.h"
+#include "ai/provider/ProviderFactory.h"
 
-#include "ai/CredentialStore.h"
-#include "ai/MockProvider.h"
-#include "ai/OpenAiProvider.h"
-#include "ai/ProviderPreset.h"
+#include "ai/settings/CredentialStore.h"
+#include "ai/provider/MockProvider.h"
+#include "ai/provider/OpenAiProvider.h"
+#include "ai/settings/ProviderPreset.h"
 
 namespace aipdf::ai {
 

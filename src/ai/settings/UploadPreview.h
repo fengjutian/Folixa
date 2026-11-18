@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ai/DataPolicy.h"
-#include "ai/ProviderConfig.h"
+#include "ai/settings/DataPolicy.h"
+#include "ai/settings/ProviderConfig.h"
 
 #include <QString>
 #include <QVector>

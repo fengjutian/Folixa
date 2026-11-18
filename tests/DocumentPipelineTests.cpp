@@ -12,7 +12,7 @@
 // （aipdf::pdf / aipdf::doc / aipdf::ai 名下的函数），
 // 测试自己只负责造输入与验结果。
 
-#include "ai/OfflineQa.h"
+#include "ai/rag/OfflineQa.h"
 
 #include "doc/DocumentChunk.h"
 #include "doc/LocalIndex.h"

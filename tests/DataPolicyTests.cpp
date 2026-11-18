@@ -2,10 +2,10 @@
 //
 // 这些用例守的是「发不发、发多少」这条规则本身：不依赖界面、不依赖网络，
 // 所以能在毫秒级跑完，也就能在每次改动时都跑。
-#include "ai/AuditLog.h"
-#include "ai/DataPolicy.h"
-#include "ai/ProviderSelection.h"
-#include "ai/UploadPreview.h"
+#include "ai/settings/AuditLog.h"
+#include "ai/settings/DataPolicy.h"
+#include "ai/settings/ProviderSelection.h"
+#include "ai/settings/UploadPreview.h"
 
 #include <QDir>
 #include <QFile>

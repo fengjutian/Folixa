@@ -15,11 +15,11 @@ set(AIPDF_OFFLINEQA_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 qt_add_executable(OfflineQaTests
     ${CMAKE_CURRENT_LIST_DIR}/../OfflineQaTests.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/ai/OfflineQa.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/ai/OfflineQa.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/ai/LocalHashEmbedding.cpp
-    ${AIPDF_OFFLINEQA_ROOT}/src/ai/LocalHashEmbedding.h
-    ${AIPDF_OFFLINEQA_ROOT}/src/ai/EmbeddingProvider.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/OfflineQa.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/OfflineQa.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/LocalHashEmbedding.cpp
+    ${AIPDF_OFFLINEQA_ROOT}/src/ai/rag/LocalHashEmbedding.h
+    ${AIPDF_OFFLINEQA_ROOT}/src/ai/chat/EmbeddingProvider.h
     ${AIPDF_OFFLINEQA_ROOT}/src/doc/LocalIndex.cpp
     ${AIPDF_OFFLINEQA_ROOT}/src/doc/LocalIndex.h
     ${AIPDF_OFFLINEQA_ROOT}/src/doc/VectorIndex.cpp

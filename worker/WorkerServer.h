@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/ModelProvider.h"
+#include "ai/chat/ModelProvider.h"
 
 #include <QByteArray>
 #include <QLocalServer>

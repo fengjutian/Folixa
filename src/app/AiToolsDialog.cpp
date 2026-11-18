@@ -17,7 +17,7 @@
 #include <QVBoxLayout>
 
 #include "app/AiToolService.h"
-#include "ai/PptxExport.h"
+#include "ai/content/PptxExport.h"
 #include "i18n/Translate.h"
 
 namespace aipdf::app {

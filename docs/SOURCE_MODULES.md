@@ -1,9 +1,10 @@
 # 源码功能模块划分
 
 这份文档回答一个问题：`src/` 里按功能模块分目录行不行、怎么分、代价多大。
-结论先说：**行，而且 `src/pdf` 已经可以不费什么力气地拆开**——130 个文件正好能分成
-9 个互相不重叠的模块，引用改写的量是可枚举的（130 次移动、282 个文件、1214 处引用），
-`scripts/modularize-src-pdf.ps1` 已经跑通过一遍。
+结论先说：**行，而且已经落地了两个目录**——`src/pdf` 的 130 个文件拆成 9 个模块，
+`src/ai` 的 40 个文件拆成 5 个模块，引用改写量都是可枚举的
+（`pdf`：130 次移动、282 个文件、1213 行引用；`ai`：40 次移动、76 个文件、299 处引用），
+两个都得用同一个脚本 `scripts/modularize-src.ps1 -Area <pdf|ai>`。
 
 ## 现状
 
@@ -73,6 +74,30 @@ kernel     -> annot        1    content 1    document 2
 这两条不成环（`annot`、`content` 都不回指 `kernel`），但同样属于"适配层知道太多"，
 可以在拆 P2 静态库时再收。
 
+## `src/ai` 的五个模块
+
+| 模块 | 文件数 | 职责 | 主要文件 |
+| --- | ---: | --- | --- |
+| `chat/` | 6 | 对话契约：消息类型、SSE 流解析、模型与向量接口 | `ChatTypes`、`SseParser`、`ModelProvider`、`EmbeddingProvider` |
+| `provider/` | 6 | 供应商实现与工厂 | `OpenAiProvider`、`MockProvider`、`ProviderFactory` |
+| `settings/` | 14 | 供应商配置/预设/选择、凭据、数据政策、审计、上传预览 | `ProviderConfig`、`ProviderPreset`、`ProviderSelection`、`CredentialStore`、`DataPolicy`、`AuditLog`、`UploadPreview` |
+| `rag/` | 4 | 本地哈希向量与离线问答 | `LocalHashEmbedding`、`OfflineQa` |
+| `content/` | 10 | 生成类能力：内容检测、配图、旁白、PPT 生成与导出 | `AiContentDetection`、`AiImageGeneration`、`AiNarration`、`PptGeneration`、`PptxExport` |
+
+实测依赖是全序的，没有环：
+
+```
+content  -> chat      2
+provider -> chat      4    settings 4
+rag      -> chat      1
+```
+
+`settings` 之所以一次收进 7 个基名，是因为它们互相咬合：`ProviderConfig`/`ProviderPreset`/
+`ProviderSelection` 三个头文件互相引用，`CredentialStore` 同时被工厂和配置用，
+`DataPolicy`、`AuditLog`、`UploadPreview` 又都挂在 `ProviderConfig` 上。试过把它拆成
+"配置/预设"与"政策/审计"两块，立刻出现 `settings` ⇄ `privacy` 环，所以维持一个模块，
+名字取最宽的那个语义。
+
 ## 落地分三步
 
 ### P0 逻辑模块（零风险）
@@ -81,23 +106,26 @@ kernel     -> annot        1    content 1    document 2
 `cmake/pdf_sources.cmake`），每段一个注释标题。文件一个不动，构建产物一模一样，
 收益是"谁能看见模块边界"从文件名变成构建脚本，评审时也能看出某个改动跨了几个模块。
 
-### P1 物理拆目录（一次机械改动）
+### P1 物理拆目录（已完成，一次机械改动）
 
-`scripts/modularize-src-pdf.ps1` 做的就是这个：
+`scripts/modularize-src.ps1 -Area <pdf|ai> -Apply` 做的就是这件事：
 
-1. 按上表把 130 个文件 `git mv` 到 `src/pdf/<模块>/`（`git mv` 保留历史）；
-2. 把全仓库 1214 处 `pdf/Xxx.h` / `pdf/Xxx.cpp` 引用改成 `pdf/<模块>/Xxx.h`，
-   同时覆盖 `#include "..."` 和 `tests/` 里的 `${CMAKE_SOURCE_DIR}/src/pdf/Xxx.cpp`；
+1. 按划分表把文件 `git mv` 到 `src/<area>/<模块>/`（`git mv` 保留历史）；
+2. 把全仓库的 `<area>/Xxx.h` / `<area>/Xxx.cpp` 引用改成 `<area>/<模块>/Xxx.h`，
+   同时覆盖 `#include "..."` 和 `tests/` 里的 `${CMAKE_SOURCE_DIR}/src/<area>/Xxx.cpp`；
 3. 按 BOM 与换行风格原样回写（`src/` 里 CRLF/LF 混用，不能一律转 LF）；
-4. 自检每一个 `pdf/<模块>/<文件>` 引用都能解析到真实文件。
+4. 自检：每个 `<area>/<模块>/<文件>` 引用都能解析到真实文件，且没有残留的
+   未加模块段的 `<area>/<文件>` 引用。
 
-默认 dry-run，`-Apply` 才动手。已经在 `.tmp/reorg-sandbox` 副本上完整跑过一遍：
-130 个文件全部就位、`src/pdf` 根目录不再有散落文件、282 个文件被重写、
-0 处悬空 include、`tests/` 里所有 `${CMAKE_SOURCE_DIR}/src/...` 引用都仍指向存在的文件。
-剩下要做的只有一次真实构建 + `ctest`。
+两个目录都已执行完，并各跑过一次全量构建与 `ctest`：
 
-代价：一次 PR 里 130 个 rename + 282 个文件的引用改动。因为都是纯路径替换，
-review 时可以只看 `git diff -M --stat` 和几个抽样文件。
+| 目录 | 移动 | 重写文件 | 引用行数 | 构建 | 测试 |
+| --- | ---: | ---: | ---: | --- | --- |
+| `src/pdf` | 130 | 282 | 1213 | 通过 | 149/150（唯一失败项与搬迁无关） |
+| `src/ai` | 40 | 76 | 299 | 通过 | 见提交记录 |
+
+因为都是纯路径替换，review 时可以只看 `git diff -M --stat` 和几个抽样文件；
+脚本本身也会核对"每一行改动都含目录名"，确保没有混进内容改动。
 
 ### P2 拆编译单元（可选，后做）
 

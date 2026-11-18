@@ -3,7 +3,7 @@
 // 这一层最容易出的错是「把解析不出来当成不是 AI 写的」：
 // 界面上一旦显示「完全人工」，用户就会拿它当一个确定结论用。
 // 所以这组测试里有一半在盯失败路径。
-#include "ai/AiContentDetection.h"
+#include "ai/content/AiContentDetection.h"
 
 #include <QtTest>
 

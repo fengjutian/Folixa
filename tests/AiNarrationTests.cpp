@@ -2,7 +2,7 @@
 //
 // 这一层的产物直接喂给系统语音合成：分段错了会念错顺序，
 // 停顿错了会让人觉得机器没在思考。所以这里把「怎么切、怎么停」钉死。
-#include "ai/AiNarration.h"
+#include "ai/content/AiNarration.h"
 
 #include <QtTest>
 

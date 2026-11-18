@@ -2,7 +2,7 @@
 
 #include <QByteArray>
 
-#include "ai/PptGeneration.h"
+#include "ai/content/PptGeneration.h"
 
 namespace aipdf::ai {
 

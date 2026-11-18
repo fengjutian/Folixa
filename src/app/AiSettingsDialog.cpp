@@ -1,8 +1,8 @@
 #include "app/AiSettingsDialog.h"
 
 #include "app/Language.h"
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderPreset.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/settings/ProviderPreset.h"
 #include "i18n/Translate.h"
 
 #include <QCheckBox>

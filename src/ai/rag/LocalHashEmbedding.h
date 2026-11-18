@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai/EmbeddingProvider.h"
+#include "ai/chat/EmbeddingProvider.h"
 
 namespace aipdf::ai {
 

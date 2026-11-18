@@ -4,15 +4,15 @@
 # tests/CMakeLists.txt 里只要一行 include，不必再往那份已经很长的清单里塞细节。
 # 只依赖 Qt6::Core 与 Qt6::Test：这一层是纯逻辑，不发网络请求，也不碰界面。
 #
-# 注意：AiContentDetection 复用了 ai/ChatTypes.cpp 里的材料边界写法
+# 注意：AiContentDetection 复用了 ai/chat/ChatTypes.cpp 里的材料边界写法
 # （wrapMaterial / untrustedMaterialNotice），所以那份也要一起编进来。
 
 qt_add_executable(AiContentDetectionTests
     ${CMAKE_CURRENT_LIST_DIR}/../AiContentDetectionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiContentDetection.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiContentDetection.h
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/ChatTypes.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiContentDetection.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiContentDetection.h
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
 )
 target_link_libraries(AiContentDetectionTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(AiContentDetectionTests PRIVATE ${CMAKE_SOURCE_DIR}/src)

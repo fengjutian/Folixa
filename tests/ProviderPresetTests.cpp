@@ -2,16 +2,16 @@
 //
 // 这些用例守的是「服务商这件事只有一处说了算」：
 // 下拉框、要不要密钥、地址指不指向本机、本地模式放不放手，
-// 全都读同一张预设表（ai/ProviderPreset.h）。
+// 全都读同一张预设表（ai/settings/ProviderPreset.h）。
 //
 // 特别要盯住两件容易被人改坏的事：
 // 1. 云端服务商的地址与模型不能退回过时的那一套（api.minimax.chat 已经没了）；
 // 2. 本机模型（Ollama）既不要密钥，也不该被「本地模式」那条禁令拦下来。
-#include "ai/DataPolicy.h"
-#include "ai/ProviderConfig.h"
-#include "ai/ProviderPreset.h"
-#include "ai/ProviderSelection.h"
-#include "ai/UploadPreview.h"
+#include "ai/settings/DataPolicy.h"
+#include "ai/settings/ProviderConfig.h"
+#include "ai/settings/ProviderPreset.h"
+#include "ai/settings/ProviderSelection.h"
+#include "ai/settings/UploadPreview.h"
 
 #include <QSet>
 #include <QUrl>

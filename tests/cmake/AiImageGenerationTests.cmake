@@ -11,8 +11,8 @@
 
 qt_add_executable(AiImageGenerationTests
     ${CMAKE_CURRENT_LIST_DIR}/../AiImageGenerationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiImageGeneration.cpp
-    ${CMAKE_SOURCE_DIR}/src/ai/AiImageGeneration.h
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiImageGeneration.cpp
+    ${CMAKE_SOURCE_DIR}/src/ai/content/AiImageGeneration.h
 )
 
 target_link_libraries(AiImageGenerationTests PRIVATE

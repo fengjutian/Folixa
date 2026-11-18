@@ -11,7 +11,7 @@
 #include "app/AiPanel.h"
 #include "app/AiSettingsDialog.h"
 #include "app/UploadPreviewDialog.h"
-#include "ai/UploadPreview.h"
+#include "ai/settings/UploadPreview.h"
 
 #include <QAbstractButton>
 #include <QCheckBox>

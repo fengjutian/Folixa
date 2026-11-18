@@ -1,6 +1,6 @@
-#include "ai/AuditLog.h"
+#include "ai/settings/AuditLog.h"
 
-#include "ai/ProviderConfig.h"
+#include "ai/settings/ProviderConfig.h"
 
 #include <QDir>
 #include <QFile>

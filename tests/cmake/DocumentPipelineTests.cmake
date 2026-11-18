@@ -81,11 +81,11 @@ qt_add_executable(DocumentPipelineTests
     ${AIPDF_REPO_ROOT}/src/pdf/content/TrueTypeSubset.h
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.h
-    ${AIPDF_REPO_ROOT}/src/ai/OfflineQa.cpp
-    ${AIPDF_REPO_ROOT}/src/ai/OfflineQa.h
-    ${AIPDF_REPO_ROOT}/src/ai/LocalHashEmbedding.cpp
-    ${AIPDF_REPO_ROOT}/src/ai/LocalHashEmbedding.h
-    ${AIPDF_REPO_ROOT}/src/ai/EmbeddingProvider.h
+    ${AIPDF_REPO_ROOT}/src/ai/rag/OfflineQa.cpp
+    ${AIPDF_REPO_ROOT}/src/ai/rag/OfflineQa.h
+    ${AIPDF_REPO_ROOT}/src/ai/rag/LocalHashEmbedding.cpp
+    ${AIPDF_REPO_ROOT}/src/ai/rag/LocalHashEmbedding.h
+    ${AIPDF_REPO_ROOT}/src/ai/chat/EmbeddingProvider.h
     ${AIPDF_REPO_ROOT}/src/doc/CitationVerifier.cpp
     ${AIPDF_REPO_ROOT}/src/doc/CitationVerifier.h
     ${AIPDF_REPO_ROOT}/src/doc/ChunkBuilder.cpp

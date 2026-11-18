@@ -11,10 +11,10 @@
 #include <QUrl>
 #include <QVariant>
 
-#include "ai/AiImageGeneration.h"
-#include "ai/ChatTypes.h"
-#include "ai/CredentialStore.h"
-#include "ai/ProviderConfig.h"
+#include "ai/content/AiImageGeneration.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/settings/CredentialStore.h"
+#include "ai/settings/ProviderConfig.h"
 #include "i18n/Translate.h"
 #include "ipc/WorkerClient.h"
 

@@ -1,7 +1,7 @@
-#include "ai/ProviderConfig.h"
+#include "ai/settings/ProviderConfig.h"
 
-#include "ai/CredentialStore.h"
-#include "ai/ProviderPreset.h"
+#include "ai/settings/CredentialStore.h"
+#include "ai/settings/ProviderPreset.h"
 
 #include "i18n/Translate.h"
 

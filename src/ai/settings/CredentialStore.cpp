@@ -1,4 +1,4 @@
-#include "ai/CredentialStore.h"
+#include "ai/settings/CredentialStore.h"
 
 #include "i18n/Translate.h"
 

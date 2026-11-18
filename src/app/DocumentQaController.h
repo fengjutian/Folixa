@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ai/ChatTypes.h"
-#include "ai/EmbeddingProvider.h"
+#include "ai/chat/ChatTypes.h"
+#include "ai/chat/EmbeddingProvider.h"
 #include "doc/CitationVerifier.h"
 #include "doc/HybridRetriever.h"
 #include "doc/LocalIndex.h"

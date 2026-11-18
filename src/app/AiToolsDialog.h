@@ -4,9 +4,9 @@
 #include <QString>
 #include <QVector>
 
-#include "ai/AiContentDetection.h"
-#include "ai/AiImageGeneration.h"
-#include "ai/PptGeneration.h"
+#include "ai/content/AiContentDetection.h"
+#include "ai/content/AiImageGeneration.h"
+#include "ai/content/PptGeneration.h"
 
 class QComboBox;
 class QLabel;
