@@ -5,7 +5,7 @@
 //   2) 重新写入是「替换」而不是「累加」，撤销能把批注删干净；
 //   3) 文档原有的链接注释既不会被当成批注，也不会被误删。
 
-#include "app/AnnotationController.h"
+#include "app/controllers/AnnotationController.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

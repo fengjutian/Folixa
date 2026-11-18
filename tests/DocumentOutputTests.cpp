@@ -8,7 +8,7 @@
 // 还有一条专门的：批注必须出现在导出的图里。它验证的其实是
 // documentForOutput() 那条路——先补 /AP 再重开，而不是直接画内存里的文档。
 
-#include "app/DocumentOutput.h"
+#include "app/controllers/DocumentOutput.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/document/IncrementalWriter.h"
 #include "pdf/kernel/PdfiumAdapter.h"

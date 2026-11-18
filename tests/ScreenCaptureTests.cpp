@@ -1,4 +1,4 @@
-#include "app/ScreenCapture.h"
+#include "app/controllers/ScreenCapture.h"
 
 #include <QImage>
 #include <QTest>

@@ -5,7 +5,7 @@
 //   2) 后退之后再做新动作，前进栈没截断，用户能"前进"到一个已经被改变的分支。
 // 这两条都在这里钉死。
 
-#include "app/NavigationHistory.h"
+#include "app/editor/NavigationHistory.h"
 
 #include <QTest>
 

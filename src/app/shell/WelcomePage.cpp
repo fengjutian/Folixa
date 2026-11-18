@@ -1,6 +1,6 @@
-#include "app/WelcomePage.h"
+#include "app/shell/WelcomePage.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 
 #include "i18n/Translate.h"
 

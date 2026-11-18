@@ -1,4 +1,4 @@
-#include "app/AiToolService.h"
+#include "app/controllers/AiToolService.h"
 
 #include <QEventLoop>
 #include <QJsonArray>

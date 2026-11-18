@@ -8,9 +8,9 @@
 // 只有自动化点按钮才暴露，而那一轮 CI 要跑十七分钟。
 //
 // 所以这条链路必须有本地就能跑的守卫。
-#include "app/AiPanel.h"
-#include "app/AiSettingsDialog.h"
-#include "app/UploadPreviewDialog.h"
+#include "app/panels/AiPanel.h"
+#include "app/dialogs/AiSettingsDialog.h"
+#include "app/dialogs/UploadPreviewDialog.h"
 #include "ai/settings/UploadPreview.h"
 
 #include <QAbstractButton>

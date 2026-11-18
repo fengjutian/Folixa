@@ -59,8 +59,8 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/PdfiumAdapter.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.h
-    ${AIPDF_CONVERSION_ROOT}/src/app/ConversionInputDialog.cpp
-    ${AIPDF_CONVERSION_ROOT}/src/app/ConversionInputDialog.h
+    ${AIPDF_CONVERSION_ROOT}/src/app/dialogs/ConversionInputDialog.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/app/dialogs/ConversionInputDialog.h
     ${AIPDF_CONVERSION_ROOT}/src/i18n/Translate.h
 )
 

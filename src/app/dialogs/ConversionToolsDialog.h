@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVector>
 
-#include "app/ConversionReports.h"
+#include "app/util/ConversionReports.h"
 #include "pdf/ops/OcrSuspicion.h"
 #include "pdf/convert/PortfolioWriter.h"
 #include "pdf/compliance/PreflightChecker.h"

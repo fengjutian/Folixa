@@ -1,11 +1,11 @@
 # 源码功能模块划分
 
 这份文档回答一个问题：`src/` 里按功能模块分目录行不行、怎么分、代价多大。
-结论先说：**行，而且已经落地了三个目录**——`src/pdf` 的 130 个文件拆成 9 个模块，
-`src/ai` 的 40 个文件拆成 5 个，`src/doc` 的 57 个拆成 8 个；引用改写量都是可枚举的
-（`pdf`：130 次移动、282 个文件、1213 行引用；`ai`：40 次移动、76 个文件、299 处；
-`doc`：57 次移动、119 个文件、458 处），三个都用同一个脚本
-`scripts/modularize-src.ps1 -Area <pdf|ai|doc>`。
+结论先说：**行，而且 src/ 下的四个大目录已经全部落地**——src/pdf 130 个文件拆成 9 个模块，
+src/ai 40 个拆成 5 个，src/doc 57 个拆成 8 个，src/app 163 个拆成 7 个。
+引用改写量都是可枚举的（pdf 130 次移动 / 282 个文件 / 1213 行引用；ai 40 / 76 / 299；
+doc 57 / 119 / 458；app 163 / 160 / 660），四个都走同一个脚本
+`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app>`。
 
 ## 现状
 
@@ -123,6 +123,51 @@ print   -> model   1
 也就是说 `edit`、`export`、`persist`、`batch` 内部是闭合的，改动不外溢；
 真正被共享的只有 `model/`（`BlankDocument` 与分块模型）。
 
+## `src/app` 的七个模块
+
+`app/` 是 UI 层，163 个源文件。它和前三层不同：没有"底层库"，只有一条自上而下的调用链
+加几个装配点。按角色分：
+
+| 模块 | 文件数 | 职责 | 主要文件 |
+| --- | ---: | --- | --- |
+| `shell/` | 9 | 入口、主窗口、Ribbon、欢迎页、动作装配 | `main`、`MainWindow`、`WiringActions`、`RibbonBar`、`WelcomePage` |
+| `ui/` | 14 | 主题、语言、阅读方案、模态遮罩、品牌标记、字体 | `Theme`、`Language`、`ReadingScheme`、`ModalScrim`、`SystemCjkFont` |
+| `editor/` | 38 | 渲染面与页面几何：视图、画布、布局、缓存、命中测试、手势 | `PdfView`、`PageCanvas`、`PageLayout`、`PageTransform`、`TextLayout`、`TileCache`、`RenderThread` |
+| `controllers/` | 36 | 功能控制器与后台桥 | `TextController`、`AnnotationController`、`NavigationController`、`IndexController`、`OcrController`、`LastWaveBridge` |
+| `panels/` | 12 | 常驻面板 | `SearchPanel`、`AiPanel`、`IndexPanel`、`AttachmentPanel`、`LastWavePanels` |
+| `dialogs/` | 42 | 对话框与向导 | `SettingsDialog`、`SignatureDialog`、`AccessibilityWizard`、`RegionPicker` |
+| `util/` | 12 | 无状态工具 | `BatchRename`、`SearchMatcher`、`ShareUtils`、`ConversionReports` |
+
+实测依赖（模块间 include 条数）：
+
+```
+shell       -> controllers 17   dialogs 16   ui 10   panels 6   editor 5   util 5
+editor      -> controllers 15   ui 10   dialogs 4   panels 1
+controllers -> editor 12   util 2   ui 1
+dialogs     -> ui 10   controllers 2   util 1
+panels      -> controllers 7   ui 5   dialogs 2   editor 1
+```
+
+和前三层不一样：**这里有一个四模块的强连通分量**（`controllers`、`dialogs`、`editor`、
+`panels`），只有 `shell`（顶）和 `ui`/`util`（底）是干净的。成环的边只有 7 类，
+都能定位到具体文件：
+
+| 反向边 | 条数 | 来源 | 拆法 |
+| --- | ---: | --- | --- |
+| `controllers` → `editor` | 12 | `OcrController`、`IndexController`、`NavigationController`、`AnnotationController`、`TextController` 直接 include `PdfView`/`PageCanvas`/`TextLayout` | 抽一个 `EditorSurface` 接口，控制器只依赖接口，`PdfView` 去实现 |
+| `editor` → `controllers` | 15 | `PdfView`/`PageCanvas` 直接持有 5 个控制器 | 同上；方向反过来后只剩"实现类依赖接口" |
+| `editor` → `dialogs` | 4 | `PdfView` 直接构造 `EncryptionDialog`/`HiddenDataDialog`/`ReadingOptionsDialog`/`StampNumberDialog` | 改由 `WiringActions` 注入，视图只发信号 |
+| `editor` → `panels` | 1 | `PdfView` 直接构造 `LastWavePanels` | 同上，交给 `shell` 装配 |
+| `panels` → `dialogs` | 2 | `AiPanel` 构造 `AiSettingsDialog`/`UploadPreviewDialog` | 面板只发信号，由 `shell` 弹对话框 |
+| `panels` → `editor` | 1 | `AiPanel` 用 `TextLayout` 算选区 | 改走 `TextController` 已暴露的接口 |
+| `dialogs` → `controllers` | 2 | `AiToolsDialog` 调 `AiToolService`、`RegionPicker` 调 `ScreenCapture` | 改成接口/回调注入 |
+
+这些拆完（都是局部改，不用动 163 个文件），app 也会变成 DAG：
+`shell` → {`editor`,`controllers`,`panels`,`dialogs`} → `ui`/`util`。
+
+在那之前，**拆目录仍然值得做**：它把"改一个对话框要在 163 个文件里翻"变成"只翻 `dialogs/`"，
+但物理目录不能替你消除耦合——这一点 `app/` 比前三个目录诚实。
+
 ## 落地分三步
 
 ### P0 逻辑模块（零风险）
@@ -133,7 +178,7 @@ print   -> model   1
 
 ### P1 物理拆目录（已完成，一次机械改动）
 
-`scripts/modularize-src.ps1 -Area <pdf|ai> -Apply` 做的就是这件事：
+`scripts/modularize-src.ps1 -Area <pdf|ai|doc|app> -Apply` 做的就是这件事：
 
 1. 按划分表把文件 `git mv` 到 `src/<area>/<模块>/`（`git mv` 保留历史）；
 2. 把全仓库的 `<area>/Xxx.h` / `<area>/Xxx.cpp` 引用改成 `<area>/<模块>/Xxx.h`，
@@ -142,13 +187,14 @@ print   -> model   1
 4. 自检：每个 `<area>/<模块>/<文件>` 引用都能解析到真实文件，且没有残留的
    未加模块段的 `<area>/<文件>` 引用。
 
-三个目录都已执行完，并各跑过一次全量构建与 `ctest`：
+四个目录都已执行完，并各跑过一次全量构建与 `ctest`：
 
 | 目录 | 移动 | 重写文件 | 引用行数 | 构建 | 测试 |
 | --- | ---: | ---: | ---: | --- | --- |
 | `src/pdf` | 130 | 282 | 1213 | 通过 | 149/150（唯一失败项与搬迁无关） |
 | `src/ai` | 40 | 76 | 299 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 | `src/doc` | 57 | 119 | 458 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
+| `src/app` | 163 | 160 | 660 | 通过 | 149/150（同一个 `PageAnnotsInjectorTests`） |
 
 因为都是纯路径替换，review 时可以只看 `git diff -M --stat` 和几个抽样文件；
 脚本本身也会核对"每一行改动都含目录名"，确保没有混进内容改动。

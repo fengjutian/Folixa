@@ -5,8 +5,8 @@
 #include <QStringList>
 #include <QVector>
 
-#include "app/AccessibilityPlan.h"
-#include "app/ReadingScheme.h"
+#include "app/ui/AccessibilityPlan.h"
+#include "app/ui/ReadingScheme.h"
 #include "speech/SpeechSettings.h"
 
 class QCheckBox;

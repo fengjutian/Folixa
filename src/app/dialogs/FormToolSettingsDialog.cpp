@@ -1,4 +1,4 @@
-#include "app/FormToolSettingsDialog.h"
+#include "app/dialogs/FormToolSettingsDialog.h"
 
 #include <QColorDialog>
 #include <QComboBox>

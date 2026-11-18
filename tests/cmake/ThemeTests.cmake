@@ -5,8 +5,8 @@
 
 qt_add_executable(ThemeTests
     ${CMAKE_CURRENT_LIST_DIR}/../ThemeTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.h
 )
 
 target_link_libraries(ThemeTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)

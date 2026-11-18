@@ -1,4 +1,4 @@
-#include "app/AnnotationToolboxDialog.h"
+#include "app/dialogs/AnnotationToolboxDialog.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>

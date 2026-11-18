@@ -1,7 +1,7 @@
-#include "app/SearchPanel.h"
+#include "app/panels/SearchPanel.h"
 
-#include "app/Language.h"
-#include "app/TextController.h"
+#include "app/ui/Language.h"
+#include "app/controllers/TextController.h"
 
 #include "i18n/Translate.h"
 

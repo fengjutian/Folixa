@@ -8,10 +8,10 @@
 //
 // 注意用 QTEST_MAIN 而不是 QTEST_GUILESS_MAIN：这里要建控件，
 // QTEST_GUILESS_MAIN 只建 QCoreApplication，建 QWidget 会 abort。
-#include "app/LastWaveBridge.h"
-#include "app/LastWavePanels.h"
-#include "app/RibbonBar.h"
-#include "app/SystemCjkFont.h"
+#include "app/controllers/LastWaveBridge.h"
+#include "app/panels/LastWavePanels.h"
+#include "app/shell/RibbonBar.h"
+#include "app/ui/SystemCjkFont.h"
 #include "ai/rag/OfflineQa.h"
 #include "doc/model/BlankDocument.h"
 #include "doc/model/DocumentChunk.h"

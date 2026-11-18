@@ -1,6 +1,6 @@
-#include "app/ViewModes.h"
+#include "app/editor/ViewModes.h"
 
-#include "app/PageTextLines.h"
+#include "app/editor/PageTextLines.h"
 
 #include <algorithm>
 #include <cmath>

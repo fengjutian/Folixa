@@ -1,4 +1,4 @@
-#include "app/BlankPageDetector.h"
+#include "app/util/BlankPageDetector.h"
 
 namespace aipdf::app {
 

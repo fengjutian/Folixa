@@ -1,4 +1,4 @@
-﻿#include "app/ZoomMemory.h"
+﻿#include "app/editor/ZoomMemory.h"
 
 #include <QDir>
 #include <QFileInfo>

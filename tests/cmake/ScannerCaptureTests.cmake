@@ -21,8 +21,8 @@ qt_add_executable(ScannerCaptureTests
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.h
     # ---- 被测的应用层（WIA 后端 + 帧源接口）----
-    ${AIPDF_REPO_ROOT}/src/app/ScannerCapture.cpp
-    ${AIPDF_REPO_ROOT}/src/app/ScannerCapture.h
+    ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.cpp
+    ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.h
     # ---- 读回验证用的 PDFium 适配层与它的依赖 ----
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h

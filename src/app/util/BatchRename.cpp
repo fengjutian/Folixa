@@ -1,4 +1,4 @@
-#include "app/BatchRename.h"
+#include "app/util/BatchRename.h"
 
 #include <QDir>
 #include <QFile>

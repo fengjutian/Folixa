@@ -18,7 +18,7 @@ class AiPanel;
 class AiToolService;
 class OcrController;
 class PdfView;
-// 转换结果（定义在 app/ConversionInputDialog.h）。
+// 转换结果（定义在 app/dialogs/ConversionInputDialog.h）。
 // 这里只前置声明：WiringActions.h 不需要知道结果的细节。
 struct ConversionInputOutcome;
 

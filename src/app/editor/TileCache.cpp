@@ -1,4 +1,4 @@
-#include "app/TileCache.h"
+#include "app/editor/TileCache.h"
 
 #include <QtGlobal>
 

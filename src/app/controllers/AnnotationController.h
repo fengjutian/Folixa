@@ -8,11 +8,11 @@
 #include <QString>
 #include <QVector>
 
-#include "app/PageTransform.h"
+#include "app/editor/PageTransform.h"
 #include "doc/edit/AnnotationModel.h"
 #include "doc/edit/EditContext.h"
 #include "doc/edit/UndoStack.h"
-#include "app/MeasureGeometry.h"
+#include "app/editor/MeasureGeometry.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

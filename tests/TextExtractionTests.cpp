@@ -1,6 +1,6 @@
 #include "pdf/kernel/PdfiumAdapter.h"
 
-#include "app/PageTransform.h"
+#include "app/editor/PageTransform.h"
 
 #include <QFile>
 #include <QImage>

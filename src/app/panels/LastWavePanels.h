@@ -7,7 +7,7 @@
 #include <QStringList>
 #include <QVector>
 
-#include "app/LastWaveBridge.h"
+#include "app/controllers/LastWaveBridge.h"
 #include "doc/batch/ActionWizard.h"
 #include "doc/convert/InvoiceLayout.h"
 #include "doc/convert/UniversalConverter.h"

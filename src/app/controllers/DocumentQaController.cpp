@@ -1,7 +1,7 @@
-#include "app/DocumentQaController.h"
+#include "app/controllers/DocumentQaController.h"
 
 #include "ai/rag/LocalHashEmbedding.h"
-#include "app/IndexController.h"
+#include "app/controllers/IndexController.h"
 #include "doc/model/DocumentChunk.h"
 
 #include "i18n/Translate.h"

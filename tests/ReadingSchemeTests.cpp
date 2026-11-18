@@ -3,7 +3,7 @@
 // 为什么单独一个文件：这一层只管「配色方案的取值与持久化」，
 // 不碰文档也不碰渲染，测试要快、要稳。
 
-#include "app/ReadingScheme.h"
+#include "app/ui/ReadingScheme.h"
 
 #include <QApplication>
 #include <QPalette>

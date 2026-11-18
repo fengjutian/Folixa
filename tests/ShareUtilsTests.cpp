@@ -1,4 +1,4 @@
-#include "app/ShareUtils.h"
+#include "app/util/ShareUtils.h"
 
 #include <QDir>
 #include <QTemporaryDir>

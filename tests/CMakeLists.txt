@@ -38,8 +38,8 @@ add_test(NAME ContentEditingTests COMMAND ContentEditingTests)
 
 qt_add_executable(ShareUtilsTests
     ShareUtilsTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ShareUtils.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ShareUtils.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/ShareUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/ShareUtils.h
 )
 target_link_libraries(ShareUtilsTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(ShareUtilsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -49,8 +49,8 @@ add_test(NAME ShareUtilsTests COMMAND ShareUtilsTests)
 
 qt_add_executable(BatchRenameTests
     BatchRenameTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BatchRename.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BatchRename.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/BatchRename.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/BatchRename.h
 )
 target_link_libraries(BatchRenameTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(BatchRenameTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -60,8 +60,8 @@ add_test(NAME BatchRenameTests COMMAND BatchRenameTests)
 
 qt_add_executable(DocumentConverterTests
     DocumentConverterTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentConverter.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentConverter.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentConverter.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentConverter.h
 )
 target_link_libraries(DocumentConverterTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(DocumentConverterTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -71,8 +71,8 @@ add_test(NAME DocumentConverterTests COMMAND DocumentConverterTests)
 
 qt_add_executable(DigitalSignatureBackendTests
     DigitalSignatureBackendTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DigitalSignatureBackend.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DigitalSignatureBackend.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DigitalSignatureBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DigitalSignatureBackend.h
 )
 target_link_libraries(DigitalSignatureBackendTests PRIVATE Qt6::Core Qt6::Test)
 target_include_directories(DigitalSignatureBackendTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -86,8 +86,8 @@ add_test(NAME DigitalSignatureBackendTests COMMAND DigitalSignatureBackendTests)
 
 qt_add_executable(I18nTests
     I18nTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 
@@ -122,12 +122,12 @@ set_tests_properties(I18nCoverageTests PROPERTIES
 # 窗口级：真建一个控件、切语言、看文字有没有就地变（不重建窗口）。
 qt_add_executable(I18nWidgetTests
     I18nWidgetTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/WelcomePage.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/WelcomePage.h
-    ${CMAKE_SOURCE_DIR}/src/app/BrandMark.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BrandMark.h
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/app/shell/WelcomePage.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/shell/WelcomePage.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/BrandMark.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/BrandMark.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 
@@ -155,10 +155,10 @@ add_test(NAME I18nWidgetTests COMMAND I18nWidgetTests)
 # 加密对话框：只建控件、改状态、读回参数，不碰文档与 PDFium。
 qt_add_executable(EncryptionDialogTests
     EncryptionDialogTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/EncryptionDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/EncryptionDialog.h
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/EncryptionDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/EncryptionDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 target_link_libraries(EncryptionDialogTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
@@ -175,10 +175,10 @@ add_test(NAME EncryptionDialogTests COMMAND EncryptionDialogTests)
 # Ribbon 中央布局：固定 96 高度、标签条可见、窗口不被撑宽。
 qt_add_executable(RibbonLayoutTests
     RibbonLayoutTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.h
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
+    ${CMAKE_SOURCE_DIR}/src/app/shell/RibbonBar.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/shell/RibbonBar.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.h
 )
 target_link_libraries(RibbonLayoutTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
 target_include_directories(RibbonLayoutTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -314,10 +314,10 @@ endif()
 
 qt_add_executable(PdfViewportTests
     PdfViewportTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageLayout.h
-    ${CMAKE_SOURCE_DIR}/src/app/TileCache.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TileCache.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TileCache.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TileCache.h
 )
 
 target_link_libraries(PdfViewportTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -331,10 +331,10 @@ add_test(NAME PdfViewportTests COMMAND PdfViewportTests)
 
 qt_add_executable(TextSelectionTests
     TextSelectionTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.h
 )
 
 target_link_libraries(TextSelectionTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -348,8 +348,8 @@ add_test(NAME TextSelectionTests COMMAND TextSelectionTests)
 # 这里逐条钉死，界面层只负责接线。
 qt_add_executable(MouseShortcutsTests
     MouseShortcutsTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MouseShortcuts.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MouseShortcuts.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MouseShortcuts.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MouseShortcuts.h
 )
 
 target_link_libraries(MouseShortcutsTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -367,8 +367,8 @@ qt_add_executable(TextExtractionTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
 )
 
 target_link_libraries(TextExtractionTests PRIVATE
@@ -394,10 +394,10 @@ add_test(NAME TextExtractionTests COMMAND TextExtractionTests)
 
 qt_add_executable(NavigationTests
     NavigationTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/LinkHitTest.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/LinkHitTest.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/LinkHitTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/LinkHitTest.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
 )
@@ -478,15 +478,15 @@ qt_add_executable(PdfAnnotationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
@@ -669,8 +669,8 @@ add_test(NAME PageAnnotsInjectorTests COMMAND PageAnnotsInjectorTests)
 
 qt_add_executable(AudioRecorderTests
     AudioRecorderTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AudioRecorder.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AudioRecorder.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AudioRecorder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AudioRecorder.h
 )
 
 target_link_libraries(AudioRecorderTests PRIVATE Qt6::Core Qt6::Test winmm)
@@ -775,8 +775,8 @@ add_test(NAME AnnotationSummaryTests COMMAND AnnotationSummaryTests)
 
 qt_add_executable(MeasureGeometryTests
     MeasureGeometryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MeasureGeometry.h
 )
 
 target_link_libraries(MeasureGeometryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -826,8 +826,8 @@ add_test(NAME AnnotationDictionaryTests COMMAND AnnotationDictionaryTests)
 
 qt_add_executable(InkGeometryTests
     InkGeometryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/InkGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/InkGeometry.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/InkGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/InkGeometry.h
 )
 
 target_link_libraries(InkGeometryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -841,8 +841,8 @@ add_test(NAME InkGeometryTests COMMAND InkGeometryTests)
 
 qt_add_executable(ZoomMemoryTests
     ZoomMemoryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ZoomMemory.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ZoomMemory.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ZoomMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ZoomMemory.h
 )
 
 target_link_libraries(ZoomMemoryTests PRIVATE Qt6::Core Qt6::Test)
@@ -856,8 +856,8 @@ add_test(NAME ZoomMemoryTests COMMAND ZoomMemoryTests)
 
 qt_add_executable(ViewFitTests
     ViewFitTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ViewFit.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ViewFit.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ViewFit.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ViewFit.h
 )
 
 target_link_libraries(ViewFitTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -871,8 +871,8 @@ add_test(NAME ViewFitTests COMMAND ViewFitTests)
 
 qt_add_executable(NavigationHistoryTests
     NavigationHistoryTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/NavigationHistory.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/NavigationHistory.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/NavigationHistory.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/NavigationHistory.h
 )
 
 target_link_libraries(NavigationHistoryTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -886,8 +886,8 @@ add_test(NAME NavigationHistoryTests COMMAND NavigationHistoryTests)
 
 qt_add_executable(SearchMatcherTests
     SearchMatcherTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/SearchMatcher.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/SearchMatcher.h
 )
 
 target_link_libraries(SearchMatcherTests PRIVATE Qt6::Core Qt6::Test)
@@ -901,8 +901,8 @@ add_test(NAME SearchMatcherTests COMMAND SearchMatcherTests)
 
 qt_add_executable(DocumentOutputTests
     DocumentOutputTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentOutput.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentOutput.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentOutput.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.h
@@ -970,10 +970,10 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TableStructure.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TableIntegration.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
@@ -985,8 +985,8 @@ qt_add_executable(PageEditingTests
     ${CMAKE_SOURCE_DIR}/src/doc/edit/UndoStack.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormFieldWriter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/BarcodeEncoder.cpp
@@ -1118,15 +1118,15 @@ qt_add_executable(PageOperationTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/SoundFormat.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/PageAnnotsInjector.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/MeasureGeometry.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationController.h
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PdfPageOperations.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/MeasureGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/AnnotationController.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PdfPageOperations.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/edit/AnnotationModel.h
     ${CMAKE_SOURCE_DIR}/src/doc/edit/EditCommand.cpp
@@ -1202,14 +1202,14 @@ qt_add_executable(PdfIndexTests
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
-    ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/IndexController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/model/ChunkBuilder.h
     ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
@@ -1239,10 +1239,10 @@ add_test(NAME PdfIndexTests COMMAND PdfIndexTests)
 # ---------------------------------------------------------- 渲染线程收工 ----
 qt_add_executable(RenderThreadTests
     RenderThreadTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RenderThread.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RenderThread.h
-    ${CMAKE_SOURCE_DIR}/src/app/TileCache.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TileCache.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/RenderThread.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/RenderThread.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TileCache.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TileCache.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp
@@ -1339,33 +1339,33 @@ add_test(NAME DocumentQaTests COMMAND DocumentQaTests)
 
 qt_add_executable(AiPanelTests
     AiPanelTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AiPanel.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.h
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
-    ${CMAKE_SOURCE_DIR}/src/app/AiPanel.h
-    ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/UploadPreviewDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/panels/AiPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ModalScrim.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ModalScrim.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.h
+    ${CMAKE_SOURCE_DIR}/src/app/panels/AiPanel.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AiSettingsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/UploadPreviewDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/UploadPreviewDialog.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/settings/UploadPreview.h
-    ${CMAKE_SOURCE_DIR}/src/app/AiSettingsDialog.h
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/DocumentQaController.h
-    ${CMAKE_SOURCE_DIR}/src/app/IndexController.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/IndexController.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageChunkBuilder.h
-    ${CMAKE_SOURCE_DIR}/src/app/TextController.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TextController.h
-    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/SearchMatcher.h
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/TextLayout.h
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PageTransform.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AiSettingsDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentQaController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/DocumentQaController.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/IndexController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/IndexController.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageChunkBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageChunkBuilder.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/TextController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/TextController.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/SearchMatcher.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/SearchMatcher.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/TextLayout.h
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/PageTransform.h
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.cpp
     ${CMAKE_SOURCE_DIR}/src/ai/chat/ChatTypes.h
     ${CMAKE_SOURCE_DIR}/src/ai/settings/CredentialStore.cpp
@@ -1628,13 +1628,13 @@ add_test(NAME ToolRegistryTests COMMAND ToolRegistryTests)
 
 qt_add_executable(ProposalRunnerTests
     ProposalRunnerTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ProposalRunner.h
-    ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/EditProposalDialog.h
-    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/ProposalRunner.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/ProposalRunner.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/EditProposalDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/EditProposalDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.h
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.h
     ${CMAKE_SOURCE_DIR}/src/tools/ToolRegistry.cpp
@@ -1670,8 +1670,8 @@ qt_add_executable(PerfTests
     ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/index/LocalIndex.h
     ${CMAKE_SOURCE_DIR}/src/doc/model/DocumentChunk.h
-    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BlankPageDetector.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/BlankPageDetector.h
     ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.cpp
     ${CMAKE_SOURCE_DIR}/src/ocr/ImagePreprocess.h
     ${CMAKE_SOURCE_DIR}/src/tools/ProposalValidator.cpp

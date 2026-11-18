@@ -1,4 +1,4 @@
-#include "app/RenderThread.h"
+#include "app/editor/RenderThread.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
 #include <QDir>

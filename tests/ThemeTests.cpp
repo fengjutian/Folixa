@@ -6,7 +6,7 @@
 // 3. 两套主题下正文与主色按钮的对比度都要够（WCAG AA：4.5:1）。
 // 4. 主题模式能存能读，未知值回落到浅色；切主题会真的换掉调色板。
 
-#include "app/Theme.h"
+#include "app/ui/Theme.h"
 
 #include <QApplication>
 #include <QDir>

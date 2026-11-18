@@ -1,7 +1,7 @@
-#include "app/TextController.h"
+#include "app/controllers/TextController.h"
 
-#include "app/SearchMatcher.h"
-#include "app/TraceText.h"
+#include "app/util/SearchMatcher.h"
+#include "app/ui/TraceText.h"
 
 #include <QDateTime>
 #include <QFile>

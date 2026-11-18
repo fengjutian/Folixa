@@ -3,7 +3,7 @@
 #include <QString>
 #include <QStringList>
 
-#include "app/ReadingScheme.h"
+#include "app/ui/ReadingScheme.h"
 #include "speech/SpeechSettings.h"
 
 namespace aipdf::app {

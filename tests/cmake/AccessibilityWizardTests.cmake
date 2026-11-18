@@ -9,11 +9,11 @@
 
 qt_add_executable(AccessibilityWizardTests
     ${CMAKE_CURRENT_LIST_DIR}/../AccessibilityWizardTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AccessibilityWizard.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AccessibilityWizard.h
-    ${CMAKE_SOURCE_DIR}/src/app/AccessibilityPlan.h
-    ${CMAKE_SOURCE_DIR}/src/app/ReadingScheme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ReadingScheme.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AccessibilityWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AccessibilityWizard.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/AccessibilityPlan.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ReadingScheme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ReadingScheme.h
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechEngine.cpp
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechEngine.h
     ${CMAKE_SOURCE_DIR}/src/speech/SpeechSettings.cpp

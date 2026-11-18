@@ -1,4 +1,4 @@
-#include "app/ConversionToolsDialog.h"
+#include "app/dialogs/ConversionToolsDialog.h"
 
 #include <QDialogButtonBox>
 #include <QFile>

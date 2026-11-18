@@ -1,4 +1,4 @@
-#include "app/MouseShortcuts.h"
+#include "app/editor/MouseShortcuts.h"
 
 #include <algorithm>
 #include <cmath>

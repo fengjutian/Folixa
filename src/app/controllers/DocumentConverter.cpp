@@ -1,4 +1,4 @@
-#include "app/DocumentConverter.h"
+#include "app/controllers/DocumentConverter.h"
 
 #include <QDir>
 #include <QFileInfo>

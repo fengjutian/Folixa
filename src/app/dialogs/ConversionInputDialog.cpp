@@ -1,4 +1,4 @@
-#include "app/ConversionInputDialog.h"
+#include "app/dialogs/ConversionInputDialog.h"
 
 #include <QBuffer>
 #include <QClipboard>
@@ -31,7 +31,7 @@
 #include <memory>
 #include <utility>
 
-#include "app/SystemCjkFont.h"
+#include "app/ui/SystemCjkFont.h"
 #include "doc/convert/ConversionInputs.h"
 #include "i18n/Translate.h"
 
@@ -150,7 +150,7 @@ bool needsEmbeddedFont(const QString& text) {
 
 // 在用户机器上找一份能显示中文的 TrueType 字体。
 //
-// 找法与理由写在 app/SystemCjkFont.h 里（剪贴板、网页、任意文件 → PDF
+// 找法与理由写在 app/ui/SystemCjkFont.h 里（剪贴板、网页、任意文件 → PDF
 // 三条路共用同一份，免得各写各的、找出不一样的字体）。
 using aipdf::app::loadSystemCjkFont;
 

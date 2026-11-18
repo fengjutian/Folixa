@@ -1,6 +1,6 @@
-#include "app/EncryptionDialog.h"
+#include "app/dialogs/EncryptionDialog.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>

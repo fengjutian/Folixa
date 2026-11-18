@@ -1,4 +1,4 @@
-#include "app/PageTextLines.h"
+#include "app/editor/PageTextLines.h"
 
 #include <algorithm>
 

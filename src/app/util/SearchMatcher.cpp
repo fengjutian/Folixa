@@ -1,4 +1,4 @@
-﻿#include "app/SearchMatcher.h"
+﻿#include "app/util/SearchMatcher.h"
 
 #include <QChar>
 #include <QRegularExpression>

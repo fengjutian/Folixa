@@ -1,4 +1,4 @@
-#include "app/ProposalRunner.h"
+#include "app/controllers/ProposalRunner.h"
 
 #include "doc/edit/PageCommand.h"
 #include "doc/edit/UndoStack.h"

@@ -22,8 +22,8 @@ get_filename_component(AIPDF_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUT
 qt_add_executable(OneNoteExporterTests
     ${CMAKE_CURRENT_LIST_DIR}/../OneNoteExporterTests.cpp
     # ---- 被测的应用层 ----
-    ${AIPDF_REPO_ROOT}/src/app/OneNoteExporter.cpp
-    ${AIPDF_REPO_ROOT}/src/app/OneNoteExporter.h
+    ${AIPDF_REPO_ROOT}/src/app/controllers/OneNoteExporter.cpp
+    ${AIPDF_REPO_ROOT}/src/app/controllers/OneNoteExporter.h
     ${AIPDF_REPO_ROOT}/src/i18n/Translate.h
 )
 

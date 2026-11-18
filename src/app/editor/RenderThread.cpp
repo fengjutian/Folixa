@@ -1,6 +1,6 @@
-#include "app/RenderThread.h"
+#include "app/editor/RenderThread.h"
 
-#include "app/TileCache.h"
+#include "app/editor/TileCache.h"
 
 #include <QMutexLocker>
 

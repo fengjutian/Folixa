@@ -1,4 +1,4 @@
-#include "app/AccessibilityWizard.h"
+#include "app/dialogs/AccessibilityWizard.h"
 
 #include <QApplication>
 #include <QCheckBox>

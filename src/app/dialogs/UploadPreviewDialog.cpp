@@ -1,6 +1,6 @@
-#include "app/UploadPreviewDialog.h"
+#include "app/dialogs/UploadPreviewDialog.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 #include "i18n/Translate.h"
 
 #include <QDialogButtonBox>

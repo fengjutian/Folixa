@@ -1,4 +1,4 @@
-#include "app/LastWaveBridge.h"
+#include "app/controllers/LastWaveBridge.h"
 
 #include "i18n/Translate.h"
 

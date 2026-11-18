@@ -1,4 +1,4 @@
-#include "app/PrintToolsDialog.h"
+#include "app/dialogs/PrintToolsDialog.h"
 
 #include <QCheckBox>
 #include <QComboBox>

@@ -1,4 +1,4 @@
-#include "app/DigitalSignatureBackend.h"
+#include "app/controllers/DigitalSignatureBackend.h"
 
 #include <QFile>
 #include <QCoreApplication>

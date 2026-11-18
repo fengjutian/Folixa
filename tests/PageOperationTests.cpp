@@ -8,8 +8,8 @@
 // 这些都要真 PDFium：页面结构是 PDFium 文档的一部分，
 // 单元测试里不碰界面。
 
-#include "app/AnnotationController.h"
-#include "app/PdfPageOperations.h"
+#include "app/controllers/AnnotationController.h"
+#include "app/editor/PdfPageOperations.h"
 #include "doc/edit/EditCommand.h"
 #include "doc/edit/PageCommand.h"
 #include "doc/persist/SafeSave.h"

@@ -1,4 +1,4 @@
-#include "app/PdfAPreflightPanel.h"
+#include "app/panels/PdfAPreflightPanel.h"
 
 #include "i18n/Translate.h"
 

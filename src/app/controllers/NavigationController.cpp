@@ -1,6 +1,6 @@
-#include "app/NavigationController.h"
+#include "app/controllers/NavigationController.h"
 
-#include "app/LinkHitTest.h"
+#include "app/editor/LinkHitTest.h"
 
 #include <QDateTime>
 #include <QFile>

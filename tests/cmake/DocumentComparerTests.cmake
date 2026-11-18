@@ -27,10 +27,10 @@ qt_add_executable(DocumentComparerTests
     ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
-    ${AIPDF_REPO_ROOT}/src/app/DocumentCompareDialog.cpp
-    ${AIPDF_REPO_ROOT}/src/app/DocumentCompareDialog.h
-    ${AIPDF_REPO_ROOT}/src/app/Language.cpp
-    ${AIPDF_REPO_ROOT}/src/app/Language.h
+    ${AIPDF_REPO_ROOT}/src/app/dialogs/DocumentCompareDialog.cpp
+    ${AIPDF_REPO_ROOT}/src/app/dialogs/DocumentCompareDialog.h
+    ${AIPDF_REPO_ROOT}/src/app/ui/Language.cpp
+    ${AIPDF_REPO_ROOT}/src/app/ui/Language.h
     ${AIPDF_REPO_ROOT}/src/i18n/Translate.h
 )
 

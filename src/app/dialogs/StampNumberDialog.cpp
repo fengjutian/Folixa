@@ -1,4 +1,4 @@
-#include "app/StampNumberDialog.h"
+#include "app/dialogs/StampNumberDialog.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>

@@ -5,7 +5,7 @@
 #include <QPointer>
 
 #include "i18n/Translate.h"
-#include "app/DocumentConverter.h"
+#include "app/controllers/DocumentConverter.h"
 #include "pdf/document/Navigation.h"
 
 class QAction;

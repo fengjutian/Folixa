@@ -1,4 +1,4 @@
-#include "app/LastWavePanels.h"
+#include "app/panels/LastWavePanels.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -23,7 +23,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
-#include "app/SystemCjkFont.h"
+#include "app/ui/SystemCjkFont.h"
 #include "i18n/Translate.h"
 #include "pdf/content/ParagraphFormat.h"
 
@@ -494,7 +494,7 @@ bool UniversalConvertDialog::convert(QString* error) {
         //
         // 为什么不能就这么用标准 14 字体：它没有中文字形，中文会变成问号——
         // 那是**静默丢字**：文件看着排好了，内容却没了。剪贴板与网页那两条路
-        // 早就是这么做的（见 app/SystemCjkFont.h），这条路也得一样，
+        // 早就是这么做的（见 app/ui/SystemCjkFont.h），这条路也得一样，
         // 否则同一个中文文件，从剪贴板转不丢字、从文件转却丢字。
         QString usedSystemFont;
         if (loadSystemCjkFont(&options.regularFont, &usedSystemFont)) {

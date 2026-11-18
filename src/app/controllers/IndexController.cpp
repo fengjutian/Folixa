@@ -1,10 +1,10 @@
-#include "app/IndexController.h"
+#include "app/controllers/IndexController.h"
 
 #include <QCryptographicHash>
 
-#include "app/PageChunkBuilder.h"
-#include "app/PageTransform.h"
-#include "app/TextLayout.h"
+#include "app/editor/PageChunkBuilder.h"
+#include "app/editor/PageTransform.h"
+#include "app/editor/TextLayout.h"
 #include "doc/model/ChunkBuilder.h"
 #include "doc/index/LocalIndex.h"
 #include "pdf/document/Navigation.h"

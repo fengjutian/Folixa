@@ -8,9 +8,9 @@
 #include <QString>
 #include <QVector>
 
-#include "app/PageTransform.h"
-#include "app/SearchMatcher.h"
-#include "app/TextLayout.h"
+#include "app/editor/PageTransform.h"
+#include "app/util/SearchMatcher.h"
+#include "app/editor/TextLayout.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
 #include <memory>

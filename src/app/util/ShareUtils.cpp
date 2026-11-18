@@ -1,4 +1,4 @@
-#include "app/ShareUtils.h"
+#include "app/util/ShareUtils.h"
 
 #include <QFileInfo>
 #include <QUrlQuery>

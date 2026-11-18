@@ -1,4 +1,4 @@
-#include "app/FormDesignAssistantDialog.h"
+#include "app/dialogs/FormDesignAssistantDialog.h"
 
 #include "ipc/WorkerClient.h"
 

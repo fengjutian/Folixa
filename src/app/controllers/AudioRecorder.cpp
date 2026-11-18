@@ -1,4 +1,4 @@
-#include "app/AudioRecorder.h"
+#include "app/controllers/AudioRecorder.h"
 
 #include <QVector>
 #include <QMutex>

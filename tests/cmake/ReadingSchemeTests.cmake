@@ -5,8 +5,8 @@
 
 qt_add_executable(ReadingSchemeTests
     ${CMAKE_CURRENT_LIST_DIR}/../ReadingSchemeTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ReadingScheme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ReadingScheme.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ReadingScheme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ReadingScheme.h
 )
 
 target_link_libraries(ReadingSchemeTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)

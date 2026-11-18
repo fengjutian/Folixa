@@ -8,8 +8,8 @@
 
 qt_add_executable(BookmarkTreePanelTests
     ${CMAKE_CURRENT_LIST_DIR}/../BookmarkTreePanelTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BookmarkTreeDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/BookmarkTreeDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/BookmarkTreeDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/BookmarkTreeDialog.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OutlineEditor.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/Navigation.cpp

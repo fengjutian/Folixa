@@ -1,7 +1,7 @@
 ﻿#include <QtTest>
 
-#include "app/PageLayout.h"
-#include "app/TileCache.h"
+#include "app/editor/PageLayout.h"
+#include "app/editor/TileCache.h"
 
 using namespace aipdf::app;
 

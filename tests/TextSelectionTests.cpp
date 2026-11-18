@@ -1,5 +1,5 @@
-#include "app/PageTransform.h"
-#include "app/TextLayout.h"
+#include "app/editor/PageTransform.h"
+#include "app/editor/TextLayout.h"
 
 #include <QTest>
 

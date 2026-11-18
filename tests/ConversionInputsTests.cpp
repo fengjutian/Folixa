@@ -12,7 +12,7 @@
 // 为什么自己合成 TrueType 字体：让「嵌入中文字体」这条路径有个不依赖本机
 // 字体文件的确定性测试（合成字体只含 .notdef、空格、A、B、中五个字形）。
 
-#include "app/ConversionInputDialog.h"
+#include "app/dialogs/ConversionInputDialog.h"
 #include "doc/convert/ConversionInputs.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 

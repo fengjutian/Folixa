@@ -1,4 +1,4 @@
-#include "app/FormScriptDialog.h"
+#include "app/dialogs/FormScriptDialog.h"
 
 #include "pdf/forms/FormJsEvaluator.h"
 

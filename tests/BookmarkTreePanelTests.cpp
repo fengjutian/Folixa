@@ -8,7 +8,7 @@
 // 为什么用 WA_DontShowOnScreen：控件照样参与布局计算（几何是真的），
 // 但不会在桌面上弹窗抢前台。
 
-#include "app/BookmarkTreeDialog.h"
+#include "app/dialogs/BookmarkTreeDialog.h"
 
 #include <QApplication>
 #include <QTreeWidget>

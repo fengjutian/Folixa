@@ -5,8 +5,8 @@
 
 qt_add_executable(ModalScrimTests
     ${CMAKE_CURRENT_LIST_DIR}/../ModalScrimTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ModalScrim.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ModalScrim.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/ModalScrim.h
 )
 
 target_link_libraries(ModalScrimTests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)

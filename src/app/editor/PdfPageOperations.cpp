@@ -1,4 +1,4 @@
-#include "app/PdfPageOperations.h"
+#include "app/editor/PdfPageOperations.h"
 
 #include <utility>
 

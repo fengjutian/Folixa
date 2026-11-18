@@ -3,7 +3,7 @@
 // 分块器与索引文件本身的纯逻辑在 DocumentIndexTests 里；
 // 这里测的是「真的打开一个 PDF、后台线程真的把块切出来」这条链路。
 
-#include "app/IndexController.h"
+#include "app/controllers/IndexController.h"
 #include "doc/model/ChunkBuilder.h"
 #include "doc/model/DocumentChunk.h"
 #include "doc/index/LocalIndex.h"

@@ -1,7 +1,7 @@
-#include "app/Language.h"
-#include "app/MainWindow.h"
-#include "app/PdfView.h"
-#include "app/Theme.h"
+#include "app/ui/Language.h"
+#include "app/shell/MainWindow.h"
+#include "app/editor/PdfView.h"
+#include "app/ui/Theme.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>

@@ -1,4 +1,4 @@
-#include "app/BookmarkTreeDialog.h"
+#include "app/dialogs/BookmarkTreeDialog.h"
 
 #include "i18n/Translate.h"
 #include "pdf/ops/OutlineEditor.h"

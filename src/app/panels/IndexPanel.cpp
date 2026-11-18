@@ -1,7 +1,7 @@
-#include "app/IndexPanel.h"
+#include "app/panels/IndexPanel.h"
 
-#include "app/IndexController.h"
-#include "app/Language.h"
+#include "app/controllers/IndexController.h"
+#include "app/ui/Language.h"
 
 #include "i18n/Translate.h"
 

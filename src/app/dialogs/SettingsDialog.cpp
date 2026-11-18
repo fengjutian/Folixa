@@ -1,9 +1,9 @@
-#include "app/SettingsDialog.h"
+#include "app/dialogs/SettingsDialog.h"
 
 #include "ai/settings/ProviderConfig.h"
 #include "ai/settings/ProviderPreset.h"
-#include "app/Language.h"
-#include "app/Theme.h"
+#include "app/ui/Language.h"
+#include "app/ui/Theme.h"
 #include "i18n/Translate.h"
 
 #include <QApplication>

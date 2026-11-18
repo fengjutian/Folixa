@@ -1,4 +1,4 @@
-#include "app/NavigationHistory.h"
+#include "app/editor/NavigationHistory.h"
 
 #include <algorithm>
 

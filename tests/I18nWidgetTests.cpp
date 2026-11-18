@@ -12,8 +12,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include "app/Language.h"
-#include "app/WelcomePage.h"
+#include "app/ui/Language.h"
+#include "app/shell/WelcomePage.h"
 #include "i18n/Translate.h"
 
 namespace {

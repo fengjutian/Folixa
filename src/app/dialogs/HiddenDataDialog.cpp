@@ -1,4 +1,4 @@
-#include "app/HiddenDataDialog.h"
+#include "app/dialogs/HiddenDataDialog.h"
 
 #include "i18n/Translate.h"
 

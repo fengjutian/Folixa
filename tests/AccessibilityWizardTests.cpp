@@ -9,8 +9,8 @@
 //
 // 对话框只构造、不 show：不弹窗、不抢前台，控件的几何与取值照样能测。
 
-#include "app/AccessibilityPlan.h"
-#include "app/AccessibilityWizard.h"
+#include "app/ui/AccessibilityPlan.h"
+#include "app/dialogs/AccessibilityWizard.h"
 
 #include <QCheckBox>
 #include <QComboBox>

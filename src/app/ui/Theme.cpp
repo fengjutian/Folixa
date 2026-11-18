@@ -1,4 +1,4 @@
-#include "app/Theme.h"
+#include "app/ui/Theme.h"
 
 #include <QApplication>
 #include <QFont>

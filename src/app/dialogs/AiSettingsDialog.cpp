@@ -1,6 +1,6 @@
-#include "app/AiSettingsDialog.h"
+#include "app/dialogs/AiSettingsDialog.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 #include "ai/settings/ProviderConfig.h"
 #include "ai/settings/ProviderPreset.h"
 #include "i18n/Translate.h"

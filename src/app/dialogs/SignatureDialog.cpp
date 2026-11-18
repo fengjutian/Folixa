@@ -1,4 +1,4 @@
-#include "app/SignatureDialog.h"
+#include "app/dialogs/SignatureDialog.h"
 
 #include <QBuffer>
 #include <QDialogButtonBox>

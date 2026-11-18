@@ -1,4 +1,4 @@
-﻿#include "app/ViewFit.h"
+﻿#include "app/editor/ViewFit.h"
 
 #include <algorithm>
 #include <cmath>

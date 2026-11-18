@@ -1,4 +1,4 @@
-#include "app/ReadingOptionsDialog.h"
+#include "app/dialogs/ReadingOptionsDialog.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>

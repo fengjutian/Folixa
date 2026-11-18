@@ -3,7 +3,7 @@
 // 这台机器上可能没有麦克风（CI 就没有），所以测试不强制"一定要录到音"：
 // 有设备时验证 WAV 头与数据，没有设备时验证**优雅失败**——不崩、给出原因。
 
-#include "app/AudioRecorder.h"
+#include "app/controllers/AudioRecorder.h"
 
 #include <QTest>
 

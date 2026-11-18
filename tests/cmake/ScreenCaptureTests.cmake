@@ -6,8 +6,8 @@ get_filename_component(AIPDF_SCREEN_CAPTURE_ROOT
 
 qt_add_executable(ScreenCaptureTests
     ${CMAKE_CURRENT_LIST_DIR}/../ScreenCaptureTests.cpp
-    ${AIPDF_SCREEN_CAPTURE_ROOT}/src/app/ScreenCapture.cpp
-    ${AIPDF_SCREEN_CAPTURE_ROOT}/src/app/ScreenCapture.h
+    ${AIPDF_SCREEN_CAPTURE_ROOT}/src/app/controllers/ScreenCapture.cpp
+    ${AIPDF_SCREEN_CAPTURE_ROOT}/src/app/controllers/ScreenCapture.h
 )
 
 target_link_libraries(ScreenCaptureTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

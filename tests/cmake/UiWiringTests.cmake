@@ -9,23 +9,23 @@
 #   - Ribbon 的无障碍名与助记符（纯 Widgets）；
 #   - 计算器与符号面板（只用 pdf/AnnotationToolkit）；
 #   - 印前检查 / 活页夹 / 疑似错误的分组与展示（只用结构体）。
-# 需要 PDFium 与 qpdf 的导出动作在 src/app/ConversionExports.cpp 里，
+# 需要 PDFium 与 qpdf 的导出动作在 src/app/util/ConversionExports.cpp 里，
 # 由主程序目标编译，不进这个测试目标。
 
 qt_add_executable(UiWiringTests
     ${CMAKE_CURRENT_LIST_DIR}/../UiWiringTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/RibbonBar.h
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Theme.h
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationToolboxDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/AnnotationToolboxDialog.h
-    ${CMAKE_SOURCE_DIR}/src/app/ConversionReports.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ConversionReports.h
-    ${CMAKE_SOURCE_DIR}/src/app/ConversionToolsDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/ConversionToolsDialog.h
-    ${CMAKE_SOURCE_DIR}/src/app/PrintToolsDialog.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/PrintToolsDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/shell/RibbonBar.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/shell/RibbonBar.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AnnotationToolboxDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/AnnotationToolboxDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/util/ConversionReports.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/util/ConversionReports.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/ConversionToolsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/ConversionToolsDialog.h
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/PrintToolsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/dialogs/PrintToolsDialog.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationToolkit.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationToolkit.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/OcrSuspicion.cpp

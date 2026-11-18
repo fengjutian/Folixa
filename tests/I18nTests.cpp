@@ -13,7 +13,7 @@
 #include <QTranslator>
 #include <QXmlStreamReader>
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 #include "i18n/Translate.h"
 
 namespace {
@@ -103,7 +103,7 @@ void I18nTests::parsesStandardCatalog() {
         <context>
             <name>aipdf::app::MainWindow</name>
             <message>
-                <location filename="../app/MainWindow.cpp" line="236"/>
+                <location filename="../app/shell/MainWindow.cpp" line="236"/>
                 <source>文件(&amp;F)</source>
                 <translation>File(&amp;F)</translation>
             </message>

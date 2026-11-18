@@ -1,9 +1,9 @@
-﻿#include "app/PresentationWindow.h"
+﻿#include "app/editor/PresentationWindow.h"
 
-#include "app/DocumentOutput.h"
-#include "app/Language.h"
-#include "app/PresentationLoop.h"
-#include "app/ViewFit.h"
+#include "app/controllers/DocumentOutput.h"
+#include "app/ui/Language.h"
+#include "app/controllers/PresentationLoop.h"
+#include "app/editor/ViewFit.h"
 #include "i18n/Translate.h"
 #include <QDateTime>
 #include <QFile>

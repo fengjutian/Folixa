@@ -1,6 +1,6 @@
-#include "app/EditProposalDialog.h"
+#include "app/dialogs/EditProposalDialog.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 #include "i18n/Translate.h"
 
 #include <QDialogButtonBox>

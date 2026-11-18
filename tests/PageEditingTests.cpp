@@ -7,8 +7,8 @@
 //
 // 全部用真 PDFium：页面几何与文本层都是 PDFium 文档的一部分，模拟不出来。
 
-#include "app/AnnotationController.h"
-#include "app/PdfPageOperations.h"
+#include "app/controllers/AnnotationController.h"
+#include "app/editor/PdfPageOperations.h"
 #include "pdf/forms/FormFieldWriter.h"
 #include "pdf/forms/FormScriptStore.h"
 #include "pdf/content/PageDecorations.h"

@@ -1,5 +1,5 @@
-﻿#include "app/RibbonBar.h"
-#include "app/Theme.h"
+﻿#include "app/shell/RibbonBar.h"
+#include "app/ui/Theme.h"
 
 #include <QHBoxLayout>
 #include <QLabel>

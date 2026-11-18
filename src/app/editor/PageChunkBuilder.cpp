@@ -1,7 +1,7 @@
-#include "app/PageChunkBuilder.h"
+#include "app/editor/PageChunkBuilder.h"
 
-#include "app/PageTransform.h"
-#include "app/TextLayout.h"
+#include "app/editor/PageTransform.h"
+#include "app/editor/TextLayout.h"
 #include "pdf/kernel/TextPage.h"
 
 #include <algorithm>

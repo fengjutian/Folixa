@@ -18,7 +18,7 @@
 # 记录本身照旧留着，需要验问询流程的脚本可以临时把这个变量摘掉。
 $env:AIPDF_SKIP_RECOVERY_PROMPT = '1'
 
-# 诊断轨迹默认把文档内容脱敏（见 src/app/TraceText.h）。验收要核对
+# 诊断轨迹默认把文档内容脱敏（见 src/app/ui/TraceText.h）。验收要核对
 # 「选中/复制/搜索到了什么」，所以这里显式打开原文开关。
 $env:AIPDF_TRACE_TEXT = '1'
 
@@ -26,7 +26,7 @@ $env:AIPDF_TRACE_TEXT = '1'
 #
 # 下面的断言全部按中文界面文案写的（「第 1 / 1 页」「缓存…待渲染」「整篇文档」）。
 # 默认「跟随系统」在英文 runner 上会变成英文，验收就整片红了——
-# 这里按环境变量固定语言，且不写进用户设置（见 src/app/Language.cpp）。
+# 这里按环境变量固定语言，且不写进用户设置（见 src/app/ui/Language.cpp）。
 $env:AIPDF_UI_LANGUAGE = 'zh_CN'
 
 function Get-AiPdfProcessWindows {

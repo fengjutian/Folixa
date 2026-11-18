@@ -11,7 +11,7 @@ namespace aipdf::pdf {
 // 为什么抽到 pdf 层：这些操作本来就是**纯数据操作**——
 // 输入一棵 std::vector<OutlineItem>，输出同一棵树的新形态，
 // 不碰控件、不碰文档句柄、不碰文件。
-// 之前它们整段埋在 app/MainWindow.cpp 的文件内静态 helper 里，代价有两个：
+// 之前它们整段埋在 app/shell/MainWindow.cpp 的文件内静态 helper 里，代价有两个：
 // 一是没法单测（改一行树逻辑就得把整个界面拉起来），
 // 二是 app 层替 pdf 层背了树算法，pdf 层自己反而没有这层能力。
 // 抽到这里之后，pdf 层能自己证明"层级编辑真的能写进 PDF"，

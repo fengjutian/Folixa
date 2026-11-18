@@ -1,6 +1,6 @@
 #include "pdf/ops/DocumentComparer.h"
 
-#include "app/DocumentCompareDialog.h"
+#include "app/dialogs/DocumentCompareDialog.h"
 
 #include <QCheckBox>
 #include <QDir>

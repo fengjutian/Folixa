@@ -3,9 +3,9 @@
 // 守两件事：
 //   1. 翻译出来的命令顺序正确（删多页必须从后往前，否则第二次删错位置）；
 //   2. 确认框的默认按钮是「取消」——回车不等于同意。
-#include "app/BlankPageDetector.h"
-#include "app/EditProposalDialog.h"
-#include "app/ProposalRunner.h"
+#include "app/util/BlankPageDetector.h"
+#include "app/dialogs/EditProposalDialog.h"
+#include "app/controllers/ProposalRunner.h"
 
 #include "doc/edit/PageCommand.h"
 #include "tools/ProposalValidator.h"

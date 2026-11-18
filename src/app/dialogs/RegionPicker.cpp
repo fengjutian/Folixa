@@ -1,4 +1,4 @@
-#include "app/RegionPicker.h"
+#include "app/dialogs/RegionPicker.h"
 
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -6,7 +6,7 @@
 #include <QPainter>
 #include <QScreen>
 
-#include "app/ScreenCapture.h"
+#include "app/controllers/ScreenCapture.h"
 
 namespace aipdf::app {
 

@@ -5,8 +5,8 @@
 
 qt_add_executable(LanguagePackTests
     ${CMAKE_CURRENT_LIST_DIR}/../LanguagePackTests.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.cpp
-    ${CMAKE_SOURCE_DIR}/src/app/Language.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 

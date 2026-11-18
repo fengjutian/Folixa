@@ -1,4 +1,4 @@
-#include "app/BrandMark.h"
+#include "app/ui/BrandMark.h"
 
 #include <QLinearGradient>
 #include <QPainter>

@@ -1,4 +1,4 @@
-#include "app/DocumentOutput.h"
+#include "app/controllers/DocumentOutput.h"
 
 #include "pdf/document/DocumentWriter.h"
 

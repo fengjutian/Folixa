@@ -14,7 +14,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 
 namespace {
 

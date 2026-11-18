@@ -2,14 +2,14 @@
 //
 // 这里只测一件事：「翻 delta 页之后停在哪一页」。
 //
-// 之所以能这么测，是因为规则被抽成了纯函数（app/PresentationLoop.h）：
+// 之所以能这么测，是因为规则被抽成了纯函数（app/controllers/PresentationLoop.h）：
 // 界面层只是调它，装窗口、跑事件循环都跟这条规则无关，
 // 也不该由界面层来保证。
 //
 // 负例盯的是「越界」：返回值必须始终落在 [0, pageCount) 里，
 // 否则窗口会翻到一个不存在的页上（渲染空白，看起来像程序坏了）。
 
-#include "app/PresentationLoop.h"
+#include "app/controllers/PresentationLoop.h"
 
 #include <QTest>
 

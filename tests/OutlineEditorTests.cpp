@@ -1,6 +1,6 @@
 // 大纲树编辑（书签排序与层级）的单元测试。
 //
-// 这些操作原来埋在 app/MainWindow.cpp 的文件内静态 helper 里，
+// 这些操作原来埋在 app/shell/MainWindow.cpp 的文件内静态 helper 里，
 // 搬进 pdf/OutlineEditor 之后才能被单独测。
 //
 // 判据不是"函数没崩"，而是**树真的变成了该有的形状**：

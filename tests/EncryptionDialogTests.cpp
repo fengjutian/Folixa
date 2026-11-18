@@ -1,4 +1,4 @@
-#include "app/EncryptionDialog.h"
+#include "app/dialogs/EncryptionDialog.h"
 
 #include <QCheckBox>
 #include <QGroupBox>

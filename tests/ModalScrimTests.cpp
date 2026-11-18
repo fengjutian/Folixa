@@ -3,7 +3,7 @@
 // 盯的是蒙层的三件事：铺满父窗口、跟着父窗口尺寸走、不吃鼠标事件；
 // 以及 execWithScrim() 用完会把蒙层收掉，不留在窗口上。
 
-#include "app/ModalScrim.h"
+#include "app/ui/ModalScrim.h"
 
 #include <QApplication>
 #include <QDialog>

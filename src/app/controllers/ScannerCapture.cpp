@@ -1,4 +1,4 @@
-#include "app/ScannerCapture.h"
+#include "app/controllers/ScannerCapture.h"
 
 #include "pdf/convert/ImageToPdf.h"
 

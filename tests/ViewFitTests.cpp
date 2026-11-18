@@ -4,7 +4,7 @@
 // 后者在 4K 屏上真实存在：一张 612×792 的页面铺到 3840×2160 是 830 万像素，
 // 而适配层对单页有硬上限。
 
-#include "app/ViewFit.h"
+#include "app/editor/ViewFit.h"
 
 #include <QTest>
 

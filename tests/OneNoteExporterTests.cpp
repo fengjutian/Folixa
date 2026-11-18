@@ -1,4 +1,4 @@
-#include "app/OneNoteExporter.h"
+#include "app/controllers/OneNoteExporter.h"
 
 #include <QImage>
 #include <QTest>

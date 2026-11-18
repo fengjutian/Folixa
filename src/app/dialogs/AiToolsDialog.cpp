@@ -1,4 +1,4 @@
-#include "app/AiToolsDialog.h"
+#include "app/dialogs/AiToolsDialog.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -16,7 +16,7 @@
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
-#include "app/AiToolService.h"
+#include "app/controllers/AiToolService.h"
 #include "ai/content/PptxExport.h"
 #include "i18n/Translate.h"
 

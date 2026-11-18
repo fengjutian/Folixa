@@ -1,6 +1,6 @@
-#include "app/LinkHitTest.h"
+#include "app/editor/LinkHitTest.h"
 
-#include "app/PageTransform.h"
+#include "app/editor/PageTransform.h"
 #include "pdf/document/Navigation.h"
 
 #include <QTest>

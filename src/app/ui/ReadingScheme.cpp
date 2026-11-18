@@ -1,4 +1,4 @@
-#include "app/ReadingScheme.h"
+#include "app/ui/ReadingScheme.h"
 
 #include <QApplication>
 #include <QPalette>

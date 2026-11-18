@@ -4,7 +4,7 @@
 //   1) 全字匹配把中文当成"非单词字符"，于是搜"合同"会在"合同法"里命中也算过；
 //   2) 不满足条件时直接跳过整个关键词，漏掉重叠命中（"aa" 里搜 "a"）。
 
-#include "app/SearchMatcher.h"
+#include "app/util/SearchMatcher.h"
 
 #include <QTest>
 

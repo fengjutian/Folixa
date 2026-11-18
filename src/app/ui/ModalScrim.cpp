@@ -1,4 +1,4 @@
-#include "app/ModalScrim.h"
+#include "app/ui/ModalScrim.h"
 
 #include <QDialog>
 #include <QEvent>

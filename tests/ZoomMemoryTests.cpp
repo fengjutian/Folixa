@@ -5,7 +5,7 @@
 //   2) 坏值不设防——设置文件被改坏、或者旧版本写进一个离谱的数值，
 //      打开文档直接缩到 0.001，看起来像"文档打不开"。
 
-#include "app/ZoomMemory.h"
+#include "app/editor/ZoomMemory.h"
 
 #include <QSettings>
 #include <QTemporaryDir>

@@ -1,6 +1,6 @@
-#include "app/DocumentCompareDialog.h"
+#include "app/dialogs/DocumentCompareDialog.h"
 
-#include "app/Language.h"
+#include "app/ui/Language.h"
 
 #include <QAbstractItemView>
 #include <QCheckBox>

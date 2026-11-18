@@ -1,4 +1,4 @@
-#include "app/MeasureGeometry.h"
+#include "app/editor/MeasureGeometry.h"
 
 #include <QLineF>
 #include <QString>

@@ -3,7 +3,7 @@
 // 判定写成纯几何函数，是因为它决定"擦得掉 / 擦不掉"这种手感问题：
 // 放到画布里就只能靠鼠标试，出错也说不清是几何算错了还是坐标换错了。
 
-#include "app/InkGeometry.h"
+#include "app/editor/InkGeometry.h"
 
 #include <QTest>
 

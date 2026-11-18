@@ -3,12 +3,12 @@
 #include <QWidget>
 #include <QImage>
 
-#include "app/NavigationHistory.h"
-#include "app/PageLayout.h"
-#include "app/ReadingScheme.h"
-#include "app/TileCache.h"
-#include "app/AnnotationController.h"
-#include "app/DocumentOutput.h"
+#include "app/editor/NavigationHistory.h"
+#include "app/editor/PageLayout.h"
+#include "app/ui/ReadingScheme.h"
+#include "app/editor/TileCache.h"
+#include "app/controllers/AnnotationController.h"
+#include "app/controllers/DocumentOutput.h"
 #include "ai/content/AiNarration.h"
 #include "doc/batch/ActionWizard.h"
 #include "doc/model/DocumentChunk.h"
