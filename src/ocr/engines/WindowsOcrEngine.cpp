@@ -114,6 +114,10 @@ OcrPageResult WindowsOcrEngine::recognize(const OcrJob& job) {
     result.pageIndex = job.pageIndex;
     result.engineId = id();
 
+    // 同 TesseractCliEngine：上一次取消的标志不能带到这一次，
+    // 否则取消一次之后这个引擎终身返回「已取消」。
+    cancelled_.store(false);
+
     if (!powershellAvailable_) {
         result.error = i18n::tr("aipdf::ocr::WindowsOcrEngine",
                                 "找不到 powershell，无法调用系统 OCR");

@@ -18,13 +18,27 @@ namespace {
 
 class FakeEngine final : public OcrEngine {
 public:
-    explicit FakeEngine(int delayMs = 0) : delayMs_(delayMs) {}
+    explicit FakeEngine(int delayMs = 0, bool blockUntilCancelled = false)
+        : delayMs_(delayMs), blockUntilCancelled_(blockUntilCancelled) {}
 
     QString id() const override { return QStringLiteral("fake"); }
     bool isAvailable() const override { return true; }
 
     OcrPageResult recognize(const OcrJob& job) override {
         const int pageIndex = job.pageIndex;
+        if (blockUntilCancelled_) {
+            // 模拟真实的命令行引擎：识别过程很长，只有 cancel() 能让它提前回来。
+            started_.store(true);
+            for (int i = 0; i < 1000 && !cancelled_.load(); ++i) {  // 上限 5s
+                QThread::msleep(5);
+            }
+            OcrPageResult blocked;
+            blocked.pageIndex = pageIndex;
+            blocked.engineId = id();
+            blocked.cancelled = cancelled_.load();
+            calls_.fetch_add(1);
+            return blocked;
+        }
         if (delayMs_ > 0) {
             QThread::msleep(static_cast<unsigned long>(delayMs_));
         }
@@ -44,11 +58,14 @@ public:
     void cancel() override { cancelled_.store(true); }
 
     int calls() const { return calls_.load(); }
+    bool started() const { return started_.load(); }
 
 private:
     int delayMs_ = 0;
+    bool blockUntilCancelled_ = false;
     std::atomic<int> calls_{0};
     std::atomic<bool> cancelled_{false};
+    std::atomic<bool> started_{false};
 };
 
 OcrJob makeJob(int page) {
@@ -69,6 +86,7 @@ private slots:
     void processesQueuedPagesInOrder();
     void duplicatePageIsIgnored();
     void cancelDropsQueuedPages();
+    void cancelInterruptsRunningRecognition();
 };
 
 void OcrServiceTests::requiresEngineBeforeEnqueue() {
@@ -129,6 +147,31 @@ void OcrServiceTests::cancelDropsQueuedPages() {
         QVERIFY2(result.cancelled, qPrintable(QString::number(result.pageIndex)));
     }
     QCOMPARE(service.pendingCount(), 0);
+}
+
+void OcrServiceTests::cancelInterruptsRunningRecognition() {
+    // C-10 回归：正在跑的那一页必须真的被打断，而不是等它识别完再丢结果。
+    // 假引擎在没收到 cancel() 时会一直卡着（上限 5 秒），所以这里能靠耗时区分。
+    auto engine = std::make_unique<FakeEngine>(0, true);
+    FakeEngine* raw = engine.get();
+    OcrService service;
+    service.setEngine(std::move(engine));
+    QSignalSpy spy(&service, &OcrService::pageReady);
+
+    service.enqueue(makeJob(3));
+    QTRY_VERIFY_WITH_TIMEOUT(raw->started(), 3000);
+
+    QElapsedTimer timer;
+    timer.start();
+    service.cancelAll();
+    // 没修复时假引擎会卡满 5 秒才回来，这里 3 秒内没结果就说明没打断。
+    QTRY_VERIFY_WITH_TIMEOUT(spy.count() > 0, 3000);
+    const qint64 elapsed = timer.elapsed();
+
+    QVERIFY2(elapsed < 2000, qPrintable(QStringLiteral("取消后仍等了 %1ms，说明没打断").arg(elapsed)));
+    const auto result = spy.at(0).at(0).value<OcrPageResult>();
+    QVERIFY(result.cancelled);
+    QCOMPARE(result.pageIndex, 3);
 }
 
 QTEST_MAIN(OcrServiceTests)

@@ -46,6 +46,12 @@ public:
             queuedPages_.clear();
             queue_.clear();
         }
+        // 正在跑的那一页：光把队列清空没用，引擎还会把整页识别完再回来。
+        // 引擎的 cancel() 必须能从别的线程调用（接口注释里就是这么约定的），
+        // 实现里是原子标志 + 杀掉子进程，所以放在锁外调，避免在跑识别时抢锁。
+        if (engine_ != nullptr) {
+            engine_->cancel();
+        }
         wake_.wakeOne();
     }
 

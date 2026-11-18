@@ -27,7 +27,7 @@ v0.13.0 的目标是「零安装、零新依赖，把扫描件 OCR 这条链路�
 | C-07 | 渲染长边 2000px（A4 ≈ 171 dpi） | `OcrController.cpp` | 主动选择 | 提到 300 dpi 并夹到引擎上限 |
 | C-08 | 全角标点未归一化 | `OcrTextUtils.cpp` | **已知缺陷** | 输出前做归一化 |
 | C-09 | 单并发，每页一个进程 | `OcrService.cpp` | 主动选择 | 批量模式或进程常驻 |
-| C-10 | `cancel()` 只能丢队列，打不断在跑的识别 | `OcrService.cpp` | **已知缺陷** | 改为可 kill 子进程 |
+| C-10 | ~~`cancel()` 只能丢队列，打不断在跑的识别~~ | `OcrService.cpp`、两个引擎 | **已修复**（`cancelAll()` 透传 `engine->cancel()`，命令行引擎 kill 子进程；顺带修掉取消标志粘滞） | — |
 | C-11 | `isAvailable()` 只探测 powershell | `WindowsOcrEngine.cpp` | 已知缺陷 | 探测语言包 |
 | C-12 | 验收脚本靠匹配错误文案判断「没有引擎」 | `verify-ocr.ps1` | 已知缺陷 | 改为显式的 engine probe |
 | C-13 | 页面图像经 `StorageFile.GetFileFromPathAsync` 读入 | `WindowsOcrEngine.cpp` | 已知缺陷 | 改内存流 |
@@ -138,15 +138,21 @@ OCR 一般按 300 dpi 取图，171 dpi 对中文正文偏薄。
 
 ## 任务与取消
 
-### C-10 取消名不副实（已知缺陷）
+### C-10 取消名不副实（已修复）
 
-**现状：** `WindowsOcrEngine::cancel()` 只置 `cancelled_` 标志；`QProcess` 是 `recognize()` 的栈变量，
-外部拿不到句柄。`OcrService::cancelAll()` 只能清空队列。
+**原状：** `OcrService::cancelAll()` 只清队列、置标志；正在跑的 `recognize()` 完全不知道，
+会一直把这一页识别完才回来，结果再被丢掉。用户看到的是「点了取消，CPU 还在烧」。
 
-**代价：** 正在跑的识别无法打断，最长阻塞到 120 s 超时。v0.13.0 文档里「OCR 可取消」目前只对**排队中**的页成立。
-用户关文档、切页后仍会等，观感是「卡住」。
+**修复：**
 
-**偿还条件：** 子进程句柄提升到引擎成员，`cancel()` 直接 `kill()`；并把超时从固定的 120 s 改成按页面积估算。
+1. `Worker::cancelAll()` 在锁外调用 `engine_->cancel()`（接口约定它可以从别的线程调用）；
+2. `TesseractCliEngine::recognize()` 每 100ms 检查一次标志，命中就 `process.kill()` 并等它退出；
+3. 顺带修掉一个更隐蔽的问题：两个引擎的 `cancelled_` 从来不清，**取消一次之后引擎终身
+   返回「已取消」**——现在每次 `recognize()` 开头重置。
+
+**验收：** `OcrServiceTests::cancelInterruptsRunningRecognition`：假引擎在没收到 cancel 时
+会卡满 5 秒，取消后必须 3 秒内回来且结果带 `cancelled`。把 `engine_->cancel()` 那一行
+注释掉后该用例立刻变红（负例已验证）。
 
 ### C-09 单并发、每页一个进程
 

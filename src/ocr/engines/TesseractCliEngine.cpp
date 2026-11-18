@@ -111,6 +111,10 @@ OcrPageResult TesseractCliEngine::recognize(const OcrJob& job) {
     result.pageIndex = job.pageIndex;
     result.engineId = id();
 
+    // 上一次取消留下的标志不能带到这一次：服务在取消后仍会被复用，
+    // 不清掉的话之后每一页都会立刻返回「已取消」。
+    cancelled_.store(false);
+
     if (!isAvailable()) {
         result.error = i18n::tr("aipdf::ocr::TesseractCliEngine",
                                 "没有找到 tesseract 可执行文件");
