@@ -131,6 +131,7 @@ qt_add_executable(AiPdfEditor WIN32
     app/SearchMatcher.cpp
     app/ShareUtils.cpp
     app/ShareUtils.h
+    app/SystemCjkFont.h
     app/BatchRename.cpp
     app/BatchRename.h
     app/PresentationWindow.h
@@ -158,6 +159,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/PdfiumAdapter.h
     pdf/ContentStream.cpp
     pdf/ContentStream.h
+    pdf/TrueTypeSubset.cpp
+    pdf/TrueTypeSubset.h
     pdf/TextReflow.cpp
     pdf/TextReflow.h
     pdf/TableStructure.cpp

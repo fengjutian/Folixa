@@ -30,6 +30,20 @@ QString groupThousands(const QString& digits) {
     return grouped;
 }
 
+// 体积文案：给「嵌入字体子集化省了多少」用。
+//
+// 为什么自己拼而不复用别处的：那些 helper 挂在具体的类上（PortfolioEntryRow），
+// 这里只是一句文案，不值得为一个函数去动别人的结构。
+QString fontSizeText(int bytes) {
+    if (bytes < 1024) {
+        return i18n::tr("aipdf::app::LastWaveBridge", "%1 字节").arg(bytes);
+    }
+    if (bytes < 1024 * 1024) {
+        return i18n::tr("aipdf::app::LastWaveBridge", "%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+    }
+    return i18n::tr("aipdf::app::LastWaveBridge", "%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+}
+
 }  // namespace
 
 // ================================================================ 任务 J ====
@@ -310,7 +324,22 @@ QString universalConversionNoticeText(const doc::UniversalConversionResult& resu
     }
     QString text = i18n::tr("aipdf::app::LastWaveBridge", "已生成 %1 页。").arg(result.pageCount);
     if (result.usedEmbeddedFont) {
-        text += i18n::tr("aipdf::app::LastWaveBridge", "已嵌入你选的字体，中文按嵌入字形显示。");
+        // 说清楚嵌的是哪份字体：可能是用户自己选的，也可能是程序在本机找的。
+        // 不说，用户就不知道中文是靠什么显示出来的。
+        if (!result.embeddedFontName.isEmpty()) {
+            text += i18n::tr("aipdf::app::LastWaveBridge", "已嵌入字体 %1 来显示中文。")
+                        .arg(result.embeddedFontName);
+        } else {
+            text += i18n::tr("aipdf::app::LastWaveBridge", "已嵌入字体，中文按嵌入字形显示。");
+        }
+        // 子集化省了多少要**说出来**：这是「中文不丢字」之外的另一半收益，
+        // 用户看得见体积才不会以为还是 10 MB 的巨文件。
+        if (result.fontSubset && result.originalFontBytes > 0 && result.embeddedFontBytes > 0) {
+            text += i18n::tr("aipdf::app::LastWaveBridge",
+                             "只嵌了用到的字形（%1，原字体 %2），文件不会撑大。")
+                        .arg(fontSizeText(result.embeddedFontBytes),
+                             fontSizeText(result.originalFontBytes));
+        }
     } else if (result.replacedCharacterCount > 0) {
         // **必须**如实说清楚有多少字符显示不出来。
         text += i18n::tr("aipdf::app::LastWaveBridge",

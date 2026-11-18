@@ -1,10 +1,12 @@
 ﻿#include "doc/UniversalConverter.h"
 
 #include "pdf/ContentStream.h"
+#include "pdf/TrueTypeSubset.h"
 
 #include <QHash>
 #include <QJsonDocument>
 #include <QRegularExpression>
+#include <QSet>
 #include <QStringList>
 #include <QVector>
 
@@ -1294,6 +1296,11 @@ struct EmbeddedFontObjects {
     QByteArray toUnicodeObject;
     QByteArray fontFileObject;
     QVector<int> gids;
+    // 有没有真的做了子集化（做不了时退回整份嵌入）。
+    bool fontSubset = false;
+    // 嵌入前的字体字节数 / 嵌入后的字节数（用来算省了多少）。
+    int originalFontBytes = 0;
+    int embeddedFontBytes = 0;
 };
 
 // 生成一份嵌入字体的各对象（对象号由调用方给定）。
@@ -1337,8 +1344,27 @@ EmbeddedFontObjects buildEmbeddedFontObjects(const TrueTypeFont& font, const QSt
             .toUtf8();
 
     objects.toUnicodeObject = streamObject(QByteArray(), buildToUnicodeCMap(gidToUnicode));
+
+    // 字体文件：能子集化就子集化。
+    //
+    // 整份中文 TTF 动辄 10 MB，一页中文的 PDF 也有 10 MB——发不出去、也存不下。
+    // 子集化不动字形号，所以内容流与 ToUnicode 都不用改（见 pdf/TrueTypeSubset.h）。
+    // 子集化不了（CFF 轮廓、字体损坏）就退回整份嵌入：文件大一点，
+    // 但中文照样显示得出来——不因为省体积就把字弄丢。
+    QSet<int> usedGids;
+    for (int gid : gids) {
+        usedGids.insert(gid);
+    }
+    const pdf::TrueTypeSubsetResult subset = pdf::subsetTrueTypeFont(font.bytes, usedGids);
+    QByteArray fontBytes = font.bytes;
+    if (subset.ok && !subset.bytes.isEmpty() && subset.bytes.size() < font.bytes.size()) {
+        fontBytes = subset.bytes;
+        objects.fontSubset = true;
+    }
+    objects.originalFontBytes = font.bytes.size();
+    objects.embeddedFontBytes = fontBytes.size();
     objects.fontFileObject =
-        streamObject(QStringLiteral("/Length1 %1").arg(font.bytes.size()).toUtf8(), font.bytes);
+        streamObject(QStringLiteral("/Length1 %1").arg(fontBytes.size()).toUtf8(), fontBytes);
     return objects;
 }
 
@@ -1433,6 +1459,22 @@ QVector<UniversalTextLine> parseUniversalText(const QByteArray& content, Univers
 UniversalConversionResult convertToPdf(const QByteArray& content, const QString& fileName,
                                         const UniversalConverterOptions& options) {
     return convertToPdf(content, universalFileKindFor(fileName), fileName, options);
+}
+
+bool contentNeedsCjkFont(const QByteArray& content, UniversalFileKind kind) {
+    if (kind == UniversalFileKind::Unknown || content.isEmpty()) {
+        return false;
+    }
+    bool hadInvalid = false;
+    const QString text = decodeUtf8(content, &hadInvalid);
+    Q_UNUSED(hadInvalid)
+    // 口径与 encodeWinAnsi 一致：WinAnsi 装不下的字符（码位大于 0xFF）。
+    for (const QChar ch : text) {
+        if (ch.unicode() > 0x00FF) {
+            return true;
+        }
+    }
+    return false;
 }
 
 UniversalConversionResult convertToPdf(const QByteArray& content, UniversalFileKind kind,
@@ -1651,6 +1693,10 @@ UniversalConversionResult convertToPdf(const QByteArray& content, UniversalFileK
         const EmbeddedFontObjects regularObjects =
             buildEmbeddedFontObjects(fonts.regular, regularName, firstFontObject + 1,
                                      firstFontObject + 2, firstFontObject + 3, regularGids);
+        result.fontSubset = regularObjects.fontSubset;
+        result.originalFontBytes = regularObjects.originalFontBytes;
+        result.embeddedFontBytes = regularObjects.embeddedFontBytes;
+        result.embeddedFontName = regularName;
         builder.setObject(firstFontObject + 0, regularObjects.fontObject);
         builder.setObject(firstFontObject + 1, regularObjects.descendantObject);
         builder.setObject(firstFontObject + 2, regularObjects.descriptorObject);
@@ -1663,6 +1709,10 @@ UniversalConversionResult convertToPdf(const QByteArray& content, UniversalFileK
             const EmbeddedFontObjects boldObjects =
                 buildEmbeddedFontObjects(fonts.bold, boldName, firstFontObject + 6,
                                          firstFontObject + 7, firstFontObject + 8, boldGids);
+            // 粗体那份也要算进体积：两份字体都嵌进 PDF 了。
+            result.originalFontBytes += boldObjects.originalFontBytes;
+            result.embeddedFontBytes += boldObjects.embeddedFontBytes;
+            result.fontSubset = result.fontSubset && boldObjects.fontSubset;
             builder.setObject(firstFontObject + 5, boldObjects.fontObject);
             builder.setObject(firstFontObject + 6, boldObjects.descendantObject);
             builder.setObject(firstFontObject + 7, boldObjects.descriptorObject);

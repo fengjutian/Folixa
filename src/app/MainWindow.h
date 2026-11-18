@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QHash>
+#include <QPointer>
 
 #include "i18n/Translate.h"
 #include "app/DocumentConverter.h"
@@ -76,11 +77,17 @@ protected:
 
 private:
     void buildUi();
-    // 只有欢迎页时把标签条整条收起来：一个标签的标签条只是浪费一行高度。
+    // 只有工作台时把标签条整条收起来：一个标签的标签条只是浪费一行高度。
     void syncTabBar();
+    // 工作台是真正的页签：点它回到最近文档页，没有就按需重建。
+    void showWorkspace();
+    // 当前停在工作台还是某份文档上：决定顶部按钮的选中态与 Ribbon 的显隐。
+    bool isWorkspaceCurrent() const;
     QWidget* createWelcomePage();
     // 把刚打开的文件记到最近文档的最前面（去重、限量）。
     void rememberRecentFile(const QString& filePath);
+    // 让工作台里的「最近打开」跟着设置里的那份走：刚打开、被删都要就地更新。
+    void refreshWelcomeRecentFiles();
     // 空状态页：标题与说明的源文案传进来，切换语言时按同一份文案重译。
     QWidget* createNavigationEmptyState(const char* titleSource,
                                         const char* descriptionSource);
@@ -222,6 +229,12 @@ private:
     // 命令栏的「页面」「批注」是导航命令，不该做开关——连点两次把面板关掉
     // 会让人以为功能坏了。
     void showNavigationPage(int index);
+    // 命令入口（命令栏 / 菜单 / 快捷键）打开导航栏的统一入口。
+    //
+    // 工作台上没有文档：七个页签都没有对象可指。命令在这里被拦掉，
+    // 既不展开面板，也不把 dock 重新 show 出来——否则会露出一张空缩略图
+    // 和六个点不出结果的按钮。返回 false 表示当前没有文档、命令没生效。
+    bool openNavigationPanel(int index);
     void positionFloatingUi();
     void positionStatusBarUi();
     // 展开/收起导航面板：除页面对应关系外，还要把 dock 的宽度一起管住。
@@ -235,6 +248,9 @@ private:
     void retranslateUi();
     // 左侧面板顶部的标题（页面/目录/书签/搜索/批注/表单/索引）。
     void updateNavigationHeader(int index);
+    // 文档带大纲时自动把左侧面板展开到「目录」：一打开就看得见章节，
+    // 不用先猜导航栏那个图标是干什么的。同一个文档只自动展开一次。
+    void revealOutlineForDocument(PdfView* view);
     void updateStatusPage(int pageIndex);
     void updateStatusZoom(double factor);
     // 语言菜单的勾选状态跟当前选择同步。
@@ -267,8 +283,14 @@ private:
     QLineEdit* globalSearch_ = nullptr;
     // 它在工具条里的动作：收起靠这个，靠控件自身的 setVisible 会被重排顶掉。
     QAction* globalSearchAction_ = nullptr;
+    // 命令栏左端的「工作台」页签：选中态表示当前停在工作台页。
+    QToolButton* workspaceButton_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QDockWidget* navigationDock_ = nullptr;
+    // 主菜单里的「显示导航面板」开关：工作台上没有文档，这个开关置灰。
+    QAction* navigationPanelAction_ = nullptr;
+    // 视图菜单里的同名开关（QDockWidget::toggleViewAction），同样要跟着置灰。
+    QAction* navigationViewToggleAction_ = nullptr;
     QDockWidget* aiDock_ = nullptr;
     QListWidget* pagesList_ = nullptr;
     // 导航栏的四个视图（页面 / 目录 / 书签 / 搜索）。
@@ -276,6 +298,9 @@ private:
     // 目录页：大纲树（v0.6.0）。索引 0 是空状态，索引 1 是树。
     QStackedWidget* outlineStack_ = nullptr;
     QTreeWidget* outlineTree_ = nullptr;
+    // 自动展开过目录面板的文档视图。用 QPointer 是为了视图被关掉时自动置空，
+    // 不会拿一个已经销毁的指针去做比较。
+    QPointer<QObject> outlineAutoRevealedFor_;
     // 书签页：同一份大纲的扁平列表（v0.6.0）。
     QStackedWidget* bookmarkStack_ = nullptr;
     QListWidget* bookmarkList_ = nullptr;

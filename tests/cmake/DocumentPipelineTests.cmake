@@ -77,6 +77,8 @@ qt_add_executable(DocumentPipelineTests
     ${AIPDF_REPO_ROOT}/src/pdf/RichMedia3d.h
     ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_REPO_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/TrueTypeSubset.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/TrueTypeSubset.h
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_REPO_ROOT}/src/doc/BlankDocument.h
     ${AIPDF_REPO_ROOT}/src/ai/OfflineQa.cpp

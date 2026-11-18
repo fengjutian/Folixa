@@ -23,6 +23,8 @@ qt_add_executable(UniversalConverterTests
     ${CMAKE_CURRENT_LIST_DIR}/../UniversalConverterTests.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TrueTypeSubset.cpp
+    ${AIPDF_UNIVERSAL_ROOT}/src/pdf/TrueTypeSubset.h
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_UNIVERSAL_ROOT}/src/doc/BlankDocument.h
     ${AIPDF_UNIVERSAL_ROOT}/src/pdf/ContentStream.cpp

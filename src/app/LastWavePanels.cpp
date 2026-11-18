@@ -23,6 +23,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include "app/SystemCjkFont.h"
 #include "i18n/Translate.h"
 #include "pdf/ParagraphFormat.h"
 
@@ -427,7 +428,9 @@ UniversalConvertDialog::UniversalConvertDialog(QWidget* parent) : QDialog(parent
             QMessageBox::warning(this, i18n::tr("aipdf::app::LastWavePanels", "从文件新建 PDF"), error);
         }
     });
-    noticeLabel_->setText(i18n::tr("aipdf::app::LastWavePanels", "默认用标准 14 字体：它没有中文字形，中文会变成问号。"));
+    noticeLabel_->setText(i18n::tr("aipdf::app::LastWavePanels",
+                                   "没选字体时：内容里有中文就自动用系统里的中文字体，"
+                                   "纯西文用标准 14 字体。"));
 }
 
 void UniversalConvertDialog::setSourcePath(const QString& path) {
@@ -486,6 +489,17 @@ bool UniversalConvertDialog::convert(QString* error) {
         }
         options.regularFont = resource;
         options.boldFont = resource;
+    } else if (doc::contentNeedsCjkFont(content, doc::universalFileKindFor(QFileInfo(path).fileName()))) {
+        // 用户没选字体，但内容里有中文：自动用系统里的中文字体。
+        //
+        // 为什么不能就这么用标准 14 字体：它没有中文字形，中文会变成问号——
+        // 那是**静默丢字**：文件看着排好了，内容却没了。剪贴板与网页那两条路
+        // 早就是这么做的（见 app/SystemCjkFont.h），这条路也得一样，
+        // 否则同一个中文文件，从剪贴板转不丢字、从文件转却丢字。
+        QString usedSystemFont;
+        if (loadSystemCjkFont(&options.regularFont, &usedSystemFont)) {
+            options.boldFont = options.regularFont;
+        }
     }
 
     result_ = doc::convertToPdf(content, QFileInfo(path).fileName(), options);

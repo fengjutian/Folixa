@@ -269,18 +269,23 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
     texts_.bind([this, recentTitle] { recentTitle->setText(tr("最近打开")); });
     recentHeader->addWidget(recentTitle);
     recentHeader->addStretch(1);
-    if (!recentFiles.isEmpty()) {
-        auto* recentCount = new QLabel(QString(), column);
-        recentCount->setObjectName(QStringLiteral("welcomeSectionMeta"));
-        texts_.bind([this, recentCount, count = recentFiles.size()] {
-            recentCount->setText(tr("%1 份文档").arg(count));
-        });
-        recentHeader->addWidget(recentCount);
-    }
+    // 计数不登记到 texts_：它跟着列表走，由 rebuildRecentCard() 直接重写，
+    // 登记进来只会在列表重建后留一个指向已删控件的悬空 lambda。
+    recentCount_ = new QLabel(QString(), column);
+    recentCount_->setObjectName(QStringLiteral("welcomeSectionMeta"));
+    recentHeader->addWidget(recentCount_);
     recentLayout->addLayout(recentHeader);
     recentLayout->addSpacing(8);
-    recentLayout->addWidget(createRecentCard(recentFiles));
+    // 列表本体放在固定容器里：新文件进来只换容器内容，标题、间距和
+    // 下面的弹性空白都不动，页面的滚动位置也就不会跳。
+    recentCardHost_ = new QWidget(column);
+    recentCardHost_->setObjectName(QStringLiteral("recentCardHost"));
+    auto* recentCardLayout = new QVBoxLayout(recentCardHost_);
+    recentCardLayout->setContentsMargins(0, 0, 0, 0);
+    recentCardLayout->setSpacing(0);
+    recentLayout->addWidget(recentCardHost_);
     recentLayout->addStretch(1);
+    recentLayout_ = recentLayout;
     workspace->addWidget(recentPanel, 6);
     columnLayout->addLayout(workspace);
     columnLayout->addSpacing(18);
@@ -294,9 +299,43 @@ WelcomePage::WelcomePage(const QStringList& recentFiles, QWidget* parent) : QWid
 
     scroll->setWidget(content);
 
-    // 切换语言后登记过的常驻文案就地重译；最近文档列表本身不用重建。
+    // 首次铺列表：之后每次打开文档由 setRecentFiles() 换内容。
+    setRecentFiles(recentFiles);
+
+    // 切换语言后登记过的常驻文案就地重译；列表行是建行时写死的，随重建一起换语言。
     connect(&i18n::LanguageManager::instance(), &i18n::LanguageManager::languageChanged,
             this, &WelcomePage::retranslateUi);
+}
+
+void WelcomePage::setRecentFiles(const QStringList& files) {
+    if (files == recentFiles_ && recentCardHost_ != nullptr && recentCardHost_->layout() != nullptr &&
+        recentCardHost_->layout()->count() > 0) {
+        // 同样的六份文档被反复通知（每打开一次都要过一遍）：不重建，省一次闪烁。
+        return;
+    }
+    recentFiles_ = files;
+    rebuildRecentCard();
+}
+
+void WelcomePage::rebuildRecentCard() {
+    if (recentCardHost_ == nullptr || recentCardHost_->layout() == nullptr) {
+        return;
+    }
+    auto* hostLayout = recentCardHost_->layout();
+    // 旧卡片挂到 deleteLater：立刻 delete 会踩到正在分发的点击/布局事件。
+    while (QLayoutItem* item = hostLayout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    hostLayout->addWidget(createRecentCard(recentFiles_));
+
+    if (recentCount_ != nullptr) {
+        recentCount_->setVisible(!recentFiles_.isEmpty());
+        recentCount_->setText(tr("%1 份文档").arg(recentFiles_.size()));
+    }
 }
 
 QWidget* WelcomePage::createRecentCard(const QStringList& files) {
@@ -320,10 +359,10 @@ QWidget* WelcomePage::createRecentCard(const QStringList& files) {
         hint->setObjectName(QStringLiteral("recentEmptyHint"));
         hint->setAlignment(Qt::AlignCenter);
         hint->setWordWrap(true);
-        texts_.bind([this, title, hint] {
-            title->setText(tr("暂无最近文档"));
-            hint->setText(tr("打开过的 PDF 会列在这里，方便下次接着读"));
-        });
+        // 不登记到 texts_：这张卡片会被 rebuildRecentCard() 整个换掉，
+        // 登进去的 lambda 会指着已删的 label，切换语言时就是一次野指针调用。
+        title->setText(tr("暂无最近文档"));
+        hint->setText(tr("打开过的 PDF 会列在这里，方便下次接着读"));
         emptyLayout->addWidget(title);
         emptyLayout->addWidget(hint);
         layout->addWidget(empty);
@@ -393,6 +432,8 @@ QWidget* WelcomePage::createRecentRow(const QString& path, bool isLast) {
 
 void WelcomePage::retranslateUi() {
     texts_.retranslate();
+    // 列表行（含空状态）的文案在创建时写死，切语言只能重建。
+    rebuildRecentCard();
 }
 
 void WelcomePage::paintEvent(QPaintEvent*) {

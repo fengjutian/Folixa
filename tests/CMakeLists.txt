@@ -1483,6 +1483,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProviderPresetTests.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OllamaProviderTests.cmake)
 
+# ------------------------------------------------- TrueType 子集化 ----
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TrueTypeSubsetTests.cmake)
+
 # ------------------------------------------------- 提示注入防护 ----
 
 qt_add_executable(PromptInjectionTests

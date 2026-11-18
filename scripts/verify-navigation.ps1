@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     v0.6.0 目录、书签与页面链接验收。
 
@@ -329,17 +329,19 @@ try {
     Test-Check '大纲已从文档取回' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'outline ready items=2' -TimeoutSeconds 20) ''
 
-    $button = Get-AiPdfNavButton -Process $app -IdPattern '*railButton.outline*'
-    Test-Check '找到「目录」页签按钮' ($null -ne $button) ''
-    if ($button) {
-        Prepare-AiPdfWindow -Process $app | Out-Null
-        Click-AiPdfElement -Process $app -Element $button | Out-Null
-        Start-Sleep -Milliseconds 800
-    }
+    # 带目录的文档一打开就该看见章节：面板自动展开到「目录」，不用先点图标。
+    Test-Check '带目录的文档自动展开目录面板' `
+        (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'outline auto shown page=1' -TimeoutSeconds 20) `
+        (Get-AiPdfTraceText -Path $tracePath)
 
     Test-Check '目录面板里有 2 个顶层条目' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'panel outline items=2' -TimeoutSeconds 10) `
         (Get-AiPdfTraceText -Path $tracePath)
+
+    # 页签按钮只做定位断言，不再点它：面板已经自动展开，
+    # 再点一次「目录」是把面板收起来（图标是开关），后面的条目就点不到了。
+    $button = Get-AiPdfNavButton -Process $app -IdPattern '*railButton.outline*'
+    Test-Check '找到「目录」页签按钮' ($null -ne $button) ''
 
     if ($ScreenshotPath) {
         $taken = Save-AiPdfWindowScreenshot -Process $app -Path $ScreenshotPath
@@ -498,6 +500,12 @@ try {
 
     Test-Check '无大纲文档记为空' `
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'outline empty' -TimeoutSeconds 20) `
+        (Get-AiPdfTraceText -Path $tracePath)
+
+    # 负例守卫：自动展开只认「真有条目」的文档。没有大纲还弹面板，
+    # 等于每次开文档都把画布挤窄一截。
+    Test-Check '没有目录的文档不自动展开面板' `
+        ((Get-AiPdfTraceText -Path $tracePath) -notmatch 'outline auto shown') `
         (Get-AiPdfTraceText -Path $tracePath)
 
     $button = Get-AiPdfNavButton -Process $app -IdPattern '*railButton.outline*'

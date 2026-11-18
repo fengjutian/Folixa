@@ -1884,8 +1884,12 @@
             <translation>Proofread</translation>
         </message>
         <message>
-            <source>欢迎页</source>
-            <translation>Welcome</translation>
+            <source>工作台</source>
+            <translation>Workspace</translation>
+        </message>
+        <message>
+            <source>工作台：最近文档</source>
+            <translation>Workspace: recent documents</translation>
         </message>
         <message>
             <source>正在识别第 %1 页…</source>
@@ -6576,8 +6580,20 @@ Notes: %1</translation></message>
     <message><source> 语言：%1</source><translation> Language: %1</translation></message>
     <message><source> 顺序：%1</source><translation> Order: %1</translation></message>
     <message><source>%</source><translation>%</translation></message>
-    <message><source>%1 倍</source><translation>%1x</translation></message>
-    <message><source>-</source><translation>-</translation></message>
+            <message>
+            <source>%1 MB</source>
+            <translation>%1 MB</translation>
+        </message>
+        <message>
+            <source>%1 KB</source>
+            <translation>%1 KB</translation>
+        </message>
+<message><source>%1 倍</source><translation>%1x</translation></message>
+            <message>
+            <source>%1 字节</source>
+            <translation>%1 bytes</translation>
+        </message>
+<message><source>-</source><translation>-</translation></message>
     <message><source>[%1] 第 %2 页：%3</source><translation>[%1] page %2: %3</translation></message>
     <message><source>两端对齐</source><translation>Justify</translation></message>
     <message><source>共 %1 个图层。</source><translation>%1 layer(s) in total.</translation></message>
@@ -6585,14 +6601,25 @@ Notes: %1</translation></message>
     <message><source>写入不可见文字层失败（领域层没有给出原因）。</source><translation>Writing the invisible text layer failed (the domain layer gave no reason).</translation></message>
     <message><source>写回是按上表的图层定义整体重写 /OCProperties：原来标到图层上的内容流标记不会被重建。</source><translation>Writing back rewrites /OCProperties as a whole from the layer list above: content stream markers that used to point at layers are not rebuilt.</translation></message>
     <message><source>动作向导只编排本程序已有的文档级操作（合并、加页码、加水印、加密、转换格式等），不是脚本引擎，也不会执行文档里的脚本。</source><translation>The action wizard only sequences document-level operations this program already has (merge, page numbers, watermark, encryption, format conversion and so on); it is not a script engine and never runs scripts from the document.</translation></message>
-    <message><source>右对齐</source><translation>Right</translation></message>
+            <message>
+            <source>只嵌了用到的字形（%1，原字体 %2），文件不会撑大。</source>
+            <translation>Only the glyphs actually used are embedded (%1, original font %2), so the file stays small.</translation>
+        </message>
+<message><source>右对齐</source><translation>Right</translation></message>
     <message><source>固定 %1 点</source><translation>fixed %1 pt</translation></message>
     <message><source>字号 %1 点；行距 %2；%3；首行缩进 %4 点；左缩进 %5 点；右缩进 %6 点。</source><translation>Font size %1 pt; line spacing %2; %3; first line indent %4 pt; left indent %5 pt; right indent %6 pt.</translation></message>
     <message><source>居中</source><translation>Centre</translation></message>
     <message><source>左对齐</source><translation>Left</translation></message>
     <message><source>已写入不可见文字层，现在可以搜索/复制这页文字了。共 %1 页、%2 个字符。</source><translation>The invisible text layer was written; this page can now be searched and copied. %1 page(s), %2 character(s).</translation></message>
-    <message><source>已嵌入你选的字体，中文按嵌入字形显示。</source><translation>The font you picked is embedded; Chinese text uses the embedded glyphs.</translation></message>
-    <message><source>已生成 %1 页。</source><translation>%1 page(s) generated.</translation></message>
+            <message>
+            <source>已嵌入字体，中文按嵌入字形显示。</source>
+            <translation>A font is embedded; Chinese is drawn with the embedded glyphs.</translation>
+        </message>
+        <message>
+            <source>已嵌入字体 %1 来显示中文。</source>
+            <translation>Font %1 is embedded to display Chinese.</translation>
+        </message>
+<message><source>已生成 %1 页。</source><translation>%1 page(s) generated.</translation></message>
     <message><source>文档语言：%1。</source><translation>Document language: %1.</translation></message>
     <message><source>文档语言：文件里没有写。</source><translation>Document language: not written in the file.</translation></message>
     <message><source>有 %1 个字符无法显示，已替换（默认用标准 14 字体，它没有中文字形；要正确显示中文请用「选择字体文件」选一份 TTF）。</source><translation>%1 character(s) cannot be shown and were replaced (the standard 14 fonts have no Chinese glyphs; use &quot;Select a font file&quot; to pick a TTF so Chinese shows correctly).</translation></message>
@@ -6743,7 +6770,11 @@ Notes: %1</translation></message>
     <message><source>段落排版</source><translation>Paragraph formatting</translation></message>
     <message><source>没有搬过去的内容</source><translation>Content that was not carried over</translation></message>
     <message><source>没有页面级覆盖：所有页共用同一套图层可见性。</source><translation>No page-level overrides: every page uses the same layer visibility.</translation></message>
-    <message><source>注解类型</source><translation>Annotation type</translation></message>
+            <message>
+            <source>没选字体时：内容里有中文就自动用系统里的中文字体，纯西文用标准 14 字体。</source>
+            <translation>When no font is chosen: Chinese text automatically uses a system CJK font, Western-only text uses the standard 14 fonts.</translation>
+        </message>
+<message><source>注解类型</source><translation>Annotation type</translation></message>
     <message><source>添加一行</source><translation>Add row</translation></message>
     <message><source>添加这一步</source><translation>Add this step</translation></message>
     <message><source>源文件</source><translation>Source file</translation></message>
@@ -6796,7 +6827,6 @@ Notes: %1</translation></message>
     <message><source>首行缩进</source><translation>First line indent</translation></message>
     <message><source>首行缩进（点）</source><translation>First line indent (points)</translation></message>
     <message><source>高</source><translation>Height</translation></message>
-    <message><source>默认用标准 14 字体：它没有中文字形，中文会变成问号。</source><translation>The standard 14 fonts are used by default: they have no Chinese glyphs, so Chinese text turns into question marks.</translation></message>
     <message><source>（没有内容被丢掉）</source><translation>(Nothing was dropped)</translation></message>
     <message><source>，有文字没排进去</source><translation>, some text did not fit</translation></message>
 </context>

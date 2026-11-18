@@ -34,8 +34,12 @@ namespace aipdf::doc {
 //   * 仓库里**没有**随附的中文字体（tools/ 与 assets/ 下都没有），
 //     所以默认路径做不到「中文直接可读」——这是资源缺失，不是实现偷懒。
 //     调用方拿到用户机器上的字体路径后再传进来即可。
-//   * 嵌入的是**整份字体文件**，不做子集化：一份中文 TTF 动辄 10 MB，
-//     生成的 PDF 也会跟着大。子集化需要完整的字形重写，不在本模块范围内。
+//   * 嵌入的字体会做**子集化**：只保留真正用到的字形
+//     （`pdf::subsetTrueTypeFont`，字形号保持不变，所以内容流与 ToUnicode
+//     都不用改）。一份中文 TTF 动辄 10 MB，子集化后通常只剩几十 KB。
+//     子集化做不了时（CFF 轮廓、字体损坏）退回整份嵌入：文件大一点，
+//     但中文照样显示得出来——不为了省体积把字弄丢。
+//     结果里的 fontSubset / originalFontBytes / embeddedFontBytes 会如实报出。
 //
 // ---------------------------------------------------------------------------
 // 复用了仓库里的哪些东西（别再另写一套）：
@@ -145,6 +149,15 @@ struct UniversalConversionResult {
     int replacedCharacterCount = 0;
     // 有没有真的用上嵌入字体。
     bool usedEmbeddedFont = false;
+    // 嵌进去的字体叫什么（PostScript 名；没嵌字体时为空）。
+    // 界面用它告诉用户「现在用的是哪份字体」，免得用户不知道中文靠什么显示。
+    QString embeddedFontName;
+    // 嵌入的字体有没有做过子集化（整份中文 TTF 有 10 MB，子集化后只剩用到的字形）。
+    bool fontSubset = false;
+    // 嵌入前的字体字节数（0 表示没嵌入字体）。
+    int originalFontBytes = 0;
+    // 实际嵌进 PDF 的字体字节数（0 表示没嵌入字体）。
+    int embeddedFontBytes = 0;
 };
 
 // 把一个文本类文件转成 PDF。
@@ -172,6 +185,14 @@ UniversalConversionResult convertToPdf(const QByteArray& content,
 QVector<UniversalTextLine> parseUniversalText(const QByteArray& content,
                                                UniversalFileKind kind,
                                                QString* error = nullptr);
+
+// 这份内容里有没有标准 14 字体显示不了的字符（中文等）。
+//
+// 为什么单独给一个接口：调用方（界面）要决定「要不要嵌一份中文字体」，
+// 而「哪些字符标准 14 字体显示不了」这条判定规则只有排版这一层知道
+// （它就是 replacedCharacterCount 的口径）。界面自己再猜一遍，
+// 两边规则迟早对不上，就会出现「界面说不用嵌字体、结果里中文全变问号」。
+bool contentNeedsCjkFont(const QByteArray& content, UniversalFileKind kind);
 
 // 文件名 → 文件类型。扩展名不认识时是 Unknown。
 UniversalFileKind universalFileKindFor(const QString& fileName);

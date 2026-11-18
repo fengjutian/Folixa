@@ -48,6 +48,8 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/pdf/TagTreeWriter.h
     ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/UniversalConverter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/TrueTypeSubset.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/BlankDocument.h
     ${CMAKE_SOURCE_DIR}/src/doc/ActionWizard.cpp

@@ -41,6 +41,8 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/doc/ConversionInputs.h
     ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.cpp
     ${AIPDF_CONVERSION_ROOT}/src/doc/UniversalConverter.h
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/TrueTypeSubset.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/TrueTypeSubset.h
     ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.cpp
     ${AIPDF_CONVERSION_ROOT}/src/doc/BlankDocument.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/ContentStream.cpp

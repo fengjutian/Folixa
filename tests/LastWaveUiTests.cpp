@@ -11,6 +11,7 @@
 #include "app/LastWaveBridge.h"
 #include "app/LastWavePanels.h"
 #include "app/RibbonBar.h"
+#include "app/SystemCjkFont.h"
 #include "ai/OfflineQa.h"
 #include "doc/BlankDocument.h"
 #include "doc/DocumentChunk.h"
@@ -26,6 +27,7 @@
 #include <QIcon>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QToolButton>
 
@@ -141,6 +143,10 @@ private slots:
     void ocgPanelCountMatchesDomain();
     // 8) 任意文件→PDF：没嵌入字体时必须说清有多少字符显示不出来。
     void universalConversionReportsReplacedCharacters();
+    // 8b) 任意文件→PDF：嵌入字体做了子集化时，提示里要说出省了多少体积。
+    void universalConversionNoticeReportsFontSubset();
+    // 8c) 任意文件→PDF：用户没选字体时，中文不该变成问号（自动用系统中文字体）。
+    void universalConvertDialogAutoEmbedsSystemCjkFont();
     // 9) 离线问答：没找到时正文为空，并且列出最接近的片段。
     void offlineQaNoMatchShowsNoAnswer();
     // 10) PDF/UA：结论与 compliant 一致，且不许吹成「已生成合规文件」。
@@ -383,6 +389,69 @@ void LastWaveUiTests::universalConversionReportsReplacedCharacters() {
     const QString embeddedNotice = app::universalConversionNoticeText(embedded);
     QVERIFY2(!embeddedNotice.contains(QStringLiteral("无法显示")), qPrintable(embeddedNotice));
     QVERIFY(embeddedNotice.contains(QStringLiteral("嵌入")));
+}
+
+// ------------------------------------------------------------------- 9 ----
+
+void LastWaveUiTests::universalConversionNoticeReportsFontSubset() {
+    // 子集化是 H6 的另一半收益：中文不丢字之外，文件也不能是 10 MB 的巨物。
+    // 提示里必须说出「嵌了多少 / 原来多少」，用户才看得见。
+    doc::UniversalConversionResult result;
+    result.ok = true;
+    result.pageCount = 1;
+    result.usedEmbeddedFont = true;
+    result.fontSubset = true;
+    result.originalFontBytes = 10 * 1024 * 1024;
+    result.embeddedFontBytes = 48 * 1024;
+
+    const QString notice = app::universalConversionNoticeText(result);
+    QVERIFY2(notice.contains(QStringLiteral("只嵌了用到的字形")), qPrintable(notice));
+    QVERIFY2(notice.contains(QStringLiteral("48.0 KB")), qPrintable(notice));
+    QVERIFY2(notice.contains(QStringLiteral("10.0 MB")), qPrintable(notice));
+
+    // 没做子集化时就不许提「只嵌了用到的字形」——没发生的事不吹。
+    doc::UniversalConversionResult plain = result;
+    plain.fontSubset = false;
+    const QString plainNotice = app::universalConversionNoticeText(plain);
+    QVERIFY2(!plainNotice.contains(QStringLiteral("只嵌了用到的字形")), qPrintable(plainNotice));
+}
+
+// ------------------------------------------------------------------- 9 ----
+
+void LastWaveUiTests::universalConvertDialogAutoEmbedsSystemCjkFont() {
+    // 用户没选字体、文件里有中文时，中文不该变成问号。
+    //
+    // 「系统里有没有中文字体」这件事**先独立查一遍**：有字体就必须嵌入成功
+    // （断言，不是跳过），没有字体才跳过——否则这条用例在真出问题时
+    // 会「跳过」成一片绿，把回归藏起来。
+    doc::FontResource probe;
+    QString probePath;
+    if (!app::loadSystemCjkFont(&probe, &probePath)) {
+        QSKIP("本机没有可用的中文字体，跳过自动嵌入这一条");
+    }
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("中文.txt");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QStringLiteral("这是一段中文，应该显示得出来。").toUtf8());
+    file.close();
+
+    app::UniversalConvertDialog dialog;
+    dialog.setSourcePath(path);
+    QString error;
+    QVERIFY2(dialog.convert(&error), qPrintable(error));
+
+    const doc::UniversalConversionResult& result = dialog.result();
+    QVERIFY(result.ok);
+    QVERIFY(result.usedEmbeddedFont);
+    // 用了字体就不该再有替换掉的字符。
+    QCOMPARE(result.replacedCharacterCount, 0);
+    // 提示里要说出用的是哪份字体。
+    QVERIFY(!result.embeddedFontName.isEmpty());
+    QVERIFY2(dialog.noticeText().contains(result.embeddedFontName),
+             qPrintable(dialog.noticeText()));
 }
 
 // ------------------------------------------------------------------- 9 ----

@@ -316,6 +316,8 @@ private slots:
     void markdownHeadingUsesBoldFont();
     void chineseBecomesSubstituteWithoutFont();
     void embeddedFontKeepsChineseReadable();
+    void contentNeedsCjkFontMatchesTheReplacedCount();
+    void embeddedFontNameIsReported();
     void linesPerPageMatchesPaging();
 };
 
@@ -669,6 +671,50 @@ void UniversalConverterTests::embeddedFontKeepsChineseReadable() {
     // 嵌入字体路径：中文既显示得出来，也抽得回原文。
     const QString extracted = squeezeWhitespace(probe.pageTexts.join(QString()));
     QCOMPARE(extracted, QStringLiteral("A中B"));
+}
+
+void UniversalConverterTests::contentNeedsCjkFontMatchesTheReplacedCount() {
+    // 这条判定是「要不要自动嵌中文字体」的唯一依据：
+    // 它必须与 replacedCharacterCount 的口径一致，否则会出现
+    // 「界面以为不用嵌字体、结果里中文全变问号」。
+    const QByteArray chinese = QStringLiteral("中文内容测试").toUtf8();
+    QVERIFY(aipdf::doc::contentNeedsCjkFont(chinese, aipdf::doc::UniversalFileKind::PlainText));
+
+    const QByteArray latin = QByteArrayLiteral("Plain ASCII text");
+    QVERIFY(!aipdf::doc::contentNeedsCjkFont(latin, aipdf::doc::UniversalFileKind::PlainText));
+
+    // 扩展名不认识时不猜：交给上层按「不支持的类型」处理。
+    QVERIFY(!aipdf::doc::contentNeedsCjkFont(chinese, aipdf::doc::UniversalFileKind::Unknown));
+    // 空内容不需要字体。
+    QVERIFY(!aipdf::doc::contentNeedsCjkFont(QByteArray(), aipdf::doc::UniversalFileKind::PlainText));
+
+    // 口径对照：真转一次，替换字符数大于 0 ⇔ 需要中文字体。
+    const UniversalConversionResult result =
+        aipdf::doc::convertToPdf(chinese, QStringLiteral("a.txt"));
+    QVERIFY(result.ok);
+    QVERIFY(result.replacedCharacterCount > 0);
+    QVERIFY(aipdf::doc::contentNeedsCjkFont(chinese, aipdf::doc::universalFileKindFor(
+                                                              QStringLiteral("a.txt"))));
+}
+
+void UniversalConverterTests::embeddedFontNameIsReported() {
+    // 界面要告诉用户「现在用的是哪份字体」，所以结果里必须带名字。
+    UniversalConverterOptions options;
+    options.regularFont.bytes = buildTestFont();
+    options.regularFont.postScriptName = QStringLiteral("AipdfTestFont");
+
+    const UniversalConversionResult result = aipdf::doc::convertToPdf(
+        QByteArrayLiteral("A 中 B"), QStringLiteral("a.txt"), options);
+    QVERIFY(result.ok);
+    QVERIFY(result.usedEmbeddedFont);
+    QCOMPARE(result.embeddedFontName, QStringLiteral("AipdfTestFont"));
+
+    // 没嵌字体时这个名字必须为空：不许报一个不存在的字体。
+    const UniversalConversionResult plain =
+        aipdf::doc::convertToPdf(QByteArrayLiteral("plain"), QStringLiteral("a.txt"));
+    QVERIFY(plain.ok);
+    QVERIFY(!plain.usedEmbeddedFont);
+    QVERIFY(plain.embeddedFontName.isEmpty());
 }
 
 void UniversalConverterTests::linesPerPageMatchesPaging() {

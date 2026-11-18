@@ -217,6 +217,10 @@ void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem
 // 欢迎页「最近文档」的上限：再多就把欢迎页撑成文件管理器的样子。
 constexpr int kMaxRecentFiles = 6;
 
+// 导航栏里「目录」页的下标。与建页签时的顺序一一对应（页面 / 目录 / 书签 / 搜索 / 批注 / 表单 / 索引），
+// 写成常量而不是到处写裸 1：v0.7.0 下标错位过一次，两个页签互换了。
+constexpr int kNavigationOutlinePage = 1;
+
 // 读最近文档。存的是绝对路径，但文件可能被删、被改名或被移走——
 // 列出来的每一项都要点得开，所以这里顺手把已经不存在的过滤掉。
 QStringList recentFilesFromSettings() {
@@ -339,6 +343,8 @@ void MainWindow::buildUi() {
         syncTabBar();
     });
     setCentralWidget(tabs);
+    // 工作台与文档之间切换时，顶栏、标签条与导航栏都要跟着当前页走。
+    connect(tabs, &QTabWidget::currentChanged, this, [this](int) { syncTabBar(); });
 
     auto* fileMenu = menuBar()->addMenu(QString());
     texts_.bind([this, fileMenu] { fileMenu->setTitle(tr("文件(&F)")); });
@@ -484,18 +490,41 @@ void MainWindow::buildUi() {
     commandBar->setFloatable(false);
     commandBar->setIconSize(QSize(18, 18));
     commandBar->setFixedHeight(34);
+    // 「工作台」是真正的页签：选中态表示当前停在工作台页，点它回最近文档。
+    // 旧实现把主菜单挂上「工作台」四个字，长得像页签却弹菜单，语义才对不上。
+    auto* workspaceButton = new QToolButton(commandBar);
+    workspaceButton_ = workspaceButton;
+    workspaceButton->setObjectName(QStringLiteral("workspaceButton"));
+    workspaceButton->setIcon(QIcon(QStringLiteral(":/icons/app.svg")));
+    workspaceButton->setIconSize(QSize(18, 18));
+    workspaceButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    workspaceButton->setCheckable(true);
+    workspaceButton->setFixedSize(104, 28);
+    texts_.bind([this, workspaceButton] {
+        workspaceButton->setText(tr("工作台"));
+        workspaceButton->setToolTip(tr("工作台：最近文档"));
+    });
+    connect(workspaceButton, &QToolButton::clicked, this, [this] {
+        showWorkspace();
+        // 再点一次不该把页签取消掉：选中态永远由当前页决定。
+        if (workspaceButton_ != nullptr) {
+            workspaceButton_->setChecked(true);
+        }
+    });
+    // 主菜单缩回图标按钮：它只是命令入口，不该再冒充页签。
     auto* appMenuButton = new QToolButton(commandBar);
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
-    appMenuButton->setIcon(QIcon(QStringLiteral(":/icons/app.svg")));
-    appMenuButton->setIconSize(QSize(18, 18));
-    appMenuButton->setText(QStringLiteral("工作台"));
-    appMenuButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    texts_.bind([this, appMenuButton] { appMenuButton->setToolTip(tr("主菜单")); });
+    appMenuButton->setIcon(QIcon(QStringLiteral(":/icons/menu.svg")));
+    appMenuButton->setIconSize(QSize(16, 16));
+    appMenuButton->setFixedSize(32, 28);
+    texts_.bind([this, appMenuButton] {
+        appMenuButton->setToolTip(tr("主菜单"));
+        appMenuButton->setAccessibleName(tr("主菜单"));
+    });
     // 必须走 setMenu：菜单里的「查找…」靠 QAction 快捷键（Ctrl+F）生效，
     // 改成手动 popup 的话这个 QAction 不属于任何窗口，快捷键会静默失效。
     // 按钮宽度与右侧箭头由样式表处理（父级 commandBar 规则 + 隐藏 menu-indicator）。
     appMenuButton->setPopupMode(QToolButton::InstantPopup);
-    appMenuButton->setFixedSize(112, 28);
     auto* appMenu = new QMenu(appMenuButton);
     // 起点命令必须在菜单里各有一份：欢迎页把 Ribbon 整条收起来了，
     // 否则空窗口上连「新建空白文档」都点不到。
@@ -713,25 +742,10 @@ void MainWindow::buildUi() {
     connect(appQuitAction, &QAction::triggered, this, &QWidget::close);
     texts_.bind([this, appQuitAction] { appQuitAction->setText(tr("退出")); });
     appMenuButton->setMenu(appMenu);
+    commandBar->addWidget(workspaceButton);
     commandBar->addWidget(appMenuButton);
-    // 快速访问区保持紧凑，不占 Ribbon 命令区。
-    auto addQuickButton = [commandBar](const QIcon& icon, const QString& tip,
-                                       const std::function<void()>& handler,
-                                       const QString& objectName) {
-        auto* button = new QToolButton(commandBar);
-        button->setObjectName(objectName);
-        button->setProperty("titleQuick", true);
-        button->setIcon(icon);
-        button->setToolTip(tip);
-        button->setAutoRaise(true);
-        QObject::connect(button, &QToolButton::clicked, commandBar, handler);
-        commandBar->addWidget(button);
-        return button;
-    };
-    addQuickButton(QIcon(QStringLiteral(":/icons/open.svg")), openAction->text(),
-                   [this] { openPdfDialog(); }, QStringLiteral("titleOpen"));
-    addQuickButton(QIcon(QStringLiteral(":/icons/save.svg")), saveAction->text(),
-                   [this] { saveDocument(); }, QStringLiteral("titleSave"));
+    // 这里不再挂「打开 / 保存」快捷图标：同一组命令在主菜单与 Ribbon「文件」页
+    // 各有一份，第三份只是稀释点击目标。命令栏左边只留工作台页签与主菜单，右侧只留搜索。
 
     auto* titleSpacerLeft = new QWidget(commandBar);
     titleSpacerLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -746,31 +760,22 @@ void MainWindow::buildUi() {
     // 直接 setVisible(false) 那个 QLineEdit 不可靠——QToolBar::show() 重排动作时
     // 会把它重新摆出来（欢迎页上就出现过「Ribbon 收了、搜索框还在」）。
     globalSearchAction_ = commandBar->addWidget(globalSearch_);
+    // 右侧原来的「通知」与「F 头像」已经删掉：前者永远是禁用的空处理，
+    // 后者没有任何点击响应，产品口径里也没有账号体系（见 FOXIT_FEATURE_MATRIX）。
+    // 需要提示的东西走状态栏；将来真做通知中心时再在这里加回一个有内容的入口。
     auto* titleSpacerRight = new QWidget(commandBar);
     titleSpacerRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     commandBar->addWidget(titleSpacerRight);
-    auto* notificationButton = addQuickButton(QIcon(QStringLiteral(":/icons/note.svg")),
-                                              QStringLiteral("通知"), [] {},
-                                              QStringLiteral("titleNotifications"));
-    notificationButton->setEnabled(false);
-    auto* accountButton = new QToolButton(commandBar);
-    accountButton->setObjectName(QStringLiteral("titleAccount"));
-    accountButton->setProperty("titleAccount", true);
-    accountButton->setText(QStringLiteral("F"));
-    accountButton->setToolTip(QStringLiteral("Folixa"));
-    commandBar->addWidget(accountButton);
     connect(findAction, &QAction::triggered, this, [this]() {
-        trace(QStringLiteral("open search panel"));
-        navigationDock_->setVisible(true);
-        if (navigationRail_ != nullptr) {
-            // 切到导航栏的搜索页（第四个按钮）。
-            if (auto* button = navigationRail_->button(3)) {
-                button->click();
-            }
+        // 切到导航栏的搜索页（第四个按钮）。这条命令在主菜单里，工作台上
+        // 也点得到：没有文档时它什么都不该做，否则会凭空撑开一列空面板。
+        if (!openNavigationPanel(3)) {
+            return;
         }
         if (searchPanel_ != nullptr) {
             searchPanel_->focusSearch();
         }
+        trace(QStringLiteral("open search panel"));
     });
     connect(globalSearch_, &QLineEdit::returnPressed, findAction, &QAction::trigger);
     // 已交付的功能带图标（与左侧导航轨、文档工具栏同一套 Rounded Linear 资源）；
@@ -791,30 +796,27 @@ void MainWindow::buildUi() {
         annotationAction->setToolTip(tr("查看与删除批注"));
     });
     connect(annotationAction, &QAction::triggered, this, [this]() {
-        navigationDock_->setVisible(true);
         // 切到导航栏的批注页（第五个按钮）。
-        showNavigationPage(4);
-        trace(QStringLiteral("open annotation panel"));
+        if (openNavigationPanel(4)) {
+            trace(QStringLiteral("open annotation panel"));
+        }
     });
     // F7：直接打开批注面板。除了给用户一条快捷键，它也是验收脚本唯一能
     // 可靠"展开面板"的手段（导航栏按钮不支持 InvokePattern）。
     auto* annotationShortcut = new QShortcut(QKeySequence(Qt::Key_F7), this);
     connect(annotationShortcut, &QShortcut::activated, this, [this]() {
         // 面板可能是收起的：只切页不展开，用户（和验收脚本）都看不到东西。
-        if (navigationDock_ != nullptr) {
-            navigationDock_->setVisible(true);
+        if (openNavigationPanel(4)) {
+            trace(QStringLiteral("open annotation panel"));
         }
-        showNavigationPage(4);
-        trace(QStringLiteral("open annotation panel"));
     });
 
     // F8：打开表单面板（与 F7 同理，给用户快捷键，也给验收脚本一条可触发的路径）。
     auto* formShortcut = new QShortcut(QKeySequence(Qt::Key_F8), this);
     connect(formShortcut, &QShortcut::activated, this, [this]() {
-        if (navigationDock_ != nullptr) {
-            navigationDock_->setVisible(true);
+        if (!openNavigationPanel(5)) {
+            return;
         }
-        showNavigationPage(5);
         refreshForms(currentView());
         trace(QStringLiteral("open form panel"));
     });
@@ -828,10 +830,10 @@ void MainWindow::buildUi() {
         pageAction->setToolTip(tr("整理页面：插入、删除、旋转与移动"));
     });
     connect(pageAction, &QAction::triggered, this, [this]() {
-        navigationDock_->setVisible(true);
         // 切到导航栏的页面页（第一个按钮）。
-        showNavigationPage(0);
-        trace(QStringLiteral("open page panel"));
+        if (openNavigationPanel(0)) {
+            trace(QStringLiteral("open page panel"));
+        }
     });
     // 本地索引已交付（v0.9.0）：点开就是索引页（状态、检索、结果）。
     auto* indexAction = commandBar->addAction(QString());
@@ -842,10 +844,10 @@ void MainWindow::buildUi() {
         indexAction->setToolTip(tr("建立文档索引并按关键词检索"));
     });
     connect(indexAction, &QAction::triggered, this, [this]() {
-        navigationDock_->setVisible(true);
-        // 切到导航栏的索引页（最后一个按钮）。
-        showNavigationPage(5);
-        trace(QStringLiteral("open index panel"));
+        // 切到导航栏的索引页（第七个按钮）。
+        if (openNavigationPanel(6)) {
+            trace(QStringLiteral("open index panel"));
+        }
     });
     // 工具栏里的按钮是 Qt 自己建的 QToolButton：
     // QAction 的对象名不会出现在 UI Automation 里，验收脚本按它找不到人。
@@ -1111,8 +1113,7 @@ void MainWindow::buildUi() {
     addToolCommand(undoGroup, "撤销", "撤销批注操作", ":/icons/undo.svg", "undo");
     addToolCommand(undoGroup, "重做", "重做批注操作", ":/icons/redo.svg", "redo");    auto* panelGroup = ribbonBar_->addGroup(commentTab, tr("面板"));
     addRibbonCommand(panelGroup, "批注", "打开批注面板", ":/icons/annotation.svg", [this] {
-        navigationDock_->setVisible(true);
-        showNavigationPage(4);
+        openNavigationPanel(4);
     }, true, "ribbonAnnotationPanel");
     auto* reviewGroup = ribbonBar_->addGroup(commentTab, tr("审阅"));
     addRibbonCommand(reviewGroup, "导出批注", "导出批注（XFDF）", ":/icons/convert.svg", [this] {
@@ -1785,14 +1786,12 @@ void MainWindow::buildUi() {
     auto* navigationEditGroup = ribbonBar_->addGroup(contentEditTab, tr("导航"));
     QToolButton* bookmarkButton = addRibbonCommand(
         navigationEditGroup, "书签", "查看或编辑书签", ":/icons/bookmark.svg", [this] {
-        navigationDock_->setVisible(true);
-        showNavigationPage(2);
+        openNavigationPanel(2);
     }, true, "edit.bookmarks");
     auto* bookmarkMenu = new QMenu(bookmarkButton);
     QAction* showBookmarksAction = bookmarkMenu->addAction(tr("打开书签面板"));
     connect(showBookmarksAction, &QAction::triggered, this, [this] {
-        navigationDock_->setVisible(true);
-        showNavigationPage(2);
+        openNavigationPanel(2);
     });
     QAction* addBookmarkAction = bookmarkMenu->addAction(tr("添加当前页书签"));
     connect(addBookmarkAction, &QAction::triggered, this, &MainWindow::addCurrentPageBookmark);
@@ -1958,7 +1957,7 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) view->exportAnnotationSummary();
     }, true, "signature.report");
     addRibbonCommand(signatureFlowGroup, "签署记录", "打开批注与签章记录", ":/icons/signature-records.svg",
-                     [this] { navigationDock_->setVisible(true); showNavigationPage(4); },
+                     [this] { openNavigationPanel(4); },
                      true, "signature.records");
     auto* signatureServiceGroup = ribbonBar_->addGroup(signatureTab, tr("服务"));
     addRibbonCommand(signatureServiceGroup, "分享反馈", "需要电子签平台服务", ":/icons/signature-feedback.svg",
@@ -2127,7 +2126,7 @@ void MainWindow::buildUi() {
     addRibbonCommand(documentSearchGroup, "自动导入", "监控目录并自动打开新增 PDF", ":/icons/page-insert.svg",
                      [this] { configureAutoImport(); }, true, "documentManagement.autoImport");
     addRibbonCommand(documentSearchGroup, "全文检索", "打开本地全文索引与检索",
-                     ":/icons/search.svg", [this] { showNavigationPage(6); }, true,
+                     ":/icons/search.svg", [this] { openNavigationPanel(6); }, true,
                      "documentManagement.fullTextSearch");
 
     auto* invoiceGroup = ribbonBar_->addGroup(documentManagementTab, tr("发票"));
@@ -2186,12 +2185,10 @@ void MainWindow::buildUi() {
                      "record.openFolder");
     addRibbonCommand(recordManageGroup, "录制列表", "在批注面板中查看声音录制",
                      ":/icons/annotation.svg", [this] {
-        if (currentView() == nullptr) {
+        if (!openNavigationPanel(4)) {
             statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
             return;
         }
-        navigationDock_->setVisible(true);
-        showNavigationPage(4);
         statusBar()->showMessage(tr("声音录制保存在声音批注中。"), 5000);
     }, true, "record.list");
     // 帮助页不能继续使用整页占位按钮：这些入口不依赖 PDF 编辑能力，应该在
@@ -2484,6 +2481,7 @@ void MainWindow::buildUi() {
     });
     navigationLayout->addWidget(rail);
     auto* pageArea = new QWidget(navigation);
+    pageArea->setObjectName(QStringLiteral("navigationPageArea"));
     auto* pageAreaLayout = new QVBoxLayout(pageArea);
     pageAreaLayout->setContentsMargins(0, 0, 0, 0);
     pageAreaLayout->setSpacing(0);
@@ -2496,6 +2494,7 @@ void MainWindow::buildUi() {
     navigationDock_->setWidget(navigation);
     addDockWidget(Qt::LeftDockWidgetArea, navigationDock_);
     // 导航面板建好了，占位动作现在才有开关可接。
+    navigationPanelAction_ = navigationPanelAction;
     navigationPanelAction->setCheckable(true);
     navigationPanelAction->setChecked(true);
     texts_.bind([this, navigationPanelAction] {
@@ -2510,6 +2509,8 @@ void MainWindow::buildUi() {
     texts_.bind([this, navigationToggleAction] {
         navigationToggleAction->setText(tr("导航"));
     });
+    // 视图菜单里这一项同样要能置灰：它直接 toggleViewAction，绕不过 syncTabBar。
+    navigationViewToggleAction_ = navigationToggleAction;
     viewMenu->addAction(navigationToggleAction);
 
     aiDock_ = new QDockWidget(QString(), this);
@@ -2733,10 +2734,18 @@ void MainWindow::buildUi() {
         // QMainWindow 首次 show() 还会把构造期隐藏的 dock 重新摆出来，所以这里不是
         // 「不要 show」而是「按欢迎页的决定再收一次」。
         if (navHiddenForWelcome_) {
+            trace(QStringLiteral("dbg startup hide for welcome"));
             navigationDock_->hide();
         } else {
+            trace(QStringLiteral("dbg startup show nav"));
             navigationDock_->show();
         }
+        QTimer::singleShot(1500, this, [this] {
+            trace(QStringLiteral("dbg settled dockVisible=%1 pagesVisible=%2 navHidden=%3")
+                      .arg(navigationDock_->isVisible())
+                      .arg(navigationPages_->isVisible())
+                      .arg(navHiddenForWelcome_));
+        });
         setNavigationExpanded(false);
         positionFloatingUi();
     });
@@ -2970,57 +2979,110 @@ void MainWindow::syncTabBar() {
     if (tabs_ == nullptr) {
         return;
     }
-    const QWidget* page = tabs_->widget(0);
-    const bool onlyWelcome = tabs_->count() == 1 && page != nullptr &&
-                             page->property("welcomePage").toBool();
-    tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWelcome);
+    const bool onWorkspace = isWorkspaceCurrent();
+    // 标签条按「有几页」决定显隐：工作台 + 一份文档时仍要留着，否则回不到文档。
+    // 只剩工作台时整条收起来——一个标签的标签条只是浪费一行高度。
+    const bool onlyWorkspace = tabs_->count() == 1 && onWorkspace;
+    tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWorkspace);
     if (ribbonBar_ != nullptr) {
-        ribbonBar_->setCompactMode(onlyWelcome);
-        if (onlyWelcome) {
+        ribbonBar_->setCompactMode(onWorkspace);
+        if (onWorkspace) {
             ribbonBar_->setCurrentTab(0);
         }
     }
-    // 欢迎页不留命令区：标签条上十几页背后没有一份文档，点进去全是空命令组。
-    // 打开第一份文档时 openPdfFile 会再调一次 syncTabBar，Ribbon 随即回到原位。
+    // 工作台不留命令区：Ribbon 上十几页背后没有一份文档，点进去全是空命令组。
+    // 切回文档时本函数会再跑一次（currentChanged），Ribbon 随即回到原位。
     // 沉浸阅读自己管 Ribbon 的显隐，这里不抢它的开关。
     if (ribbonDock_ != nullptr && !immersiveReading_) {
-        ribbonDock_->setVisible(!onlyWelcome);
+        ribbonDock_->setVisible(!onWorkspace);
     }
-    // 无文档时全局搜索没有搜索对象：留着只是一个按回车也搜不出东西的输入框。
+    // 工作台上全局搜索没有搜索对象：留着只是一个按回车也搜不出东西的输入框。
     if (globalSearchAction_ != nullptr) {
-        globalSearchAction_->setVisible(!onlyWelcome);
+        globalSearchAction_->setVisible(!onWorkspace);
     }
     if (statusDocumentControls_ != nullptr) {
-        statusDocumentControls_->setVisible(!onlyWelcome);
+        statusDocumentControls_->setVisible(!onWorkspace);
+    }
+    // 页签的选中态跟着当前页走，不靠点击碰运气。
+    if (workspaceButton_ != nullptr) {
+        workspaceButton_->setChecked(onWorkspace);
     }
     QTimer::singleShot(0, this, [this] { positionStatusBarUi(); });
-    // 设置入口位于状态栏，欢迎页也需要保持可见；没有文档时只隐藏页码与缩放。
+    // 设置入口位于状态栏，工作台也需要保持可见；没有文档时只隐藏页码与缩放。
     statusBar()->setVisible(true);
 
-    // 欢迎页上没有文档：左侧导航栏与 AI 浮动入口都没有操作对象，
-    // 留着只是一排点不出结果的图标。打开第一份文档时再按用户原意恢复。
+    // 工作台上没有文档：左侧导航栏与 AI 浮动入口都没有操作对象，
+    // 留着只是一排点不出结果的图标。切回文档时再按用户原意恢复。
     if (aiFloatingButton_ != nullptr) {
-        aiFloatingButton_->setVisible(!onlyWelcome);
-        if (onlyWelcome && aiQuickCard_ != nullptr) {
+        aiFloatingButton_->setVisible(!onWorkspace);
+        if (onWorkspace && aiQuickCard_ != nullptr) {
             aiQuickCard_->hide();
         }
     }
     if (navigationDock_ == nullptr) {
         return;
     }
-    if (onlyWelcome) {
+    // 两个开关在工作台上都置灰：否则「显示导航面板」能把刚收起来的 dock
+    // 原样请回来，回来的还是上次在文档里展开的那一页。
+    if (navigationPanelAction_ != nullptr) {
+        navigationPanelAction_->setEnabled(!onWorkspace);
+    }
+    if (navigationViewToggleAction_ != nullptr) {
+        navigationViewToggleAction_->setEnabled(!onWorkspace);
+    }
+    // 顺手把页面按钮的可用状态刷一遍：它们只在打开文档时算过一次，
+    // 工作台上会一直保持「看着能按」的样子。
+    updatePageActionState();
+    if (onWorkspace) {
+        trace(QStringLiteral("dbg sync workspace hidden=%1 pagesVisible=%2")
+                  .arg(navigationDock_->isHidden())
+                  .arg(navigationPages_->isVisible()));
         // 用 isHidden() 而不是 isVisible()：窗口还没 show 的时候 dock 已经是
         // 「请求显示但实际不可见」，isVisible() 会给 false，收起就漏掉了。
         if (!navigationDock_->isHidden()) {
             navHiddenForWelcome_ = true;
             navigationDock_->hide();
         }
+        // 展开态也要一起收回「图标轨」：只 hide 不收起的话，dock 下次露面
+        // 会把整页面板（含空缩略图与页面按钮）带回来。
+        setNavigationExpanded(false);
+        trace(QStringLiteral("dbg sync workspace hiddenAfter=%1").arg(navigationDock_->isHidden()));
     } else if (navHiddenForWelcome_) {
         navHiddenForWelcome_ = false;
         navigationDock_->setVisible(navigationUserVisible_);
         // 重新露面时回到「图标轨」形态：只 show 不设宽度，dock 会摊成一条空面板。
         setNavigationExpanded(false);
     }
+}
+
+bool MainWindow::isWorkspaceCurrent() const {
+    if (tabs_ == nullptr) {
+        return false;
+    }
+    const QWidget* page = tabs_->currentWidget();
+    return page != nullptr && page->property("welcomePage").toBool();
+}
+
+void MainWindow::showWorkspace() {
+    if (tabs_ == nullptr) {
+        return;
+    }
+    for (int index = 0; index < tabs_->count(); ++index) {
+        QWidget* page = tabs_->widget(index);
+        if (page != nullptr && page->property("welcomePage").toBool()) {
+            // 回到工作台时顺带对一遍磁盘：文件被删/改名后不该还留着一行点不开的旧记录。
+            refreshWelcomeRecentFiles();
+            tabs_->setCurrentIndex(index);
+            return;
+        }
+    }
+    // 工作台页可能已经被关掉：按需重建，保证这个入口任何时候都点得回去。
+    auto* page = createWelcomePage();
+    page->setProperty("welcomePage", true);
+    tabs_->insertTab(0, page, QString());
+    bindWelcomeTab(page);
+    tabs_->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+    tabs_->setCurrentIndex(0);
 }
 
 QWidget* MainWindow::createWelcomePage() {
@@ -3045,6 +3107,23 @@ void MainWindow::rememberRecentFile(const QString& filePath) {
         files.removeLast();
     }
     QSettings().setValue(QStringLiteral("startup/recentFiles"), files);
+    // 工作台页是启动时按当时的列表搭好的：写完设置还得把那一页叫醒，
+    // 否则刚打开的文档要等下次启动才出现在「最近打开」里。
+    refreshWelcomeRecentFiles();
+}
+
+void MainWindow::refreshWelcomeRecentFiles() {
+    if (tabs_ == nullptr) {
+        return;
+    }
+    const QStringList files = recentFilesFromSettings();
+    for (int index = 0; index < tabs_->count(); ++index) {
+        // 工作台页用属性标过，但这里直接按类型找更稳：将来若复制出第二份欢迎页也不会漏。
+        auto* page = qobject_cast<WelcomePage*>(tabs_->widget(index));
+        if (page != nullptr) {
+            page->setRecentFiles(files);
+        }
+    }
 }
 
 QWidget* MainWindow::createNavigationEmptyState(const char* titleSource,
@@ -4506,8 +4585,7 @@ void MainWindow::showReviewTracker() {
     if (shareDocument() == nullptr) {
         return;
     }
-    navigationDock_->setVisible(true);
-    showNavigationPage(4);
+    openNavigationPanel(4);
     trace(QStringLiteral("share open review tracker"));
 }
 
@@ -5561,6 +5639,40 @@ void MainWindow::refreshOutline(PdfView* view) {
         }
     }
     trace(QStringLiteral("outline shown items=%1").arg(entries.size()));
+    // 取回大纲之后再决定要不要把面板亮出来：只有真的有条目才值得展开。
+    revealOutlineForDocument(view);
+}
+
+// 文档带大纲 → 自动把左侧面板展开到「目录」。
+//
+// 为什么不是「一直默认展开」：导航栏有七个页签，谁都想当默认页，
+// 常驻一张树会挤掉画布；也不必让用户先去猜第 2 个图标是目录。
+// 折中做法是「读到目录就替你打开一次」，之后收不收起完全由用户决定。
+void MainWindow::revealOutlineForDocument(PdfView* view) {
+    if (view == nullptr || navigationDock_ == nullptr || navigationPages_ == nullptr) {
+        return;
+    }
+    if (outlineAutoRevealedFor_.data() == static_cast<QObject*>(view)) {
+        return;
+    }
+    // 沉浸阅读与专注模式是用户显式要求的「只剩文档」，这时候弹面板是打脸。
+    if (immersiveReading_ || focusModeEnabled_) {
+        return;
+    }
+    // 面板已经展开着（用户自己在看页面/书签/搜索）就不抢页签，只把这次机会记下来。
+    const bool alreadyOpen = navigationDock_->isVisible() && navigationPages_->isVisible();
+    outlineAutoRevealedFor_ = view;
+    if (alreadyOpen) {
+        return;
+    }
+
+    // 用户上次把整条导航关掉过（设置里是 false），这里要真的把它显出来，
+    // 否则「自动展开」只是在一条藏起来的 dock 上做无用功。
+    navigationUserVisible_ = true;
+    navigationDock_->setVisible(true);
+    showNavigationPage(kNavigationOutlinePage);
+    updateNavigationHeader(kNavigationOutlinePage);
+    trace(QStringLiteral("outline auto shown page=%1").arg(kNavigationOutlinePage));
 }
 
 void MainWindow::addCurrentPageBookmark() {
@@ -5801,6 +5913,12 @@ void MainWindow::editBookmarkHierarchy() {
 // 命令栏的「页面」「批注」是导航命令，不是开关——连点两次把面板关掉，
 // 会让人以为功能坏了。
 void MainWindow::showNavigationPage(int index) {
+    // 兜底：没有文档时面板里七个页签都没有可指的对象。命令入口已经统一走
+    // openNavigationPanel，这里再挡一层，将来新加的调用点也不会把空面板撑开。
+    if (currentView() == nullptr) {
+        trace(QStringLiteral("navigation panel skipped index=%1 no document").arg(index));
+        return;
+    }
     if (navigationRail_ != nullptr) {
         if (auto* button = navigationRail_->button(index)) {
             button->setChecked(true);
@@ -5812,6 +5930,22 @@ void MainWindow::showNavigationPage(int index) {
     navigationPages_->setCurrentIndex(index);
     setNavigationExpanded(true);
     traceNavigationPanel(index);
+}
+
+bool MainWindow::openNavigationPanel(int index) {
+    if (navigationDock_ == nullptr) {
+        return false;
+    }
+    // 工作台上没有文档：dock 在 syncTabBar 里已经收起来了，这里不许任何
+    // 命令再把它 show 回来——否则用户会看到一列空缩略图，以及六个看起来
+    // 能用、按下去却直接 return 的页面按钮。
+    if (currentView() == nullptr) {
+        trace(QStringLiteral("navigation skipped index=%1 no document").arg(index));
+        return false;
+    }
+    navigationDock_->setVisible(true);
+    showNavigationPage(index);
+    return true;
 }
 
 void MainWindow::traceNavigationPanel(int index) {
@@ -6096,11 +6230,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
     // 打开成功才记：密码错、文件损坏的不该出现在「最近文档」里。
     rememberRecentFile(filePath);
     const QString title = QFileInfo(filePath).fileName();
-    if (tabs_->count() == 1 && tabs_->widget(0)->property("welcomePage").toBool()) {
-        QWidget* welcome = tabs_->widget(0);
-        tabs_->removeTab(0);
-        welcome->deleteLater();
-    }
+    // 工作台页保留在 0 号标签：打开文档后仍能一键退回最近文档，
+    // 标签条上它也是一页，关掉所有文档时自然回到只有它的状态。
     tabs_->addTab(view, title);
     tabs_->setCurrentWidget(view);
     syncTabBar();
@@ -6342,7 +6473,7 @@ void MainWindow::bindWelcomeTab(QWidget* page) {
         }
         const int index = tabs_->indexOf(guard);
         if (index >= 0) {
-            tabs_->setTabText(index, tr("欢迎页"));
+            tabs_->setTabText(index, tr("工作台"));
         }
     });
 }

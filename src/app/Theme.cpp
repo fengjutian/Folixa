@@ -1,4 +1,4 @@
-﻿#include "app/Theme.h"
+#include "app/Theme.h"
 
 #include <QApplication>
 #include <QFont>
@@ -96,19 +96,25 @@ QToolBar#commandBar QToolButton:checked {
     color: #3555B7; background: #EEF3FF; border-color: #D9E3FA;
 }
 QToolBar#commandBar QToolButton:disabled { color: #B4BDCB; background: transparent; }
+QToolBar#commandBar QToolButton#workspaceButton {
+    min-width: 104px; max-width: 104px; min-height: 28px; max-height: 28px;
+    padding: 0 10px; border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: #4A576E; font-size: 14px; font-weight: 700;
+}
+QToolBar#commandBar QToolButton#workspaceButton:hover { background: #F2F6FD; color: #2F4FA8; }
+/* 只有停在工作台页时才点亮：未选中保持安静，不和 Ribbon 的选中页签抢注意力。 */
+QToolBar#commandBar QToolButton#workspaceButton:checked {
+    border-color: #365AA8; background: #4169C1; color: #FFFFFF;
+}
+QToolBar#commandBar QToolButton#workspaceButton:checked:hover { background: #365AA8; }
+/* 主菜单只剩一个图标：去掉内边距，让三条横线居中。 */
 QToolBar#commandBar QToolButton#appMenuButton {
-    min-width: 112px; max-width: 112px; min-height: 28px; max-height: 28px;
-    padding: 0 12px; border: 1px solid #365AA8; border-radius: 6px;
-    background: #4169C1; color: #FFFFFF; font-size: 14px; font-weight: 700;
+    min-width: 30px; max-width: 30px; min-height: 28px; max-height: 28px;
+    padding: 0; border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: #4A576E;
 }
-QToolBar#commandBar QToolButton#appMenuButton:hover { background: #365AA8; color: #FFFFFF; }
-QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #2E4E93; }
-QToolBar#commandBar QToolButton[titleQuick="true"] {
-    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px;
-    padding: 0; border: 0; border-radius: 5px; color: #52525B; background: transparent;
-}
-QToolBar#commandBar QToolButton[titleQuick="true"]:hover { background: #EEEFF2; }
-QToolBar#commandBar QToolButton[titleQuick="true"]:disabled { background: transparent; color: #A1A1AA; }
+QToolBar#commandBar QToolButton#appMenuButton:hover { background: #F2F6FD; }
+QToolBar#commandBar QToolButton#appMenuButton:pressed { background: #E8EFFB; }
 QLineEdit#globalSearch {
     min-height: 26px; max-height: 26px; padding: 0 12px;
     border: 1px solid #E4E4E7; border-radius: 7px;
@@ -116,11 +122,6 @@ QLineEdit#globalSearch {
 }
 QLineEdit#globalSearch:hover { background: #ECECEF; border-color: #D4D4D8; }
 QLineEdit#globalSearch:focus { background: #FFFFFF; border-color: #4169C1; }
-QToolBar#commandBar QToolButton[titleAccount="true"] {
-    min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px; padding: 0;
-    border: 0; border-radius: 13px;
-    background: #4169C1; color: #FFFFFF; font-weight: 800;
-}
 QToolBar#commandBar QToolButton#aiCommandButton {
     color: #365AA8; background: #F2F6FC; border-color: #D9E3F2; padding: 0 15px;
 }
@@ -160,7 +161,8 @@ QToolButton[ribbonCommand="true"]:disabled { color: #B8C0CC; background: transpa
 /* -------------------------------------------------------------- 按钮 -- */
 /* InstantPopup 下整块按钮都能点开菜单，右边那个箭头纯属多余；
    留着它还会在 32px 的按钮里挤出一块空白。 */
-QToolBar#commandBar QToolButton#appMenuButton::menu-indicator { image: none; width: 0; height: 0; }QPushButton, QToolButton {
+QToolBar#commandBar QToolButton#appMenuButton::menu-indicator { image: none; width: 0; height: 0; }
+QPushButton, QToolButton {
     min-height: 30px; padding: 0 12px; border: 1px solid #E3E7EE;
     border-radius: 8px; background: #FFFFFF;
 }
@@ -227,6 +229,19 @@ QLabel#navigationHeader {
     color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #EDF0F5;
 }
 QFrame#navigationRail { background: #FAFAFB; border-right: 1px solid #E4E4E7; }
+/* 面板内容区：与画布之间留一道细边，目录树才不会看起来「飘」在页面上。 */
+QWidget#navigationPageArea { background: #FBFBFD; border-right: 1px solid #E4E4E7; }
+/* 目录树：对齐参考阅读器的书签面板——浅底、行高松一些、选中/悬停用蓝色。 */
+QTreeWidget#outlineTree {
+    background: #FBFBFD; border: 0; outline: 0; padding: 6px 4px;
+    show-decoration-selected: 1;
+}
+QTreeWidget#outlineTree::item {
+    min-height: 26px; padding: 3px 4px; border-radius: 6px; color: #3F4B5E;
+}
+QTreeWidget#outlineTree::item:hover { background: #F1F4FF; color: #365AA8; }
+QTreeWidget#outlineTree::item:selected { background: #EEF3FC; color: #3555B7; }
+QTreeWidget#outlineTree::branch { background: transparent; }
 QToolButton[railButton="true"] { min-width: 36px; max-width: 36px; min-height: 36px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 18px; }
 QToolButton[railButton="true"]:hover { background: #EAF0F8; color: #365AA8; }
 QToolButton[railButton="true"]:checked { background: #EEF3FC; color: #365AA8; border-left: 3px solid #4169C1; }

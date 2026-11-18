@@ -31,6 +31,7 @@
 #include <memory>
 #include <utility>
 
+#include "app/SystemCjkFont.h"
 #include "doc/ConversionInputs.h"
 #include "i18n/Translate.h"
 
@@ -149,48 +150,9 @@ bool needsEmbeddedFont(const QString& text) {
 
 // 在用户机器上找一份能显示中文的 TrueType 字体。
 //
-// 为什么找得到就自动用：标准 14 字体没有中文字形，剪贴板与网页里的中文
-// 会变成问号。仓库里没随附中文字体（tools/ 与 assets/ 下都没有），
-// 只能用系统里的那份。
-//
-// 为什么只认 .ttf 不认 .ttc：doc/UniversalConverter 的字体解析只支持单字体的
-// TrueType 文件，ttc 集合会被当成无效字体拒掉。
-//
-// 环境变量 AIPDF_CJK_FONT 的用法和 pdf/PdfiumAdapter 里的一致。
-bool loadSystemCjkFont(doc::FontResource* resource, QString* usedPath) {
-    if (resource == nullptr) {
-        return false;
-    }
-    QStringList candidates;
-    const QString configured = qEnvironmentVariable("AIPDF_CJK_FONT");
-    if (!configured.isEmpty()) {
-        candidates.append(configured);
-    }
-    candidates.append({
-        QStringLiteral("C:/Windows/Fonts/simhei.ttf"),
-        QStringLiteral("C:/Windows/Fonts/Deng.ttf"),
-        QStringLiteral("C:/Windows/Fonts/simsunb.ttf"),
-        QStringLiteral("C:/Windows/Fonts/STSONG.TTF"),
-    });
-    for (const QString& path : std::as_const(candidates)) {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly)) {
-            continue;
-        }
-        const QByteArray bytes = file.readAll();
-        file.close();
-        if (bytes.isEmpty()) {
-            continue;
-        }
-        resource->bytes = bytes;
-        resource->postScriptName = QFileInfo(path).completeBaseName();
-        if (usedPath != nullptr) {
-            *usedPath = path;
-        }
-        return true;
-    }
-    return false;
-}
+// 找法与理由写在 app/SystemCjkFont.h 里（剪贴板、网页、任意文件 → PDF
+// 三条路共用同一份，免得各写各的、找出不一样的字体）。
+using aipdf::app::loadSystemCjkFont;
 
 // 组装转换参数：用户指定了字体就用它；没指定但文本里有非拉丁字符，
 // 就自动嵌入系统里的中文字体。
