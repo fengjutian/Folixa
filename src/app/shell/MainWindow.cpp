@@ -3689,19 +3689,23 @@ void MainWindow::importFormCsv() {
     file.close();
     // 按名字匹配现有字段：CSV 里多的字段忽略，少的保持原值。
     const QVector<pdf::FormField> fields = view->formFields();
-    int applied = 0;
+    QVector<QPair<QString, QString>> updates;
     for (const pdf::FormValue& value : values) {
         for (const pdf::FormField& field : fields) {
             if (field.name == value.name && !field.readOnly) {
-                if (view->setFormFieldValue(field.pageIndex, field.name, value.value)) {
-                    ++applied;
-                }
+                updates.append({field.name, value.value});
                 break;
             }
         }
     }
+    QString reason;
+    const int applied = view->applyFormFieldValues(updates, &reason);
     refreshForms(view);
-    statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+    if (reason.isEmpty()) {
+        statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+    } else {
+        statusBar()->showMessage(tr("导入了 %1 个字段；%2").arg(applied).arg(reason), 6000);
+    }
 }
 
 // 表单数据的 XFDF 导出。
@@ -3753,17 +3757,23 @@ void MainWindow::importFormXfdf() {
     file.close();
     // 按名字匹配现有字段：XFDF 里多的字段忽略，少的保持原值。
     const QVector<pdf::FormField> fields = view->formFields();
-    int applied = 0;
+    QVector<QPair<QString, QString>> updates;
     for (const pdf::FormFieldData& value : values) {
         for (const pdf::FormField& field : fields) {
             if (field.name == value.name && !field.readOnly) {
-                if (view->setFormFieldValue(field.pageIndex, field.name, value.value)) ++applied;
+                updates.append({field.name, value.value});
                 break;
             }
         }
     }
+    QString reason;
+    const int applied = view->applyFormFieldValues(updates, &reason);
     refreshForms(view);
-    statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+    if (reason.isEmpty()) {
+        statusBar()->showMessage(tr("导入了 %1 个字段").arg(applied), 4000);
+    } else {
+        statusBar()->showMessage(tr("导入了 %1 个字段；%2").arg(applied).arg(reason), 6000);
+    }
 }
 
 void MainWindow::exportFormDataDialog() {

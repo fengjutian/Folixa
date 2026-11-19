@@ -194,6 +194,11 @@ public slots:
     // 批量导入仍用上面的轻量接口，避免每个字段都重写一遍文档。
     bool setFormFieldValueWithScripts(int pageIndex, const QString& name, const QString& value,
                                       QString* reason = nullptr);
+    // 批量写值（CSV / FDF / XFDF 导入、重置表单）：整篇只载入一次、计算一次、
+    // 写回一次、重开一次。字段匹配不到、只读、校验失败都会被跳过并计入失败，
+    // 返回真正写成功的字段数。values 是「字段名 → 值」。
+    int applyFormFieldValues(const QVector<QPair<QString, QString>>& values,
+                             QString* reason = nullptr);
     bool flattenFormsOnPage(int pageIndex);
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);

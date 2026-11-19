@@ -176,6 +176,7 @@ private slots:
     void calculationOrderFromCo();
     void afSimpleCalculateSumsFields();
     void appliesValuesToPdf();
+    void appliesMultipleValuesInOneWriteBack();
     void runawayCalculationIsReported();
     void documentEventsAreRecorded();
 };
@@ -337,6 +338,26 @@ void FormRuntimeTests::appliesValuesToPdf() {
     QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("A")), QStringLiteral("5"));
     QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("B")), QStringLiteral("10"));
     QVERIFY(applied.report.appearancesWritten >= 2);
+}
+
+void FormRuntimeTests::appliesMultipleValuesInOneWriteBack() {
+    FieldSpec a{QStringLiteral("A"), QStringLiteral("1")};
+    FieldSpec b{QStringLiteral("B"), QStringLiteral("2")};
+    FieldSpec total{QStringLiteral("T"), QStringLiteral("0")};
+    total.calculate = QStringLiteral("AFSimple_Calculate(\"SUM\", new Array(\"A\", \"B\"))");
+    const QByteArray pdf = buildFormPdf({a, b, total}, {QStringLiteral("T")});
+
+    FormRuntime runtime = FormRuntime::load(pdf);
+    QVERIFY(runtime.isValid());
+    QVERIFY(runtime.setValue(QStringLiteral("A"), QStringLiteral("3")).ok);
+    QVERIFY(runtime.setValue(QStringLiteral("B"), QStringLiteral("4")).ok);
+
+    const aipdf::pdf::FormAppearanceResult applied = runtime.applyTo(pdf);
+    QVERIFY2(applied.ok(), qPrintable(applied.report.error));
+    // 一次写回要把两个手填域和计算域都带上。
+    QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("A")), QStringLiteral("3"));
+    QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("B")), QStringLiteral("4"));
+    QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("T")), QStringLiteral("7"));
 }
 
 void FormRuntimeTests::runawayCalculationIsReported() {    FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};

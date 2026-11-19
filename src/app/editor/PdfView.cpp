@@ -2930,6 +2930,79 @@ bool PdfView::setFormFieldValueWithScripts(int pageIndex, const QString& name,
     return true;
 }
 
+int PdfView::applyFormFieldValues(const QVector<QPair<QString, QString>>& values,
+                                  QString* reason) {
+    if (values.isEmpty()) return 0;
+    if (!requirePermission(effectivePermissions().allowFormFilling, tr("填写表单"))) {
+        if (reason != nullptr) *reason = tr("这份文档不允许填写表单。");
+        return 0;
+    }
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        if (reason != nullptr) *reason = tr("无法序列化文档：%1").arg(error);
+        return 0;
+    }
+
+    pdf::FormRuntime runtime = pdf::FormRuntime::load(source, &error);
+    if (!runtime.isValid()) {
+        if (reason != nullptr) *reason = error;
+        return 0;
+    }
+
+    int applied = 0;
+    int firstPage = -1;
+    QStringList failures;
+    for (const QPair<QString, QString>& pair : values) {
+        const pdf::FormFieldState* state = runtime.field(pair.first);
+        if (state == nullptr) {
+            failures.append(tr("没有字段 %1").arg(pair.first));
+            continue;
+        }
+        if (state->readOnly) {
+            failures.append(tr("%1 是只读的").arg(pair.first));
+            continue;
+        }
+        const pdf::FormEventResult result = runtime.setValue(pair.first, pair.second);
+        if (!result.ok) {
+            failures.append(tr("%1：%2").arg(pair.first, result.error));
+            continue;
+        }
+        if (firstPage < 0) firstPage = state->pageIndex;
+        ++applied;
+    }
+    if (applied == 0) {
+        if (reason != nullptr) *reason = failures.value(0, tr("没有可写入的字段"));
+        return 0;
+    }
+
+    const pdf::PdfDocument before =
+        firstPage >= 0 ? document_.backupPage(firstPage) : pdf::PdfDocument();
+    const pdf::FormAppearanceResult written = runtime.applyTo(source);
+    if (!written.ok()) {
+        if (reason != nullptr) *reason = written.report.error;
+        return 0;
+    }
+    if (!document_.reloadFromBytes(written.bytes, &error)) {
+        if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
+        return 0;
+    }
+    QString serializeError;
+    const QByteArray refreshed = document_.serialize(&serializeError);
+    if (!refreshed.isEmpty()) document_.syncBytes(refreshed);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    if (before.isValid() && firstPage >= 0) {
+        recordContentEdit(firstPage, before, tr("批量填写表单"));
+    }
+    setModified(true);
+    emit formFieldsChanged();
+    if (!failures.isEmpty() && reason != nullptr) {
+        *reason = tr("%1 个字段没写进去：%2").arg(failures.size()).arg(failures.first());
+    }
+    return applied;
+}
+
 bool PdfView::flattenFormsOnPage(int pageIndex) {
     if (!requirePermission(effectivePermissions().allowModifying, tr("扁平化表单"))) return false;
     if (!document_.flattenPage(pageIndex)) {
@@ -3240,13 +3313,13 @@ int PdfView::resetFormFields() {
     QHash<QString, QString> defaults;
     for (const pdf::FormFieldScript& script : formFieldScripts())
         defaults.insert(script.fieldName, script.defaultValue);
-    int count = 0;
+    QVector<QPair<QString, QString>> updates;
     for (const pdf::FormField& field : document_.formFields()) {
         if (field.readOnly) continue;
-        const QString value = defaults.value(field.name);
-        if (setFormFieldValue(field.pageIndex, field.name, value)) ++count;
+        updates.append({field.name, defaults.value(field.name)});
     }
-    return count;
+    // 一次载入、一次计算、一次写回：重置 50 个字段不会把文档重写 50 遍。
+    return applyFormFieldValues(updates);
 }
 
 

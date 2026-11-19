@@ -1692,6 +1692,10 @@
             <translation>Imported %1 fields</translation>
         </message>
         <message>
+            <source>导入了 %1 个字段；%2</source>
+            <translation>Imported %1 fields; %2</translation>
+        </message>
+        <message>
             <source>导入批注（XFDF）…</source>
             <translation>Import annotations (XFDF)…</translation>
         </message>
@@ -3953,6 +3957,30 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
         <message>
             <source>已替换选中文字（保留原字体）</source>
             <translation>Replaced the selection (original font preserved)</translation>
+        </message>
+        <message>
+            <source>批量填写表单</source>
+            <translation>Fill form fields in a batch</translation>
+        </message>
+        <message>
+            <source>没有字段 %1</source>
+            <translation>No such field: %1</translation>
+        </message>
+        <message>
+            <source>%1 是只读的</source>
+            <translation>%1 is read-only</translation>
+        </message>
+        <message>
+            <source>没有可写入的字段</source>
+            <translation>No field can be written</translation>
+        </message>
+        <message>
+            <source>%1 个字段没写进去：%2</source>
+            <translation>%1 fields were not written: %2</translation>
+        </message>
+        <message>
+            <source>%1：%2</source>
+            <translation>%1: %2</translation>
         </message>
         <message>
             <source>1 页</source>
