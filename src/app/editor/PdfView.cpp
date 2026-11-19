@@ -67,6 +67,7 @@
 #include "pdf/ops/OutlineWriter.h"
 #include "pdf/content/TextReflow.h"
 #include "pdf/content/ContentStream.h"
+#include "pdf/content/TextSplice.h"
 #include "i18n/Translate.h"
 
 #include <QColorDialog>
@@ -3887,6 +3888,39 @@ void PdfView::replaceSelectionTextDialog() {
         return;
     }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
+
+    // 首选：字形级替换。只改选中的那几个字，沿用原字体与字宽；
+    // 原字体写不出新字时直接拒绝，绝不静默换成别的字体（那正是白块路径）。
+    const auto extractedForSplice = page->extractText();
+    if (!originalText.isEmpty() && extractedForSplice &&
+        extractedForSplice->plainText().count(originalText, Qt::CaseSensitive) == 1) {
+        QString spliceSerializeError;
+        const QByteArray spliceInput = document_.serialize(&spliceSerializeError);
+        if (!spliceInput.isEmpty()) {
+            pdf::TextSpliceTarget target;
+            target.pageIndex = pageIndex;
+            target.find = originalText;
+            target.replace = text;
+            const pdf::TextSpliceResult spliced = pdf::splicePageText(spliceInput, target);
+            if (spliced.ok()) {
+                QString reloadError;
+                if (document_.reloadFromBytes(spliced.bytes, &reloadError)) {
+                    refreshAfterDecoration();
+                    recordContentEdit(pageIndex, before, tr("字形级替换选中文字"));
+                    setModified(true);
+                    emit statusMessage(tr("已替换选中文字（保留原字体）"));
+                    return;
+                }
+            } else if (spliced.report.error.contains(QStringLiteral("写不出"))) {
+                // 明确告诉用户「原字体没有这些字」，并停止；不要退回白块路径。
+                QMessageBox::warning(this, tr("替换文字"),
+                                     tr("原字体写不出新文字：%1\n\n这次替换已取消。")
+                                         .arg(spliced.report.error));
+                return;
+            }
+        }
+    }
+
     const auto extracted = page->extractText();
     if (before.isValid() && extracted && !originalText.isEmpty() &&
         extracted->plainText().count(originalText, Qt::CaseSensitive) == 1) {

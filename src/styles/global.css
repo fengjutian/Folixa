@@ -608,7 +608,7 @@ h2 {
 footer {
   border-top: 1px solid var(--line);
   padding: 34px 0;
-  color: #737c91;
+  color: #5f6879;
   font-size: 13px;
 }
 .footer-row {
@@ -616,6 +616,22 @@ footer {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+.footer-meta {
+  color: #5f6879;
+}
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.footer-links a {
+  color: var(--blue2);
+  text-decoration: none;
+}
+.footer-links a:hover {
+  text-decoration: underline;
 }
 @media (max-width: 900px) {
   .hero-grid,.usage-grid,.shortcut-layout {
@@ -688,5 +704,97 @@ footer {
   .footer-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .footer-links {
+    gap: 12px;
+  }
+}
+
+/* ── 无障碍：仅供读屏 / 键盘的辅助元素 ─────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  transform: translateY(-160%);
+  transition: transform .15s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.faq :focus-visible {
+  outline-color: #9bb1ff;
+}
+
+/* ── 图标 ──────────────────────────────────────────────── */
+.ico {
+  display: block;
+  color: inherit;
+}
+.ico svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sidebar .ico {
+  width: 15px;
+  height: 15px;
+  color: #6b7484;
+}
+
+/* ── 导航 GitHub 入口 ─────────────────────────────────── */
+.nav-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.nav-github svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* ── 尊重系统的“减少动态效果”偏好 ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *:before,
+  *:after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .btn:hover,
+  .check:hover {
+    transform: none;
   }
 }
