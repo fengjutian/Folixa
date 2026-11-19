@@ -1,16 +1,19 @@
 #include "doc/convert/FontFlattening.h"
 
+#include "doc/convert/GlyphOutline.h"
+#include "doc/convert/OutlinePdfWriter.h"
+#include "doc/model/BlankDocument.h"
+#include "pdf/kernel/PdfiumAdapter.h"
+
 #include <QImage>
 #include <QRectF>
+#include <QSet>
 #include <QSizeF>
 #include <QTransform>
 #include <QtMath>
 
 #include <optional>
 #include <vector>
-
-#include "doc/model/BlankDocument.h"
-#include "pdf/kernel/PdfiumAdapter.h"
 
 namespace aipdf::doc {
 
@@ -50,10 +53,12 @@ struct RenderedPage {
     QRectF contentRect;
 };
 
-}  // namespace
-
-QByteArray flattenFontsToOutlines(const QByteArray& pdfBytes, const FlattenOptions& options,
-                                  QString* error) {
+// 栅格化转曲（旧行为）：整页渲染成位图再写回一份新 PDF。
+//
+// 这一条保留下来是因为它是**唯一**能处理任何文档的兜底：
+// 轮廓化遇到取不到字形轮廓的字体时做不到「整页视觉等价」。
+QByteArray flattenByRasterizing(const QByteArray& pdfBytes, const FlattenOptions& options,
+                                QString* error) {
     const auto fail = [error](const QString& reason) -> QByteArray {
         if (error != nullptr) {
             *error = reason;
@@ -168,6 +173,137 @@ QByteArray flattenFontsToOutlines(const QByteArray& pdfBytes, const FlattenOptio
         return fail(QStringLiteral("字体转曲失败：写出 PDF 失败（%1）。").arg(serializeError));
     }
     return output;
+}
+
+// 轮廓化转曲：逐字取字形轮廓，把文字换成路径，产物里不留字体。
+QByteArray flattenByOutlining(const QByteArray& pdfBytes, const FlattenOptions& options,
+                               FlattenReport* report, QString* error) {
+    const auto fail = [error, report](const QString& reason) -> QByteArray {
+        if (error != nullptr) {
+            *error = reason;
+        }
+        if (report != nullptr) {
+            report->ok = false;
+            report->error = reason;
+        }
+        return QByteArray();
+    };
+
+    if (pdfBytes.isEmpty()) {
+        return fail(QStringLiteral("字体转曲失败：输入字节为空。"));
+    }
+
+#ifdef AIPDF_WITH_QPDF
+    // 先用适配层打开一次：既验证输入，又让 PDFium 完成初始化
+    // （初始化函数一个进程只该调一次，适配层已经负责了）。
+    pdf::PdfOpenResult opened = pdf::openDocumentFromBytes(pdfBytes);
+    if (!opened.document.isValid()) {
+        return fail(QStringLiteral("字体转曲失败：输入不是有效的 PDF（%1）。")
+                        .arg(opened.errorMessage));
+    }
+    if (opened.document.pageCount() <= 0) {
+        return fail(QStringLiteral("字体转曲失败：文档里没有页面。"));
+    }
+
+    QVector<PageOutlineResult> outlines;
+    QString extractError;
+    if (!extractOutlines(pdfBytes, &outlines, &extractError)) {
+        return fail(extractError);
+    }
+
+    // 哪些页走「保留原文字」的回退。
+    QSet<int> keepTextPages;
+    for (const PageOutlineResult& page : outlines) {
+        const bool keepText = !page.failures.isEmpty() && options.keepTextWhenUnconvertible;
+        if (report != nullptr) {
+            report->pageCount = qMax(report->pageCount, page.pageIndex + 1);
+            report->outlinedCharCount += page.outlined.size();
+            report->skipped.append(page.failures);
+            if (!page.substitutedFonts.isEmpty()) {
+                report->notes.append(
+                    QStringLiteral("第 %1 页：字体 %2 没有内嵌字体程序，轮廓取自替代字体"
+                                   "（形状可能与原文件显示的略有差异）。")
+                        .arg(page.pageIndex + 1)
+                        .arg(page.substitutedFonts.join(QStringLiteral("、"))));
+            }
+            if (page.nonFillRenderModeChars > 0) {
+                report->notes.append(
+                    QStringLiteral("第 %1 页：有 %2 个字符不是填充渲染（描边／不可见／裁剪），"
+                                   "轮廓化按填充还原，视觉可能有差别。")
+                        .arg(page.pageIndex + 1)
+                        .arg(page.nonFillRenderModeChars));
+            }
+        }
+        if (keepText) {
+            keepTextPages.insert(page.pageIndex);
+            if (report != nullptr) {
+                report->keptCharCount += page.totalChars;
+                report->notes.append(
+                    QStringLiteral("第 %1 页：有 %2 个字符取不到字形轮廓，该页按回退策略"
+                                   "**保留原文字与字体**（产物里这一页仍然依赖字体）。")
+                        .arg(page.pageIndex + 1)
+                        .arg(page.failures.size()));
+            }
+        } else if (report != nullptr) {
+            report->droppedCharCount += page.failures.size();
+        }
+    }
+
+    const detail::OutlineWriteResult written =
+        detail::writeFlattenedPdf(pdfBytes, outlines, keepTextPages);
+    if (!written.ok) {
+        return fail(QStringLiteral("字体转曲失败：%1").arg(written.error));
+    }
+    if (report != nullptr) {
+        report->ok = true;
+        if (report->droppedCharCount > 0) {
+            report->notes.append(
+                QStringLiteral("有 %1 个字符取不到字形轮廓，已按「丢弃」策略处理"
+                               "（产物里一定没有字体，但这些字的内容没有了）。")
+                    .arg(report->droppedCharCount));
+        }
+        // 产物里若仍有字体程序（例如来自批注），必须说清楚，
+        // 不许让用户以为「已经没有任何字体依赖」。
+        if (written.bytes.contains("/FontFile")) {
+            report->notes.append(
+                QStringLiteral("产物里仍然存在字体程序（可能来自批注或表单域），"
+                               "这部分没有转曲。"));
+        }
+    }
+    return written.bytes;
+#else
+    Q_UNUSED(options)
+    return fail(QStringLiteral("字体转曲失败：这份构建没有 qpdf，做不了轮廓化转曲。"));
+#endif
+}
+
+}  // namespace
+
+QByteArray flattenFontsToOutlines(const QByteArray& pdfBytes, const FlattenOptions& options,
+                                  QString* error) {
+    FlattenReport report;
+    return flattenFontsToOutlines(pdfBytes, options, &report, error);
+}
+
+QByteArray flattenFontsToOutlines(const QByteArray& pdfBytes, const FlattenOptions& options,
+                                  FlattenReport* report, QString* error) {
+    if (report != nullptr) {
+        *report = FlattenReport();
+    }
+    if (error != nullptr) {
+        error->clear();
+    }
+    if (options.mode == FlattenMode::Raster) {
+        const QByteArray bytes = flattenByRasterizing(pdfBytes, options, error);
+        if (report != nullptr) {
+            report->ok = !bytes.isEmpty();
+            report->notes.append(
+                QStringLiteral("本次用的是栅格化模式：整页渲染成位图，文字变成像素，"
+                               "产物里没有矢量轮廓。"));
+        }
+        return bytes;
+    }
+    return flattenByOutlining(pdfBytes, options, report, error);
 }
 
 bool hasExtractableText(const QByteArray& pdfBytes) {

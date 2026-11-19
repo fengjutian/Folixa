@@ -117,6 +117,16 @@ QString nameOf(const QPDFObjectHandle& handle) {
     return QString::fromStdString(handle.getName());
 }
 
+// qCompress 的结果是「4 字节未压缩长度 + zlib 数据」，而 PDF /FlateDecode
+// 只接受后半段的 zlib 数据。把 Qt 私有长度头带进 PDF 会让严格阅读器拒收。
+// （仓库里 ImageToPdf.cpp / AppearanceStream.cpp / ConversionInputs.cpp
+// 各有一份同样的处理，这里保持一致。）
+QByteArray pdfFlate(const QByteArray& raw) {
+    QByteArray compressed = qCompress(raw, 6);
+    if (compressed.size() >= 4) compressed.remove(0, 4);
+    return compressed;
+}
+
 // 文本串的值（UTF-8）。不是文本串就返回空串。
 QString textOf(const QPDFObjectHandle& handle) {
     if (!handle.isString()) return QString();
@@ -424,6 +434,18 @@ QByteArray writeThreeDAnnotation(const QByteArray& pdfBytes, const ThreeDAnnotat
         setError(error, QStringLiteral("3D 模型字节为空，没有可写入的模型"));
         return {};
     }
+    // 模型文件头校验：像 U3D / PRC 才放行。
+    //
+    // 为什么要拦：写出去的是 /3DD 流，别的阅读器会照着 /Subtype 去解那份
+    // 字节。塞一段根本不是模型的数据进去，文件看着有 3D 注解，打开却是空的
+    // 或者直接报错——那比一开始就拒绝更糟。
+    const ThreeDModelKind modelKind = threeDDetectModelKind(spec.modelBytes);
+    if (modelKind == ThreeDModelKind::Unknown) {
+        setError(error,
+                 QStringLiteral("模型文件头既不像 U3D（应以 \"U3D\\0\" 开头）也不像 PRC"
+                                "（应以 \"PRC\" 开头），写进去只会得到一份别的阅读器读不出来的注解"));
+        return {};
+    }
     if (spec.rect.width() <= 0.0 || spec.rect.height() <= 0.0) {
         setError(error, QStringLiteral("3D 注解的矩形宽高必须大于 0"));
         return {};
@@ -467,12 +489,14 @@ QByteArray writeThreeDAnnotation(const QByteArray& pdfBytes, const ThreeDAnnotat
         }
 
         // ---- 3D 流（模型本体）----
-        // PRC 字节原样写进去：既不解析也不改写，模型合不合法由那份字节自己负责。
+        // 字节原样写进去：既不解析也不改写，模型合不合法由那份字节自己负责。
         const std::string modelData(spec.modelBytes.constData(),
                                     static_cast<size_t>(spec.modelBytes.size()));
         QPDFObjectHandle model = QPDFObjectHandle::newStream(&pdf, modelData);
         setStreamKey(model, "/Type", QPDFObjectHandle::newName("/3D"));
-        setStreamKey(model, "/Subtype", QPDFObjectHandle::newName("/U3D"));
+        // /Subtype 要跟模型种类对上：U3D 数据写 /U3D，PRC 数据写 /PRC。
+        setStreamKey(model, "/Subtype",
+                     QPDFObjectHandle::newName(modelKind == ThreeDModelKind::Prc ? "/PRC" : "/U3D"));
 
         // ---- 3D 视图字典 ----
         QPDFObjectHandle view = buildThreeDView(pdf, spec.view);
@@ -510,8 +534,12 @@ QByteArray writeThreeDAnnotation(const QByteArray& pdfBytes, const ThreeDAnnotat
         // PDF 里「不支持 3D 时显示什么」是注解的普通外观（/AP /N），
         // 3D 视图框（/3DB）是模型在注解里占多大地方——两者不是一回事。
         if (spec.fallback.isValid()) {
-            // qCompress 出来的是 zlib 格式，正好是 /FlateDecode 要的。
-            const QByteArray compressed = qCompress(spec.fallback.rgb);
+            // 海报图像：原始 RGB 采样，用 /FlateDecode 压。
+            //
+            // 为什么不能直接用 qCompress：它的输出是「4 字节未压缩长度 + zlib
+            // 数据」，而 PDF 的 /FlateDecode 只认后半段 zlib。把 Qt 私有长度头
+            // 带进去，严格的阅读器会直接拒收这张图——降级图像就成了空白。
+            const QByteArray compressed = pdfFlate(spec.fallback.rgb);
             QPDFObjectHandle image = QPDFObjectHandle::newStream(
                 &pdf, std::string(compressed.constData(), static_cast<size_t>(compressed.size())));
             setStreamKey(image, "/Type", QPDFObjectHandle::newName("/XObject"));
@@ -776,6 +804,32 @@ RichMediaReadResult readRichMedia(const QByteArray& pdfBytes) {
                         info.modelEmbedded = true;
                         info.modelSize = streamSize(model);
                         info.modelMimeType = nameOf(streamKey(model, "/Subtype"));
+                        // 把模型字节取出来解一遍，好报出类型、包围盒与网格规模。
+                        // 解不出来不算读注解失败——模型可以是压缩剖面或者别的
+                        // 变体，注解结构本身仍然是好的，失败原因写进说明里。
+                        QPDFObjectHandle modelCopy = model;
+                        const std::shared_ptr<Buffer> modelData =
+                            modelCopy.getStreamData(qpdf_dl_generalized);
+                        if (modelData) {
+                            const QByteArray modelBytes(
+                                reinterpret_cast<const char*>(modelData->getBuffer()),
+                                static_cast<qsizetype>(modelData->getSize()));
+                            info.modelData = modelBytes;
+                            ThreeDModelInfo modelInfo;
+                            threeDInspectModel(modelBytes, modelInfo);
+                            info.modelKind = modelInfo.kind;
+                            info.modelHasMesh = modelInfo.hasMesh;
+                            info.modelMeshCount = modelInfo.meshCount;
+                            info.modelVertexCount = modelInfo.vertexCount;
+                            info.modelFaceCount = modelInfo.faceCount;
+                            info.modelBoundsMin = modelInfo.boundsMin;
+                            info.modelBoundsMax = modelInfo.boundsMax;
+                            info.modelUnitsScale = modelInfo.unitsScale;
+                            info.modelNotes = modelInfo.notes;
+                            if (!modelInfo.error.isEmpty()) {
+                                info.modelNotes.append(modelInfo.error);
+                            }
+                        }
                     } else if (model.isDictionary()) {
                         // 3D 参考字典：模型在别处，这里只是引用。
                         info.hasModel = true;
@@ -880,6 +934,146 @@ QVector<MediaAnnotationInfo> readMediaAnnotations(const QByteArray& pdfBytes, in
         if (info.pageIndex == pageIndex) result.append(info);
     }
     return result;
+}
+
+bool readThreeDFallbackImage(const QByteArray& pdfBytes, int pageIndex, int annotationIndex,
+                             FallbackImage& out, QString* error) {
+    if (error != nullptr) error->clear();
+    out = FallbackImage();
+    if (pdfBytes.isEmpty()) {
+        setError(error, QStringLiteral("没有可读的内容"));
+        return false;
+    }
+#ifndef AIPDF_WITH_QPDF
+    setError(error, QStringLiteral("本次构建没有启用 qpdf，读不了降级海报"));
+    return false;
+#else
+    try {
+        QPDF pdf;
+        pdf.setSuppressWarnings(true);
+        pdf.processMemoryFile("rich-media-poster.pdf", pdfBytes.constData(),
+                              static_cast<size_t>(pdfBytes.size()));
+        const std::vector<QPDFObjectHandle>& pages = pdf.getAllPages();
+        if (pageIndex < 0 || pageIndex >= static_cast<int>(pages.size())) {
+            setError(error, QStringLiteral("页码超出范围（文档共 %1 页，要读第 %2 页）")
+                               .arg(pages.size())
+                               .arg(pageIndex + 1));
+            return false;
+        }
+        const QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
+
+        // 找出该页上第几个 3D 注解。
+        QPDFObjectHandle annotation;
+        const QPDFObjectHandle annots = page.getKey("/Annots");
+        if (annots.isArray()) {
+            int seen = 0;
+            for (const QPDFObjectHandle& candidate : annots.getArrayAsVector()) {
+                if (!candidate.isDictionary()) continue;
+                if (nameOf(candidate.getKey("/Subtype")) != QStringLiteral("/3D")) continue;
+                if (seen == annotationIndex) {
+                    annotation = candidate;
+                    break;
+                }
+                ++seen;
+            }
+        }
+        if (annotation.isNull()) {
+            setError(error, QStringLiteral("第 %1 页上没有第 %2 个 3D 注解")
+                               .arg(pageIndex + 1)
+                               .arg(annotationIndex + 1));
+            return false;
+        }
+
+        const QPDFObjectHandle appearance = annotation.getKey("/AP");
+        if (!appearance.isDictionary()) {
+            setError(error, QStringLiteral("这个 3D 注解没有普通外观（/AP），没有海报可读"));
+            return false;
+        }
+        const QPDFObjectHandle normal = appearance.getKey("/N");
+        if (!normal.isStream()) {
+            setError(error, QStringLiteral("3D 注解的普通外观（/AP /N）不是流，读不了海报"));
+            return false;
+        }
+
+        // 普通外观本身可能就是一张图；否则去找它引用的图像 XObject。
+        QPDFObjectHandle image;
+        if (nameOf(streamKey(normal, "/Subtype")) == QStringLiteral("/Image")) {
+            image = normal;
+        } else {
+            QPDFObjectHandle resources = streamKey(normal, "/Resources");
+            if (!resources.isDictionary()) resources = page.getKey("/Resources");
+            const QPDFObjectHandle xobjects = resources.isDictionary() ? resources.getKey("/XObject")
+                                                                     : QPDFObjectHandle();
+            if (xobjects.isDictionary()) {
+                for (const std::string& key : xobjects.getKeys()) {
+                    const QPDFObjectHandle candidate = xobjects.getKey(key.c_str());
+                    if (!candidate.isStream()) continue;
+                    if (nameOf(streamKey(candidate, "/Subtype")) != QStringLiteral("/Image")) continue;
+                    image = candidate;
+                    break;
+                }
+            }
+        }
+        if (image.isNull()) {
+            setError(error, QStringLiteral("3D 注解的普通外观里找不到图像 XObject，读不了海报"));
+            return false;
+        }
+
+        const int width = static_cast<int>(numberOf(streamKey(image, "/Width")));
+        const int height = static_cast<int>(numberOf(streamKey(image, "/Height")));
+        const int bits = static_cast<int>(numberOf(streamKey(image, "/BitsPerComponent")));
+        const QString colorSpace = nameOf(streamKey(image, "/ColorSpace"));
+        if (width <= 0 || height <= 0) {
+            setError(error, QStringLiteral("海报图像的尺寸不对（%1×%2）").arg(width).arg(height));
+            return false;
+        }
+        if (bits != 8) {
+            setError(error, QStringLiteral("海报图像是 %1 位每通道的，本程序只解 8 位的").arg(bits));
+            return false;
+        }
+
+        QPDFObjectHandle imageCopy = image;
+        const std::shared_ptr<Buffer> data = imageCopy.getStreamData(qpdf_dl_generalized);
+        if (!data) {
+            setError(error, QStringLiteral("海报图像的数据读不出来"));
+            return false;
+        }
+        const QByteArray samples(reinterpret_cast<const char*>(data->getBuffer()),
+                                 static_cast<qsizetype>(data->getSize()));
+        if (colorSpace == QStringLiteral("/DeviceRGB")) {
+            if (samples.size() != width * height * 3) {
+                setError(error, QStringLiteral("海报图像的数据长度与尺寸对不上"));
+                return false;
+            }
+            out.width = width;
+            out.height = height;
+            out.rgb = samples;
+            return true;
+        }
+        if (colorSpace == QStringLiteral("/DeviceGray")) {
+            if (samples.size() != width * height) {
+                setError(error, QStringLiteral("海报图像的数据长度与尺寸对不上"));
+                return false;
+            }
+            out.width = width;
+            out.height = height;
+            out.rgb.resize(static_cast<qsizetype>(width) * height * 3);
+            for (int index = 0; index < width * height; ++index) {
+                out.rgb[index * 3] = samples[index];
+                out.rgb[index * 3 + 1] = samples[index];
+                out.rgb[index * 3 + 2] = samples[index];
+            }
+            return true;
+        }
+        setError(error, QStringLiteral("海报图像的颜色空间是 %1，本程序只解 /DeviceRGB 与 /DeviceGray")
+                           .arg(colorSpace.isEmpty() ? QStringLiteral("（空的）") : colorSpace));
+        return false;
+    } catch (const std::exception& failure) {
+        setError(error, QStringLiteral("读降级海报失败：%1")
+                           .arg(QString::fromUtf8(failure.what())));
+        return false;
+    }
+#endif
 }
 
 }  // namespace aipdf::pdf

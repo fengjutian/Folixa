@@ -203,18 +203,21 @@ void OfficeExportTests::capabilityReportsWhatEachFormatKeeps() {
     QCOMPARE(limitations.size(), 3);
 
     // 能力表要**按格式区分**：DOCX 能带图片与表格（图片是包里的独立部件，
-    // 表格是真正的 <w:tbl>），RTF 与纯文本带不了。
+    // 表格是真正的 <w:tbl>）；RTF 也能带（图片是 \pict，表格是 \trowd 行）；
+    // 纯文本两样都带不了。
     //
     // 以前这里对三种格式一律断言「不带图片」，那是 Word 还没做资源通道时的
     // 事实；现在 Word 已经能带，就得按格式分别断言了——否则这张表说谎。
     const aipdf::doc::ExportCapability word = aipdf::doc::exportCapability(ExportFormat::WordOpenXml);
     QVERIFY(word.keepsImages);
     QVERIFY(word.keepsTables);
-    for (ExportFormat format : {ExportFormat::Rtf, ExportFormat::PlainText}) {
-        const aipdf::doc::ExportCapability capability = aipdf::doc::exportCapability(format);
-        QVERIFY2(!capability.keepsImages, "RTF / 纯文本带不了图片");
-        QVERIFY2(!capability.keepsTables, "RTF / 纯文本带不了表格");
-    }
+    const aipdf::doc::ExportCapability rtf = aipdf::doc::exportCapability(ExportFormat::Rtf);
+    QVERIFY2(rtf.keepsImages, "RTF 里的图片走 \\pict，能力表要照实说");
+    QVERIFY2(rtf.keepsTables, "RTF 里的表格走 \\trowd 行，能力表要照实说");
+    const aipdf::doc::ExportCapability plain =
+        aipdf::doc::exportCapability(ExportFormat::PlainText);
+    QVERIFY2(!plain.keepsImages, "纯文本带不了图片");
+    QVERIFY2(!plain.keepsTables, "纯文本带不了表格");
 }
 
 void OfficeExportTests::suggestedSuffixMatchesFormat() {

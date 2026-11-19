@@ -72,7 +72,9 @@ struct TextLine {
     double right = 0.0;
     double baseline = 0.0;  // 基线 y（PDF 用户空间，y 向上）
     double top = 0.0;       // 最高字形的上沿 y
-    double fontSize = 0.0;  // 估算字号（点）
+    double fontSize = 0.0;  // 字号（点）
+    // 这次的字号是不是「字形高度反推」的估算值。
+    bool fontSizeEstimated = true;
 };
 
 bool isCjkCodePoint(char32_t code) {
@@ -111,7 +113,10 @@ bool containsAscender(const QString& text) {
 // 为什么不能直接用 TextPage::plainText()：那是按 PDFium 给的字符顺序拼的，
 // 一页里的文字常常按内容流顺序而不是阅读顺序排列，而且词与词之间的空格
 // 在很多 PDF 里是靠定位而不是空格字符实现的——直接拼会粘成一团。
-QVector<TextLine> buildTextLines(const TextPage& text) {
+//
+// realSizes 是每个字符的真实字号（与 text.chars 一一对应，0 表示没有）。
+// 给了就用它，没给才退回字形高度反推的估算值。
+QVector<TextLine> buildTextLines(const TextPage& text, const QVector<double>& realSizes) {
     struct Group {
         QVector<int> members;
         double baseline = 0.0;  // 组内基线的平均值
@@ -195,7 +200,29 @@ QVector<TextLine> buildTextLines(const TextPage& text) {
         double ratio = 0.52;
         if (hasCjk) ratio = 0.88;
         else if (hasUpper || hasAscender) ratio = 0.72;
-        const double fontSize = height > 0.5 ? height / ratio : 0.0;
+        const double estimatedSize = height > 0.5 ? height / ratio : 0.0;
+
+        // 真实字号：这一行里出现最多的那个（按字符匹配来的）。
+        // 一个都匹配不上时只能用估算值——结果里会标明走了估算。
+        double realSize = 0.0;
+        {
+            QHash<double, int> counts;
+            for (const int index : members) {
+                if (index < 0 || index >= realSizes.size()) continue;
+                const double size = realSizes.at(index);
+                if (size <= 0.0) continue;
+                // 归一到 0.01 点，免得浮点噪声把同一个字号拆成好几个。
+                counts[qRound(size * 100.0) / 100.0] += 1;
+            }
+            int bestCount = 0;
+            for (auto it = counts.constBegin(); it != counts.constEnd(); ++it) {
+                if (it.value() > bestCount) {
+                    bestCount = it.value();
+                    realSize = it.key();
+                }
+            }
+        }
+        const double fontSize = realSize > 0.0 ? realSize : estimatedSize;
 
         QString content;
         for (int k = 0; k < members.size(); ++k) {
@@ -223,6 +250,7 @@ QVector<TextLine> buildTextLines(const TextPage& text) {
         line.baseline = baseline;
         line.top = top;
         line.fontSize = fontSize;
+        line.fontSizeEstimated = realSize <= 0.0;
         lines.append(line);
     }
 
@@ -252,10 +280,96 @@ QString escapeHtml(const QString& text) {
     return out;
 }
 
-QString buildHtml(const QVector<HtmlPage>& pages, const HtmlExportOptions& options) {
+// SVG 与 HTML 的 y 轴都朝下，PDF 的 y 轴朝上：坐标要翻到页面顶端算。
+double flipY(double pdfY, double pageHeight) { return pageHeight - pdfY; }
+
+// 颜色写成 SVG 认得的 rgb(r,g,b)。
+QString svgColor(const GraphicsRgb& color) {
+    // 注意：这里必须传字符串——QString::arg 的「三个整数」重载是
+    // (值, 字段宽度, 进制)，不是三个值。
+    return QStringLiteral("rgb(%1,%2,%3)")
+        .arg(QString::number(qRound(qBound(0.0, color.r, 1.0) * 255.0)),
+             QString::number(qRound(qBound(0.0, color.g, 1.0) * 255.0)),
+             QString::number(qRound(qBound(0.0, color.b, 1.0) * 255.0)));
+}
+
+// 一条路径的 SVG path 数据。
+QString svgPathData(const GraphicsPath& path, double pageHeight) {
+    QString data;
+    for (const GraphicsSegment& segment : path.segments) {
+        switch (segment.verb) {
+        case GraphicsVerb::Move:
+            data += QStringLiteral("M %1 %2 ")
+                        .arg(fixedNumber(segment.p1.x(), 2),
+                             fixedNumber(flipY(segment.p1.y(), pageHeight), 2));
+            break;
+        case GraphicsVerb::Line:
+            data += QStringLiteral("L %1 %2 ")
+                        .arg(fixedNumber(segment.p1.x(), 2),
+                             fixedNumber(flipY(segment.p1.y(), pageHeight), 2));
+            break;
+        case GraphicsVerb::Curve:
+            data += QStringLiteral("C %1 %2 %3 %4 %5 %6 ")
+                        .arg(fixedNumber(segment.p1.x(), 2),
+                             fixedNumber(flipY(segment.p1.y(), pageHeight), 2),
+                             fixedNumber(segment.p2.x(), 2),
+                             fixedNumber(flipY(segment.p2.y(), pageHeight), 2),
+                             fixedNumber(segment.p3.x(), 2),
+                             fixedNumber(flipY(segment.p3.y(), pageHeight), 2));
+            break;
+        case GraphicsVerb::Close:
+            data += QLatin1String("Z ");
+            break;
+        }
+    }
+    return data.trimmed();
+}
+
+// 一页的矢量图形 → 一个内嵌 <svg>。
+//
+// 为什么用 SVG 而不是 canvas/图片：矢量放大不糊，文件也不必再嵌一份位图。
+// 坐标系与文字行保持一致（页面左下角为原点，y 向上翻到 y 向下）。
+QString buildSvg(const PageGraphics& graphics, const QSizeF& pageSize) {
+    const double width = pageSize.width() > 0 ? pageSize.width() : 0.0;
+    const double height = pageSize.height() > 0 ? pageSize.height() : 0.0;
+    QString svg;
+    svg += QStringLiteral(
+                "<svg class=\"graphics\" xmlns=\"http://www.w3.org/2000/svg\" width=\"%1pt\" "
+                "height=\"%2pt\" viewBox=\"0 0 %1 %2\" "
+                "style=\"position:absolute;left:0pt;top:0pt;\">\n")
+                .arg(fixedNumber(width, 2), fixedNumber(height, 2));
+    for (const GraphicsPath& path : graphics.paths) {
+        const QString data = svgPathData(path, height);
+        if (data.isEmpty()) continue;
+        const QString fill = path.filled ? svgColor(path.fillColor) : QStringLiteral("none");
+        const QString stroke = path.stroked ? svgColor(path.strokeColor) : QStringLiteral("none");
+        svg += QStringLiteral("<path d=\"%1\" fill=\"%2\" stroke=\"%3\" stroke-width=\"%4\"/>\n")
+                    .arg(data, fill, stroke, fixedNumber(path.lineWidth, 2));
+    }
+    svg += QLatin1String("</svg>\n");
+    return svg;
+}
+
+// 一张内嵌位图 → 一个 <img>（图片字节直接 base64 内联，导出的是单文件）。
+QString buildImageTag(const GraphicsImage& image, const QSizeF& pageSize) {
+    if (image.data.isEmpty()) return {};
+    const double height = pageSize.height() > 0 ? pageSize.height() : 0.0;
+    // PDF 用户空间 y 向上：矩形的上边是 bottom()（数值较大的那条边）。
+    const double top = flipY(image.rect.bottom(), height);
+    return QStringLiteral(
+               "<img class=\"image\" src=\"data:%1;base64,%2\" alt=\"\" "
+               "style=\"position:absolute;left:%3pt;top:%4pt;width:%5pt;height:%6pt;\"/>\n")
+        .arg(image.mime, QString::fromLatin1(image.data.toBase64()),
+             fixedNumber(image.rect.left(), 2), fixedNumber(top, 2),
+             fixedNumber(image.rect.width(), 2), fixedNumber(image.rect.height(), 2));
+}
+
+QString buildHtml(const QVector<HtmlPage>& pages, const HtmlExportOptions& options,
+                   HtmlExportResult* result) {
     QString html;
     html += QLatin1String("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n");
-    html += QLatin1String("<meta charset=\"utf-8\">\n");
+    // meta 写成自闭合的：这样整份 HTML 也能当 XML 解析（测试就是这么查的）。
+    html += QLatin1String("<meta charset=\"utf-8\"/>\n");
     // 注意：带中文的字符串必须用 QStringLiteral——QLatin1String 会把 UTF-8
     // 字节当成 Latin-1，导出的 HTML 里就会出现乱码。
     html += QStringLiteral("<title>PDF 导出</title>\n");
@@ -272,17 +386,28 @@ QString buildHtml(const QVector<HtmlPage>& pages, const HtmlExportOptions& optio
     }
     html += QLatin1String("</head>\n<body>\n");
 
+    int estimatedLines = 0;
     for (const HtmlPage& page : pages) {
         const double width = page.sizePt.width() > 0 ? page.sizePt.width() : 0.0;
         const double height = page.sizePt.height() > 0 ? page.sizePt.height() : 0.0;
-        html += QStringLiteral("<div class=\"page\" style=\"width:%1mm;height:%2mm;\">\n")
+        // position:relative 写在行内样式里：关掉 <style> 段时，图形与图片
+        // 也要相对页面盒子定位，不能相对整个文档定位。
+        html += QStringLiteral("<div class=\"page\" style=\"width:%1mm;height:%2mm;position:relative;\">\n")
                     .arg(fixedNumber(width * kMillimeterPerPoint, 3),
                          fixedNumber(height * kMillimeterPerPoint, 3));
-        const QVector<TextLine> lines = buildTextLines(page.text);
+        // 图形与图片先画，文字后画：文字压在图形上面。
+        if (!page.graphics.paths.isEmpty()) {
+            html += buildSvg(page.graphics, QSizeF(width, height));
+        }
+        for (const GraphicsImage& image : page.graphics.images) {
+            html += buildImageTag(image, QSizeF(width, height));
+        }
+        const QVector<TextLine> lines = buildTextLines(page.text, page.charFontSizes);
         for (const TextLine& line : lines) {
             // PDF 的 y 向上、HTML 的 y 向下：行的位置要翻到页面顶端算。
             const double top = height - line.top;
             const double fontSize = line.fontSize > 0.5 ? line.fontSize : options.fontSizePt;
+            if (line.fontSizeEstimated) ++estimatedLines;
             html += QStringLiteral(
                         "<span class=\"line\" style=\"left:%1pt;top:%2pt;font-size:%3pt;\">%4</span>\n")
                         .arg(fixedNumber(line.left, 2), fixedNumber(top, 2), fixedNumber(fontSize, 2),
@@ -292,6 +417,23 @@ QString buildHtml(const QVector<HtmlPage>& pages, const HtmlExportOptions& optio
     }
 
     html += QLatin1String("</body>\n</html>\n");
+    if (result != nullptr) {
+        result->fontSizeEstimated = estimatedLines > 0;
+        if (estimatedLines > 0) {
+            result->fontSizeNote =
+                QStringLiteral("有 %1 行文字没有取到真实字号（内容流里没有可用的 Tf），"
+                               "已按字形高度估算")
+                    .arg(estimatedLines);
+        }
+        int pathCount = 0;
+        int imageCount = 0;
+        for (const HtmlPage& page : pages) {
+            pathCount += page.graphics.paths.size();
+            imageCount += page.graphics.images.size();
+        }
+        result->vectorPathCount = pathCount;
+        result->imageCount = imageCount;
+    }
     return html;
 }
 
@@ -729,7 +871,7 @@ HtmlExportResult exportToHtml(const QVector<HtmlPage>& pages, const HtmlExportOp
         result.error = QStringLiteral("没有可导出的页面");
         return result;
     }
-    result.html = buildHtml(pages, options);
+    result.html = buildHtml(pages, options, &result);
     result.ok = true;
     return result;
 }
@@ -743,6 +885,10 @@ QString exportPageToHtml(const TextPage& text, const QSizeF& pageSizePt,
     page.sizePt = pageSizePt;
     const HtmlExportResult result = exportToHtml({page}, options);
     return result.ok ? result.html : QString();
+}
+
+HtmlExportResult exportPageToHtml(const HtmlPage& page, const HtmlExportOptions& options) {
+    return exportToHtml({page}, options);
 }
 
 // ====================================================== 图像化 PDF =========
@@ -814,7 +960,7 @@ QByteArray exportToImageBasedPdf(const QByteArray& pdfBytes, const RasterizeOpti
             if (text.has_value()) {
                 const MediaBox box = page->contentBox();
                 const int rotation = page->rotationDegrees();
-                for (const TextLine& line : buildTextLines(*text)) {
+                for (const TextLine& line : buildTextLines(*text, QVector<double>())) {
                     if (line.text.trimmed().isEmpty()) continue;
                     const QPointF position = mapToDisplay(QPointF(line.left, line.baseline), box,
                                                           rotation, 0.0);
@@ -879,12 +1025,19 @@ QByteArray exportToImageBasedPdf(const QByteArray& pdfBytes, const RasterizeOpti
 }
 
 // ============================================================== DXF ========
+//
+// 这一段是**老路径**：AutoCAD R12、只有折线与可选文字、曲线被打散成折线。
+// 保留它是为了不破坏既有调用方与既有回归。
+//
+// 需要真曲线、尺寸标注、图层与颜色线宽的深度导出在 pdf/convert/DxfExport.h
+// （exportPdfToCadDxf），那边走共享底座 pdf::extractPageGraphics，
+// 曲线控制点、颜色与线宽都拿得到。
 
 QByteArray exportPageToDxf(const TextPage& text, const QSizeF& pageSizePt,
                             const DxfExportOptions& options) {
     QVector<DxfEntity> entities;
     if (options.includeText) {
-        for (const TextLine& line : buildTextLines(text)) {
+        for (const TextLine& line : buildTextLines(text, QVector<double>())) {
             if (line.text.trimmed().isEmpty()) continue;
             DxfEntity entity;
             entity.kind = DxfEntity::Kind::Text;
@@ -958,7 +1111,7 @@ QByteArray exportPdfToDxf(const QByteArray& pdfBytes, const DxfExportOptions& op
         if (options.includeText) {
             const std::optional<TextPage> text = page->extractText();
             if (text.has_value()) {
-                for (const TextLine& line : buildTextLines(*text)) {
+                for (const TextLine& line : buildTextLines(*text, QVector<double>())) {
                     if (line.text.trimmed().isEmpty()) continue;
                     DxfEntity entity;
                     entity.kind = DxfEntity::Kind::Text;

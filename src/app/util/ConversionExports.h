@@ -9,6 +9,7 @@
 #include "doc/export/OfdExport.h"
 #include "doc/export/OfficeExport.h"
 #include "pdf/convert/ExportFormats.h"
+#include "pdf/convert/DxfExport.h"
 #include "pdf/kernel/TextPage.h"
 
 namespace aipdf::app {
@@ -24,24 +25,45 @@ namespace aipdf::app {
 class ConversionTools final {
 public:
     // 导出 HTML。失败时返回空字节并把中文原因写进 error。
-    static QByteArray exportHtml(const QVector<pdf::HtmlPage>& pages, QString* error = nullptr);
+    //
+    // result 可选：给了就能拿到「字号是不是估算的」「导了多少条路径、多少张图」，
+    // 界面要照实汇报，不许只说一句「导出完成」。
+    static QByteArray exportHtml(const QVector<pdf::HtmlPage>& pages,
+                                 pdf::HtmlExportResult* result = nullptr,
+                                 QString* error = nullptr);
     // 导出图像化 PDF。
     static QByteArray exportImageBasedPdf(const QByteArray& pdfBytes,
                                           const pdf::RasterizeOptions& options = {},
                                           QString* error = nullptr);
-    // 导出 CAD（DXF）。
+    // 导出 CAD（DXF）：老路径（R12、只有折线与可选文字）。
     static QByteArray exportDxf(const QByteArray& pdfBytes,
                                 const pdf::DxfExportOptions& options = {},
                                 QString* error = nullptr);
+    // 导出 CAD（DXF）：深度路径（真曲线实体、标注单独分层、图层表、颜色与线宽）。
+    //
+    // 返回整个结果：实体计数与图层清单要照实汇报给用户，
+    // 不能只说一句「导出完成」。
+    static pdf::CadDxfResult exportCadDxf(const QByteArray& pdfBytes,
+                                           const pdf::CadDxfOptions& options = {});
     // 导出到 MS Office 的一种格式（只导一页的文本层）。
     static QByteArray exportOffice(doc::ExportFormat format, const pdf::TextPage& text,
                                    const QSizeF& pageSizePt, QString* error = nullptr);
     // 导出到 OFD。
-    static QByteArray exportOfd(const QVector<pdf::TextPage>& pages, const QSizeF& pageSizePt,
-                                const doc::OfdExportOptions& options = {}, QString* error = nullptr);
-    // PDF 转曲（视觉等价的栅格化版本）。
+    //
+    // 每页要带文字与图形（矢量路径 + 内嵌图片）；图形由调用方用
+    // pdf::extractDocumentGraphics 取好塞进 doc::OfdPageContent。
+    // result 可选：给了就能拿到写进包里的路径数与图片数，界面要照实汇报。
+    static QByteArray exportOfd(const QVector<doc::OfdPageContent>& pages, const QSizeF& pageSizePt,
+                                const doc::OfdExportOptions& options = {},
+                                doc::OfdExportResult* result = nullptr, QString* error = nullptr);
+    // PDF 转曲（默认矢量轮廓化；需要旧的栅格化行为就显式选 doc::FlattenMode::Raster）。
+    //
+    // report 可选：给了就把「转了多少字、哪些没转、为什么」一并带出来。
+    // 界面必须把这份汇报给用户看——轮廓化不可能对所有文档都成功，
+    // 悄悄跳过再宣称「全部转曲」是不允许的。
     static QByteArray flattenFonts(const QByteArray& pdfBytes,
                                    const doc::FlattenOptions& options = {},
+                                   doc::FlattenReport* report = nullptr,
                                    QString* error = nullptr);
 };
 

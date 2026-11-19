@@ -120,6 +120,8 @@ private:
     void configureFormTools();
     // 设计助手：用一句描述让模型给出字段设计，人确认后才建域。
     void designFormWithAssistant();
+    // 表单自动识别：从没有 AcroForm 域的页面上认出线框字段，人确认后才建域。
+    void detectFieldlessForm();
     static QString formFieldTypeName(int type);
     void openPdfDialog();
     void sendHealthCheck();

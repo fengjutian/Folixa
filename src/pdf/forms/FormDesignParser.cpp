@@ -127,4 +127,98 @@ bool parseDesignedFields(const QString& answer, QVector<DesignedFormField>* out,
     return true;
 }
 
+// ============================================================ 版面排布 ============
+
+// 行高与字段高度都由字号推算：
+// 字段外观的字号是 10 点时，输入框高 18 点、行距 8 点，一行 26 点，
+// A4 的内容区放得下 28 行——这些数字都跟着字号走，换字号不用改别的地方。
+constexpr double kFieldHeightRatio = 1.8;
+constexpr double kCheckBoxSizeRatio = 1.3;
+
+FormLayoutResult layoutDesignedFields(const QVector<DesignedFormField>& fields,
+                                       const QVector<QSizeF>& pageSizes,
+                                       int firstPageIndex,
+                                       const FormLayoutOptions& options) {
+    FormLayoutResult result;
+    if (fields.isEmpty()) {
+        result.error = i18n::tr("aipdf::app::FormDesignAssistantDialog", "没有字段可以排布。");
+        return result;
+    }
+    if (pageSizes.isEmpty()) {
+        result.error = i18n::tr("aipdf::app::FormDesignAssistantDialog", "拿不到页面尺寸，排不了版面。");
+        return result;
+    }
+
+    const int columns = qMax(1, options.columns);
+    const double fieldHeight = options.fontSize * kFieldHeightRatio;
+    const double rowHeight = fieldHeight + options.rowGap;
+    const double boxSize = options.fontSize * kCheckBoxSizeRatio;
+
+    int pageOffset = 0;
+    int row = 0;
+    int column = 0;
+    double pageWidth = pageSizes.first().width();
+    double pageHeight = pageSizes.first().height();
+    double columnWidth = 0.0;
+    double labelWidth = 0.0;
+
+    // 换页时重算这一页的列宽与标签列宽：
+    // 不同尺寸的页面列宽不同，标签列也不能宽到把输入框挤没。
+    auto startPage = [&](int offset) {
+        pageOffset = offset;
+        const QSizeF size = offset < pageSizes.size() ? pageSizes.at(offset) : pageSizes.last();
+        pageWidth = size.width();
+        pageHeight = size.height();
+        columnWidth = (pageWidth - options.marginLeft - options.marginRight) / columns;
+        if (columnWidth <= 0.0) columnWidth = qMax(1.0, pageWidth);
+        labelWidth = qMin(options.labelWidth, columnWidth * 0.5);
+        row = 0;
+        column = 0;
+    };
+    startPage(0);
+
+    for (const DesignedFormField& field : fields) {
+        if (column >= columns) {
+            column = 0;
+            ++row;
+        }
+        // 这一行越过下边距就顺延到下一页，从页顶重新排。
+        const double rowBottom = pageHeight - options.marginTop - row * rowHeight - fieldHeight;
+        if (rowBottom < options.marginBottom - 0.001) {
+            const int nextOffset = pageOffset + 1;
+            if (nextOffset >= pageSizes.size()) {
+                result.extraPagesNeeded =
+                    qMax(result.extraPagesNeeded, nextOffset - pageSizes.size() + 1);
+            }
+            startPage(nextOffset);
+        }
+
+        const double cellLeft = options.marginLeft + column * columnWidth;
+        const double inputLeft = cellLeft + labelWidth;
+        const double rowTop = pageHeight - options.marginTop - row * rowHeight;
+        const double bottom = rowTop - fieldHeight;
+
+        PlacedFormField placed;
+        placed.pageOffset = pageOffset;
+        placed.pageIndex = firstPageIndex + pageOffset;
+        placed.name = field.name;
+        placed.toolTip = field.toolTip;
+        placed.kind = field.kind;
+        if (field.kind == FormFieldKind::CheckBox || field.kind == FormFieldKind::RadioButton) {
+            // 勾选框与单选按钮只占一小块方框，不占满整行。
+            const double side = qMin(boxSize, fieldHeight);
+            placed.rect = QRectF(inputLeft, bottom + (fieldHeight - side) * 0.5, side, side);
+        } else {
+            placed.rect = QRectF(inputLeft, bottom, columnWidth - labelWidth, fieldHeight);
+        }
+        result.placements.append(placed);
+
+        ++column;
+    }
+
+    result.pagesUsed = result.placements.isEmpty() ? 0 : result.placements.last().pageOffset + 1;
+    result.ok = true;
+    return result;
+}
+
 }  // namespace aipdf::pdf

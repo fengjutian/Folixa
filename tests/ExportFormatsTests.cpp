@@ -227,6 +227,7 @@ private slots:
     void dxfExportsTextEntitiesWhenAsked();
     void dxfHasNoEntitiesWithoutVectorContent();
     void dxfRejectsInvalidInput();
+    void dxfLegacyExportStaysR12TextOnly();
 };
 
 // ============================================================== HTML ========
@@ -588,6 +589,28 @@ void ExportFormatsTests::dxfRejectsInvalidInput() {
     error.clear();
     QVERIFY(aipdf::pdf::exportPdfToDxf(QByteArray(), DxfExportOptions{}, &error).isEmpty());
     QVERIFY(!error.isEmpty());
+}
+
+void ExportFormatsTests::dxfLegacyExportStaysR12TextOnly() {
+    // 这条用例钉的是**老路径**的行为：R12 的 DXF、只有文字实体、
+    // 没有曲线实体也没有图层表。深度那套在 pdf/convert/DxfExport.h 里，
+    // 两边并存，老调用方不受影响。
+    const QByteArray bytes = fixture(QStringLiteral("normal.pdf"));
+    QVERIFY2(!bytes.isEmpty(), "夹具 normal.pdf 缺失");
+
+    DxfExportOptions options;
+    options.includeText = true;
+    const QByteArray dxf = aipdf::pdf::exportPdfToDxf(bytes, options);
+    QVERIFY2(!dxf.isEmpty(), "老路径必须仍然能导出");
+    QVERIFY(dxf.contains("\nAC1009\n"));
+    QVERIFY2(!dxf.contains("\nSPLINE\n"), "老路径不产曲线实体");
+    QVERIFY2(!dxf.contains("\nLAYER\n"), "老路径不写图层表");
+
+    bool hasText = false;
+    for (const DxfEntityView& entity : parseDxfEntities(dxf)) {
+        if (entity.type == QStringLiteral("TEXT")) hasText = true;
+    }
+    QVERIFY2(hasText, "老路径在 includeText=true 时要出 TEXT 实体");
 }
 
 QTEST_GUILESS_MAIN(ExportFormatsTests)

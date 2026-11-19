@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "pdf/annot/ThreeDModel.h"
+
 #include <QByteArray>
 #include <QColor>
 #include <QRectF>
@@ -16,13 +18,17 @@ namespace aipdf::pdf {
 // 做：按 PDF 规范（ISO 32000-1 §13.6「3D 艺术品」与 §13.7「富媒体」）
 //     把 3D 注解（/Subtype /3D）与多媒体注解（/Subtype /RichMedia）的
 //     字典、外观流、文件说明与资源写进 PDF，并把它们原样读回来。
+//     写 3D 注解时会看模型文件头：像 U3D / PRC 才放行，不像就带着中文原因失败；
+//     读回来时会报出模型类型、包围盒与网格规模（网格数据由
+//     pdf::annot/ThreeDModel.h 解）。
 //
 // 不做——这是**取舍**，不是缺陷：
-//   * **不渲染 3D**。本程序没有 U3D 运行时，写进去的模型在界面上不会动。
+//   * **这个模块不画 3D**。渲染在 pdf::annot/ThreeDModel.h（U3D 静态网格
+//     解码 + 自写光栅化器 + 轨道相机），本模块只管文档里的结构。
 //   * **不解码音视频**。本程序没有音频/视频解码器，多媒体注解在界面上不播放。
 //   * **不解析 U3D 的 PRC 内容**。PRC（Portable Reality Container）是 ECMA-363
-//     定义的二进制容器，本程序**原样搬运**调用方给的字节，既不校验也不改写；
-//     模型能不能被别的阅读器渲染出来，取决于那份字节本身合不合法。
+//     定义的二进制容器；本模块只认它的文件头，写进去的字节**原样搬运**，
+//     既不解析也不改写。PRC 里内嵌的 U3D 与 SVG 由 ThreeDModel 去扫。
 //   * **降级图像不是 /3DB**。按 ISO 32000-1，/3DB 是「3D 视图框」
 //     （模型在注解里占多大地方），而「阅读器不支持 3D 时显示什么」是注解的
 //     普通外观 /AP /N。本程序按规范写：/3DB 写视图框，降级图像写成 /AP /N
@@ -107,7 +113,9 @@ struct ThreeDAnnotationSpec {
     // 其中 y 是矩形的**下边**（PDF 的 y 向上为正），与仓库其它模块一致。
     // 宽高必须大于 0。
     QRectF rect = QRectF(0.0, 0.0, 200.0, 150.0);
-    // U3D 模型字节（PRC 内容）。本程序原样搬运，不解析也不生成。
+    // 模型字节（U3D 或 PRC）。
+    // 写进去之前会看文件头：像 U3D / PRC 才放行，不像就带着中文原因失败——
+    // 写出一份结构上骗人的文件没有意义。字节本身原样搬运，不改写。
     QByteArray modelBytes;
     // 3D 视图参数。
     ThreeDViewSpec view;
@@ -142,10 +150,31 @@ struct ThreeDAnnotationInfo {
     bool modelEmbedded = false;
     // 模型字节数（外链时为 0）。
     qint64 modelSize = 0;
+    // 模型字节本体（内嵌时才有）。
+    //
+    // 为什么把字节带出来：表现层渲染要的是模型字节本身，
+    // 光知道「有个模型、网格多大」是画不出来的。
+    QByteArray modelData;
     // 模型文件名（外链时是路径）。
     QString modelFileName;
     // 3D 流的 /Subtype（固定是 /U3D）。
     QString modelMimeType;
+    // 模型种类（U3D / PRC）。靠文件头认，不靠调用方说的。
+    ThreeDModelKind modelKind = ThreeDModelKind::Unknown;
+    // 有没有从模型字节里解出网格。
+    bool modelHasMesh = false;
+    // 解出几个网格（多部件模型）。
+    int modelMeshCount = 0;
+    // 网格规模：顶点总数与三角形总数。
+    int modelVertexCount = 0;
+    int modelFaceCount = 0;
+    // 网格包围盒（模型空间）。解不出网格时是零向量。
+    QVector3D modelBoundsMin;
+    QVector3D modelBoundsMax;
+    // 单位换算系数（文件里的数值换成米要乘它）。
+    double modelUnitsScale = 1.0;
+    // 模型那边的中文说明：解到什么、哪些没解。
+    QStringList modelNotes;
     // 有没有降级图像（普通外观流）。
     bool hasFallbackImage = false;
     // 注解是否可交互（/3DI）。
@@ -268,5 +297,19 @@ QVector<ThreeDAnnotationInfo> readThreeDAnnotations(const QByteArray& pdfBytes, 
 // 只读某一页上的多媒体注解（0 基）。页码越界时返回空列表并写明原因。
 QVector<MediaAnnotationInfo> readMediaAnnotations(const QByteArray& pdfBytes, int pageIndex,
                                                    QString* error = nullptr);
+
+// 读某一页上第几个 3D 注解（0 基）的降级海报。
+//
+// 海报藏在注解的普通外观 /AP /N 里：那通常是一个 Form XObject，
+// 里面引用一张图像 XObject。这一步把那张图挖成「原始 RGB 采样」，
+// 好让表现层渲染去用。
+//
+// 失败（返回 false、error 里写中文原因）的情况：
+//   * 页码越界、该页没有 3D 注解、或没有第几个 3D 注解；
+//   * 注解没有普通外观，或普通外观里找不到图像 XObject；
+//   * 图像不是 8 位每通道（/DeviceRGB 或 /DeviceGray）——
+//     索引色、CMYK、调色板这些本程序不解。
+bool readThreeDFallbackImage(const QByteArray& pdfBytes, int pageIndex, int annotationIndex,
+                             FallbackImage& out, QString* error = nullptr);
 
 }  // namespace aipdf::pdf

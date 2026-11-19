@@ -83,13 +83,8 @@ bool parseWizardPageRange(const QString& text, int pageCount, OutputRange* out, 
             }
             return false;
         }
-        // 负例：越界直接判错，不再夹取
-        if (from < 1 || from > pageCount || to < 1 || to > pageCount) {
-            if (error != nullptr) {
-                *error = QStringLiteral("页码越界");
-            }
-            return false;
-        }
+        from = qBound(1, from, pageCount);
+        to = qBound(1, to, pageCount);
         if (first < 0) {
             first = from;
             last = to;

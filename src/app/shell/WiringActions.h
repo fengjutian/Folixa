@@ -100,6 +100,14 @@ public:
     void xfaFields();
     // R：插入 3D 模型 / 多媒体注解（只写结构，不渲染）。
     void insertRichMedia(bool preferThreeD = true);
+    // 查看并旋转文档里的 3D 模型：自研解码 U3D 静态网格 + 轨道相机渲染。
+    void view3dModel();
+    // 全文流式重排：把整篇按新的正文栏宽重新流排并写回。
+    void reflowWholeDocumentStream();
+    // 跨文本块合并：把勾选的几块合成一段连续文字并写回。
+    void mergeTextBlocksAcrossSelection();
+    // 整篇翻译：按段翻译整篇文档并写回译文。
+    void translateWholeDocument();
     // S：按新页宽重排整篇。
     void documentReflow();
     // T：动作向导。
@@ -119,6 +127,8 @@ public:
     void convertFromFormFile();
     // 从扫描仪新建 PDF（WIA 取帧 -> 多页 PDF）。
     void scanFromScanner();
+    // 优化扫描件：逐页去噪 + 纠偏，产出一份新的图像化 PDF。
+    void optimizeScannedPages();
     // 文档比较（两份 PDF 比出差异）。
     void compareDocuments();
     // 批量加密（给一个目录里的 PDF 批量加打开密码）。

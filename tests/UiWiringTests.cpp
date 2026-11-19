@@ -7,6 +7,7 @@
 #include "pdf/ops/OcrSuspicion.h"
 #include "pdf/convert/PortfolioWriter.h"
 #include "pdf/compliance/PreflightChecker.h"
+#include "doc/convert/FontFlattening.h"
 
 #include <QApplication>
 #include <QDir>
@@ -123,8 +124,8 @@ private slots:
     void portfolioRowsMatchReadResult();
     // 10) 疑似错误只是提示：原文不会被改写。
     void suspicionDoesNotRewriteSource();
-    // 11) 转曲文案不许宣称已经变成矢量或轮廓。
-    void flattenNoticeDoesNotClaimVectorOutput();
+    // 11) 转曲文案要说清楚是矢量轮廓化，并说清楚代价。
+    void flattenNoticeDescribesVectorOutline();
     // 12) 新增的用户可见文案都在翻译目录里。
     void newStringsAreInTranslationCatalog();
     // 13) Ribbon 上的助记键唯一（Alt+同一键不能指向两个按钮）。
@@ -422,16 +423,27 @@ void UiWiringTests::suspicionDoesNotRewriteSource() {
 
 // ------------------------------------------------------------------ 11 ----
 
-void UiWiringTests::flattenNoticeDoesNotClaimVectorOutput() {
-    const QString notice = app::flattenFontsNoticeText();
+void UiWiringTests::flattenNoticeDescribesVectorOutline() {
+    // 转曲默认走矢量轮廓化（文字变成路径对象）。这份文案要照实说：
+    // 说清转了多少、取不到多少、以及文字从此不能再选、不能再搜。
+    doc::FlattenReport report;
+    report.ok = true;
+    report.pageCount = 2;
+    report.outlinedCharCount = 120;
+    report.droppedCharCount = 3;
+    report.skipped.append(QStringLiteral("字符 U+4E2D（CID 字体缺 ToUnicode）"));
+    const QString notice = app::flattenFontsNoticeText(report);
     QVERIFY(!notice.isEmpty());
-    // 负例守卫：转曲是视觉等价的栅格化版本，文案不许吹成矢量或轮廓。
-    QVERIFY2(!notice.contains(QStringLiteral("矢量")),
-             qPrintable(QStringLiteral("转曲文案里出现了「矢量」：%1").arg(notice)));
-    QVERIFY2(!notice.contains(QStringLiteral("轮廓")),
-             qPrintable(QStringLiteral("转曲文案里出现了「轮廓」：%1").arg(notice)));
-    // 要说清楚代价：文字不能再选、文件会变大。
-    QVERIFY(notice.contains(QStringLiteral("栅格")));
+    // 负例守卫：轮廓化这件事不许被吹成栅格化——那会让用户以为字变成了像素。
+    QVERIFY2(!notice.contains(QStringLiteral("栅格")),
+             qPrintable(QStringLiteral("转曲文案里出现了「栅格」：%1").arg(notice)));
+    // 要说清楚是矢量轮廓，以及代价。
+    QVERIFY2(notice.contains(QStringLiteral("矢量")),
+             qPrintable(QStringLiteral("转曲文案里没有「矢量」：%1").arg(notice)));
+    QVERIFY(notice.contains(QStringLiteral("轮廓")));
+    // 取不到轮廓的字符要逐条说出来，不许悄悄跳过。
+    QVERIFY(notice.contains(QStringLiteral("取不到轮廓")));
+    QVERIFY(notice.contains(QStringLiteral("不能再选中")));
 }
 
 // ------------------------------------------------------------------ 12 ----

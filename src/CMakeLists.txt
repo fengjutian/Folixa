@@ -8,6 +8,12 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/FormToolSettingsDialog.cpp
     app/dialogs/FormDesignAssistantDialog.h
     app/dialogs/FormDesignAssistantDialog.cpp
+    app/dialogs/ThreeDViewerDialog.h
+    app/dialogs/ThreeDViewerDialog.cpp
+    app/dialogs/TextBlockMergeDialog.h
+    app/dialogs/TextBlockMergeDialog.cpp
+    app/util/WorkerTranslationProvider.h
+    app/util/WorkerTranslationProvider.cpp
     app/ui/Language.cpp
     app/ui/Language.h
     app/ui/LanguagePackInstaller.cpp
@@ -165,6 +171,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/kernel/PdfiumAdapter.h
     pdf/content/ContentStream.cpp
     pdf/content/ContentStream.h
+    pdf/content/PageGraphics.cpp
+    pdf/content/PageGraphics.h
     pdf/content/TrueTypeSubset.cpp
     pdf/content/TrueTypeSubset.h
     pdf/content/TextReflow.cpp
@@ -203,12 +211,22 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/BarcodeEncoder.cpp
     pdf/forms/FormToolSettings.cpp
     pdf/forms/FormDesignParser.cpp
+    pdf/forms/FormAutoDetect.cpp
+    pdf/forms/FormAutoDetect.h
     pdf/document/DocumentProperties.cpp
     pdf/document/DocumentProperties.h
     doc/model/OutlineGenerator.cpp
     doc/model/OutlineGenerator.h
     pdf/ops/OutlineEditor.cpp
     pdf/ops/OutlineEditor.h
+    pdf/ops/CrossReference.cpp
+    pdf/ops/CrossReference.h
+    pdf/ops/StreamingEdit.cpp
+    pdf/ops/StreamingEdit.h
+    pdf/ops/TranslationWriter.cpp
+    pdf/ops/TranslationWriter.h
+    pdf/convert/DxfExport.cpp
+    pdf/convert/DxfExport.h
     pdf/ops/PageSplitPlanner.cpp
     pdf/ops/PageSplitPlanner.h
     pdf/security/Redaction.cpp
@@ -237,8 +255,12 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ops/DocumentReflow.h
     pdf/annot/RichMedia3d.cpp
     pdf/annot/RichMedia3d.h
+    pdf/annot/ThreeDModel.cpp
+    pdf/annot/ThreeDModel.h
     pdf/forms/XfaSupport.cpp
     pdf/forms/XfaSupport.h
+    pdf/forms/XfaScriptRunner.cpp
+    pdf/forms/XfaScriptRunner.h
     pdf/compliance/PdfUaChecker.cpp
     pdf/compliance/PdfUaChecker.h
     doc/index/OfflineQa.cpp
@@ -275,6 +297,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/convert/ConversionInputs.h
     doc/convert/FontFlattening.cpp
     doc/convert/FontFlattening.h
+    doc/convert/ScannedPdfOptimizer.cpp
+    doc/convert/ScannedPdfOptimizer.h
     doc/export/OfdExport.cpp
     doc/export/OfdExport.h
     doc/export/OfficeExport.cpp

@@ -44,6 +44,7 @@
 #include <QVector>
 
 #include <algorithm>
+#include <cstring>
 #include <optional>
 
 namespace {
@@ -918,6 +919,40 @@ void DocumentPipelineTests::reflowRefusesUntaggedDocumentWithAReason() {
     QVERIFY(result.bytes.isEmpty());
 }
 
+// 一个最小的 U3D 文件（只有文件头块，没有网格）。
+//
+// 为什么不用假字节：写 3D 注解时会看模型文件头——像 U3D / PRC 才放行，
+// 不像就带着中文原因失败。夹具得真的像个 U3D 才测得到结构。
+QByteArray minimalU3dFixtureBytes() {
+    QByteArray data;
+    const auto appendU16 = [&data](quint16 value) {
+        data.append(static_cast<char>(value & 0xFF));
+        data.append(static_cast<char>((value >> 8) & 0xFF));
+    };
+    const auto appendU32 = [&data, &appendU16](quint32 value) {
+        appendU16(static_cast<quint16>(value & 0xFFFF));
+        appendU16(static_cast<quint16>((value >> 16) & 0xFFFF));
+    };
+    const auto appendU64 = [&data, &appendU32](quint64 value) {
+        appendU32(static_cast<quint32>(value & 0xFFFFFFFFu));
+        appendU32(static_cast<quint32>((value >> 32) & 0xFFFFFFFFu));
+    };
+    appendU32(0x00443355u);  // 块类型：文件头块（小端读出来就是 "U3D\0"）
+    appendU32(32);          // 数据长度
+    appendU32(0);           // 元数据长度
+    appendU16(0);           // 主版本
+    appendU16(0);           // 次版本
+    appendU32(0x0000000Cu); // profile：无压缩 + 定义了单位
+    appendU32(0);           // 声明长度
+    appendU64(0);           // 文件长度
+    appendU32(106);         // 字符集：UTF-8
+    const double unitsScale = 1.0;
+    quint64 unitsBits = 0;
+    std::memcpy(&unitsBits, &unitsScale, sizeof(unitsBits));
+    appendU64(unitsBits);   // 单位换算系数
+    return data;
+}
+
 // 3D 注解写进去要能读回来，参数一项不差。
 void DocumentPipelineTests::threeDAnnotationRoundTrips() {
     REQUIRE_QPDF();
@@ -928,9 +963,7 @@ void DocumentPipelineTests::threeDAnnotationRoundTrips() {
     aipdf::pdf::ThreeDAnnotationSpec spec;
     spec.pageIndex = 0;
     spec.rect = QRectF(40.0, 60.0, 160.0, 120.0);
-    // 注意写法："\x00\x01\x02fake" 会被当成 "\x02f" 一个十六进制转义，
-    // 所以这里把两段拼起来写。
-    spec.modelBytes = QByteArray("\x00\x01\x02" "fake-u3d-bytes", 20);
+    spec.modelBytes = minimalU3dFixtureBytes();
     spec.view.externalName = QStringLiteral("Main");
     spec.view.internalName = QStringLiteral("main");
     spec.view.projectionType = QStringLiteral("/Orthographic");

@@ -2,6 +2,8 @@
 
 #include "i18n/Translate.h"
 
+#include <QStringList>
+
 namespace aipdf::app {
 
 namespace {
@@ -69,12 +71,32 @@ QVector<SuspicionRow> suspicionRows(const QVector<pdf::SuspiciousChar>& items) {
     return rows;
 }
 
-QString flattenFontsNoticeText() {
-    // 这一句必须照实说：转曲是**视觉等价**的栅格化版本，
-    // 文字变成像素，不能再选中、不能再搜索，文件也会变大。
-    // 不许在这里宣称已经变成矢量或轮廓。
-    return i18n::tr("aipdf::app::MainWindow", "转曲结果：每一页按设定分辨率栅格化成图片后重新写入 PDF。"
-                "外观与原文件一致，但文字不能再选中或搜索，文件体积会变大。");
+QString flattenFontsNoticeText(const doc::FlattenReport& report) {
+    // 这一句必须照实说：转曲默认走**矢量轮廓化**（文字变成路径，产物里没有字体），
+    // 但轮廓化不是对所有文档都成功——Type3 字体、缺 ToUnicode 的 CID 字体都取不到字形。
+    // 那些字符的去向（丢掉 / 保留原字）必须当面对用户讲清楚。
+    const int unconverted = report.droppedCharCount + report.keptCharCount;
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                            "转曲结果：%1 个字符已转成矢量路径，%2 个字符取不到轮廓。"
+                            "产物里不再有字体依赖，文字不能再选中或搜索。")
+                        .arg(report.outlinedCharCount)
+                        .arg(unconverted);
+    if (!report.skipped.isEmpty()) {
+        const int shown = qMin(report.skipped.size(), 5);
+        QStringList lines;
+        for (int index = 0; index < shown; ++index) {
+            lines.append(report.skipped.at(index));
+        }
+        text += QLatin1Char('\n') +
+                i18n::tr("aipdf::app::MainWindow", "取不到轮廓的字符（前 %1 条，共 %2 条）：%3")
+                    .arg(shown)
+                    .arg(report.skipped.size())
+                    .arg(lines.join(QLatin1String("；")));
+    }
+    for (const QString& note : report.notes) {
+        text += QLatin1Char('\n') + note;
+    }
+    return text;
 }
 
 QString imageBasedPdfNoticeText() {
@@ -82,18 +104,50 @@ QString imageBasedPdfNoticeText() {
                 "文字默认不能再选中（勾选保留文字层时可以搜索），图片按 JPEG 嵌入。");
 }
 
-QString htmlExportNoticeText() {
-    return i18n::tr("aipdf::app::MainWindow", "HTML 导出：只包含文字与基本排版，不含图片与图形；"
-                "字号由字形高度估算，与原版排版只大致相符。");
+QString htmlExportNoticeText(const pdf::HtmlExportResult& result) {
+    // 这一句必须照实说：现在 HTML 导出带矢量图形（内嵌 SVG）与内嵌图片，
+    // 字号优先用内容流里的真实值；只有取不到真实字号的那几行才按字形高度估算。
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                            "HTML 导出：包含文字、矢量图形（内嵌 SVG，%1 条）与内嵌图片（%2 张）；"
+                            "字号优先用内容流里的真实字号，取不到的那几行按字形高度估算。")
+                        .arg(result.vectorPathCount)
+                        .arg(result.imageCount);
+    if (result.fontSizeEstimated && !result.fontSizeNote.isEmpty()) {
+        text += QLatin1Char('\n') + result.fontSizeNote;
+    }
+    return text;
 }
 
-QString dxfExportNoticeText() {
-    return i18n::tr("aipdf::app::MainWindow", "CAD 导出：只导路径与可选的文字，不含颜色、线宽与图层；"
-                "曲线会被打散成折线。");
+QString dxfExportNoticeText(const pdf::CadDxfResult& result) {
+    // 这一句必须照实说：现在导的是**深度 DXF**——三次贝塞尔保形（样条实体）、
+    // 尺寸标注单独分层、图层表齐全、颜色与线宽都写进文件。
+    // 同时把没做的也说清楚：位图不导、渐变与剪裁路径会丢。
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                             "CAD 导出：直线 %1 条、折线 %2 条、样条（真曲线）%3 条、文字 %4 条、"
+                             "尺寸标注 %5 个；图层 %6 个（含 PATH / TEXT / DIM），颜色与线宽一并写入；"
+                             "位图不导出，渐变与剪裁路径会丢失。")
+                         .arg(result.lineCount)
+                         .arg(result.polylineCount)
+                         .arg(result.splineCount)
+                         .arg(result.textCount)
+                         .arg(result.dimensionCount)
+                         .arg(result.layers.size());
+    if (result.imageCount > 0) {
+        text += QLatin1Char('\n') +
+                i18n::tr("aipdf::app::MainWindow", "文档里有 %1 张位图，这一版没有导出位图。")
+                    .arg(result.imageCount);
+    }
+    return text;
 }
 
-QString ofdExportNoticeText() {
-    return i18n::tr("aipdf::app::MainWindow", "OFD 导出：只导文本对象，不含图片、图形与签章；坐标单位是毫米。");
+QString ofdExportNoticeText(const doc::OfdExportResult& result) {
+    // 这一句必须照实说：OFD 导出现在带文字、矢量图形与内嵌图片，
+    // 坐标单位是毫米；签章、注释、书签、附件等 OFD 规范里的东西没导。
+    return i18n::tr("aipdf::app::MainWindow",
+                    "OFD 导出：文字、矢量图形与内嵌图片都带上（%1 个矢量图形、%2 张图片）；"
+                    "坐标单位是毫米，签章与注释不在导出范围内。")
+        .arg(result.pathCount)
+        .arg(result.imageCount);
 }
 
 QString officeExportNoticeText(const QString& formatName, const QString& detail, bool keepsImages) {

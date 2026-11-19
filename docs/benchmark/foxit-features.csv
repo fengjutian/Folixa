@@ -1,4 +1,4 @@
-﻿tab,group,command,status,capability,note
+tab,group,command,status,capability,note
 文件,文件操作,打开,aligned,—,命令行/拖放/最近文档
 文件,文件操作,创建,aligned,E7,新建空白文档：选纸张（标准/自定义）、方向与页数，落盘后按既有打开流程载入；Ribbon「文件 → 新建」；`doc::BlankDocument`，`BlankDocumentTests`
 文件,文件操作,属性,aligned,—,读 PDF 的 /Info 并可改写回；有专项单测
@@ -16,7 +16,7 @@
 文件,导出与工具,导出,aligned,H3,导出页面图片与纯文本
 文件,导出与工具,PDF优化,partial,H8,Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的；**PDF/A 合规认证改走本机 veraPDF**（`pdf::VeraPdfChecker`，没装就如实说没装，不拿预检冒充认证）
 文件,导出与工具,索引,aligned,—,本地分块索引与检索
-文件,导出与工具,动作向导,partial,D9,动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**当前文档上真正落地的是「打开文件 / 加水印（只支持页面正中）/ 加页码（右下角、从 1 起）/ 结束」**，其余步骤如实报「动作向导还没有接这一步」，不假装成功；每步失败显示领域层给的中文原因。**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard`，`ActionWizardTests` 31 条）
+文件,导出与工具,动作向导,aligned,D9,"动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**10 类全部接上了** —— 打开文件换成当前文档、合并写到指定路径（当前文档作为第一份）、拆分按 range/count:N/outline 三种口径写到指定目录、加书签（只加顶层书签、页码越界当场报错）、加页码（右下角、从 1 起）、加水印（页面正中）、加密（AES-256，需带 qpdf 的构建）、转换格式（docx / xlsx / pptx / rtf / txt，整篇导出）、打印（份数 1 到 99、页范围形如 1-3,5）、结束（收尾点）；**参数解释与取值合法性由领域层统一判定**（`doc::parseWizardAction`），每步失败显示领域层给的中文原因，做不到的步骤如实报错、不假装成功；**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard` + `doc::WizardActions`，`ActionWizardTests` 31 条 + `WizardActionsTests` 29 条 + `WizardDocumentActionsTests` 34 条 + `WizardPrintRangeTests` 10 条）"
 文件,导出与工具,皮肤,aligned,—,界面主题浅色/暗色/跟随系统（设置 → 外观 → 主题，保存后立即生效）+ 阅读配色浅色/夜间/护眼/高对比（视图菜单）；弹窗带半透明蒙层；`ReadingSchemeTests` 6 条、`ThemeTests` 7 条、`ModalScrimTests` 4 条
 文件,最近文档,最近文档,aligned,—,显示文件名/路径/时间
 文件,最近文档,云文档,na,—,没有云盘接入
@@ -38,7 +38,7 @@
 主页,页面,插入页面,aligned,D1,当前页后插入空白页；也可从别的文件插入页面
 主页,扫描,从扫描仪,partial,I5,扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序、传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 9 条）；**图像支持 BMP / JPEG / PNG**（PNG 用自研解码器，不依赖 Qt 图像插件，TIFF 明确不支持）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 28 条
 主页,扫描,快速识别,aligned,I1,Tesseract 或 Windows OCR
-主页,扫描,优化扫描的PDF,partial,I1,只有图像预处理；没有完整去噪/纠偏
+主页,扫描,优化扫描的PDF,aligned,I1,逐页去噪 + 纠偏已实现并接上界面：连通域去噪（带细笔画保护，表格线与下划线不被当噪点删掉）、投影方差法纠偏（默认 ±5°，0.1° 精修）；整页走一遍「渲染成位图 → 去噪纠偏 → 写回图像化 PDF」（`doc::optimizeScannedPdf`），Ribbon「扫描 → 优化扫描件」（`scan.optimize`）；纠偏角度逐页汇报，界面文案照实说明产物是图像化 PDF；实测 +3.0° 倾斜检出 −3.00°、投影方差提升 7.4 倍、噪点像素 100% 删除且正文墨量零误删；`Wave21ImagePrepTests` 12 条 + `ImagePreprocessTests` 9 条
 主页,表单,填写&签名,aligned,F1,表单填写 + 证书签名（随包 pyHanko）
 主页,放映,从头开始,aligned,A5,F5 全屏逐页
 主页,放映,从当前页开始,aligned,A5,从当前页进入放映
@@ -62,38 +62,38 @@
 转换,输出,导出全部图像,aligned,H3,按 DPI 导出 PNG/JPEG
 转换,输出,到MS Office,aligned,H5,PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 13 条
 转换,输出,到图片,aligned,H3,与导出图片同一条通路
-转换,输出,到HTML,partial,—,整篇导出 HTML；**不含图片与图形，字号按字形高度估算**；`pdf::exportPageToHtml`，`ExportFormatsTests`
+转换,输出,到HTML,aligned,—,整篇导出 HTML：文字 + 矢量图形（每页一个内嵌 SVG）+ 内嵌图片（data URI），字号优先用内容流里的真实字号 Tf、按几何位置匹配到每个字符，取不到的行按字形高度估算并在结果与界面上标明走了估算（`pdf::extractPageGraphics` / `pdf::extractCharFontSizes` / `pdf::buildHtmlPage`）；页面图形提取走 qpdf 读内容流（`pdf::PageGraphics`），未启用 qpdf 的构建退回「文字 + 估算字号」并如实说明；`Wave21ExportHtmlTests` 12 条 + `ExportFormatsTests` 21 条
 转换,输出,转为基于图像的PDF,aligned,—,整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests`
-转换,输出,到CAD,partial,—,导出 DXF；**只含文字几何，不含曲线、标注与图层**；`pdf::exportPageToDxf`，`ExportFormatsTests`
-转换,输出,到其它格式,partial,—,导出对话框提供 HTML / 图像化PDF / DXF / OFD / DOCX / RTF 六种，各格式另有降级（见对应行）；**不是任意格式**
+转换,输出,到CAD,aligned,—,导出 DXF（AutoCAD R2000 / AC1015）：三次贝塞尔保形导出为**样条实体**（控制点与源 PDF 逐点相等）、直线与折线按实体写、尺寸标注单独分层（PATH / TEXT / DIM 三层，LAYER 表齐全，每个实体都归属表内图层）、颜色（索引色 + 真彩）与线宽一并写入（`pdf::exportPdfToCadDxf`，`Wave21DxfTests` 15 条；外部读档器 ezdxf 审计 0 错 0 修）；**位图不导出**（张数照实统计），PDF 里的 `/Dim` 批注**不识别**（尺寸标注的识别范围是内容流里画出的箭头 + 尺寸线 + 数值），渐变、图案填充与剪裁路径丢失；老路径 `pdf::exportPdfToDxf`（R12 折线版）保留，回归测试仍在
+转换,输出,到其它格式,aligned,—,导出面板提供六种格式：HTML、图像化 PDF、DXF、OFD、DOCX、RTF（RTF 走动作向导的「转换格式」），每种格式的边界逐条写在对应行；本轮补齐的：DXF 真曲线 + 尺寸标注分层 + 图层表 + 颜色线宽（`Wave21DxfTests` 15 条）、RTF 带图（`\pict`）与真表格（`\trowd` 行，`Wave21RtfTests` 5 条；图片按行内摆放、位置近似，颜色与字体样式不保留）、DOCX 真图片与真表格（`OfficeImagesTests` 12 条）、OFD 矢量图形与图片（`Wave21OfdTests` 14 条）、HTML 矢量图形与内嵌图片（`Wave21ExportHtmlTests` 12 条）
 转换,输出,到PDF,aligned,H6,任意文件 → PDF：除本机 LibreOffice 外，自建转换覆盖 txt / md / csv / json / html，**不需要装任何外部引擎**；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，**只嵌用到的字形**（子集化，10 MB → 几十 KB），界面也会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体，并如实报出替换了多少字符；`UniversalConverterTests` 25 条 + `TrueTypeSubsetTests` 7 条
-转换,输出,到OFD,partial,—,导出 OFD；**只支持文本对象**，不含图形与图片；`doc::exportPageToOfd`，`OfdExportTests`
+转换,输出,到OFD,aligned,—,导出 OFD 包：文字 + 矢量图形（路径对象，三次贝塞尔保持为曲线）+ 内嵌图片（页级资源），填充色、描边色与线宽一并带上，坐标单位是毫米（`doc::exportPagesToOfd` 的 `OfdPageContent` 重载，图形由 `pdf::extractDocumentGraphics` 给）；产物可解包校验（Document.xml → BaseLoc → Content.xml 逐页数对象）；OFD 规范里的签章、注释、书签、附件与模板页不在导出范围内；`Wave21OfdTests` 14 条 + `OfdExportTests` 12 条
 转换,输出,OFD批量转换,partial,—,OFD 批量转换已实现：调用本机已安装的 OFD 转换器批量转为 PDF，Ribbon「OFD 批量转换」（`documentManagement.ofdConvert`）入口已启用；**依赖本机装 OFD 转换器**，没装会如实报错
 转换,OCR,识别文本,aligned,I1,识别结果进本地索引，可检索可问答；未回写 PDF 隐藏文本层
 转换,OCR,快速识别,aligned,I1,与 OCR 同一引擎
 转换,OCR,疑似错误,aligned,—,OCR 疑似错误：列出疑似错字（页码 / 识别到的字 / 建议的字 / 理由 / 上下文），**只提示不改原文**；`pdf::findSuspiciousCharacters`，`OcrSuspicionTests`
 转换,印前,印前检查,aligned,—,印前检查：读当前文档给可送印/不可送印结论，按严重度分三组列出条目，计数与判定全部取自领域层 `runPreflightCheck`；`PreflightCheckerTests`
-转换,印前,PDF转曲,partial,E5,PDF 转曲：**是视觉等价的整页栅格化，不是矢量轮廓化**（文字变成像素，不再可选可搜）；界面文案刻意不含「矢量」「轮廓」并有负例守卫；`doc::flattenFontsToOutlines`，`FontFlatteningTests`
+转换,印前,PDF转曲,aligned,E5,PDF 转曲已改成**真正的矢量轮廓化**：逐字取字形轮廓（PDFium 的字形路径 API）换成路径对象，产物里没有 FontFile、没有可提取文字，页数与页面尺寸不变（`doc::flattenFontsToOutlines`，默认 `FlattenMode::Outline`，旧的栅格化模式保留为 `FlattenMode::Raster`）；取不到轮廓的字符（Type3 字体、缺 ToUnicode 的 CID 字体）逐条写进汇报，界面照实显示数量与原因；实测视觉差 0.19/255、非白像素占比相对差 7.9%；`Wave21FlattenTests` 14 条 + `FontFlatteningTests` 10 条
 编辑,内容,编辑文本,aligned,E1,行级重写 + 就地编辑，可写盘
 编辑,内容,编辑对象,aligned,E3,选择/移动/旋转/缩放/删除，可撤销
-编辑,内容,链接&合并文本,partial,E4,选区内文字合并并自动换行已实现：Ribbon「链接并合并文本」（`edit.inlineReflow` → `reflowSelectionDialog(false)`）入口已启用；**不做跨文本块的链接合并**
-编辑,文本工具,拼写检查,partial,—,内置 3066 词 + 94 组常见拼错 + 启发式规则；有专项单测；词表远小于完整词典，会漏判，不查中文
+编辑,内容,链接&合并文本,aligned,E4,跨文本块合并已实现：勾选当前页上的若干文本块合成一段连续文字并按栏宽自动换行，**每块自己的字体、字号与颜色跟着自己那段文字走**（`pdf::mergeTextBlocksAcrossSelection`，Ribbon「跨文本块合并」`edit.mergeTextBlocks`）；块与块之间夹着图片 / 矢量 / 表格时**直接拒绝**并写明原因（合并会把中间的图挤掉）；写回后用 PDFium 回读核对字数，少一个字就不写回（`Wave21StreamTests` 18 条）
+编辑,文本工具,拼写检查,aligned,—,词典可插拔 + 中文错字检查：内置英文词表 79 028 词（SCOWL，MIT 类许可）与中文词表 45 476 词（jieba，MIT），外部词表按 UTF-8 一行一词加载、加载失败逐条报错；英文含常见拼错对与常用词近邻规则，中文含形近字组 138 组与词组级错字 59 条（音近错字由词组表兜，避免字级误报）；实测误报率英文 0.25%（本仓库技术文档）至 0.73%（抽样）、中文 0.00%；词表来源、哈希与许可见 `src/pdf/ops/spell/SOURCES.md`；`Wave21SpellTests` 16 条 + `SpellCheckerTests` 14 条
 编辑,文本工具,搜索&替换,aligned,B5,查找与替换都能走通；批量替换复用同一对话框
 编辑,文本工具,批量替换,aligned,—,规则表按顺序依次生效，支持区分大小写/全字/正则；有专项单测
 编辑,插入,添加文本,aligned,C4,FreeText 文本框
 编辑,插入,添加图像,aligned,C7,图片图章/图片注释
 编辑,插入,添加形状,aligned,C5,矩形/椭圆/线/箭头/多边形/云线
-编辑,内容,流式编辑,partial,A8,选区宽度内的段落重排已实现：Ribbon「流式编辑」（`edit.paragraphReflow` → `reflowSelectionDialog(true)`）入口已启用；**只重排当前选区，不做全文流式改写**
+编辑,内容,流式编辑,aligned,A8,整篇流式重排已实现：按新的正文栏宽把每段重新流排并写回内容流（`pdf::reflowDocumentStream`，Ribbon「全文流式重排」`edit.documentReflow`）；段落边界取自标签树的块级元素（P / H1 / TD…），**没有结构标签的文档直接拒绝整篇重排**并写明「只能逐段处理」；重排后段落变高会压到下一段或超出页面时该段保留原文并写明原因；写回后用 PDFium 重新打开、重新抽文字核对，段数或字数少一个就不写回（`Wave21StreamTests` 18 条）
 编辑,插入,添加文章框,aligned,—,多行正文框可插入并落盘
 编辑,链接,添加链接,aligned,E4,网址链接与页内跳转都能写盘
 编辑,链接,网络链接,aligned,E4,可加外链，并能自动识别文本中的网页链接
 编辑,导航,书签,aligned,B3,新建/改名/删除/排序/层级编辑都可点；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测
-编辑,导航,自动创建书签,partial,B3,按字高比正文大的行判定标题并生成大纲；有专项单测；不读标签树，误判风险仍在
-编辑,导航,交叉引用,partial,—,插入指向书签的引用文字并可点跳转；目标要手工挑，不会自动识别「见第 N 页」这类引用
+编辑,导航,自动创建书签,aligned,B3,优先读文档的标签树判定标题（H1–H6 的层级 + 元素下的文字，含标题文字挂在后代节点的情况与层级跳级），文档没有结构标签时才回退到字高估算，并在界面上明说这次走的是估算（`pdf::generateOutline` / `pdf::generateOutlineFromStructTree`）；生成的大纲能写回文档并读回；`Wave21NavTests` 16 条 + `OutlineGeneratorTests` 16 条
+编辑,导航,交叉引用,aligned,—,自动识别文中的交叉引用（「见第 N 页」「详见第 N 章」「参见 3.2 节」「see page N」等中英文写法），按页码命中（高置信度）、标题书签命中（中置信度）、未解析三档给结论并逐条说明原因，认出来的引用能一键变成可点击跳转（`pdf::scanCrossReferences` / `pdf::crossReferenceLinkSpec` / `pdf::insertCrossReferenceLink`）；相对引用（「见前页」「见下文」）与「见附录 A」这类非数字目标列入未解析，界面给出候选让用户挑；`Wave21NavTests` 16 条
 编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
 编辑,附件,图像标注,aligned,C7,图片图章
 编辑,附件,音频&视频,partial,C8,录音以 WAV 附件保存；无视频
-编辑,3D,添加3D,partial,A11,3D 与多媒体注解能写能读回：`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`（`RichMedia3dTests` 26 条）；**3D 只写对结构（`/3D`、`/Screen`、Filespec），不渲染、不旋转**（本机没有 3D 运行时）；**音视频文件能在「插入多媒体」对话框里预览解码并播放**（Windows Media Foundation + 系统声卡，`pdf::openMediaFile` / `MediaDecoder` / `MediaPlaybackController`，`MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条），但**写进文档的注解仍然只带结构**
+编辑,3D,添加3D,aligned,A11,3D 注解能写能读回，而且**能渲染、能旋转**：U3D 静态网格自研解码（ECMA-363 无压缩剖面）→ 自写 z-buffer 光栅化 → 轨道相机渲染成位图，Ribbon「查看 3D 模型」里拖动可旋转、滚轮可缩放（`pdf::threeDRenderModel` / `threeDRenderMesh`，`Wave213dTests` 20 条）；用算术压缩剖面的 U3D 解不出网格时**退回降级海报并在界面上标明「非 3D 模型」**，不把海报当模型转；3D 注解按规范写 `/3D`、`/3DB`、`/3DD`、`/3DV` 与 Filespec、降级海报写进普通外观（`pdf::writeThreeDAnnotation` / `readRichMedia` / `readThreeDFallbackImage`，`RichMedia3dTests` 27 条）；**音视频文件能在「插入多媒体」对话框里预览解码并播放**（Windows Media Foundation + 系统声卡，`pdf::openMediaFile` / `MediaDecoder` / `MediaPlaybackController`，`MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条），多媒体注解写进文档时带结构
 页面管理,页面,插入,aligned,D1,插入空白页；也可从别的文件插入页面
 页面管理,页面,删除,aligned,D1,删除当前页，可撤销
 页面管理,页面,提取,aligned,D3,提取当前页与按范围提取；切分逻辑抽到 PageSplitPlanner 并有专项单测
@@ -159,8 +159,8 @@
 视图,比较,比较,aligned,L7,文档比较已实现，三层结果并排给：① 文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）；② 版面块级比对（`pdf::compareDocumentLayout`）：逐页抽出版面块（文字段落 / 图片 / 表格 / 图形），按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，给出块级归因——哪一块从哪页哪处挪到了哪页哪处、哪张图被换掉、哪张表少了几列或多了几行；跨页移动也能归因（页级相似度跌破门槛时会在未配对的页之间再配一次）；③ 可选的像素级视觉比对（`comparePixels`，默认关，渲染慢）：逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（`alignmentMode` / `alignmentNote`）；界面新增「版面差异」页签，双击跳页并选中那一块（新文里的页跳不过去时会明说，因为当前打开的是原文）；扫描件没有文字层时不做版面分析并写明原因；批注与表单域由 PDFium 画在内容层之外，版面块枚举看不到，它们的增删由像素通路负责；`DocumentComparerTests` 26 条 + `LayoutDiffTests` 13 条。
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
-表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页
-表单,设计,设计助手,partial,E7,按描述生成字段清单、确认后在当前页建域；有专项单测；不画版面、不跨页
+表单,识别,执行表单自动识别,aligned,F5,无域表单页也能识别：从页面矢量路径里合并共线段、认出线框围出的格子与下划线区，再与文字层的标签配对，给出字段名、区域（页坐标）、类型推断与置信度（`pdf::detectFormFields`）；已有 AcroForm 域的页照旧枚举既有域，线框候选分开列在 supplementary 里，两者不混在一起；实测夹具上位置误差 0.00 pt、普通正文页误报 0；Ribbon「表单 → 识别无域表单」（`form.recognize.detect`）；`Wave21FormTests` 17 条 + `FormDesignParserTests` 15 条
+表单,设计,设计助手,aligned,E7,按描述生成字段清单、确认后建域，并**画出版面**：位置与尺寸由确定性排布算出（`pdf::layoutDesignedFields`：内容区 = 页面去四边距，行高 = 字号×1.8+行距，左边留标签列），字段多于一页时顺延到下一页并报出还差几页（页面不够时先补空白页再建域）；模型的坐标不参与计算，同一份清单永远排出同一个版面；Ribbon「表单 → 设计助手」（`form.assistant`）；`Wave21FormTests` 17 条 + `FormDesignParserTests` 15 条
 表单,建域,文本域,aligned,E7,可新建并落盘；经典 xref 与交叉引用流都能写
 表单,建域,复选框,aligned,E7,可新建并落盘；经典 xref 与交叉引用流都能写
 表单,建域,单选按钮,aligned,E7,可新建并落盘；同名单选共享 /Parent 父字段，勾一个其余自动取消
@@ -169,7 +169,7 @@
 表单,建域,按钮,aligned,E7,可新建并落盘；经典 xref 与交叉引用流都能写
 表单,建域,条形码,aligned,E7,Code128 真条码画进外观流，扫描器能扫出来
 表单,模板,页面模板,aligned,—,页面模板：内置登记表 / 签到表 / 意见反馈表 / 费用报销单四个模板，用户模板与内置模板一起列出（同名以用户的为准）；内置表单位于 `pdf::FormTemplateStore::builtInTemplates`，`FormTemplateStoreTests` 14 条
-表单,XFA,编辑静态XFA表单,partial,F6,静态 XFA 字段可提取：字段名 / 标签 / 类型 / 当前值 / 是否必填，可导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**含动态逻辑的 XFA 只做静态字段提取，不执行脚本**，界面明确提示；**字段值改写不在这一条路径里**（面板列出字段并导出 CSV，改值走 AcroForm 路径）
+表单,XFA,编辑静态XFA表单,aligned,F6,静态 XFA 字段可提取与导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`），并补上**字段值改写**（`pdf::writeXfaFieldValue` / `writeXfaFieldValues`：只替换值所在的那几个字节，XML 结构与节点顺序不动，改完能读回）与**计算脚本子集执行**（`pdf::runXfaCalculateScripts`：走仓库既有的 `FormJsEvaluator` 白名单子集，多脚本按读写依赖拓扑重排后执行）；XFA 的动态逻辑、布局、事件与 SOM 运行时仍不在本项目范围内，界面对此有明确提示；`Wave21XfaTests` 20 条 + `XfaSupportTests` 20 条
 表单,计算,计算次序,aligned,F3,按 AcroForm /CO 次序执行计算脚本，可调序并写回
 表单,设计,添加工具提示,aligned,F5,域属性可填提示，表单面板有提示列
 表单,填写,重置表单,aligned,F2,恢复字段默认值；没有默认值的清空
@@ -266,7 +266,7 @@
 帮助,商业,产品信息,na,—,无订阅
 帮助,商业,订阅,na,—,无订阅
 AI助手,对话,AI聊天,aligned,L1,流式回答/停止/用量与费用
-AI助手,翻译,翻译文档,partial,L2,选区与当前页；整篇未做
+AI助手,翻译,翻译文档,aligned,L2,整篇翻译已实现：按段把整篇正文交给 AI 服务翻译，译文写回各自的位置（`pdf::translateDocument`，Ribbon「整篇翻译」`ai.translateDocument`）；**演示 Provider 的示例译文不写回文档**（那是拼出来的样子）；Provider 返回空、与原文相同、或译文放不进原来的位置时该段保留原文并写明原因；写回后用 PDFium 回读核对「写回段的译文在页面上、没写回段的原文还在」（`Wave21StreamTests` 18 条）
 AI助手,朗读,智能朗读,aligned,J4,AI 智能朗读：自动取正文、清洗分段后逐段朗读，状态栏显示段数与预计时长，可被打断；走系统语音合成，**音色与语速可在「阅读选项」里调**；`ai::AiNarration`，`AiNarrationTests`
 AI助手,检测,AI内容检测,aligned,—,AI 内容检测：自动带入选区文字（无选区则当前页正文），输出判定与置信度，**模型解析失败时显示「无法判断」而不是编一个结论**；`ai::AiContentDetection`，`AiContentDetectionTests`
 AI助手,生成,生成图像,aligned,—,文生图：提示词 / 反向提示词 / 画风 / 尺寸 / 张数 1–4，生成后可直接插成图片批注；**需配置 Provider 密钥，没密钥直接报错，不做离线兜底**；`ai::AiImageGeneration`，`AiImageGenerationTests`

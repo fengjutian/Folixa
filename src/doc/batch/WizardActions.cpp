@@ -493,17 +493,29 @@ bool takeString(WizardActionType actionType, const QVector<WizardParam>& params,
         // 前缀白名单放行：有的取值是「前缀 + 一个数」的形式
         // （例如拆分口径的 "count:5" 表示每 5 页一份）。
         // 精确白名单对这种写法一律拒绝，只能靠前缀规则放行。
-        bool prefixAllowed = false;
+        //
+        // **但前缀放行不等于后面随便写**：前缀后面的部分必须是正整数，
+        // 否则 "count:abc" 会被当成合法的口径放过去 —— 那是把「没查」说成
+        // 「查过了没问题」。所以这里把后缀也验一遍。
+        QString matchedPrefix;
         for (const QString& prefix : paramSpec->allowedPrefixes) {
             if (!prefix.isEmpty() && value.startsWith(prefix)) {
-                prefixAllowed = true;
+                matchedPrefix = prefix;
                 break;
             }
         }
-        if (!prefixAllowed) {
+        if (matchedPrefix.isEmpty()) {
             setError(error, QStringLiteral("动作「%1」的参数「%2」取值必须是 %3 之一，当前为「%4」")
                               .arg(spec->title, name, paramSpec->allowedValues.join(QStringLiteral("、")),
                                    value));
+            return false;
+        }
+        const QString suffix = value.mid(matchedPrefix.size()).trimmed();
+        bool suffixOk = false;
+        const qint64 number = suffix.toLongLong(&suffixOk);
+        if (!suffixOk || number < 1) {
+            setError(error, QStringLiteral("动作「%1」的参数「%2」取值 %3 后面要跟一个正整数，当前为「%4」")
+                              .arg(spec->title, name, matchedPrefix, value));
             return false;
         }
     }

@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include <QByteArray>
+#include <QPair>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -92,5 +93,96 @@ XfaReport inspectXfa(const QByteArray& pdfBytes, QString* error = nullptr);
 //
 // 没有字段时返回的也是一份只有表头的 CSV（表头始终在，调用方不必特判）。
 QByteArray exportXfaFieldsToCsv(const XfaReport& report);
+
+// ---------------------------------------------------------------- 写值 ----
+
+// 一个字段的写值结果。
+//
+// 为什么逐项给结果而不是只给一个总结果：一次可能要改好几个字段，
+// 其中一个字段只读、另一个字段名写错了，都得让人看得见；
+// 只回一句「失败」等于让用户自己猜是哪一处。
+struct XfaFieldUpdate {
+    // 字段名。
+    QString field;
+    // 实际写进去的值。
+    QString value;
+    // 非空表示这一项没改成，里面是中文原因。
+    QString error;
+    // 这一项是不是成功了。
+    bool ok() const { return error.isEmpty(); }
+};
+
+// 写值 / 执行脚本的结果。
+struct XfaWriteReport {
+    // 整体是否成功：所有请求项都成功才是 true。
+    bool ok = false;
+    // 整体失败的原因（中文）。逐项失败的原因在 updates 里。
+    QString error;
+    // 逐项结果。
+    QVector<XfaFieldUpdate> updates;
+    // 非致命提示（脚本引用了不存在的字段、某些脚本没有执行之类的）。
+    QStringList warnings;
+    // 一行中文摘要。
+    QString summary() const;
+};
+
+// 改一个 XFA 字段的值，并把改过的 PDF 写进 outPdf。
+//
+// 做什么：
+//   * 在 XFA 的数据集里找到该字段的数据节点（<xfa:Field> 里的 <value><text>）；
+//   * 只改值的那几个字节，XML 结构一个节点都不动（重新序列化会把
+//     前缀、缩进、空元素写法全改掉，阅读器未必还认）；
+//   * 把改过的 XFA 流写回 PDF，outPdf 里是改完的整份 PDF。
+//
+// 逐项失败会给出中文原因：字段不存在 / 字段只读 / 值与字段类型对不上。
+// 只要有一项成功，outPdf 里就是改过的 PDF；全部失败时 outPdf 不动。
+//
+// 需要 qpdf：/XFA 是对象级的间接引用，只有真正的 PDF 解析器才能按对象定位并写回。
+// 本次构建没启用 qpdf（AIPDF_WITH_QPDF 默认关）时，报告里写明原因，
+// 不假装能改。
+XfaWriteReport writeXfaFieldValue(const QByteArray& pdfBytes, const QString& fieldName,
+                                  const QString& value, QByteArray* outPdf, QString* error = nullptr);
+
+// 一次改多个字段：values 是「字段名 → 新值」的列表。
+//
+// 语义与 writeXfaFieldValue 相同，只是省得反复解析同一份 PDF。
+XfaWriteReport writeXfaFieldValues(const QByteArray& pdfBytes,
+                                  const QVector<QPair<QString, QString>>& values,
+                                  QByteArray* outPdf, QString* error = nullptr);
+
+// 执行 XFA 里的计算脚本（白名单子集），把算出来的值写进字段并写回 PDF。
+//
+// 声明在 XfaScriptRunner.h：求值脚本要用 FormJsEvaluator，
+// 这一层（字段提取、写值）不该被它拖住。
+
+// ---------------------------------------------------------------- 脚本 ----
+
+// XFA 里的一段脚本。
+struct XfaScriptUnit {
+    // 脚本名（<exObject name="..."> 的 name 属性）；没有名字就空。
+    QString name;
+    // 脚本代码。
+    QString code;
+    // 脚本属于哪个字段（脚本里的 this 指向谁）；数据集里的脚本没有归属字段。
+    QString owner;
+    // 脚本的角色：calculate（计算）/ event（事件）/ validation（校验）/ script（其它）。
+    QString role;
+};
+
+// 一份 XFA 表单里的脚本清单。
+struct XfaScriptListing {
+    bool ok = false;
+    // 读不出脚本时的中文原因。
+    QString error;
+    // 找到的脚本（模板里的、数据集里的都算）。
+    QVector<XfaScriptUnit> scripts;
+};
+
+// 列出这份 PDF 里的 XFA 脚本。
+//
+// 为什么单独给一个接口：求值脚本需要 FormJsEvaluator，
+// 而 XfaSupport 这一层（字段提取、写值）不该被它拖住——
+// 只看字段的人不必先装上脚本求值器。
+XfaScriptListing listXfaScripts(const QByteArray& pdfBytes);
 
 }  // namespace aipdf::pdf

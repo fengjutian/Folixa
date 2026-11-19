@@ -1,6 +1,7 @@
 #include "doc/export/OfficeExport.h"
 
 #include <QRectF>
+#include <QSize>
 #include <QStringList>
 #include <QtMath>
 
@@ -404,23 +405,219 @@ QByteArray exportPlainText(const QVector<TextExportLine>& lines) {
 
 // ---- RTF ----------------------------------------------------------------
 
-QByteArray exportRtf(const QVector<TextExportLine>& lines) {
+// 「这一行是不是落在属于这条带的表里」。
+//
+// 定义在下面的 DOCX 段里（那边先写），这里先声明：RTF 段要按同一口径
+// 决定「哪些行不再单独写成段落」。
+bool lineInsideBandTable(const TextExportLine& line, const QVector<office::TableGrid>& tables,
+                          int band);
+
+// PNG 的像素尺寸（IHDR 里读）。
+//
+// 为什么专门读 PNG：RTF 的 \picw/\pich 是**像素**尺寸，\picwgoal/\pichgoal
+// 才是显示尺寸。像素尺寸写错，读档器就会按错误的 DPI 重算，
+// 图的大小跟页面上的位置对不上。
+QSize rtfPicturePixels(const QByteArray& bytes, double widthPoints, double heightPoints) {
+    static const unsigned char kSignature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+    bool isPng = bytes.size() >= 24;
+    for (int index = 0; isPng && index < 8; ++index) {
+        isPng = static_cast<unsigned char>(bytes.at(index)) == kSignature[index];
+    }
+    if (isPng) {
+        const auto* data = reinterpret_cast<const unsigned char*>(bytes.constData());
+        const int width = (data[16] << 24) | (data[17] << 16) | (data[18] << 8) | data[19];
+        const int height = (data[20] << 24) | (data[21] << 16) | (data[22] << 8) | data[23];
+        if (width > 0 && height > 0) {
+            return QSize(width, height);
+        }
+    }
+    // 不是 PNG（或者头被截了）：退回「1 点当 1 像素」。
+    return QSize(qMax(1, qRound(widthPoints)), qMax(1, qRound(heightPoints)));
+}
+
+// RTF 的二进制数据要写成十六进制。
+QString rtfHex(const QByteArray& bytes) {
+    static const char kDigits[] = "0123456789abcdef";
+    QString out;
+    out.reserve(bytes.size() * 2 + bytes.size() / 64);
+    int column = 0;
+    for (const char raw : bytes) {
+        const unsigned char value = static_cast<unsigned char>(raw);
+        out += QLatin1Char(kDigits[value >> 4]);
+        out += QLatin1Char(kDigits[value & 0x0F]);
+        // 每 128 个十六进制字符断一行：读档器会忽略这些空白，
+        // 但几十万字符的一行会让某些编辑器卡住。
+        if (++column % 128 == 0) {
+            out += QLatin1Char('\n');
+        }
+    }
+    return out;
+}
+
+// RTF 里的图片：行内图片（\pict）。
+//
+// 为什么用行内而不是浮动定位：RTF 的浮动图片（\shp）要写一整套定位控制字，
+// 少一个关键字 Word 就会把图甩到别处甚至报文件损坏；行内图片的位置是近似的
+// （跟着段落走），但**一定不会丢**。
+QString rtfPicture(const office::MediaSet& media, const office::ImagePlacement& image) {
+    if (image.mediaIndex < 0 || image.mediaIndex >= media.count()) {
+        return {};
+    }
+    const office::OfficeMedia& item = media.at(image.mediaIndex);
+    const QSize pixels = rtfPicturePixels(item.bytes, image.widthPoints, image.heightPoints);
+    // \pngblip / \jpegblip：读档器靠它知道后面是哪种二进制。
+    const QString kind = item.mimeType.contains(QStringLiteral("jpeg"), Qt::CaseInsensitive)
+                             ? QStringLiteral("\\jpegblip")
+                             : QStringLiteral("\\pngblip");
+    QString out = QStringLiteral("{\\pict") + kind +
+                  QStringLiteral("\\picw%1\\pich%2").arg(pixels.width()).arg(pixels.height()) +
+                  QStringLiteral("\\picwgoal%1\\pichgoal%2")
+                      .arg(qRound(image.widthPoints * kPointsToTwips))
+                      .arg(qRound(image.heightPoints * kPointsToTwips)) +
+                  QLatin1Char(' ');
+    out += rtfHex(item.bytes);
+    out += QLatin1Char('}');
+    return out;
+}
+
+// RTF 里的表格：一行一个 \trowd，列边界用 \cellx（缇，相对行的左边界）。
+//
+// 为什么用真正的 RTF 表格而不是「用制表符拼的伪表格」：伪表格在 Word 里
+// 一改列宽就散架，读者也会把它当成普通文字。
+QString rtfTable(const office::TableGrid& table) {
+    QString out;
+    for (const QVector<QString>& row : table.rows) {
+        const int columns = qMax(table.columnCount(), row.size());
+        if (columns <= 0) {
+            continue;
+        }
+        QString header = QStringLiteral("\\trowd\\trgaph108\\trleft-108");
+        double edge = 0.0;
+        for (int column = 0; column < columns; ++column) {
+            const double width = column < table.columnWidthsPoints.size()
+                                     ? table.columnWidthsPoints.at(column)
+                                     : 0.0;
+            edge += width;
+            header += QStringLiteral("\\cellx%1").arg(qRound(edge * kPointsToTwips));
+        }
+        out += header;
+        out += QLatin1Char('\n');
+        out += QStringLiteral("\\pard\\intbl ");
+        for (int column = 0; column < columns; ++column) {
+            out += escapeRtf(column < row.size() ? row.at(column) : QString());
+            out += QStringLiteral("\\cell ");
+        }
+        out += QStringLiteral("\\row\n");
+    }
+    return out;
+}
+
+// 把一页内容导成 RTF。
+//
+// 文字、图片、表格按页面上的位置交错排（与 DOCX 同一口径）：
+// 图片走 \pict，表格走 \trowd 行。
+QByteArray exportRtf(const QVector<OfficePageContent>& pages, const office::MediaSet& media) {
     QString out;
     out.append(QStringLiteral("{\\rtf1\\ansi\\ansicpg936\\deff0"));
     // 字体表：\fcharset134 是 GB2312，中文能正常显示。
     out.append(QStringLiteral("{\\fonttbl{\\f0\\fnil\\fcharset134 SimSun;}}"));
     out.append(QStringLiteral("{\\colortbl;}"));
-    for (const TextExportLine& line : lines) {
-        if (line.raw) {
-            // 原样片段（分页符）：不能再走 escapeRtf。
-            out.append(line.text);
-            out.append(QLatin1Char('\n'));
-            continue;
+    for (int pageIndex = 0; pageIndex < pages.size(); ++pageIndex) {
+        const OfficePageContent& page = pages.at(pageIndex);
+        // 页与页之间用换页（\page）隔开。
+        if (pageIndex > 0) {
+            out.append(QStringLiteral("\\page\n"));
         }
-        // \fs24 = 12 磅；\par 结束这一段。
-        out.append(QStringLiteral("\\pard\\plain\\f0\\fs24 "));
-        out.append(escapeRtf(line.text));
-        out.append(QStringLiteral("\\par\n"));
+
+        // 正文里的块：按「带」分组，带内按纵向位置从上到下。
+        struct RtfBlock {
+            enum class Kind { Paragraph, Picture, Table };
+            Kind kind = Kind::Paragraph;
+            double order = 0.0;
+            int band = 0;
+            int index = 0;
+        };
+        QVector<RtfBlock> blocks;
+        for (int band = 0; band < page.bands.size(); ++band) {
+            const TextBand& textBand = page.bands.at(band);
+            for (int line = 0; line < textBand.lines.size(); ++line) {
+                // 表格里的行不再写成段落：表格对象里已经有它们了，
+                // 两边都写就是重复内容。
+                if (lineInsideBandTable(textBand.lines.at(line), page.tables, band)) {
+                    continue;
+                }
+                RtfBlock block;
+                block.kind = RtfBlock::Kind::Paragraph;
+                block.order = textBand.lines.at(line).top;
+                block.index = line;
+                block.band = band;
+                blocks.append(block);
+            }
+        }
+        for (int index = 0; index < page.images.size(); ++index) {
+            const office::ImagePlacement& image = page.images.at(index);
+            RtfBlock block;
+            block.kind = RtfBlock::Kind::Picture;
+            block.order = image.upperEdgePoints();
+            block.index = index;
+            block.band = qMax(0, image.bandIndex);
+            blocks.append(block);
+        }
+        for (int index = 0; index < page.tables.size(); ++index) {
+            const office::TableGrid& table = page.tables.at(index);
+            RtfBlock block;
+            block.kind = RtfBlock::Kind::Table;
+            block.order = table.topPoints();
+            block.index = index;
+            block.band = qMax(0, table.bandIndex);
+            blocks.append(block);
+        }
+        std::stable_sort(blocks.begin(), blocks.end(),
+                         [](const RtfBlock& left, const RtfBlock& right) {
+                             if (left.band != right.band) {
+                                 return left.band < right.band;
+                             }
+                             if (left.order != right.order) {
+                                 return left.order > right.order;
+                             }
+                             return left.kind < right.kind;
+                         });
+
+        for (const RtfBlock& block : blocks) {
+            switch (block.kind) {
+            case RtfBlock::Kind::Paragraph: {
+                if (block.band < 0 || block.band >= page.bands.size()) break;
+                const TextBand& textBand = page.bands.at(block.band);
+                if (block.index < 0 || block.index >= textBand.lines.size()) break;
+                const TextExportLine& line = textBand.lines.at(block.index);
+                if (line.raw) {
+                    // 原样片段（控制串）：不能再走 escapeRtf。
+                    out.append(line.text);
+                    out += QLatin1Char('\n');
+                    break;
+                }
+                // \fs24 = 12 磅；\par 结束这一段。
+                out.append(QStringLiteral("\\pard\\plain\\f0\\fs24 "));
+                out.append(escapeRtf(line.text));
+                out.append(QStringLiteral("\\par\n"));
+                break;
+            }
+            case RtfBlock::Kind::Picture: {
+                if (block.index < 0 || block.index >= page.images.size()) break;
+                const QString picture = rtfPicture(media, page.images.at(block.index));
+                if (picture.isEmpty()) break;
+                out.append(QStringLiteral("\\pard\\plain\\f0\\fs24 "));
+                out.append(picture);
+                out.append(QStringLiteral("\\par\n"));
+                break;
+            }
+            case RtfBlock::Kind::Table: {
+                if (block.index < 0 || block.index >= page.tables.size()) break;
+                out.append(rtfTable(page.tables.at(block.index)));
+                break;
+            }
+            }
+        }
     }
     out.append(QLatin1Char('}'));
     return out.toUtf8();
@@ -1116,10 +1313,11 @@ ExportCapability exportCapability(ExportFormat format) {
     case ExportFormat::Rtf:
         capability.keepsText = true;
         capability.keepsLayout = false;
-        capability.keepsImages = false;
-        capability.keepsTables = false;
+        // RTF 能带图片与表格：图片是 \pict，表格是真正的 \trowd 行。
+        capability.keepsImages = true;
+        capability.keepsTables = true;
         capability.limitation = QStringLiteral(
-            "只保留文字与换行，图片、表格、颜色和字体样式都会丢失。");
+            "保留文字、图片与表格结构；图片是行内摆放（位置近似），颜色与字体样式会丢失。");
         break;
     case ExportFormat::PlainText:
         capability.keepsText = true;
@@ -1155,7 +1353,8 @@ ExportResult exportPageTo(ExportFormat format, const pdf::TextPage& text,
     case ExportFormat::Rtf: {
         result.suggestedSuffix = QStringLiteral("rtf");
         const QVector<TextExportLine> lines = buildTextLines(text);
-        result.bytes = exportRtf(lines);
+        result.bytes = exportRtf(contentsFromLines(QVector<QVector<TextExportLine>>{lines}),
+                                  office::MediaSet());
         result.ok = true;
         break;
     }
@@ -1202,19 +1401,8 @@ ExportResult exportPagesTo(ExportFormat format, const QVector<pdf::TextPage>& pa
     }
     case ExportFormat::Rtf: {
         result.suggestedSuffix = QStringLiteral("rtf");
-        // RTF 没有分页符的说法，用换页（\page）隔开。
-        QVector<TextExportLine> merged;
-        for (int pageIndex = 0; pageIndex < pageLines.size(); ++pageIndex) {
-            if (pageIndex > 0) {
-                TextExportLine separator;
-                separator.text = QStringLiteral("\\page");
-                // 原样输出：走 escapeRtf 会变成字面 "\page"，分页失效。
-                separator.raw = true;
-                merged.append(separator);
-            }
-            merged.append(pageLines.at(pageIndex));
-        }
-        result.bytes = exportRtf(merged);
+        // 页与页之间的换页由 exportRtf 自己按页插入（\page）。
+        result.bytes = exportRtf(contentsFromLines(pageLines), office::MediaSet());
         result.ok = true;
         break;
     }
@@ -1260,19 +1448,8 @@ ExportResult exportPagesTo(ExportFormat format, const QVector<OfficePageContent>
     }
     case ExportFormat::Rtf: {
         result.suggestedSuffix = QStringLiteral("rtf");
-        // RTF 没有分页符的说法，用换页（\page）隔开。
-        QVector<TextExportLine> merged;
-        for (int pageIndex = 0; pageIndex < contents.size(); ++pageIndex) {
-            if (pageIndex > 0) {
-                TextExportLine separator;
-                separator.text = QStringLiteral("\\page");
-                // 原样输出：走 escapeRtf 会变成字面 "\page"，分页失效。
-                separator.raw = true;
-                merged.append(separator);
-            }
-            merged.append(contents.at(pageIndex).allLines());
-        }
-        result.bytes = exportRtf(merged);
+        // 图片与表格都进 RTF：图片走 \pict，表格走 \trowd 行。
+        result.bytes = exportRtf(contents, media);
         result.ok = true;
         break;
     }

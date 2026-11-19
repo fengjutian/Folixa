@@ -1831,3 +1831,19 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardDocumentActionsTests.cmake)
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficeImagesTests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficeImagesTests.cmake)
 endif()
+
+# 2026-11-19 wave21：把「部分对齐」的命令补齐到对齐，这几组各自一个片段。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21ExportHtmlTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21FlattenTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21ImagePrepTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21SpellTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21XfaTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21NavTests.cmake)
+# wave21 的流式编辑 / 跨块合并 / 整篇翻译由 Wave21StreamTests 覆盖（原来那个
+# Wave21TextTests 只是占位：一个 placeholder() 用例，不算验收）。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21FormTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21OfdTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave213dTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21DxfTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21RtfTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21StreamTests.cmake)

@@ -863,7 +863,16 @@ inline bool resolveWizardBookmarkPage(qint64 pageIndex, int pageCount, int* reso
         }
         return false;
     }
-    // 负例：越界不报错，直接当成第 1 页
+    // 书签指向的页必须落在文档里：页码从 1 起算，超出页数就是「目标损坏」，
+    // 不能写一条指向文档外的书签（那样看起来存进去了，其实点不动）。
+    if (pageIndex < 1) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView",
+                              "书签要指向第 1 页或更后面的页，这一步写的是第 %1 页。")
+                         .arg(pageIndex);
+        }
+        return false;
+    }
     if (pageIndex > pageCount) {
         if (error != nullptr) {
             *error = i18n::tr("aipdf::app::PdfView",

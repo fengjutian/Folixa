@@ -1,8 +1,12 @@
-// 字体转曲的测试。
+// 字体转曲的**栅格化模式**（旧行为）的测试。
 //
 // 注意：这里测的是**视觉等价**的转曲（渲染成位图再写回 PDF），
 // 不是轮廓化转曲。断言 accordingly：转曲后文字取不到了，
 // 但页面尺寸、页数必须保持。
+//
+// 为什么显式写 mode = Raster：转曲的默认模式已经改成矢量轮廓化，
+// 这组用例守的是旧行为，必须自己把模式钉死，不能跟着默认值漂移。
+// 轮廓化模式的用例在 tests/Wave21FlattenTests.cpp。
 
 #include <QtTest>
 
@@ -15,9 +19,17 @@
 #include "doc/convert/FontFlattening.h"
 #include "pdf/kernel/PdfiumAdapter.h"
 
+using aipdf::doc::FlattenMode;
 using aipdf::doc::FlattenOptions;
 
 namespace {
+
+// 旧行为（栅格化）的参数。
+FlattenOptions rasterOptions() {
+    FlattenOptions options;
+    options.mode = FlattenMode::Raster;
+    return options;
+}
 
 // 造一份带文字层的夹具 PDF。
 //
@@ -122,7 +134,7 @@ void FontFlatteningTests::outputIsValidPdfWithSamePageCount() {
 
     QString error;
     const QByteArray output =
-        aipdf::doc::flattenFontsToOutlines(source, FlattenOptions{}, &error);
+        aipdf::doc::flattenFontsToOutlines(source, rasterOptions(), &error);
     QVERIFY2(!output.isEmpty(), qPrintable(error));
     QVERIFY(output.startsWith("%PDF"));
 
@@ -136,7 +148,7 @@ void FontFlatteningTests::textIsGoneWhenTextLayerIsRemoved() {
     QVERIFY(!source.isEmpty());
     QVERIFY(aipdf::doc::hasExtractableText(source));
 
-    FlattenOptions options;
+    FlattenOptions options = rasterOptions();
     options.removeTextLayer = true;
     const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, options);
     QVERIFY(!output.isEmpty());
@@ -147,7 +159,7 @@ void FontFlatteningTests::textStaysWhenTextLayerIsKept() {
     const QByteArray source = makeTextPdf(1);
     QVERIFY(!source.isEmpty());
 
-    FlattenOptions options;
+    FlattenOptions options = rasterOptions();
     options.removeTextLayer = false;
     const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, options);
     QVERIFY(!output.isEmpty());
@@ -159,7 +171,7 @@ void FontFlatteningTests::hasExtractableTextDistinguishesFixtureFromResult() {
     QVERIFY(!source.isEmpty());
     QVERIFY(aipdf::doc::hasExtractableText(source));
 
-    FlattenOptions options;
+    FlattenOptions options = rasterOptions();
     options.removeTextLayer = true;
     const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, options);
     QVERIFY(!output.isEmpty());
@@ -174,9 +186,9 @@ void FontFlatteningTests::higherDpiProducesBiggerImage() {
     const QByteArray source = makeTextPdf(1);
     QVERIFY(!source.isEmpty());
 
-    FlattenOptions low;
+    FlattenOptions low = rasterOptions();
     low.dpi = 72.0;
-    FlattenOptions high;
+    FlattenOptions high = rasterOptions();
     high.dpi = 288.0;
 
     const QByteArray lowOutput = aipdf::doc::flattenFontsToOutlines(source, low);
@@ -196,7 +208,7 @@ void FontFlatteningTests::higherDpiProducesBiggerImage() {
 void FontFlatteningTests::nonPdfInputFailsWithChineseReason() {
     QString error;
     const QByteArray output = aipdf::doc::flattenFontsToOutlines(
-        QByteArrayLiteral("this is not a pdf at all"), FlattenOptions{}, &error);
+        QByteArrayLiteral("this is not a pdf at all"), rasterOptions(), &error);
     QVERIFY(output.isEmpty());
     QVERIFY(!error.isEmpty());
     QVERIFY2(error.contains(QStringLiteral("字体转曲失败")), qPrintable(error));
@@ -205,7 +217,7 @@ void FontFlatteningTests::nonPdfInputFailsWithChineseReason() {
 void FontFlatteningTests::emptyInputFails() {
     QString error;
     const QByteArray output =
-        aipdf::doc::flattenFontsToOutlines(QByteArray(), FlattenOptions{}, &error);
+        aipdf::doc::flattenFontsToOutlines(QByteArray(), rasterOptions(), &error);
     QVERIFY(output.isEmpty());
     QVERIFY(!error.isEmpty());
     QVERIFY2(error.contains(QStringLiteral("字体转曲失败")), qPrintable(error));
@@ -220,7 +232,7 @@ void FontFlatteningTests::pageSizeMatchesOriginal() {
     const std::optional<aipdf::pdf::PdfPage> originalPage = original.document.page(0);
     QVERIFY(originalPage.has_value());
 
-    const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, FlattenOptions{});
+    const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, rasterOptions());
     QVERIFY(!output.isEmpty());
     const aipdf::pdf::PdfOpenResult flattened = aipdf::pdf::openDocumentFromBytes(output);
     QVERIFY(flattened.document.isValid());
@@ -235,7 +247,7 @@ void FontFlatteningTests::repeatedFlattenKeepsSameBytes() {
     const QByteArray source = makeTextPdf(1);
     QVERIFY(!source.isEmpty());
 
-    FlattenOptions options;
+    FlattenOptions options = rasterOptions();
     options.dpi = 96.0;
     const QByteArray first = aipdf::doc::flattenFontsToOutlines(source, options);
     const QByteArray second = aipdf::doc::flattenFontsToOutlines(source, options);
@@ -264,7 +276,7 @@ void FontFlatteningTests::rotatedPageStillLooksTheSame() {
     const QByteArray source = opened.document.serialize();
     QVERIFY(!source.isEmpty());
 
-    FlattenOptions options;
+    FlattenOptions options = rasterOptions();
     options.removeTextLayer = false;
     options.dpi = 96.0;
     const QByteArray output = aipdf::doc::flattenFontsToOutlines(source, options);

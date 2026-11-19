@@ -2478,6 +2478,44 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <translation>Created %1 fields from the design</translation>
         </message>
         <message>
+            <source>已按版面创建 %1 个字段</source>
+            <translation>Created %1 fields from the computed layout</translation>
+        </message>
+        <message>
+            <source>已按版面创建 %1 个字段（%2 个失败：%3）</source>
+            <translation>Created %1 fields from the computed layout (%2 failed: %3)</translation>
+        </message>
+        <message>
+            <source>没有字段可以创建。</source>
+            <translation>There are no fields to create.</translation>
+        </message>
+        <message>
+            <source>识别无域表单</source>
+            <translation>Detect field-less forms</translation>
+        </message>
+        <message>
+            <source>从线框与标签认出可填区域，确认后建域</source>
+            <translation>Detect fillable areas from ruled lines and labels, then create fields after confirmation</translation>
+        </message>
+        <message>
+            <source>识别失败。</source>
+            <translation>Detection failed.</translation>
+        </message>
+        <message>
+            <source>这份文档里没有认出可填的线框区域。
+只认轴对齐的横线、竖线与方框，而且框旁边要有标签文字。</source>
+            <translation>No fillable ruled areas were detected in this document.
+Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and each area needs a label next to it.</translation>
+        </message>
+        <message>
+            <source>已按识别结果创建 %1 个字段</source>
+            <translation>Created %1 fields from the detected candidates</translation>
+        </message>
+        <message>
+            <source>有字段没能建出来：%1</source>
+            <translation>Some fields could not be created: %1</translation>
+        </message>
+        <message>
             <source>已按设计创建 %1 个字段（%2 个失败：%3）</source>
             <translation>Created %1 fields from the design (%2 failed: %3)</translation>
         </message>
@@ -2560,13 +2598,12 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>AI 生成 PPT</source><translation>AI-Generated PPT</translation></message>
     <message><source>AI 生成图</source><translation>AI-generated image</translation></message>
     <message><source>AI 生成图片</source><translation>AI-Generated Image</translation></message>
-    <message><source>CAD 导出：只导路径与可选的文字，不含颜色、线宽与图层；曲线会被打散成折线。</source><translation>CAD export: exports paths and optional text only; colors, line widths and layers are not included; curves are flattened into polylines.</translation></message>
     <message><source>DXF 文件 (*.dxf)</source><translation>DXF files (*.dxf)</translation></message>
-    <message><source>HTML 导出：只包含文字与基本排版，不含图片与图形；字号由字形高度估算，与原版排版只大致相符。</source><translation>HTML export: text and basic layout only; images and graphics are not included; font sizes are estimated from glyph height, so the layout only roughly matches the original.</translation></message>
+    <message><source>HTML 导出：包含文字、矢量图形（内嵌 SVG，%1 条）与内嵌图片（%2 张）；字号优先用内容流里的真实字号，取不到的那几行按字形高度估算。</source><translation>HTML export: text, vector graphics (inline SVG, %1 paths) and embedded images (%2 images) are included. Font sizes come from the content stream where available; the remaining lines are estimated from glyph height.</translation></message>
     <message><source>HTML 文件 (*.html)</source><translation>HTML files (*.html)</translation></message>
     <message><source>Markdown 文件 (*.md)</source><translation>Markdown files (*.md)</translation></message>
     <message><source>OCR 疑似错误</source><translation>OCR Suspected Errors</translation></message>
-    <message><source>OFD 导出：只导文本对象，不含图片、图形与签章；坐标单位是毫米。</source><translation>OFD export: text objects only; images, graphics and signatures are not included; coordinates are in millimeters.</translation></message>
+    <message><source>OFD 导出：文字、矢量图形与内嵌图片都带上（%1 个矢量图形、%2 张图片）；坐标单位是毫米，签章与注释不在导出范围内。</source><translation>OFD export: text, vector graphics and embedded images are included (%1 vector shapes, %2 images); coordinates are in millimeters, and signatures and annotations are out of scope.</translation></message>
     <message><source>OFD 文件 (*.ofd)</source><translation>OFD files (*.ofd)</translation></message>
     <message><source>PDF 文件包</source><translation>PDF Portfolio</translation></message>
     <message><source>PDF 转曲</source><translation>Flatten PDF Fonts</translation></message>
@@ -2770,7 +2807,12 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>读不了这个文件：%1</source><translation>Could not read this file: %1</translation></message>
     <message><source>读不到文档内容。</source><translation>Could not read the document content.</translation></message>
     <message><source>转曲失败。</source><translation>Flattening failed.</translation></message>
-    <message><source>转曲结果：每一页按设定分辨率栅格化成图片后重新写入 PDF。外观与原文件一致，但文字不能再选中或搜索，文件体积会变大。</source><translation>Flattening result: every page is rasterized to an image at the chosen resolution and written back into a PDF. The appearance matches the original, but text can no longer be selected or searched, and the file gets bigger.</translation></message>
+    <message><source>优化扫描件</source><translation>Optimize scanned pages</translation></message>
+    <message><source>逐页去掉扫描噪点并把倾斜的页面摆正</source><translation>Remove scan noise page by page and straighten tilted pages</translation></message>
+    <message><source>优化完成：%1 页，已去噪并纠偏，已保存：%2</source><translation>Done: %1 pages denoised and deskewed, saved to %2</translation></message>
+    <message><source>优化失败。</source><translation>Optimization failed.</translation></message>
+    <message><source>转曲结果：%1 个字符已转成矢量路径，%2 个字符取不到轮廓。产物里不再有字体依赖，文字不能再选中或搜索。</source><translation>Flattening result: %1 characters were converted to vector paths, %2 characters could not be outlined. The output no longer depends on fonts, and the text can no longer be selected or searched.</translation></message>
+    <message><source>取不到轮廓的字符（前 %1 条，共 %2 条）：%3</source><translation>Characters that could not be outlined (first %1 of %2): %3</translation></message>
     <message><source>还没有文件。</source><translation>No file yet.</translation></message>
     <message><source>还没有生成结果</source><translation>No generated result yet</translation></message>
     <message><source>这一页没有可导出的文字层。</source><translation>This page has no exportable text layer.</translation></message>
@@ -2811,14 +2853,13 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>清洗正文、排成朗读分段并逐段朗读</source><translation>Clean up the text, split it into read-aloud segments and read them one by one</translation></message>
     <message><source>算一条算式，把结果整理成批注插到当前页</source><translation>Evaluate an expression and insert the result as an annotation on the current page</translation></message>
     <message><source>按分类挑符号，插到当前光标处</source><translation>Pick a symbol by category and insert it at the cursor</translation></message>
-    <message><source>把文字层导成一个 HTML 文件</source><translation>Export the text layer as one HTML file</translation></message>
+    <message><source>把整篇文档导成一个 HTML 文件：文字、矢量图形与内嵌图片都带上</source><translation>Export the whole document as one HTML file: text, vector graphics and embedded images included</translation></message>
     <message><source>把每一页渲染成位图，写成一份新的 PDF</source><translation>Render every page as a bitmap and write a new PDF</translation></message>
-    <message><source>把文字层导成 OFD 包</source><translation>Export the text layer as an OFD package</translation></message>
+    <message><source>把文字、矢量图形与内嵌图片一起导成 OFD 包</source><translation>Export text, vector graphics and embedded images into an OFD package</translation></message>
     <message><source>给整篇文档写一棵语义标签树（标题 / 段落 / 列表 / 表格 / 图 / 表单域）</source><translation>Write a semantic tag tree for the whole document (headings / paragraphs / lists / tables / figures / form fields)</translation></message>
     <message><source>把整篇文档导成 Word / Excel / PPT（含图片与表格）</source><translation>Export the whole document as Word / Excel / PPT (with images and tables)</translation></message>
     <message><source>把当前页的文字层导成 Word 文档</source><translation>Export the text layer of the current page as a Word document</translation></message>
-    <message><source>把页面上的矢量路径导成 DXF</source><translation>Export the vector paths on the page as DXF</translation></message>
-    <message><source>把字体转成不再依赖字体的形式（视觉等价的栅格化版本）</source><translation>Turn the fonts into a form that no longer depends on them (a visually equivalent rasterized version)</translation></message>
+    <message><source>把文字转成矢量路径：产物里没有字体依赖，文字不能再选中或搜索</source><translation>Turn the text into vector paths: the output no longer depends on fonts, and the text can no longer be selected or searched</translation></message>
     <message><source>检查字体内嵌、图片分辨率、脚本等印前问题</source><translation>Check font embedding, image resolution, scripts and other preflight problems</translation></message>
     <message><source>把若干 PDF 收进一个活页夹，或打开一个包</source><translation>Collect several PDF files into a portfolio, or open one</translation></message>
     <message><source>列出 OCR 认错的字（只提示，不自动改）</source><translation>List characters OCR got wrong (hints only, nothing is changed automatically)</translation></message>
@@ -2858,7 +2899,11 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>段落排版</source><translation>Paragraph formatting</translation></message>
     <message><source>按对齐、行距与缩进重排选中的段落</source><translation>Re-lay out the selected paragraph with alignment, line spacing and indents</translation></message>
     <message><source>插入 3D 模型</source><translation>Insert 3D model</translation></message>
-    <message><source>插入一个 3D 模型注解（只写结构，本程序不渲染）</source><translation>Insert a 3D model annotation (structure only; this program does not render it)</translation></message>
+    <message><source>插入一个 3D 模型注解（U3D / PRC 文件）</source><translation>Insert a 3D model annotation (U3D / PRC file)</translation></message>
+    <message><source>查看 3D 模型</source><translation>View 3D model</translation></message>
+    <message><source>渲染文档里的 3D 注解，拖动可旋转、滚轮可缩放</source><translation>Render the 3D annotations in the document; drag to orbit and use the wheel to zoom</translation></message>
+    <message><source>3D 模型</source><translation>3D model</translation></message>
+    <message><source>这份文档里没有 3D 注解。</source><translation>This document has no 3D annotations.</translation></message>
     <message><source>插入多媒体</source><translation>Insert media</translation></message>
     <message><source>按 PDF/UA 逐项检查并给出修复建议</source><translation>Check item by item against PDF/UA and suggest fixes</translation></message>
     <message><source>列出 XFA 表单字段并导出成 CSV</source><translation>List the XFA form fields and export them as CSV</translation></message>
@@ -3172,6 +3217,28 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>按住左键拖动，平移视图</source>
             <translation>Hold the left mouse button and drag to pan the view</translation>
         </message>
+    <message><source>表单自动识别</source><translation>Form auto-recognition</translation></message>
+    <message><source>CAD 导出：直线 %1 条、折线 %2 条、样条（真曲线）%3 条、文字 %4 条、尺寸标注 %5 个；图层 %6 个（含 PATH / TEXT / DIM），颜色与线宽一并写入；位图不导出，渐变与剪裁路径会丢失。</source><translation>CAD export: %1 lines, %2 polylines, %3 splines (true curves), %4 texts, %5 dimensions; %6 layers (PATH / TEXT / DIM), with colors and line widths; bitmaps are not exported, and gradients and clipping paths are lost.</translation></message>
+    <message><source>文档里有 %1 张位图，这一版没有导出位图。</source><translation>The document has %1 bitmap(s); this version does not export bitmaps.</translation></message>
+    <message><source>把页面上的矢量路径导成 DXF：曲线保形、尺寸标注单独分层、含颜色与线宽</source><translation>Export the vector paths on the page to DXF: curves keep their shape, dimensions go on their own layer, with colors and line widths</translation></message>
+    <message><source>全文流式重排</source><translation>Whole-document streaming reflow</translation></message>
+    <message><source>把整篇按新的正文栏宽重新流排并写回</source><translation>Reflow the whole document at a new body column width and write it back</translation></message>
+    <message><source>跨文本块合并</source><translation>Merge across text blocks</translation></message>
+    <message><source>把当前页上的几块文字合成一段连续文字</source><translation>Merge several text blocks on the current page into one continuous paragraph</translation></message>
+    <message><source>正文栏宽（点）:</source><translation>Body column width (points):</translation></message>
+    <message><source>全文流式重排完成：%1 页、%2 段里重排了 %3 段（%4 字）。</source><translation>Whole-document reflow done: %1 pages, %3 of %2 paragraphs reflowed (%4 characters).</translation></message>
+    <message><source>这份文档没有结构标签，本次只按内容流里的段落逐段处理。</source><translation>This document has no structure tags; this run only handles the paragraphs in the content stream.</translation></message>
+    <message><source>有 %1 段里有标准 14 号字体表示不了的字符，写成了 '?' 占位符。</source><translation>In %1 paragraph(s) some characters cannot be represented by the standard 14 fonts; they were written as '?' placeholders.</translation></message>
+    <message><source>这一页上的文本块不足两块，没有可合并的东西。</source><translation>This page has fewer than two text blocks; there is nothing to merge.</translation></message>
+    <message><source>合并完成：%1 块合成一段，共 %2 行（%3 字）。</source><translation>Merge done: %1 blocks became one paragraph, %2 lines in total (%3 characters).</translation></message>
+    <message><source>块与块之间有图片或表格，合并后的位置可能与原位置有出入。</source><translation>Images or tables sit between the blocks, so the merged text may sit slightly off its old position.</translation></message>
+    <message><source>整篇翻译</source><translation>Translate whole document</translation></message>
+    <message><source>把整篇文档按段翻译并把译文写回</source><translation>Translate the whole document paragraph by paragraph and write the translations back</translation></message>
+    <message><source>AI Worker 没有连上，翻译不了。</source><translation>The AI worker is not connected; translation is not possible.</translation></message>
+    <message><source>当前是演示模式，翻译出来的示例不能写回文档。</source><translation>The provider is in demo mode; demo translations cannot be written back to the document.</translation></message>
+    <message><source>译成哪种语言？</source><translation>Translate into which language?</translation></message>
+    <message><source>整篇翻译会把这份文档的正文按段发给 AI 服务。确定继续吗？</source><translation>Translating the whole document sends its text to the AI service paragraph by paragraph. Continue?</translation></message>
+    <message><source>翻译完成：%1 段里写回了 %2 段译文（%3 字），%4 段保留原文。</source><translation>Translation done: %2 of %1 paragraphs were written back (%3 characters); %4 paragraphs kept their original text.</translation></message>
 </context>
         <context>
         <name>aipdf::app::MediaPreview</name>
@@ -4743,20 +4810,24 @@ Headings found: %5</translation>
             <translation>Auto-create bookmarks</translation>
         </message>
         <message>
-            <source>没有识别到标题。标题是按字高比正文大的行判定的，这份文档里没有这样的行。</source>
-            <translation>No headings found. Headings are detected as lines whose text is taller than the body text; this document has none.</translation>
+            <source>没有识别到标题：这份文档既没有可用的标题元素，也没有字高比正文大的行。</source>
+            <translation>No headings were found: this document has neither usable heading elements nor lines that are larger than the body text.</translation>
+        </message>
+        <message>
+            <source>已生成 %1 条书签（读自文档的标签树）。</source>
+            <translation>Generated %1 bookmarks from the document's tag tree.</translation>
         </message>
         <message>
             <source>…还有 %1 条</source>
             <translation>... and %1 more</translation>
         </message>
         <message>
-            <source>按标题样式识别出 %1 条书签：
+            <source>%1
 
 %2
 
 确定要写入文档吗？</source>
-            <translation>Found %1 bookmarks by heading style:
+            <translation>%1
 
 %2
 
@@ -6780,6 +6851,13 @@ Write them into the document?</translation>
     <context>
         <name>aipdf::app::PdfView</name>
         <message><source>先选中要添加链接的文字或区域。</source><translation>Select the text or area for the link first.</translation></message>
+        <message><source>词表 %1 加载失败</source><translation>Failed to load dictionary: %1</translation></message>
+        <message>
+            <source>以下词表没有加载成功，本次检查没用到它们：
+%1</source>
+            <translation>The following dictionaries failed to load and were not used in this check:
+%1</translation>
+        </message>
         <message><source>已创建 %1 个网络链接</source><translation>Created %1 web links</translation></message>
         <message><source>已替换 %1 处</source><translation>Replaced %1 occurrences</translation></message>
         <message><source>已添加跳转到第 %1 页的链接</source><translation>Added a link to page %1</translation></message>
@@ -7214,6 +7292,46 @@ AFNumber_Format(2, event.value, 0, 0, ".", false)</translation>
         <message>
             <source>表单设计助手</source>
             <translation>Form design assistant</translation>
+        </message>
+        <message>
+            <source>创建字段</source>
+            <translation>Create fields</translation>
+        </message>
+        <message>
+            <source>页</source>
+            <translation>Page</translation>
+        </message>
+        <message>
+            <source>左</source>
+            <translation>Left</translation>
+        </message>
+        <message>
+            <source>上</source>
+            <translation>Top</translation>
+        </message>
+        <message>
+            <source>宽</source>
+            <translation>Width</translation>
+        </message>
+        <message>
+            <source>高</source>
+            <translation>Height</translation>
+        </message>
+        <message>
+            <source>模型给出了 %1 个字段，要铺 %2 页（还差 %3 页），改完再创建。</source>
+            <translation>The model gave %1 fields; they need %2 pages (%3 more needed). Review them and create.</translation>
+        </message>
+        <message>
+            <source>识别出 %1 个候选字段，改完再创建。</source>
+            <translation>Detected %1 candidate fields. Review them and create.</translation>
+        </message>
+        <message>
+            <source>没有字段可以排布。</source>
+            <translation>There are no fields to lay out.</translation>
+        </message>
+        <message>
+            <source>拿不到页面尺寸，排不了版面。</source>
+            <translation>Cannot lay out the form: the page size is unavailable.</translation>
         </message>
         <message>
             <source>生成设计</source>
@@ -9268,4 +9386,76 @@ If you need to keep the signatures, do not modify and save this file again after
             <translation>Cannot read the new document bytes</translation>
         </message>
     </context>
+<context>
+    <name>aipdf::app::ThreeDViewerDialog</name>
+    <message><source>3D 模型查看</source><translation>3D model viewer</translation></message>
+    <message><source>渲染失败：%1</source><translation>Rendering failed: %1</translation></message>
+    <message><source>重置视角</source><translation>Reset view</translation></message>
+    <message><source>关闭</source><translation>Close</translation></message>
+    <message><source>3D 模型（自研解码，可旋转）</source><translation>3D model (decoded in-house, rotatable)</translation></message>
+    <message><source>降级海报（非 3D 模型）</source><translation>Fallback poster (not a 3D model)</translation></message>
+    <message><source>SVG 回退表示（非 3D 模型）</source><translation>SVG fallback representation (not a 3D model)</translation></message>
+    <message><source>模型类型：%1；网格 %2 个；顶点 %3；三角形 %4；方位角 %5°，俯仰角 %6°，缩放 %7×</source><translation>Model type: %1; meshes %2; vertices %3; triangles %4; azimuth %5°, elevation %6°, zoom %7×</translation></message>
+</context>
+<context>
+    <name>aipdf::pdf::StreamingEdit</name>
+    <message><source>第 %1 页的内容流解析不了：%2</source><translation>Cannot parse the content stream on page %1: %2</translation></message>
+    <message><source>写回后的内容流解析不了：%1</source><translation>Cannot parse the content stream after writing back: %1</translation></message>
+    <message><source>这一段按新宽度一行都排不出来</source><translation>Not a single line of this paragraph fits the new width</translation></message>
+    <message><source>这一段按新宽度排不完，有文字剩下</source><translation>This paragraph does not fit the new width; some text is left over</translation></message>
+    <message><source>PDFium 打不开这份 PDF</source><translation>PDFium cannot open this PDF</translation></message>
+    <message><source>内容流通道不可用：这一版没有编进 qpdf</source><translation>The content-stream channel is unavailable: this build has no qpdf</translation></message>
+    <message><source>输入的 PDF 是空的</source><translation>The input PDF is empty</translation></message>
+    <message><source>第 %1 页上找不到要改写的文字块</source><translation>Cannot find the text block to rewrite on page %1</translation></message>
+    <message><source>没有需要写回的内容</source><translation>There is nothing to write back</translation></message>
+    <message><source>写回的 PDF 是空的</source><translation>The written PDF is empty</translation></message>
+    <message><source>目标页宽必须大于 0</source><translation>The target page width must be greater than 0</translation></message>
+    <message><source>左右边距把可用宽度吃光了，没有可排版的栏宽</source><translation>The left and right margins leave no usable column width</translation></message>
+    <message><source>这份文档没有结构标签，没有可靠的段落边界，整篇流式重排已拒绝；只能逐段处理</source><translation>This document has no structure tags, so it has no reliable paragraph boundaries; whole-document streaming reflow was refused and only per-paragraph handling is possible</translation></message>
+    <message><source>这份文档没有结构标签，本次只按内容流里的段落逐段处理，不算整篇流式重排</source><translation>This document has no structure tags; this run only handles the paragraphs in the content stream and is not a whole-document streaming reflow</translation></message>
+    <message><source>这一段的文字与别的内容交错，没法整段换行，保留原文</source><translation>This paragraph's text interleaves with other content and cannot be rewrapped as a whole; the original text is kept</translation></message>
+    <message><source>这一段按新宽度排不出来，保留原文</source><translation>This paragraph cannot be laid out at the new width; the original text is kept</translation></message>
+    <message><source>有 %1 段文字里有标准 14 号字体表示不了的字符，写回时写成了 '?' 占位符</source><translation>In %1 paragraph(s) some characters cannot be represented by the standard 14 fonts; they were written back as '?' placeholders</translation></message>
+    <message><source>没有一段能按新宽度重排，文档没有改动</source><translation>No paragraph could be reflowed at the new width; the document is unchanged</translation></message>
+    <message><source>写回后打不开：%1</source><translation>Cannot open the document after writing back: %1</translation></message>
+    <message><source>写回后页数变了（原来 %1 页，现在 %2 页）</source><translation>The page count changed after writing back (was %1 pages, now %2 pages)</translation></message>
+    <message><source>写回后第 %1 页上有一段文字少了字，已放弃写回</source><translation>A paragraph on page %1 lost characters after writing back; the write-back was abandoned</translation></message>
+    <message><source>至少要两个文本块才谈得上合并，现在只有 %1 个</source><translation>Merging needs at least two text blocks; there is only %1</translation></message>
+    <message><source>找不到编号为 %1 的文本块</source><translation>Cannot find the text block numbered %1</translation></message>
+    <message><source>选区跨了页，合并之后没法放在同一页上，已拒绝</source><translation>The selection spans pages and cannot be merged onto one page; refused</translation></message>
+    <message><source>选中的块之间夹着图片或表格，合并会把中间的内容挤掉，已拒绝</source><translation>Images or tables sit between the selected blocks and merging would squeeze them out; refused</translation></message>
+    <message><source>合并之后一段都排不出来</source><translation>Not one paragraph could be laid out after merging</translation></message>
+    <message><source>合并之后超出了页面下边界，文字仍然写进 PDF，但会印到页面外面</source><translation>After merging the text goes past the bottom edge of the page; it is still written into the PDF but will print outside the page</translation></message>
+    <message><source>写回后页数变了</source><translation>The page count changed after writing back</translation></message>
+    <message><source>写回后字数少了（合并前 %1 个字，写回后 %2 个字），已放弃写回</source><translation>The character count dropped after writing back (was %1 before merging, %2 after); the write-back was abandoned</translation></message>
+    <message><source>合并后的文字没有完整落到页面上，已放弃写回</source><translation>The merged text did not fully land on the page; the write-back was abandoned</translation></message>
+    <message><source>这一段按新宽度排下来放不进原来的位置（会压到下一段或超出页面），保留原文</source><translation>This paragraph does not fit in its original position at the new width (it would overlap the next paragraph or run past the page); the original text is kept</translation></message>
+</context>
+<context>
+    <name>aipdf::pdf::TranslationWriter</name>
+    <message><source>输入的 PDF 是空的</source><translation>The input PDF is empty</translation></message>
+    <message><source>没有翻译 Provider，这一篇没法翻译</source><translation>There is no translation provider, so this document cannot be translated</translation></message>
+    <message><source>翻译 Provider 是演示模式，演示出来的示例不能写回文档</source><translation>The translation provider is in demo mode; demo output cannot be written back to the document</translation></message>
+    <message><source>翻译 Provider 调用失败</source><translation>The translation provider call failed</translation></message>
+    <message><source>翻译 Provider 返回的是空内容，没有译文</source><translation>The translation provider returned empty content; there is no translation</translation></message>
+    <message><source>翻译 Provider 返回的内容与原文一样，不像是译文，这一段保留原文</source><translation>The translation provider returned the same text as the source; it does not look like a translation, so the original text is kept</translation></message>
+    <message><source>译文里有当前字体表示不了的字符（要写中文译文得先嵌入中文字体），这一段保留原文</source><translation>The translation contains characters the current font cannot represent (writing Chinese translations requires embedding a CJK font first); the original text is kept</translation></message>
+    <message><source>译文排不出来，这一段保留原文</source><translation>The translation cannot be laid out; the original text is kept</translation></message>
+    <message><source>第 %1 页上有一段译文超出了原来的位置</source><translation>A translation on page %1 extends beyond its original position</translation></message>
+    <message><source>没有一段译文可以写回，文档保持原样</source><translation>There is no translation to write back; the document stays as it is</translation></message>
+    <message><source>写回后打不开：%1</source><translation>Cannot open the document after writing back: %1</translation></message>
+    <message><source>写回后页数变了（原来 %1 页，现在 %2 页）</source><translation>The page count changed after writing back (was %1 pages, now %2 pages)</translation></message>
+    <message><source>第 %1 页上第 %2 段译文没有落到 PDF 里，已放弃写回</source><translation>Translation %2 on page %1 did not land in the PDF; the write-back was abandoned</translation></message>
+    <message><source>第 %1 页上第 %2 段的原文不见了，已放弃写回</source><translation>The original text of paragraph %2 on page %1 is missing; the write-back was abandoned</translation></message>
+    <message><source>译文比原文长，原来的位置放不下（会压到下一段或超出页面），这一段保留原文</source><translation>The translation is longer than the source and does not fit in its original position (it would overlap the next paragraph or run past the page); the original text is kept</translation></message>
+</context>
+<context>
+    <name>aipdf::app::TextBlockMergeDialog</name>
+    <message><source>跨文本块合并</source><translation>Merge across text blocks</translation></message>
+    <message><source>勾选要合并成一段的文本块（至少两块）。块与块之间夹着图片或表格时会被拒绝。</source><translation>Tick the text blocks to merge into one paragraph (at least two). Merging is refused when images or tables sit between the blocks.</translation></message>
+    <message><source>块 %1：%2（位置 %3, %4）</source><translation>Block %1: %2 (position %3, %4)</translation></message>
+    <message><source>（空）</source><translation>(empty)</translation></message>
+    <message><source>合并</source><translation>Merge</translation></message>
+    <message><source>取消</source><translation>Cancel</translation></message>
+</context>
 </TS>

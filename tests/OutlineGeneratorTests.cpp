@@ -35,6 +35,39 @@ DocumentChunk makeBody(int pageIndex, const QString& text) {
     return chunk;
 }
 
+// 造一份标签树报告（不经过 PDF：这里只验领域层怎么用标签树）。
+//
+// 为什么手工造：这一组测试的目标是"拿到标签树之后怎么变成大纲"，
+// 与"怎么从 PDF 里读出标签树"是两件事。前者在这里验，后者由
+// StructTreeReaderTests 与 Wave21NavTests 负责。
+aipdf::pdf::StructTreeReport makeStructTree() {
+    aipdf::pdf::StructTreeReport report;
+    report.hasStructTree = true;
+
+    aipdf::pdf::StructElement document;
+    document.tag = QStringLiteral("Document");
+    document.depth = 0;
+    report.elements.append(document);
+
+    aipdf::pdf::StructElement h1;
+    h1.tag = QStringLiteral("H1");
+    h1.text = QStringLiteral("第一章");
+    h1.pageIndex = 0;
+    h1.depth = 1;
+    h1.parentIndex = 0;
+    report.elements.append(h1);
+
+    aipdf::pdf::StructElement h2;
+    h2.tag = QStringLiteral("H2");
+    h2.text = QStringLiteral("1.1 节");
+    h2.pageIndex = 1;
+    h2.depth = 2;
+    h2.parentIndex = 1;
+    report.elements.append(h2);
+
+    return report;
+}
+
 }  // namespace
 
 class OutlineGeneratorTests : public QObject {
@@ -53,6 +86,10 @@ private slots:
     void maxDepthLimitsNesting();
     void pageIndexComesFromChunk();
     void outlineSurvivesPdfRoundTrip();
+    void structTreeHeadingsBecomeOutline();
+    void genericHeadingTagUsesNestingDepth();
+    void documentWithoutStructTreeFallsBackToFontHeuristic();
+    void structTreeWithoutHeadingsFallsBackToFontHeuristic();
 };
 
 // 只有正文：没有标题就没有书签。
@@ -248,6 +285,97 @@ void OutlineGeneratorTests::outlineSurvivesPdfRoundTrip() {
     QCOMPARE(flat.at(1).depth, 1);
     QCOMPARE(flat.at(2).title, QStringLiteral("第二章"));
     QCOMPARE(flat.at(2).depth, 0);
+}
+
+// 标签树里的标题元素变成大纲：层级取标签层级，文字取元素下的文字。
+void OutlineGeneratorTests::structTreeHeadingsBecomeOutline() {
+    const aipdf::pdf::OutlineGenerationResult result =
+        aipdf::pdf::generateOutlineFromStructTree(makeStructTree());
+
+    QVERIFY(result.fromStructTree());
+    QVERIFY(!result.isEstimated());
+    QCOMPARE(result.outline.size(), size_t(1));
+    QCOMPARE(result.outline.front().title, QStringLiteral("第一章"));
+    QCOMPARE(result.outline.front().pageIndex, 0);
+    QCOMPARE(result.outline.front().children.size(), size_t(1));
+    QCOMPARE(result.outline.front().children.front().title, QStringLiteral("1.1 节"));
+    QCOMPARE(result.outline.front().children.front().pageIndex, 1);
+}
+
+// 通用标签 /H：层级属性读不到时按"在标签树里嵌了几层"推。
+void OutlineGeneratorTests::genericHeadingTagUsesNestingDepth() {
+    aipdf::pdf::StructTreeReport report;
+    report.hasStructTree = true;
+
+    aipdf::pdf::StructElement document;
+    document.tag = QStringLiteral("Document");
+    document.depth = 0;
+    report.elements.append(document);
+
+    aipdf::pdf::StructElement outer;
+    outer.tag = QStringLiteral("H");
+    outer.text = QStringLiteral("外层");
+    outer.pageIndex = 0;
+    outer.depth = 1;
+    outer.parentIndex = 0;
+    report.elements.append(outer);
+
+    aipdf::pdf::StructElement inner;
+    inner.tag = QStringLiteral("H");
+    inner.text = QStringLiteral("内层");
+    inner.pageIndex = 0;
+    inner.depth = 2;
+    inner.parentIndex = 1;
+    report.elements.append(inner);
+
+    const aipdf::pdf::OutlineGenerationResult result =
+        aipdf::pdf::generateOutlineFromStructTree(report);
+    QCOMPARE(result.outline.size(), size_t(1));
+    QCOMPARE(result.outline.front().title, QStringLiteral("外层"));
+    QCOMPARE(result.outline.front().children.size(), size_t(1));
+    QCOMPARE(result.outline.front().children.front().title, QStringLiteral("内层"));
+}
+
+// 文档没有结构标签：退回字高估算，并且**明确标记**是估算的。
+void OutlineGeneratorTests::documentWithoutStructTreeFallsBackToFontHeuristic() {
+    QVector<DocumentChunk> chunks;
+    chunks.append(makeHeading(0, 1, QStringLiteral("第一章")));
+    chunks.append(makeHeading(0, 2, QStringLiteral("1.1 节")));
+
+    aipdf::pdf::StructTreeReport report;
+    report.hasStructTree = false;
+
+    const aipdf::pdf::OutlineGenerationResult result =
+        aipdf::pdf::generateOutline(report, chunks);
+    QVERIFY(result.isEstimated());
+    QVERIFY(!result.fromStructTree());
+    QVERIFY2(result.note.contains(QStringLiteral("没有结构标签")),
+             qPrintable(QStringLiteral("说明里必须写明没有结构标签：%1").arg(result.note)));
+    QVERIFY2(result.note.contains(QStringLiteral("字高")),
+             qPrintable(QStringLiteral("说明里必须写明是按字高估算的：%1").arg(result.note)));
+    QCOMPARE(result.outline.size(), size_t(1));
+    QCOMPARE(result.outline.front().title, QStringLiteral("第一章"));
+    QCOMPARE(result.outline.front().children.size(), size_t(1));
+}
+
+// 有结构标签但里面没有标题元素：同样退回字高估算，并且说明原因。
+void OutlineGeneratorTests::structTreeWithoutHeadingsFallsBackToFontHeuristic() {
+    QVector<DocumentChunk> chunks;
+    chunks.append(makeHeading(0, 1, QStringLiteral("第一章")));
+
+    aipdf::pdf::StructTreeReport report;
+    report.hasStructTree = true;
+    aipdf::pdf::StructElement document;
+    document.tag = QStringLiteral("Document");
+    report.elements.append(document);
+
+    const aipdf::pdf::OutlineGenerationResult result =
+        aipdf::pdf::generateOutline(report, chunks);
+    QVERIFY(result.isEstimated());
+    QVERIFY2(result.note.contains(QStringLiteral("字高")),
+             qPrintable(QStringLiteral("说明里必须写明是按字高估算的：%1").arg(result.note)));
+    QCOMPARE(result.outline.size(), size_t(1));
+    QCOMPARE(result.outline.front().title, QStringLiteral("第一章"));
 }
 
 QTEST_MAIN(OutlineGeneratorTests)

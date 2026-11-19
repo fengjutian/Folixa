@@ -47,6 +47,7 @@
 #include "pdf/annot/Annotation.h"
 #include "pdf/annot/AnnotationFilter.h"
 #include "pdf/forms/FormData.h"
+#include "pdf/forms/FormAutoDetect.h"
 #include "pdf/forms/FormScriptStore.h"
 #include "pdf/forms/FormTemplateStore.h"
 #include "pdf/annot/Xfdf.h"
@@ -1069,6 +1070,11 @@ void MainWindow::buildUi() {
                      ":/icons/pages.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->scanFromScanner(); }
     }, true, "scan.fromScanner");
+    // 优化扫描件：去噪 + 纠偏。纠偏是有损的，结果里会逐页说明纠了多少度。
+    addRibbonCommand(scanGroup, "优化扫描件", "逐页去掉扫描噪点并把倾斜的页面摆正",
+                     ":/icons/search.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->optimizeScannedPages(); }
+    }, true, "scan.optimize");
     // 捕获：截图（区域框选 / 整个窗口）。
     //
     // 入口放在主页这一页：照着福昕「主页 → 捕获」找过来的人不用跑到录制页。
@@ -1460,6 +1466,11 @@ void MainWindow::buildUi() {
     auto* aiOpsGroup = ribbonBar_->addGroup(aiTab, tr("文档操作"));
     addRibbonCommand(aiOpsGroup, "找空白页", "找出空白页并提议删除", ":/icons/annotation.svg",
                      [blankAction] { blankAction->trigger(); });
+    // 整篇翻译：按段翻译整篇并把译文写回文档（不是只译选区）。
+    addRibbonCommand(aiOpsGroup, "整篇翻译", "把整篇文档按段翻译并把译文写回",
+                     ":/icons/explain.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->translateWholeDocument(); }
+    }, true, "ai.translateDocument");
     // AI 工具：文生图、总结配图、生成 PPT、内容检测、智能朗读。
     //
     // 这一组接的是已经写好并有单测的领域层能力（src/ai/ 下的五个模块），
@@ -1602,7 +1613,7 @@ void MainWindow::buildUi() {
     }, true, "convert.optimize");
     // 导出与检查：这些能力已经写好并有单测，界面上必须点得到。
     auto* convertExportGroup = ribbonBar_->addGroup(convertTab, tr("导出"));
-    addRibbonCommand(convertExportGroup, "导出 HTML", "把文字层导成一个 HTML 文件",
+    addRibbonCommand(convertExportGroup, "导出 HTML", "把整篇文档导成一个 HTML 文件：文字、矢量图形与内嵌图片都带上",
                      ":/icons/export-html.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportHtml(); }
     }, true, "convert.exportHtml");
@@ -1610,7 +1621,7 @@ void MainWindow::buildUi() {
                      ":/icons/image-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportImagePdf(); }
     }, true, "convert.imagePdf");
-    addRibbonCommand(convertExportGroup, "到 OFD", "把文字层导成 OFD 包",
+    addRibbonCommand(convertExportGroup, "到 OFD", "把文字、矢量图形与内嵌图片一起导成 OFD 包",
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOfd(); }
     }, true, "convert.exportOfd");
@@ -1618,12 +1629,13 @@ void MainWindow::buildUi() {
                      ":/icons/export-document.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportOffice(); }
     }, true, "convert.exportOffice");
-    addRibbonCommand(convertExportGroup, "到 CAD", "把页面上的矢量路径导成 DXF",
+    addRibbonCommand(convertExportGroup, "到 CAD",
+                     "把页面上的矢量路径导成 DXF：曲线保形、尺寸标注单独分层、含颜色与线宽",
                      ":/icons/cad-export.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->exportDxf(); }
     }, true, "convert.exportDxf");
     addRibbonCommand(convertExportGroup, "PDF 转曲",
-                     "把字体转成不再依赖字体的形式（视觉等价的栅格化版本）",
+                     "把文字转成矢量路径：产物里没有字体依赖，文字不能再选中或搜索",
                      ":/icons/outline-text.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->flattenFonts(); }
     }, true, "convert.flattenFonts");
@@ -1721,6 +1733,16 @@ void MainWindow::buildUi() {
                      ":/icons/edit.svg", [this] {
         if (auto* view = currentView()) view->reflowSelectionDialog(true);
     }, true, "edit.paragraphReflow");
+    // 全文流式重排与跨文本块合并：这两条走的是内容流通道（pdf::StreamingEdit），
+    // 不在选区里做——前者按新的栏宽重排整篇，后者把几块合成一段。
+    addRibbonCommand(contentEditGroup, "全文流式重排", "把整篇按新的正文栏宽重新流排并写回",
+                     ":/icons/edit.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->reflowWholeDocumentStream(); }
+    }, true, "edit.documentReflow");
+    addRibbonCommand(contentEditGroup, "跨文本块合并", "把当前页上的几块文字合成一段连续文字",
+                     ":/icons/edit.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->mergeTextBlocksAcrossSelection(); }
+    }, true, "edit.mergeTextBlocks");
 
     auto* textEditGroup = ribbonBar_->addGroup(contentEditTab, tr("文本工具"));
     addRibbonCommand(textEditGroup, "拼写检查", "列出当前页或整篇里可疑的拼写并给出建议",
@@ -1746,13 +1768,17 @@ void MainWindow::buildUi() {
                 "freetext", "edit.addText");
     addEditTool(insertEditGroup, "添加图像", "在页面上添加图片", ":/icons/annotation.svg",
                 "imagestamp", "edit.addImage");
-    // 3D 与多媒体注解：只写对结构。3D 不渲染（没有 3D 运行时）；
-    // 音视频可以在对话框里预览解码与播放（Media Foundation + 系统声卡），
-    // 但写进文档的注解仍然只带结构。
-    addRibbonCommand(insertEditGroup, "插入 3D 模型", "插入一个 3D 模型注解（只写结构，本程序不渲染）",
+    // 3D 与多媒体注解：3D 的模型结构能写能读，U3D 静态网格由本程序自研解码，
+    // 拖动可以轨道旋转（见「查看 3D 模型」）；音视频可以在对话框里预览解码与播放
+    // （Media Foundation + 系统声卡），但写进文档的注解仍然只带结构。
+    addRibbonCommand(insertEditGroup, "插入 3D 模型", "插入一个 3D 模型注解（U3D / PRC 文件）",
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(true); }
     }, true, "edit.insert3d");
+    addRibbonCommand(insertEditGroup, "查看 3D 模型", "渲染文档里的 3D 注解，拖动可旋转、滚轮可缩放",
+                     ":/icons/annotation.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->view3dModel(); }
+    }, true, "edit.view3d");
     addRibbonCommand(insertEditGroup, "插入多媒体", "插入一个多媒体注解（可先预览解码与播放；注解本身只写结构）",
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(false); }
@@ -1876,6 +1902,10 @@ void MainWindow::buildUi() {
     auto* formRecognitionGroup = ribbonBar_->addGroup(formTab, tr("识别"));
     addRibbonCommand(formRecognitionGroup, "表单自动识别", "扫描并列出文档中的 AcroForm 字段",
                      ":/icons/form-recognize.svg", showFormsPanel, true, "form.recognize");
+    // 无域表单页：线框画出来的表格也能认，认完由用户确认再建域。
+    addRibbonCommand(formRecognitionGroup, "识别无域表单", "从线框与标签认出可填区域，确认后建域",
+                     ":/icons/form-recognize.svg", [this] { detectFieldlessForm(); }, true,
+                     "form.recognize.detect");
     addRibbonCommand(formRecognitionGroup, "设计助手", "用一句描述生成表单字段设计",
                      ":/icons/form-assistant.svg", [this] { designFormWithAssistant(); }, true,
                      "form.assistant");
@@ -4046,36 +4076,47 @@ void MainWindow::applyFormTemplate() {
 }
 
 // 设计助手：模型给字段设计，人确认后才建域。
+//
+// 版面（绝对位置与跨页）由 pdf::layoutDesignedFields 确定性算出来：
+// 模型只给字段清单，位置按页面尺寸算，放不下就顺延到下一页。
 void MainWindow::designFormWithAssistant() {
     PdfView* view = currentView();
     if (view == nullptr) {
         statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
         return;
     }
-    FormDesignAssistantDialog dialog(workerClient_, this);
-    if (dialog.exec() != QDialog::Accepted) return;
-    const QVector<DesignedFormField> fields = dialog.fields();
-    if (fields.isEmpty()) return;
     const int page = view->currentPage();
-    const QSizeF pageSize = view->pageSizePoints(page);
-    if (pageSize.isEmpty() || pageSize.width() <= 0.0 || pageSize.height() <= 0.0) {
-        statusBar()->showMessage(tr("拿不到当前页的尺寸。"), 3000);
+    // 版面要按页面尺寸算：从当前页往后每一页的尺寸都带上，字段多了才能顺延到下一页。
+    QVector<QSizeF> pageSizes;
+    for (int index = page; index < view->pageCount(); ++index) {
+        pageSizes.append(view->pageSizePoints(index));
+    }
+    FormDesignAssistantDialog dialog(workerClient_, this, pageSizes, page);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QVector<pdf::PlacedFormField> placements = dialog.placements();
+    if (placements.isEmpty()) {
+        statusBar()->showMessage(tr("没有字段可以创建。"), 3000);
         return;
+    }
+    // 页面不够就补空白页：跨页排布要真的有那几页才建得出来。
+    const int extraPages = dialog.extraPagesNeeded();
+    if (extraPages > 0) {
+        view->goToPage(view->pageCount() - 1);
+        for (int i = 0; i < extraPages; ++i) {
+            view->insertBlankPageAfterCurrent();
+        }
     }
     int created = 0;
     QString firstError;
-    for (const DesignedFormField& field : fields) {
+    for (const pdf::PlacedFormField& placement : placements) {
         pdf::FormFieldInsert insert;
-        insert.pageIndex = page;
-        insert.name = uniqueFieldName(view->formFields(), field.name);
-        insert.toolTip = field.toolTip;
-        insert.kind = field.kind;
+        insert.pageIndex = placement.pageIndex;
+        insert.name = uniqueFieldName(view->formFields(), placement.name);
+        insert.toolTip = placement.toolTip;
+        insert.kind = placement.kind;
         insert.appearance = pdf::FormToolSettings::load().appearance();
-        // 比例坐标翻回本页的用户空间：y 轴在 PDF 里是朝上的。
-        const double left = field.relX * pageSize.width();
-        const double top = pageSize.height() - (field.relY + field.relHeight) * pageSize.height();
-        insert.rect = QRectF(left, top, field.relWidth * pageSize.width(),
-                             field.relHeight * pageSize.height());
+        // 版面给的是页坐标（y 向上），直接建域，不再做比例换算。
+        insert.rect = placement.rect;
         QString reason;
         if (view->createFormFieldWith(insert, &reason)) {
             ++created;
@@ -4084,13 +4125,71 @@ void MainWindow::designFormWithAssistant() {
         }
     }
     refreshForms(view);
-    if (created == fields.size()) {
-        statusBar()->showMessage(tr("已按设计创建 %1 个字段").arg(created), 3000);
+    if (created == placements.size()) {
+        statusBar()->showMessage(tr("已按版面创建 %1 个字段").arg(created), 3000);
     } else {
-        statusBar()->showMessage(tr("已按设计创建 %1 个字段（%2 个失败：%3）")
+        statusBar()->showMessage(tr("已按版面创建 %1 个字段（%2 个失败：%3）")
                                      .arg(created)
-                                     .arg(fields.size() - created)
+                                     .arg(placements.size() - created)
                                      .arg(firstError), 5000);
+    }
+}
+
+// 表单自动识别（无域表单页）：从页面上的线框与标签认出候选字段，
+// 人确认后才建域——识别只是建议，不许直接落到文档里。
+void MainWindow::detectFieldlessForm() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        statusBar()->showMessage(error.isEmpty() ? tr("读不到文档内容。") : error, 4000);
+        return;
+    }
+    const pdf::FormDetectionResult detection = pdf::detectFormFields(bytes);
+    if (!detection.ok) {
+        statusBar()->showMessage(detection.error.isEmpty() ? tr("识别失败。") : detection.error, 4000);
+        return;
+    }
+    if (detection.candidates.isEmpty()) {
+        QMessageBox::information(this, tr("表单自动识别"),
+                                 tr("这份文档里没有认出可填的线框区域。\n"
+                                    "只认轴对齐的横线、竖线与方框，而且框旁边要有标签文字。"));
+        return;
+    }
+    const int page = view->currentPage();
+    QVector<QSizeF> pageSizes;
+    for (int index = page; index < view->pageCount(); ++index) {
+        pageSizes.append(view->pageSizePoints(index));
+    }
+    FormDesignAssistantDialog dialog(workerClient_, this, pageSizes, page);
+    dialog.loadCandidates(detection.candidates);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QVector<pdf::PlacedFormField> placements = dialog.placements();
+    int created = 0;
+    QString firstError;
+    for (const pdf::PlacedFormField& placement : placements) {
+        pdf::FormFieldInsert insert;
+        insert.pageIndex = placement.pageIndex;
+        insert.name = uniqueFieldName(view->formFields(), placement.name);
+        insert.toolTip = placement.toolTip;
+        insert.kind = placement.kind;
+        insert.appearance = pdf::FormToolSettings::load().appearance();
+        insert.rect = placement.rect;
+        QString reason;
+        if (view->createFormFieldWith(insert, &reason)) {
+            ++created;
+        } else if (firstError.isEmpty()) {
+            firstError = reason;
+        }
+    }
+    refreshForms(view);
+    statusBar()->showMessage(tr("已按识别结果创建 %1 个字段").arg(created), 4000);
+    if (!firstError.isEmpty()) {
+        QMessageBox::warning(this, tr("表单自动识别"), tr("有字段没能建出来：%1").arg(firstError));
     }
 }
 

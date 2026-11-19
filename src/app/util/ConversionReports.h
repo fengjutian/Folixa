@@ -3,6 +3,10 @@
 #include <QString>
 #include <QVector>
 
+#include "doc/convert/FontFlattening.h"
+#include "doc/export/OfdExport.h"
+#include "pdf/convert/ExportFormats.h"
+#include "pdf/convert/DxfExport.h"
 #include "pdf/ops/OcrSuspicion.h"
 #include "pdf/convert/PortfolioWriter.h"
 #include "pdf/compliance/PreflightChecker.h"
@@ -61,13 +65,17 @@ QVector<SuspicionRow> suspicionRows(const QVector<pdf::SuspiciousChar>& items);
 
 // 各种导出的说明文案。
 //
-// 这些文案必须**照实说**：转曲是视觉等价的栅格化版本，
-// 不是轮廓化转曲；所以文案里不许出现「矢量」「轮廓」这类词。
-QString flattenFontsNoticeText();
+// 这些文案必须**照实说**：转曲默认是矢量轮廓化（文字变成路径、产物里没有字体），
+// 轮廓化取不到字形的那些字符必须逐条告诉用户，不许只报一句「已完成」。
+QString flattenFontsNoticeText(const doc::FlattenReport& report);
 QString imageBasedPdfNoticeText();
-QString htmlExportNoticeText();
-QString dxfExportNoticeText();
-QString ofdExportNoticeText();
+// HTML 导出的说明：带图形、带图片，字号优先用内容流里的真实值。
+// 走过估算时必须说出来——真实字号与估算字号对用户不是一回事。
+QString htmlExportNoticeText(const pdf::HtmlExportResult& result);
+// OFD 导出的说明：带图形与图片，带数量。
+QString ofdExportNoticeText(const doc::OfdExportResult& result);
+// CAD（DXF）导出的说明：带实体计数与图层数，并说清没做的（位图、渐变、剪裁路径）。
+QString dxfExportNoticeText(const pdf::CadDxfResult& result);
 // 导出到 Office 的说明文案：带这次导出的实际结果（页数 / 工作表数 / 幻灯片数）。
 //
 // keepsImages：这个格式带不带图片与表格（Word / PowerPoint 带，Excel 不带）。

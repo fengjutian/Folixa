@@ -1,25 +1,40 @@
-// 拼写检查：内置常用词表 + 启发式规则 + 可加载的用户词典。
+// 拼写检查：内置常用词表 + 启发式规则 + 可加载的用户词典 + 中文错字检查。
 //
-// 为什么是这个口径（而不是完整词典）：
-// 仓库里没有可用的词典资源，也不允许为此引入新依赖、联网下载。
-// 完整英文词典是十万词量级的数据，凭空手写一份既不现实、也不可靠。
-// 所以这里内置三千个左右的常用词，再用启发式规则补上「明显可疑」的词，
-// 最后允许用户挂自己的词典（Hunspell .dic 子集）。
+// 词典来源（可插拔）：
+//   1) 内置英文词表：SCOWL 频次分档的并集（8 万词量级），
+//      再加一份「常用词」子集专门用来找只差一个字母的近邻词。
+//   2) 内置中文词表：jieba 词频表里 2~4 字的常用词，
+//      再加人工整理的形近/音近字组与词组级错字表。
+//   3) 可选的外部词表：UTF-8 文本，一行一词；加载失败会如实报出来。
+//   来源、许可、体积见 src/pdf/ops/spell/SOURCES.md。
 //
 // 为什么漏判可以接受、误判不行：
 // 词表覆盖不到的词（专有名词、技术术语）会被漏判——这只是少画一条波浪线；
 // 而误判会在满篇正常文字里到处画红线，用户很快就不信这条波浪线了。
 // 因此下面所有规则都只盯「明显可疑」的词：常见拼错对、连续重复的词、
 // 与常用词只差一个编辑的近邻词、句中大小写异常。
+//
+// 中文为什么这么判：
+// 中文没有空格，又不要求做真正的分词，所以这里用的是
+// 「词表 + 2~4 字窗口 + 错字表」：窗口本身是词就放过；
+// 不是词、但把窗口里某个字换成形近/音近字之后就是词了，才算错字。
+// 这样「自己」「已经」「未来」这类正确写法不会被误报。
 
 #include "pdf/ops/SpellChecker.h"
 
+#include "pdf/ops/spell/ChineseCommonWords.h"
+#include "pdf/ops/spell/ChineseConfusables.h"
+#include "pdf/ops/spell/ChineseWords.h"
+#include "pdf/ops/spell/EnglishCommonWords.h"
+#include "pdf/ops/spell/EnglishWords.h"
+
+#include <QDir>
 #include <QFile>
 #include <QHash>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStandardPaths>
 #include <QStringList>
-#include <QTextStream>
 #include <QVector>
 
 #include <algorithm>
@@ -31,8 +46,9 @@ namespace {
 // 内置常用词表（小写存储；按使用频率大致排序，排在前面 = 更常见，
 // 建议列表按这个次序出，所以高频词会排在前面）。
 //
-// 这**不是**完整词典：它只覆盖三千个左右的常用英文词。
-// 好处是零依赖、零体积、行为可预测；代价是生词会被漏判。
+// 这一份是「高频 + 领域词」层：SCOWL 的频次分档之前没有它，
+// 而且它带上了 PDF 编辑器常用的技术词（pdf、html、xml、api……），
+// 这些词不在通用词表里，但确实是正确写法。
 const char* const kBuiltinWords[] = {
     "the","be","to","of","and","a","in","that",
     "have","i","it","for","not","on","with","he",
@@ -454,10 +470,10 @@ const MisspellingPair kCommonMisspellings[] = {
     {"succesfully","successfully"}, {"suprise","surprise"}, {"suprised","surprised"},
     {"tommorow","tomorrow"}, {"truely","truly"}, {"untill","until"},
     {"unfortunatly","unfortunately"}, {"wierd","weird"}, {"writting","writing"},
-    {"alot","a lot"}, {"becuase","because"}, {"cant","can't"}, {"dont","don't"},
+    {"alot","a lot"}, {"cant","can't"}, {"dont","don't"},
     {"doesnt","doesn't"}, {"isnt","isn't"}, {"wont","won't"}, {"wouldnt","wouldn't"},
     {"shoudl","should"}, {"coudl","could"}, {"woudl","would"}, {"theres","there's"},
-    {"becasue","because"}, {"beleive","believe"}, {"gramar","grammar"},
+    {"gramar","grammar"},
 };
 
 // 缩写：带点的短词不参与拼写检查（"e.g."、"Mr." 这类）。
@@ -465,7 +481,7 @@ const char* const kAbbreviations[] = {
     "etc","eg","ie","vs","mr","mrs","ms","dr","prof","inc","ltd","co","corp","dept","est","fig","vol",
     "approx","min","max","avg","std","sec","jan","feb","mar","apr","jun","jul","aug","sep","sept","oct",
     "nov","dec","no","al","pp","cf","ed","eds","ibid","viz","jr","sr","capt","sgt","lt","col","gen",
-    "gov","sen","rep","pres","dept","univ","assn","bros","mfg","mt","ft","lb","oz","vol","ed","trans",
+    "gov","sen","rep","pres","univ","assn","bros","mfg","mt","ft","lb","oz","trans",
 };
 
 bool isCjk(QChar c) {
@@ -475,6 +491,14 @@ bool isCjk(QChar c) {
            (code >= 0xF900 && code <= 0xFAFF) ||   // 兼容表意文字
            (code >= 0x3000 && code <= 0x303F) ||   // CJK 标点
            (code >= 0xFF00 && code <= 0xFFEF);     // 全角字符
+}
+
+// 只有汉字参与中文错字判定：标点、全角字母不算。
+bool isHanChar(QChar c) {
+    const ushort code = c.unicode();
+    return (code >= 0x4E00 && code <= 0x9FFF) ||
+           (code >= 0x3400 && code <= 0x4DBF) ||
+           (code >= 0xF900 && code <= 0xFAFF);
 }
 
 bool isAbbreviation(const QString& lower) {
@@ -548,23 +572,169 @@ bool containsLetter(const QString& text) {
     return false;
 }
 
+// 英文词尾的双写辅音（running → runn → run）。
+bool isDoubledConsonant(QChar c) {
+    const char ch = c.toLower().toLatin1();
+    return ch == 'b' || ch == 'c' || ch == 'd' || ch == 'g' || ch == 'l' ||
+           ch == 'm' || ch == 'n' || ch == 'p' || ch == 'r' || ch == 't';
+}
+
+// 内置词表与内置错字表。进程内只建一次：
+// 词表有八万词，每次调用 builtin() 都重建一遍会把「检查拼写」拖成几十毫秒。
+struct BuiltinData {
+    QSet<QString> words;                    // 已知英文词（小写）
+    QHash<QString, int> ranks;              // 频次次序：越小越常见
+    QHash<int, QVector<QString>> byLength;  // 常用词按长度分桶：近邻搜索只扫这里
+    QSet<QString> chineseWords;             // 已知中文词
+    QSet<QString> chineseCommonWords;      // 高频中文词：字级判定要求改完之后是这里的词
+    QHash<QString, QStringList> confusables;// 形近字 → 可能正确的字
+    QHash<QString, QStringList> homophones; // 音近字 → 可能正确的字（参考数据，不参与判定）
+    QHash<QString, QString> phraseTypos;    // 词组级错字
+    QHash<QString, QString> misspellings;   // 常见拼错对
+    int confusableGroupCount = 0;            // 形近字组数
+    int homophoneGroupCount = 0;            // 音近字组数
+};
+
+QStringList splitWords(const char* blob) {
+    return QString::fromUtf8(blob).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+}
+
+const BuiltinData& builtinData() {
+    static const BuiltinData data = [] {
+        BuiltinData built;
+        int rank = 0;
+
+        // 第一层：高频 + 领域词（kBuiltinWords）。
+        QSet<QString> listed;  // 已经进过 byLength 的词
+        for (const char* word : kBuiltinWords) {
+            const QString lower = QString::fromLatin1(word).toLower();
+            if (lower.isEmpty() || built.words.contains(lower)) continue;
+            built.words.insert(lower);
+            built.ranks.insert(lower, rank++);
+            built.byLength[lower.size()].append(lower);
+            listed.insert(lower);
+        }
+        // 第二层：SCOWL 的常用词档（越靠前越常用）。只进近邻搜索用的桶，
+        // 近邻搜索只看常用词：词表越大，「只差一个字母」的偶然命中越多，
+        // 误报率会跟着涨。实测（见 SOURCES.md）里这个子集已经够用。
+        for (const QString& word : splitWords(spell::kEnglishCommonWords)) {
+            if (word.isEmpty() || listed.contains(word)) continue;
+            listed.insert(word);
+            built.byLength[word.size()].append(word);
+        }
+        // 第三层：完整词表（SCOWL 全档，按频次排序）。只用来判断「这个词认不认识」。
+        for (const QString& word : splitWords(spell::kEnglishWords)) {
+            if (word.isEmpty() || built.words.contains(word)) continue;
+            built.words.insert(word);
+            built.ranks.insert(word, rank++);
+        }
+
+        for (const QString& word : splitWords(spell::kChineseWords))
+            built.chineseWords.insert(word);
+        for (const QString& word : splitWords(spell::kChineseCommonWords))
+            built.chineseCommonWords.insert(word);
+
+        // 形近字组参与字级判定；音近字组只作参考数据：
+        // 音近字在中文里太常见（「于其」「存再」本来就是对的），
+        // 按音近组做字级判定会到处误报，音近错字交给词组级错字表兜。
+        const auto readGroups = [](const char* blob, QHash<QString, QStringList>* out) {
+            for (const QString& row : QString::fromUtf8(blob).split(QLatin1Char('\n'))) {
+                const QStringList members = row.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                if (members.size() < 2) continue;
+                for (const QString& member : members) {
+                    QStringList candidates = out->value(member);
+                    for (const QString& other : members)
+                        if (other != member && !candidates.contains(other)) candidates.append(other);
+                    out->insert(member, candidates);
+                }
+            }
+        };
+        readGroups(spell::kShapeConfusableGroups, &built.confusables);
+        readGroups(spell::kHomophoneConfusableGroups, &built.homophones);
+
+        for (const QString& row : QString::fromUtf8(spell::kShapeConfusableGroups).split(QLatin1Char('\n'))) {
+            if (row.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).size() >= 2)
+                ++built.confusableGroupCount;
+        }
+        for (const QString& row : QString::fromUtf8(spell::kHomophoneConfusableGroups).split(QLatin1Char('\n'))) {
+            if (row.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).size() >= 2)
+                ++built.homophoneGroupCount;
+        }
+
+        for (const QString& row : QString::fromUtf8(spell::kPhraseTypos).split(QLatin1Char('\n'))) {
+            const QString trimmed = row.trimmed();
+            if (trimmed.isEmpty() || !trimmed.contains(QLatin1Char('|'))) continue;
+            const int sep = trimmed.indexOf(QLatin1Char('|'));
+            built.phraseTypos.insert(trimmed.left(sep).trimmed(), trimmed.mid(sep + 1).trimmed());
+        }
+
+        for (const MisspellingPair& pair : kCommonMisspellings)
+            built.misspellings.insert(QString::fromLatin1(pair.wrong), QString::fromLatin1(pair.right));
+
+        return built;
+    }();
+    return data;
+}
+
 }  // namespace
 
 SpellChecker SpellChecker::builtin() {
     SpellChecker checker;
-    for (const char* word : kBuiltinWords) checker.insertWord(QString::fromLatin1(word), checker.m_nextRank++);
-    for (const MisspellingPair& pair : kCommonMisspellings)
-        checker.m_misspellings.insert(QString::fromLatin1(pair.wrong), QString::fromLatin1(pair.right));
+    checker.m_chineseEnabled = false;  // 既有行为：builtin() 只查英文
+    checker.m_englishEnabled = true;
     return checker;
+}
+
+SpellChecker SpellChecker::create(const Options& options, QVector<DictionaryLoadResult>* results) {
+    SpellChecker checker;
+    checker.m_chineseEnabled = options.chineseEnabled;
+    checker.m_englishEnabled = options.englishEnabled;
+
+    for (const QString& path : options.dictionaryPaths) {
+        DictionaryLoadResult result;
+        result.path = path;
+        QString error;
+        result.wordCount = checker.loadUserDictionary(path, &error);
+        result.error = error;
+        result.ok = error.isEmpty();
+        if (!result.ok && options.strictDictionaries) checker.m_usable = false;
+        checker.m_dictionaryResults.append(result);
+        if (results) results->append(result);
+    }
+    return checker;
+}
+
+QStringList SpellChecker::defaultDictionaryPaths() {
+    QStringList paths;
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (base.isEmpty()) return paths;
+    QDir directory(base + QStringLiteral("/dictionaries"));
+    const QStringList names = directory.entryList({QStringLiteral("*.dic")}, QDir::Files, QDir::Name);
+    for (const QString& name : names)
+        paths.append(directory.filePath(name));
+    return paths;
+}
+
+bool SpellChecker::isUsable() const {
+    return m_usable;
+}
+
+QVector<DictionaryLoadResult> SpellChecker::dictionaryResults() const {
+    return m_dictionaryResults;
 }
 
 void SpellChecker::insertWord(const QString& word, int rank) {
     const QString lower = word.toLower();
     if (lower.isEmpty()) return;
-    if (m_words.contains(lower)) return;  // 已经有这个词了：保留它更靠前的次序
-    m_words.insert(lower);
-    m_ranks.insert(lower, rank);
-    m_byLength[lower.size()].append(lower);
+    if (m_userWords.contains(lower)) return;  // 已经有这个词了：保留它更靠前的次序
+    m_userWords.insert(lower);
+    m_userRanks.insert(lower, rank);
+    m_userByLength[lower.size()].append(lower);
+}
+
+void SpellChecker::insertChineseWord(const QString& word) {
+    if (word.isEmpty()) return;
+    m_userChineseWords.insert(word);
 }
 
 int SpellChecker::loadUserDictionary(const QString& path, QString* error) {
@@ -578,17 +748,29 @@ int SpellChecker::loadUserDictionary(const QString& path, QString* error) {
         if (error) *error = QStringLiteral("打不开用户词典：%1").arg(file.errorString());
         return 0;
     }
-    QTextStream stream(&file);
-    stream.setEncoding(QStringConverter::Utf8);
+    const QByteArray raw = file.readAll();
+    file.close();
+    // 词表必须是 UTF-8：解码失败会让整份词表变成乱码，
+    // 这种情况下宁可报错，也不要装作加载成功。
+    const QString text = QString::fromUtf8(raw);
+    if (text.contains(QChar(0xFFFD))) {
+        if (error) *error = QStringLiteral("用户词典不是 UTF-8 编码：%1").arg(path);
+        return 0;
+    }
     int loaded = 0;
-    while (!stream.atEnd()) {
-        QString line = stream.readLine().trimmed();
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString& rawLine : lines) {
+        QString line = rawLine.trimmed();
         if (line.isEmpty() || line.startsWith(QLatin1Char('#'))) continue;
         // Hunspell 的词条可以带 affix 标记（/FLAGS），这里只取词本身。
         const int flags = line.indexOf(QLatin1Char('/'));
         if (flags >= 0) line = line.left(flags).trimmed();
         if (line.isEmpty() || !containsLetter(line)) continue;  // 纯数字的行不是词
-        insertWord(line, m_nextRank++);
+        if (isHanChar(line.at(0))) {
+            insertChineseWord(line);
+        } else {
+            insertWord(line, m_nextRank++);
+        }
         ++loaded;
     }
     return loaded;
@@ -598,36 +780,95 @@ void SpellChecker::addWord(const QString& word) {
     insertWord(word, m_nextRank++);
 }
 
-bool SpellChecker::isKnownWord(const QString& word) const {
-    if (word.isEmpty()) return false;
-    return m_words.contains(word.toLower());
+bool SpellChecker::isKnown(const QString& lower) const {
+    return builtinData().words.contains(lower) || m_userWords.contains(lower);
 }
 
+bool SpellChecker::isUserKnown(const QString& lower) const {
+    return m_userWords.contains(lower);
+}
+
+bool SpellChecker::isKnownChinese(const QString& word) const {
+    return builtinData().chineseWords.contains(word) || m_userChineseWords.contains(word);
+}
+
+bool SpellChecker::isKnownChineseCommon(const QString& word) const {
+    return builtinData().chineseCommonWords.contains(word);
+}
+
+// 宽松查找：除了原形，还认常见的所有格与复数、过去式、进行时等变体。
+//
+// 为什么需要这一层：内置词表收的是词干（walk），语料里写的是 walked / walking /
+// widgets。词表没覆盖到这些形态时，如果只看原形，满篇都是「生词」，
+// 近邻规则会到处乱报。剥掉常见词尾再查一次，误报率能降一个档。
 bool SpellChecker::isKnownRelaxed(const QString& lower) const {
-    if (m_words.contains(lower)) return true;
+    if (isKnown(lower)) return true;
     if (lower.size() < 4) return false;
-    // 所有格：doc's → doc
-    if (lower.endsWith(QLatin1String("'s")) &&
-        m_words.contains(lower.left(lower.size() - 2)))
-        return true;
-    // 复数：cars → car，boxes → box
-    if (lower.endsWith(QLatin1Char('s'))) {
+
+    auto known = [this](const QString& candidate) {
+        return candidate.size() >= 2 && isKnown(candidate);
+    };
+    auto addBase = [](QSet<QString>& bases, const QString& candidate) {
+        if (candidate.size() >= 2) bases.insert(candidate);
+    };
+    auto addDoubled = [&](QSet<QString>& bases, const QString& base) {
+        // running → runn → run：双写辅音要还原成一个。
+        if (base.size() > 2 && base.at(base.size() - 1) == base.at(base.size() - 2) &&
+            isDoubledConsonant(base.at(base.size() - 1)))
+            addBase(bases, base.left(base.size() - 1));
+    };
+
+    QSet<QString> bases;
+    if (lower.endsWith(QLatin1String("'s")))
+        addBase(bases, lower.left(lower.size() - 2));
+    if (lower.endsWith(QLatin1Char('s')) && !lower.endsWith(QLatin1String("ss"))) {
         const QString stem = lower.left(lower.size() - 1);
-        if (m_words.contains(stem)) return true;
-        if (stem.endsWith(QLatin1Char('e')) && m_words.contains(stem.left(stem.size() - 1))) return true;
-        if (stem.endsWith(QLatin1String("ies")) &&
-            m_words.contains(stem.left(stem.size() - 3) + QLatin1Char('y')))
-            return true;
+        addBase(bases, stem);
+        if (stem.endsWith(QLatin1Char('e'))) addBase(bases, stem.left(stem.size() - 1));
+        if (stem.endsWith(QLatin1Char('i'))) addBase(bases, stem.left(stem.size() - 1) + QLatin1Char('y'));
+        if (stem.endsWith(QLatin1String("es"))) addBase(bases, stem.left(stem.size() - 2));
     }
-    // 过去式与进行时：worked → work，running → run
+    if (lower.endsWith(QLatin1String("es"))) {
+        const QString stem = lower.left(lower.size() - 2);
+        addBase(bases, stem);
+        addBase(bases, stem + QLatin1Char('e'));
+    }
     if (lower.endsWith(QLatin1String("ed"))) {
         const QString stem = lower.left(lower.size() - 2);
-        if (m_words.contains(stem) || m_words.contains(stem + QLatin1Char('e'))) return true;
+        addBase(bases, stem);
+        addBase(bases, stem + QLatin1Char('e'));
+        addDoubled(bases, stem);
     }
     if (lower.endsWith(QLatin1String("ing"))) {
         const QString stem = lower.left(lower.size() - 3);
-        if (m_words.contains(stem) || m_words.contains(stem + QLatin1Char('e'))) return true;
+        addBase(bases, stem);
+        addBase(bases, stem + QLatin1Char('e'));
+        addDoubled(bases, stem);
+        if (lower.endsWith(QLatin1String("ying"))) addBase(bases, QStringLiteral("ie"));
     }
+    if (lower.endsWith(QLatin1String("er")) || lower.endsWith(QLatin1String("est"))) {
+        const int cut = lower.endsWith(QLatin1String("er")) ? 2 : 3;
+        const QString stem = lower.left(lower.size() - cut);
+        addBase(bases, stem);
+        addBase(bases, stem + QLatin1Char('e'));
+        addBase(bases, stem + QLatin1Char('y'));
+        addDoubled(bases, stem);
+    }
+    if (lower.endsWith(QLatin1String("ly"))) {
+        const QString stem = lower.left(lower.size() - 2);
+        addBase(bases, stem);
+        if (stem.endsWith(QLatin1Char('i'))) addBase(bases, stem.left(stem.size() - 1) + QLatin1Char('y'));
+    }
+    if (lower.endsWith(QLatin1String("ness"))) {
+        const QString stem = lower.left(lower.size() - 4);
+        addBase(bases, stem);
+        if (stem.endsWith(QLatin1Char('i'))) addBase(bases, stem.left(stem.size() - 1) + QLatin1Char('y'));
+    }
+    if (lower.endsWith(QLatin1String("ment")))
+        addBase(bases, lower.left(lower.size() - 5));
+
+    for (const QString& base : bases)
+        if (known(base)) return true;
     return false;
 }
 
@@ -635,21 +876,33 @@ QStringList SpellChecker::collectNeighbors(const QString& word, int maxCount, bo
     QStringList result;
     if (word.isEmpty() || maxCount <= 0) return result;
     const int length = word.size();
-    for (int candidateLength = length - 1; candidateLength <= length + 1; ++candidateLength) {
-        const auto bucket = m_byLength.constFind(candidateLength);
-        if (bucket == m_byLength.constEnd()) continue;
-        for (const QString& candidate : bucket.value()) {
-            if (candidate == word) continue;
-            if (!oneEditApart(word, candidate) &&
-                !(allowTransposition && oneTranspositionApart(word, candidate)))
-                continue;
-            result.append(candidate);
+
+    auto scan = [&](const QHash<int, QVector<QString>>& buckets) {
+        for (int candidateLength = length - 1; candidateLength <= length + 1; ++candidateLength) {
+            const auto bucket = buckets.constFind(candidateLength);
+            if (bucket == buckets.constEnd()) continue;
+            for (const QString& candidate : bucket.value()) {
+                if (candidate == word) continue;
+                if (!oneEditApart(word, candidate) &&
+                    !(allowTransposition && oneTranspositionApart(word, candidate)))
+                    continue;
+                result.append(candidate);
+            }
         }
-    }
+    };
+    scan(builtinData().byLength);
+    scan(m_userByLength);
+
     // 先常见后罕见：按词表里的次序排；用户词典里的词没有次序，排在最后。
-    std::sort(result.begin(), result.end(), [this](const QString& a, const QString& b) {
-        const int rankA = m_ranks.value(a, std::numeric_limits<int>::max());
-        const int rankB = m_ranks.value(b, std::numeric_limits<int>::max());
+    const auto rankOf = [this](const QString& candidate) {
+        const int builtinRank = builtinData().ranks.value(candidate, std::numeric_limits<int>::max());
+        const int userRank = m_userRanks.value(candidate, std::numeric_limits<int>::max());
+        if (builtinRank != std::numeric_limits<int>::max()) return builtinRank;
+        return userRank;
+    };
+    std::sort(result.begin(), result.end(), [&rankOf](const QString& a, const QString& b) {
+        const int rankA = rankOf(a);
+        const int rankB = rankOf(b);
         if (rankA != rankB) return rankA < rankB;
         return a < b;
     });
@@ -664,7 +917,66 @@ QStringList SpellChecker::suggestions(const QString& word, int maxCount) const {
     return collectNeighbors(word.toLower(), maxCount, false);
 }
 
+bool SpellChecker::isKnownWord(const QString& word) const {
+    if (word.isEmpty()) return false;
+    return isKnown(word.toLower());
+}
+
+bool SpellChecker::isKnownChineseWord(const QString& word) const {
+    if (word.isEmpty()) return false;
+    return isKnownChinese(word);
+}
+
+int SpellChecker::builtinEnglishWordCount() {
+    return builtinData().words.size();
+}
+
+int SpellChecker::builtinCommonWordCount() {
+    int total = 0;
+    for (auto it = builtinData().byLength.constBegin(); it != builtinData().byLength.constEnd(); ++it)
+        total += it.value().size();
+    return total;
+}
+
+int SpellChecker::builtinChineseWordCount() {
+    return builtinData().chineseWords.size();
+}
+
+int SpellChecker::builtinConfusableGroupCount() {
+    return builtinData().confusableGroupCount;
+}
+
+int SpellChecker::builtinHomophoneGroupCount() {
+    return builtinData().homophoneGroupCount;
+}
+
+int SpellChecker::builtinPhraseTypoCount() {
+    return builtinData().phraseTypos.size();
+}
+
 QVector<SpellIssue> SpellChecker::check(const QString& text) const {
+    if (!m_usable) return {};  // 词表没加载上就不给结果：宁可没有，也不要假的
+    QVector<SpellIssue> issues;
+    if (text.isEmpty()) return issues;
+    if (m_englishEnabled) issues += checkEnglishImpl(text);
+    if (m_chineseEnabled) issues += checkChineseImpl(text);
+    std::sort(issues.begin(), issues.end(), [](const SpellIssue& a, const SpellIssue& b) {
+        return a.start < b.start;
+    });
+    return issues;
+}
+
+QVector<SpellIssue> SpellChecker::checkEnglish(const QString& text) const {
+    if (!m_usable || !m_englishEnabled) return {};
+    return checkEnglishImpl(text);
+}
+
+QVector<SpellIssue> SpellChecker::checkChinese(const QString& text) const {
+    if (!m_usable || !m_chineseEnabled) return {};
+    return checkChineseImpl(text);
+}
+
+QVector<SpellIssue> SpellChecker::checkEnglishImpl(const QString& text) const {
     QVector<SpellIssue> issues;
     if (text.isEmpty()) return issues;
 
@@ -689,7 +1001,8 @@ QVector<SpellIssue> SpellChecker::check(const QString& text) const {
             continue;
         }
         if (isCjk(c)) {
-            // 中文整段跳过：中文不做拼写检查，连续汉字当成分隔符。
+            // 中文整段跳过：中文由 checkChineseImpl 单独处理，
+            // 连续汉字在这里只当成分隔符。
             while (i < n && isCjk(text.at(i))) ++i;
             gapOnlyWhitespace = false;
             sawNewline = false;
@@ -786,18 +1099,26 @@ QVector<SpellIssue> SpellChecker::check(const QString& text) const {
             if (repeated) {
                 // 连续重复的单词：这是最明确的一类错误，不需要词典也知道。
                 issues.append(SpellIssue{token.start, token.length, token.text, {}});
-            } else if (!isKnownRelaxed(lower)) {
-                const auto known = m_misspellings.constFind(lower);
-                if (known != m_misspellings.constEnd()) {
-                    // 常见拼错对：正确写法直接作为建议。
+            } else if (isUserKnown(lower)) {
+                // 用户词典里的词优先：用户自己加进来的词就是对的，
+                // 连常见拼错对表也不该覆盖它。
+            } else {
+                // 常见拼错对优先于内置词表：这些词在通用词表里可能也是「合法」的
+                // （SCOWL 就收了 occured、alot 这类写法），但对使用者来说它们就是错的。
+                const auto known = builtinData().misspellings.constFind(lower);
+                if (known != builtinData().misspellings.constEnd()) {
                     issues.append(SpellIssue{token.start, token.length, token.text, {known.value()}});
-                } else {
+                } else if (!isKnownRelaxed(lower)) {
                     // 与常用词只差一个编辑（含相邻换位）：这是「打错字」的典型形态。
+                    //
+                    // 为什么只对全小写的词生效：大写开头的词多半是专有名词
+                    // （Alice、Kubernetes），拿它跟常用词比大小很容易误报；
+                    // 专有名词写错就当漏判处理。
                     //
                     // 为什么只对 4 个字母以上的词生效：三字母的生词离常用词太近
                     // （cat / cut、form / from），误报率明显高于收益；
-                    // 三字母的常见手误由下面的常见拼错对表兜住。
-                    const QStringList near = lower.size() >= 4
+                    // 三字母的常见手误由上面的常见拼错对表兜住。
+                    const QStringList near = (lower.size() >= 4 && token.text == lower)
                                                  ? collectNeighbors(lower, 3, true)
                                                  : QStringList();
                     if (!near.isEmpty()) {
@@ -813,6 +1134,85 @@ QVector<SpellIssue> SpellChecker::check(const QString& text) const {
             }
         }
         previousLower = lower;
+    }
+    return issues;
+}
+
+QVector<SpellIssue> SpellChecker::checkChineseImpl(const QString& text) const {
+    QVector<SpellIssue> issues;
+    if (text.isEmpty()) return issues;
+
+    const BuiltinData& data = builtinData();
+
+    // ------------------------------------------------- 字级错字 ----
+    // 中文没有空格，按连续汉字分段，段内用 2~4 字窗口做匹配。
+    //
+    // 为什么字级先做、词组级后做：字级更精确（只标一个错字），
+    // 词组级只能在字级判不出来的时候补位（成语拆开根本不是词）。
+    const int n = text.size();
+    QSet<int> reported;
+    int i = 0;
+    while (i < n) {
+        if (!isHanChar(text.at(i))) {
+            ++i;
+            continue;
+        }
+        const int runStart = i;
+        while (i < n && isHanChar(text.at(i))) ++i;
+        const int runEnd = i;
+
+        // 长的窗口优先：成语级的错字比单字更可信。
+        for (int len = 4; len >= 2; --len) {
+            for (int p = runStart; p + len <= runEnd; ++p) {
+                bool skip = false;
+                for (int k = p; k < p + len; ++k) {
+                    if (reported.contains(k)) {
+                        skip = true;
+                        break;
+                    }
+                }
+                if (skip) continue;
+
+                const QString window = text.mid(p, len);
+                if (isKnownChinese(window)) continue;  // 本身就是词：不是错字
+
+                for (int k = 0; k < len; ++k) {
+                    const QStringList candidates = data.confusables.value(window.at(k));
+                    if (candidates.isEmpty()) continue;
+                    for (const QString& candidate : candidates) {
+                        QString corrected = window;
+                        corrected[k] = candidate.at(0);
+                        // 改完之后必须是高频词：门槛太低会把「洋楼」「分文」这种
+                        // 偶合词当成正确写法，误报率会明显上升。
+                        if (!isKnownChineseCommon(corrected)) continue;
+                        issues.append(SpellIssue{p + k, 1, window.mid(k, 1), {candidate}});
+                        reported.insert(p + k);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------- 词组级错字 ----
+    // 整词对照：成语、惯用语这类拆开都不是词的错写，只能整体比。
+    // 字级已经报过的位置不再重复报。
+    for (auto it = data.phraseTypos.constBegin(); it != data.phraseTypos.constEnd(); ++it) {
+        const QString& wrong = it.key();
+        if (wrong.isEmpty()) continue;
+        int pos = text.indexOf(wrong);
+        while (pos >= 0) {
+            bool covered = false;
+            for (int k = pos; k < pos + wrong.size(); ++k) {
+                if (reported.contains(k)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered)
+                issues.append(SpellIssue{pos, static_cast<int>(wrong.size()), wrong, {it.value()}});
+            pos = text.indexOf(wrong, pos + 1);
+        }
     }
     return issues;
 }

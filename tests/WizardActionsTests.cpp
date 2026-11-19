@@ -48,6 +48,7 @@ private slots:
     void openFileActionParses();
     void mergeActionParses();
     void splitActionParses();
+    void splitModeWithCountPrefixIsAccepted();
     void bookmarkActionParses();
     void pageNumbersActionParses();
     void watermarkActionParses();
@@ -138,6 +139,32 @@ void WizardActionsTests::splitActionParses() {
     QCOMPARE(data.split.mode, QStringLiteral("each"));
     QCOMPARE(data.split.ranges.size(), 1);
     QCOMPARE(data.split.ranges.at(0), QStringLiteral("1-2"));
+}
+
+// 拆分口径可以带一个数：「count:5」表示每 5 页一份。
+//
+// 为什么这条单独钉：取值白名单是**精确匹配**，光靠 allowedValues 放不开
+// 这种「前缀 + 一个数」的写法，只能靠前缀规则（allowedPrefixes）放行。
+// 没有这条用例，前缀规则一旦失效没人会发现。
+void WizardActionsTests::splitModeWithCountPrefixIsAccepted() {
+    QString error;
+    WizardActionData data;
+    QVERIFY2(parseWizardAction(
+                 WizardActionType::SplitDocument,
+                 params({wizardStringParam(QStringLiteral("outputDirectory"),
+                                           QStringLiteral("D:/tmp/out")),
+                         wizardStringParam(QStringLiteral("mode"), QStringLiteral("count:5"))}),
+                 &data, &error),
+             qPrintable(error));
+    QCOMPARE(data.split.mode, QStringLiteral("count:5"));
+    // 前缀放行不等于什么都放行：「count」后面跟的不是数时仍然要报错。
+    WizardActionData bad;
+    QVERIFY(!parseWizardAction(
+        WizardActionType::SplitDocument,
+        params({wizardStringParam(QStringLiteral("outputDirectory"),
+                                  QStringLiteral("D:/tmp/out")),
+                wizardStringParam(QStringLiteral("mode"), QStringLiteral("count:abc"))}),
+        &bad, &error));
 }
 
 void WizardActionsTests::bookmarkActionParses() {

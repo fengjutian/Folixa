@@ -40,12 +40,14 @@
 #include "doc/batch/ActionWizard.h"
 #include "doc/batch/BatchProcessor.h"
 #include "doc/convert/FontFlattening.h"
+#include "doc/convert/ScannedPdfOptimizer.h"
 #include "doc/export/OfdExport.h"
 #include "doc/export/OfficeExport.h"
 #include "doc/export/PdfToOffice.h"
 #include "doc/convert/UniversalConverter.h"
 #include "i18n/Translate.h"
 #include "pdf/compliance/UaGenerator.h"
+#include "pdf/content/PageGraphics.h"
 #include "pdf/compliance/VeraPdfChecker.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/ops/DocumentReflow.h"
@@ -61,7 +63,13 @@
 #include "pdf/convert/PortfolioWriter.h"
 #include "pdf/compliance/PreflightChecker.h"
 #include "pdf/annot/RichMedia3d.h"
+#include "pdf/annot/ThreeDModel.h"
 #include "pdf/forms/XfaSupport.h"
+#include "pdf/ops/StreamingEdit.h"
+#include "pdf/ops/TranslationWriter.h"
+#include "app/dialogs/ThreeDViewerDialog.h"
+#include "app/dialogs/TextBlockMergeDialog.h"
+#include "app/util/WorkerTranslationProvider.h"
 
 #include <QApplication>
 #include <QFont>
@@ -510,25 +518,35 @@ void WiringActions::exportHtml() {
     if (path.isEmpty()) {
         return;
     }
-    QVector<pdf::HtmlPage> htmlPages;
-    for (const pdf::TextPage& page : view->documentTextPages()) {
-        pdf::HtmlPage htmlPage;
-        htmlPage.text = page;
-        htmlPage.sizePt = QSizeF(page.contentBox.width(), page.contentBox.height());
-        htmlPages.append(htmlPage);
-    }
     QString error;
-    const QByteArray bytes = ConversionTools::exportHtml(htmlPages, &error);
+    const QByteArray bytes = view->documentBytes(&error);
     if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 HTML"),
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    // 每页要把三样东西凑齐：文字（PDFium）、矢量图形与真实字号（内容流）。
+    // 少一样就退回旧口径（只有文字 + 估算字号），所以必须走 buildHtmlPage 这一个入口。
+    QVector<pdf::HtmlPage> htmlPages;
+    const QVector<pdf::TextPage> textPages = view->documentTextPages();
+    for (int index = 0; index < textPages.size(); ++index) {
+        const pdf::TextPage& page = textPages.at(index);
+        htmlPages.append(pdf::buildHtmlPage(bytes, page,
+                                             QSizeF(page.contentBox.width(), page.contentBox.height()), index));
+    }
+    pdf::HtmlExportResult exportResult;
+    const QByteArray exported = ConversionTools::exportHtml(htmlPages, &exportResult, &error);
+    if (exported.isEmpty()) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 HTML"),
                              error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "导出失败。") : error);
         return;
     }
-    if (!writeFile(path, bytes, &error)) {
+    if (!writeFile(path, exported, &error)) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 HTML"), error);
         return;
     }
-    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 HTML"), htmlExportNoticeText());
+    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 HTML"),
+                             htmlExportNoticeText(exportResult));
 }
 
 void WiringActions::exportImagePdf() {
@@ -579,18 +597,23 @@ void WiringActions::exportDxf() {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 CAD 文件"), error);
         return;
     }
-    pdf::DxfExportOptions options;
-    const QByteArray result = ConversionTools::exportDxf(bytes, options, &error);
-    if (result.isEmpty()) {
+    pdf::CadDxfOptions options;
+    // 文字也导：CAD 里没有文字就只剩一堆线，看不出画的是什么。
+    options.includeText = true;
+    const pdf::CadDxfResult cadResult = ConversionTools::exportCadDxf(bytes, options);
+    if (!cadResult.ok || cadResult.dxf.isEmpty()) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 CAD 文件"),
-                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "导出失败。") : error);
+                             cadResult.error.isEmpty()
+                                 ? i18n::tr("aipdf::app::MainWindow", "导出失败。")
+                                 : cadResult.error);
         return;
     }
-    if (!writeFile(path, result, &error)) {
+    if (!writeFile(path, cadResult.dxf, &error)) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 CAD 文件"), error);
         return;
     }
-    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 CAD 文件"), dxfExportNoticeText());
+    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出 CAD 文件"),
+                             dxfExportNoticeText(cadResult));
 }
 
 void WiringActions::exportOffice() {
@@ -717,11 +740,25 @@ void WiringActions::exportOfd() {
                              i18n::tr("aipdf::app::MainWindow", "这一页没有可导出的文字层。"));
         return;
     }
+    // 图形要从内容流里取（qpdf 通路），所以要拿到文档字节。
+    QString error;
+    const QByteArray documentBytes = view->documentBytes(&error);
+    const QVector<pdf::PageGraphics> graphics =
+        documentBytes.isEmpty() ? QVector<pdf::PageGraphics>() : pdf::extractDocumentGraphics(documentBytes);
+    QVector<doc::OfdPageContent> contents;
+    for (int index = 0; index < pages.size(); ++index) {
+        doc::OfdPageContent content;
+        content.text = pages.at(index);
+        if (index < graphics.size() && graphics.at(index).ok) {
+            content.graphics = graphics.at(index);
+        }
+        contents.append(content);
+    }
     const QSizeF size(pages.first().contentBox.width(), pages.first().contentBox.height());
     doc::OfdExportOptions options;
     options.title = view->filePath();
-    QString error;
-    const QByteArray bytes = ConversionTools::exportOfd(pages, size, options, &error);
+    doc::OfdExportResult exportResult;
+    const QByteArray bytes = ConversionTools::exportOfd(contents, size, options, &exportResult, &error);
     if (bytes.isEmpty()) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 OFD"),
                              error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "导出失败。") : error);
@@ -731,7 +768,8 @@ void WiringActions::exportOfd() {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 OFD"), error);
         return;
     }
-    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 OFD"), ofdExportNoticeText());
+    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "导出到 OFD"),
+                             ofdExportNoticeText(exportResult));
 }
 
 void WiringActions::flattenFonts() {
@@ -752,7 +790,11 @@ void WiringActions::flattenFonts() {
         return;
     }
     doc::FlattenOptions options;
-    const QByteArray result = ConversionTools::flattenFonts(bytes, options, &error);
+    // 默认是矢量轮廓化：文字变成路径，产物里没有字体依赖。
+    // 想保留旧的栅格化行为就显式写 options.mode = doc::FlattenMode::Raster。
+    options.mode = doc::FlattenMode::Outline;
+    doc::FlattenReport report;
+    const QByteArray result = ConversionTools::flattenFonts(bytes, options, &report, &error);
     if (result.isEmpty()) {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "PDF 转曲"),
                              error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "转曲失败。") : error);
@@ -762,8 +804,9 @@ void WiringActions::flattenFonts() {
         QMessageBox::warning(parentWidget_, i18n::tr("aipdf::app::MainWindow", "PDF 转曲"), error);
         return;
     }
-    // 转曲是视觉等价的栅格化版本：文案必须照实说。
-    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "PDF 转曲"), flattenFontsNoticeText());
+    // 转曲结果必须照实说：取不到轮廓的那些字符去了哪里，要逐条讲清楚。
+    QMessageBox::information(parentWidget_, i18n::tr("aipdf::app::MainWindow", "PDF 转曲"),
+                             flattenFontsNoticeText(report));
 }
 
 // ================================================== 第三批接线（任务 J~U）====
@@ -1192,6 +1235,275 @@ void WiringActions::insertRichMedia(bool preferThreeD) {
     dialog.exec();
 }
 
+// ---------------------------------------------------------- 3D 模型查看 ----
+//
+// 读文档里的 3D 注解 → 渲染 → 给出可拖动旋转的查看器。
+//
+// 判定一律在领域层：这里不自己解析模型，也不自己判断「这是模型还是海报」，
+// 只把 pdf::threeDRenderModel 给的结果摊给用户。
+void WiringActions::view3dModel() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "3D 模型");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    const pdf::RichMediaReadResult read = pdf::readRichMedia(bytes);
+    if (!read.ok()) {
+        QMessageBox::warning(parentWidget_, title, read.error);
+        return;
+    }
+    if (read.threeD.isEmpty()) {
+        QMessageBox::information(parentWidget_, title,
+                                 i18n::tr("aipdf::app::MainWindow", "这份文档里没有 3D 注解。"));
+        return;
+    }
+    // 多个 3D 注解时取当前页上的第一个；当前页没有就取整份文档的第一个。
+    const pdf::ThreeDAnnotationInfo* picked = nullptr;
+    int pickedIndexOnPage = 0;
+    const int currentPage = view->currentPage();
+    int samePageSeen = 0;
+    for (const pdf::ThreeDAnnotationInfo& info : read.threeD) {
+        if (info.pageIndex == currentPage) {
+            if (picked == nullptr) {
+                picked = &info;
+                pickedIndexOnPage = samePageSeen;
+            }
+        }
+        if (info.pageIndex == currentPage) {
+            ++samePageSeen;
+        }
+    }
+    if (picked == nullptr) {
+        picked = &read.threeD.first();
+        pickedIndexOnPage = 0;
+    }
+
+    // 降级海报读不到不算失败：模型能渲染出来时根本用不到它。
+    pdf::ThreeDPosterImage poster;
+    QString posterError;
+    pdf::FallbackImage fallback;
+    if (pdf::readThreeDFallbackImage(bytes, picked->pageIndex, pickedIndexOnPage, fallback, &posterError)) {
+        poster.width = fallback.width;
+        poster.height = fallback.height;
+        poster.rgb = fallback.rgb;
+    }
+
+    ThreeDViewerDialog dialog(*picked, poster, parentWidget_);
+    dialog.exec();
+}
+
+// ------------------------------------------------------------ 全文流式 ----
+//
+// 把整篇按新的正文栏宽重新流排并写回。
+//
+// 判定全在领域层（pdf::reflowDocumentStream）：它自己决定哪些段排得下、
+// 哪些段保留原文，写回之后用 PDFium 回读校验。
+// 界面只负责问参数、收结果、写回文档。
+void WiringActions::reflowWholeDocumentStream() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "全文流式重排");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    const pdf::MediaBox box = view->pageContentBox(view->currentPage());
+    bool accepted = false;
+    pdf::StreamingReflowOptions options;
+    options.marginLeft = 36.0;
+    options.marginRight = 36.0;
+    const double column = QInputDialog::getDouble(
+        parentWidget_, title, i18n::tr("aipdf::app::MainWindow", "正文栏宽（点）:"),
+        qMax(120.0, box.width() - 72.0), 72.0, 2000.0, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    options.targetPageWidth = column + options.marginLeft + options.marginRight;
+
+    const pdf::StreamingReflowResult result = pdf::reflowDocumentStream(bytes, options);
+    if (!result.ok()) {
+        // 领域层拒绝的原因原样显示：它说「没有结构标签」就是没有结构标签，
+        // 界面不自己另搞一套启发式重排。
+        QMessageBox::warning(parentWidget_, title, result.report.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                            "全文流式重排完成：%1 页、%2 段里重排了 %3 段（%4 字）。")
+                        .arg(result.report.pageCount)
+                        .arg(result.report.blockCount)
+                        .arg(result.report.reflowedBlockCount)
+                        .arg(result.report.outputCharCount);
+    if (!result.report.hasStructTags) {
+        text += QLatin1Char('\n') +
+                i18n::tr("aipdf::app::MainWindow", "这份文档没有结构标签，本次只按内容流里的段落逐段处理。");
+    }
+    if (result.report.degradedBlockCount > 0) {
+        text += QLatin1Char('\n') +
+                i18n::tr("aipdf::app::MainWindow", "有 %1 段里有标准 14 号字体表示不了的字符，写成了 '?' 占位符。")
+                    .arg(result.report.degradedBlockCount);
+    }
+    for (const QString& note : result.report.notes) {
+        text += QLatin1Char('\n') + note;
+    }
+    QMessageBox::information(parentWidget_, title, text);
+}
+
+// -------------------------------------------------------- 跨文本块合并 ----
+void WiringActions::mergeTextBlocksAcrossSelection() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "跨文本块合并");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    QVector<pdf::ContentTextBlock> blocks;
+    if (!pdf::readContentTextBlocks(bytes, &blocks, &error)) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    const int page = view->currentPage();
+    QVector<pdf::ContentTextBlock> pageBlocks;
+    for (const pdf::ContentTextBlock& block : blocks) {
+        if (block.pageIndex == page) {
+            pageBlocks.append(block);
+        }
+    }
+    if (pageBlocks.size() < 2) {
+        QMessageBox::information(parentWidget_, title,
+                                 i18n::tr("aipdf::app::MainWindow", "这一页上的文本块不足两块，没有可合并的东西。"));
+        return;
+    }
+    TextBlockMergeDialog dialog(pageBlocks, parentWidget_);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QVector<int> ids = dialog.selectedBlockIds();
+    if (ids.size() < 2) {
+        return;
+    }
+    pdf::MergeBlocksOptions options;
+    const pdf::MediaBox box = view->pageContentBox(page);
+    options.targetWidth = qMax(80.0, box.width() - 72.0);
+
+    const pdf::MergeBlocksResult result = pdf::mergeTextBlocksAcrossSelection(bytes, ids, options);
+    if (!result.ok()) {
+        QMessageBox::warning(parentWidget_, title, result.report.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                            "合并完成：%1 块合成一段，共 %2 行（%3 字）。")
+                        .arg(result.report.blockCount)
+                        .arg(result.report.mergedLineCount)
+                        .arg(result.report.outputCharCount);
+    if (result.report.imageBetween || result.report.tableBetween) {
+        text += QLatin1Char('\n') +
+                i18n::tr("aipdf::app::MainWindow", "块与块之间有图片或表格，合并后的位置可能与原位置有出入。");
+    }
+    QMessageBox::information(parentWidget_, title, text);
+}
+
+// ------------------------------------------------------------ 整篇翻译 ----
+void WiringActions::translateWholeDocument() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "整篇翻译");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    WorkerTranslationProvider provider(workerClient_);
+    if (!provider.isConfigured()) {
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "AI Worker 没有连上，翻译不了。"));
+        return;
+    }
+    if (provider.isDemo()) {
+        QMessageBox::warning(
+            parentWidget_, title,
+            i18n::tr("aipdf::app::MainWindow", "当前是演示模式，翻译出来的示例不能写回文档。"));
+        return;
+    }
+    // 语言名用各自的自称（不翻译）：翻译出来的语言名用户认不出来。
+    const QStringList languages{QStringLiteral("中文（简体）"), QStringLiteral("English"),
+                                QStringLiteral("日本語"), QStringLiteral("한국어"),
+                                QStringLiteral("Français"), QStringLiteral("Deutsch")};
+    bool accepted = false;
+    const QString language = QInputDialog::getItem(parentWidget_, title,
+                                                   i18n::tr("aipdf::app::MainWindow", "译成哪种语言？"),
+                                                   languages, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+    // 整篇翻译会把全文分段发给 AI 服务：这一句必须说清楚，不能默默发出去。
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        parentWidget_, title,
+        i18n::tr("aipdf::app::MainWindow",
+                 "整篇翻译会把这份文档的正文按段发给 AI 服务。确定继续吗？"),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    pdf::TranslationOptions options;
+    options.targetLanguage = language;
+    const pdf::TranslationWriteResult result = pdf::translateDocument(bytes, &provider, options);
+    if (!result.ok()) {
+        QMessageBox::warning(parentWidget_, title, result.report.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    QString text = i18n::tr("aipdf::app::MainWindow",
+                            "翻译完成：%1 段里写回了 %2 段译文（%3 字），%4 段保留原文。")
+                        .arg(result.report.unitCount)
+                        .arg(result.report.writtenCount)
+                        .arg(result.report.translatedCharCount)
+                        .arg(result.report.failedCount);
+    for (const pdf::TranslationUnit& unit : result.report.units) {
+        if (!unit.written && !unit.reason.isEmpty()) {
+            text += QLatin1Char('\n') +
+                    i18n::tr("aipdf::app::MainWindow", "第 %1 页：%2").arg(unit.pageIndex + 1).arg(unit.reason);
+        }
+    }
+    QMessageBox::information(parentWidget_, title, text);
+}
+
 // ---------------------------------------------------------------- 任务 S ----
 
 void WiringActions::documentReflow() {
@@ -1462,6 +1774,56 @@ void WiringActions::convertFromFormFile() {
         return;
     }
     saveConvertedPdf(title, outcome);
+}
+
+void WiringActions::optimizeScannedPages() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "优化扫描件");
+    const QString path = QFileDialog::getSaveFileName(
+        parentWidget_, title, QStringLiteral("scan-optimized.pdf"),
+        i18n::tr("aipdf::app::MainWindow", "PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    doc::ScannedOptimizeOptions options;
+    doc::ScannedOptimizeReport report;
+    const QByteArray optimized = doc::optimizeScannedPdf(bytes, options, &report, &error);
+    if (optimized.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "优化失败。") : error);
+        return;
+    }
+    if (!writeFile(path, optimized, &error)) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    // 纠偏是有损的：哪几页纠了多少度要逐条报出来。
+    QStringList lines;
+    for (const doc::ScannedPageOptimize& page : report.pages) {
+        if (!page.note.isEmpty()) {
+            lines.append(i18n::tr("aipdf::app::MainWindow", "第 %1 页：%2").arg(page.pageIndex + 1).arg(page.note));
+        }
+    }
+    QString summary = i18n::tr("aipdf::app::MainWindow", "优化完成：%1 页，已去噪并纠偏，已保存：%2")
+                          .arg(report.pageCount)
+                          .arg(path);
+    if (!lines.isEmpty()) {
+        summary += QLatin1Char('\n') + lines.join(QLatin1Char('\n'));
+    }
+    for (const QString& note : report.notes) {
+        summary += QLatin1Char('\n') + note;
+    }
+    QMessageBox::information(parentWidget_, title, summary);
 }
 
 void WiringActions::scanFromScanner() {

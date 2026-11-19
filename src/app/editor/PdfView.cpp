@@ -5387,7 +5387,7 @@ void PdfView::showDocumentPropertiesDialog() {
     emit statusMessage(tr("已保存文档属性"));
 }
 
-// 自动创建书签：按标题样式（字高比正文大）生成大纲。
+// 自动创建书签：优先读文档的标签树（H1–H6），没有标签才回退到字高估算。
 void PdfView::createOutlineFromHeadingsDialog() {
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("自动创建书签"), tr("先打开一份 PDF。"));
@@ -5395,17 +5395,23 @@ void PdfView::createOutlineFromHeadingsDialog() {
     }
     QApplication::setOverrideCursor(Qt::WaitCursor);
     const QVector<doc::DocumentChunk> chunks = buildDocumentChunks();
+    QString documentError;
+    const QByteArray bytes = documentBytes(&documentError);
     QApplication::restoreOverrideCursor();
 
     pdf::OutlineGeneratorOptions options;
-    const std::vector<pdf::OutlineItem> generated = pdf::generateOutlineFromChunks(chunks, options);
-    if (generated.empty()) {
+    // 有结构标签就按标签树判标题，没有才回退到字高估算——
+    // 回退时领域层会把「这是估算的」写进 note，界面上要照实说。
+    const pdf::OutlineGenerationResult generated = pdf::generateOutline(bytes, chunks, options);
+    if (generated.outline.empty()) {
         QMessageBox::information(this, tr("自动创建书签"),
-                                 tr("没有识别到标题。标题是按字高比正文大的行判定的，"
-                                    "这份文档里没有这样的行。"));
+                                 generated.note.isEmpty()
+                                     ? tr("没有识别到标题：这份文档既没有可用的标题元素，也没有字高比正文大的行。")
+                                     : generated.note);
         return;
     }
-    const auto entries = pdf::flattenOutline(generated);
+    const std::vector<pdf::OutlineItem>& outlineItems = generated.outline;
+    const auto entries = pdf::flattenOutline(outlineItems);
     QStringList preview;
     for (int i = 0; i < entries.size() && i < 20; ++i) {
         preview.append(QString(entries.at(static_cast<size_t>(i)).depth * 2, QLatin1Char(' ')) +
@@ -5414,10 +5420,13 @@ void PdfView::createOutlineFromHeadingsDialog() {
     if (entries.size() > preview.size()) {
         preview.append(tr("…还有 %1 条").arg(entries.size() - preview.size()));
     }
+    const QString source = generated.isEstimated()
+                               ? generated.note
+                               : tr("已生成 %1 条书签（读自文档的标签树）。").arg(entries.size());
     QMessageBox box(this);
     box.setWindowTitle(tr("自动创建书签"));
-    box.setText(tr("按标题样式识别出 %1 条书签：\n\n%2\n\n确定要写入文档吗？")
-                     .arg(entries.size())
+    box.setText(tr("%1\n\n%2\n\n确定要写入文档吗？")
+                     .arg(source)
                      .arg(preview.join('\n')));
     box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     box.setDefaultButton(QMessageBox::Yes);
@@ -5425,7 +5434,7 @@ void PdfView::createOutlineFromHeadingsDialog() {
         return;
     }
     QString error;
-    if (!replaceOutline(generated, &error)) {
+    if (!replaceOutline(outlineItems, &error)) {
         QMessageBox::warning(this, tr("自动创建书签"), error);
         return;
     }
@@ -6796,9 +6805,8 @@ void PdfView::batchReplaceDialog() {
 
 // 拼写检查：列出可疑的词，给出建议，双击跳到那一处。
 //
-// 为什么只标「明显可疑」的词：内置词表只有一千个高频词，
-// 词表覆盖不到的词会被漏判。漏判只是少画一条波浪线；
-// 误判却会在满篇正常文字里到处画红线。
+// 为什么只标「明显可疑」的词：词表覆盖不到的词（专有名词、技术术语）会被漏判。
+// 漏判只是少画一条波浪线；误判却会在满篇正常文字里到处画红线，用户很快就不信这条波浪线了。
 void PdfView::spellCheckDialog() {
     if (!document_.isValid()) {
         return;
@@ -6844,7 +6852,14 @@ void PdfView::spellCheckDialog() {
     // 逐页取文本：整篇检查要调 PDFium 提取每一页，放到后台线程做，
     // 主线程做会卡住界面。这里先在主线程做当前页，整篇走等待光标。
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    const pdf::SpellChecker checker = pdf::SpellChecker::builtin();
+    // 词表来源是可插拔的：内置英文词表 + 内置中文词表 + 用户放在默认目录下的词表。
+    // 加载失败的词表必须报出来——用户会以为自己的词表生效了。
+    pdf::SpellChecker::Options spellOptions;
+    spellOptions.chineseEnabled = true;
+    spellOptions.englishEnabled = true;
+    spellOptions.dictionaryPaths = pdf::SpellChecker::defaultDictionaryPaths();
+    QVector<pdf::DictionaryLoadResult> dictionaryResults;
+    const pdf::SpellChecker checker = pdf::SpellChecker::create(spellOptions, &dictionaryResults);
     const bool wholeDocument = scopeBox->currentIndex() == 1;
     const int firstPage = wholeDocument ? 0 : currentPage();
     const int lastPage = wholeDocument ? document_.pageCount() - 1 : currentPage();
@@ -6892,6 +6907,22 @@ void PdfView::spellCheckDialog() {
         }
     }
     QApplication::restoreOverrideCursor();
+
+    // 词表加载失败的，要当面说：用户会以为自己的词表生效了。
+    QStringList dictionaryFailures;
+    for (const pdf::DictionaryLoadResult& result : dictionaryResults) {
+        if (result.ok) {
+            continue;
+        }
+        dictionaryFailures.append(result.error.isEmpty()
+                                      ? tr("词表 %1 加载失败").arg(result.path)
+                                      : result.error);
+    }
+    if (!dictionaryFailures.isEmpty()) {
+        QMessageBox::warning(&dialog, tr("拼写检查"),
+                             tr("以下词表没有加载成功，本次检查没用到它们：\n%1")
+                                 .arg(dictionaryFailures.join('\n')));
+    }
 
     for (const IssueRow& issue : issueRows) {
         const int row = table->rowCount();

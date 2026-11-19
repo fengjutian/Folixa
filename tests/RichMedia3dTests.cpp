@@ -7,6 +7,8 @@
 
 #include <fpdfview.h>
 
+#include <cstring>
+
 using aipdf::pdf::FallbackImage;
 using aipdf::pdf::MediaAnnotationInfo;
 using aipdf::pdf::MediaAnnotationSpec;
@@ -103,14 +105,39 @@ QByteArray twoPagePdf() {
     return buildPdf(objects);
 }
 
-// 合成的假 PRC 字节。
+// 一个最小的 U3D 文件（只有文件头块，没有网格）。
 //
-// 说明：本程序**不解析也不生成** U3D 的 PRC 内容，写进去的字节原样搬运。
-// 所以这里用一段合成的字节就够——测的是「结构写对了吗、读得回来吗」，
-// 不是「模型能不能渲染」（渲染要 U3D 运行时，那是另一件事）。
-QByteArray fakePrcBytes() {
-    QByteArray data("FAKE-U3D-PRC-BYTES-");
-    data.append(QByteArray(64, '\x01'));
+// 为什么不再用「假字节」：写 3D 注解时现在会看模型文件头——像 U3D / PRC
+// 才放行，不像就带着中文原因失败。夹具得真的像个 U3D 才测得到结构。
+//
+// 文件头的布局照 ECMA-363 的块结构写：12 字节块头 + 32 字节文件头数据。
+QByteArray minimalU3dBytes() {
+    QByteArray data;
+    const auto appendU16 = [&data](quint16 value) {
+        data.append(static_cast<char>(value & 0xFF));
+        data.append(static_cast<char>((value >> 8) & 0xFF));
+    };
+    const auto appendU32 = [&data, &appendU16](quint32 value) {
+        appendU16(static_cast<quint16>(value & 0xFFFF));
+        appendU16(static_cast<quint16>((value >> 16) & 0xFFFF));
+    };
+    const auto appendU64 = [&data, &appendU32](quint64 value) {
+        appendU32(static_cast<quint32>(value & 0xFFFFFFFFu));
+        appendU32(static_cast<quint32>((value >> 32) & 0xFFFFFFFFu));
+    };
+    appendU32(0x00443355u);  // 块类型：文件头块（小端读出来就是 "U3D\0"）
+    appendU32(32);          // 数据长度
+    appendU32(0);           // 元数据长度
+    appendU16(0);           // 主版本
+    appendU16(0);           // 次版本
+    appendU32(0x0000000Cu); // profile：无压缩 + 定义了单位
+    appendU32(0);           // 声明长度
+    appendU64(0);           // 文件长度
+    appendU32(106);         // 字符集：UTF-8
+    const double unitsScale = 1.0;
+    quint64 unitsBits = 0;
+    std::memcpy(&unitsBits, &unitsScale, sizeof(unitsBits));
+    appendU64(unitsBits);   // 单位换算系数
     return data;
 }
 
@@ -164,7 +191,7 @@ private slots:
     void notAPdfFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         const QByteArray written = writeThreeDAnnotation(QByteArray("not a pdf"), spec, &error);
         QVERIFY(written.isEmpty());
         QVERIFY2(!error.isEmpty(), "必须写明失败原因");
@@ -179,10 +206,19 @@ private slots:
         QVERIFY2(error.contains(QStringLiteral("模型字节为空")), qPrintable(error));
     }
 
+    void bytesThatAreNeitherU3dNorPrcFail() {
+        QString error;
+        ThreeDAnnotationSpec spec;
+        spec.modelBytes = QByteArray("FAKE-U3D-PRC-BYTES-");
+        const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
+        QVERIFY(written.isEmpty());
+        QVERIFY2(error.contains(QStringLiteral("不像")), qPrintable(error));
+    }
+
     void pageIndexOutOfRangeFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.pageIndex = 5;
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
         QVERIFY(written.isEmpty());
@@ -192,7 +228,7 @@ private slots:
     void negativePageIndexFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.pageIndex = -1;
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
         QVERIFY(written.isEmpty());
@@ -202,7 +238,7 @@ private slots:
     void emptyRectFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.rect = QRectF(10, 10, 0, 50);
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
         QVERIFY(written.isEmpty());
@@ -212,7 +248,7 @@ private slots:
     void brokenFallbackImageFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.fallback.width = 4;
         spec.fallback.height = 4;
         spec.fallback.rgb = QByteArray(10, '\x01');  // 应为 4×4×3 = 48 字节
@@ -224,7 +260,7 @@ private slots:
     void duplicate3dAnnotationOnTheSameRectFails() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.pageIndex = 0;
         spec.rect = QRectF(20, 30, 100, 80);
         const QByteArray once = writeThreeDAnnotation(twoPagePdf(), spec, &error);
@@ -276,7 +312,7 @@ private slots:
     void written3dAnnotationKeepsThePageCount() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.pageIndex = 1;
         spec.rect = QRectF(20, 30, 100, 80);
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
@@ -288,7 +324,7 @@ private slots:
     void written3dAnnotationCanBeReadBack() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.pageIndex = 1;
         spec.rect = QRectF(20, 30, 100, 80);
         spec.view = richViewSpec();
@@ -316,7 +352,7 @@ private slots:
     void the3dViewParametersSurviveTheRoundTrip() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.view = richViewSpec();
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
         QVERIFY2(!written.isEmpty(), qPrintable(error));
@@ -348,7 +384,7 @@ private slots:
     void the3dModelIsReportedAsEmbedded() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         const QByteArray written = writeThreeDAnnotation(twoPagePdf(), spec, &error);
         QVERIFY2(!written.isEmpty(), qPrintable(error));
 
@@ -356,14 +392,19 @@ private slots:
         QVERIFY2(!found.isEmpty(), qPrintable(error));
         QVERIFY(found.first().hasModel);
         QVERIFY(found.first().modelEmbedded);
-        QCOMPARE(found.first().modelSize, static_cast<qint64>(fakePrcBytes().size()));
+        QCOMPARE(found.first().modelSize, static_cast<qint64>(minimalU3dBytes().size()));
         QCOMPARE(found.first().modelMimeType, QStringLiteral("/U3D"));
+        // 模型种类要能从文件头认出来。
+        QCOMPARE(found.first().modelKind, aipdf::pdf::ThreeDModelKind::U3D);
+        // 这个夹具只有文件头、没有网格，所以网格规模是 0，但原因要写清楚。
+        QVERIFY(!found.first().modelHasMesh);
+        QVERIFY(!found.first().modelNotes.isEmpty());
     }
 
     void theFallbackImageIsWrittenAsTheNormalAppearance() {
         QString error;
         ThreeDAnnotationSpec spec;
-        spec.modelBytes = fakePrcBytes();
+        spec.modelBytes = minimalU3dBytes();
         spec.fallback.width = 2;
         spec.fallback.height = 2;
         spec.fallback.rgb = QByteArray(12, '\x7F');
@@ -380,13 +421,13 @@ private slots:
     void two3dAnnotationsOnDifferentRectsCoexist() {
         QString error;
         ThreeDAnnotationSpec first;
-        first.modelBytes = fakePrcBytes();
+        first.modelBytes = minimalU3dBytes();
         first.rect = QRectF(10, 10, 60, 40);
         const QByteArray once = writeThreeDAnnotation(twoPagePdf(), first, &error);
         QVERIFY2(!once.isEmpty(), qPrintable(error));
 
         ThreeDAnnotationSpec second;
-        second.modelBytes = fakePrcBytes();
+        second.modelBytes = minimalU3dBytes();
         second.rect = QRectF(100, 100, 60, 40);
         const QByteArray twice = writeThreeDAnnotation(once, second, &error);
         QVERIFY2(!twice.isEmpty(), qPrintable(error));
@@ -485,7 +526,7 @@ private slots:
     void readingEverythingListsBothKinds() {
         QString error;
         ThreeDAnnotationSpec threeD;
-        threeD.modelBytes = fakePrcBytes();
+        threeD.modelBytes = minimalU3dBytes();
         threeD.rect = QRectF(10, 10, 60, 40);
         QByteArray bytes = writeThreeDAnnotation(twoPagePdf(), threeD, &error);
         QVERIFY2(!bytes.isEmpty(), qPrintable(error));

@@ -82,6 +82,8 @@ foreach ($required in @(
     'licenses/LGPL-3.0.txt',
     'licenses/GPL-3.0.txt',
     'licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+    'licenses/SCOWL.txt',
+    'licenses/MIT-jieba.txt',
     'licenses/pdfium-CHECKSUMS.txt',
     'licenses/pdfium/pdfium-BSD-3-Clause.txt',
     "sbom/ai-pdf-editor-$Version.cdx.json"
