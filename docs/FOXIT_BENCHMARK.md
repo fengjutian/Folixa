@@ -14,7 +14,7 @@
 | A8 | 文本重排（reflow） | ± | 对齐 | — | 整篇重排已实现并写回打开的文档：页面对象模型（`pdf::readPageObjectModel`：文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚，稳定 id 由「种类 + 内容指纹 + 量化几何 + 序号」派生）+ 搬运与锚点（`pdf::ReflowPlan`）+ PDFium 就地写回；**写回前有门禁**：重排结果重新打开、重新统计一遍，文字块 / 图片 / 表格少一个就拦住写回并写明少了什么（`report.error` 写原因、`bytes` 置空），不再静默丢；页眉页脚按每页重复放到每一页；无结构标签的文档明确拒绝，不做启发式重排；重排不保留书签与内部链接的目标（页码变了，界面必须提示）；竖排文字按横排重排；`DocumentReflowTests` 19 条 + `ReflowWriteBackTests` 14 条 + `PageObjectModelTests` 11 条。 |
 | A9 | 夜间 / 护眼 / 高对比配色 | ✓ | 已具备 | 1.10.0 | 夜间 / 护眼 / 高对比四套配色，`app::theme::ReadingScheme` 统一管理、QSettings 持久化，Ribbon 有切换入口；`ReadingSchemeTests` 兜底 |
 | A10 | 图层（OCG）开关 | ✓ | 对齐 | 2.x | OCG 图层面板：列出全部图层（名称 / 默认可见 / 顺序），逐个开关并写回文档，页面级 OCMD 覆盖也显示（哪些页面单独改了某个图层的可见性）；**图层名不是 PDF 名字 token**，映射由领域层处理，界面不自己拼键名；`OptionalContentTests` |
-| A11 | 3D / 多媒体 / 作品集 | ± | 对齐 | — | 3D / 多媒体注解与作品集都已实现：写 `/3D`、`/Screen` 注解与 Filespec（`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`，`RichMedia3dTests` 26 条），作品集能读能写（`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`）；**只写对结构，不渲染 3D、不解码音视频**，界面文案如实说明，不许承诺「可以旋转模型」 |
+| A11 | 嵌入 3D / 媒体资源 | ± | 对齐 | — | 3D / 多媒体注解与作品集都已实现：写 `/3D`、`/Screen` 注解与 Filespec（`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`，`RichMedia3dTests` 26 条），作品集能读能写（`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`）；**音视频现在能解码能播放**：用 Windows 自带的 Media Foundation 解码（`pdf::openMediaFile` / `pdf::MediaDecoder`；WAV 5572 ms / 22050 Hz / 2 声道、MP3 14759 ms / 44100 Hz / 1 声道、视频 96×48 WMV2 30 fps 均为真机实测），播放时序由纯状态机 `pdf::MediaPlaybackController` 管（播放 / 暂停 / 停止 / 拖动 / 播完），声音走 Win32 waveOut（`app::PcmPlayer`），Ribbon「插入多媒体」对话框里带预览区（`app::MediaPreviewPanel`）；**3D 仍然只写结构、不渲染、不旋转**（本机没有 3D 运行时）——**原口径是「3D / 多媒体 / 作品集」，因 3D 运行时没有而改名为现在这个名字，不再承诺「可以旋转模型」**；**写进文档的注解仍然只带结构**（别的阅读器放不放得出来，取决于它有没有相应运行时）；`MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条 |
 | A12 | 复杂 CJK 排版与超大字符集 | ✓ | 对齐 | 2.0.0 | **可复跑的兼容语料回归**（`scripts/gen-cjk-corpus.py` 生成 9 份复杂 CJK 夹具，`scripts/verify-cjk-corpus.ps1` 逐份断言能打开 / 页数正确 / 能抽出文字 / 关键锚点命中 / 渲染不崩，已接进 `scripts/ci.ps1`）；**竖排按 WMode 1 排版**（`pdf::readVerticalMetrics` 读字体 vhea / vmtx 竖排度量，`pdf::layoutVerticalText` 列右→左、列内上→下，步进用竖排度量；字体字典写 `/WMode 1` + `/DW2` + `/W2`，Type0 用 `/Encoding /Identity-V` —— **实测 PDFium 判竖排看的是 Encoding CMap，不是 `/WMode`**，只写 `/WMode 1` 仍按横排渲染）；内容流顺序 = 阅读顺序，验收脚本对这份夹具**断言抽取串全等期望串**（顺序敏感，不是子串命中）并**查产物字体字典里确实有 `/WMode 1`**；字体没有竖排度量时按 1 em 默认宽度排版并如实标出降级，不编数；组合字符只断言「基字 + 变音符」的序列，不断言整形与顺序；`VerticalWritingTests` 12 条；**应用内把竖排写回任意 PDF 尚未打通**（PDFium 的文字对象 API 只能建简单字体，登记不了 Type0 / WMode 1 字体字典）。 |
 | A13 | 循环放映 | ✓ | 已具备 | — | 放映到最后一页时绕回第一页；循环开关做成**无界面依赖的纯函数状态机**（`app::nextPresentationPage`），关掉循环就逐字保持原来的「到头就停」；`PresentationLoopTests` 9 条；**不做定时自动翻页**，只影响手动翻页到头时的行为 |
 
@@ -72,8 +72,8 @@
 | E3 | 对象选择 / 移动 / 删除 | ✓ | 已具备 | 1.11.0 | 选择、拖拽、旋转、缩放、删除、吸附参考线、组合与层级，均可撤销；`PdfiumAdapterTests` 覆盖 |
 | E4 | 添加图形 / 文本框 / 链接 | ✓ | 已具备 | 1.11.0 | 图形、文本框、网址链接、页内跳转、自动识别网页链接；落盘回读有单测 |
 | E5 | 字体与段落属性 | ✓ | 对齐 | 1.11.0 | 字体级属性齐了；段落对齐 / 行距 / 缩进已实现并有界面入口（`pdf::layoutParagraph` 复用 `TextReflow` 断行，justify 撑满且最后一行不拉伸，首行缩进只作用首行），`ParagraphFormatTests` 24 条 |
-| E6 | 整篇自动重排 | ± | 对齐 | — | 整篇自动重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 18 条）；**必然改版面，图形 / 表格 / 页眉页脚会丢**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝 |
-| E7 | 表单设计器（新建域） | ✓ | 已具备 | 1.11.0 | **原口径是「不做」，因建域与域属性编辑已实现而上调**；7 类域可建可落盘，**经典 xref 与交叉引用流都能写**，单选按钮有 /Parent 分组，条形码是 Code128 真条码；`FormFieldWriterTests` 11 条；另接 AI 设计助手（按描述生成字段清单、用户确认后建域，`FormDesignParserTests` 15 条） |
+| E6 | 整篇自动重排 | ± | 对齐 | — | 整篇自动重排已实现：按标签结构重排成新页宽（`pdf::reflowTaggedDocument`，`DocumentReflowTests` 19 条）；**必然改版面，图形 / 表格 / 页眉页脚会丢**，领域层给出「丢了哪些」的清单并由界面逐条显示；无结构标签的文档明确拒绝 |
+| E7 | 表单设计器（新建域） | ✓ | 已具备 | 1.11.0 | **原口径是「不做」，因建域与域属性编辑已实现而上调**；7 类域可建可落盘，**经典 xref 与交叉引用流都能写**，单选按钮有 /Parent 分组，条形码是 Code128 真条码；`FormFieldWriterTests` 12 条；另接 AI 设计助手（按描述生成字段清单、用户确认后建域，`FormDesignParserTests` 15 条） |
 
 ### F. 表单（6 项）
 
@@ -94,8 +94,8 @@
 | G2 | 权限位（打印 / 复制 / 批注 / 表单 / 提取） | ✓ | 对齐 | 1.6.0 | 七项权限位 + 运行时拦截 + 所有者密码解锁，有单测 |
 |  G3 | 元数据与隐藏信息清理 | ✓ | 对齐 | 1.6.0 | 逐项清理已实现：`pdf::enumerateHiddenData` 列出 **16 类**隐藏数据（文档属性 / 元数据流 / 增量历史 / 嵌入文件本体 / 附件引用点 / 脚本 / 自动动作 / 批注动作 / 字段动作 / 表单已填值 / 缩略图 / 隐藏注释 / 不可见文字层 / 图层 / XFA / 数字签名）并各给条数，界面 `app::HiddenDataDialog` 逐项勾选，`pdf::sanitizeHiddenDataSelective` 只清勾选的类；**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变（增量历史除外——重写本来就会拍平）；**加密文档给打开密码即可枚举与逐项清理，清理后仍保持加密**（枚举与清理都吃 password；写出器保留原加密；复验用同一个密码）；批注级与字段级的 `/AA` 动作各算一类（`annotation-actions` / `field-actions`），能分别清理；批处理的清理与移除嵌入文件也能用源文件密码处理加密文件（`batch.sourcePassword`）；打开加密文档后保存不再被自己的结构校验挡住（`DocumentWriter::save` 带打开密码）；**增量历史计数改走文档自己的 xref 链**（`pdf::countPdfRevisions`：只沿 `/Prev` 往回走，内层 PDF 的偏移在这个坐标系里是乱的，因此内层的 `%%EOF` 不会被数进来）；`HiddenDataInventoryTests` 18 条 + `EmbeddedFileTests` 12 条 + `DocumentWriterTests` 16 条 + `PdfRevisionCounterTests` 9 条 |
 | G4 | 密文遮盖（Redaction） | ✓ | **已具备** | 1.6.0 | 标记 / 马赛克 / 擦除 / 应用密文四种做法都有入口（`pdf::Redaction`，`RedactionTests` 11 条）；应用密文整页转位图、文本层消失；**擦除与应用密文是渲染层移除，不是密码学不可恢复删除** |
-| G5 | 数字签名（手写签章 + 证书签名） | ✓ | 对齐 | 1.7.0 | 手写 / 导入签章 + PKCS#12 证书签名（走随包 pyHanko）；**主程序不接管签名结果** |
-| G6 | 验签、证书链、文档修改标记 | ✓ | 已具备 | 1.7.0 | 验签改为**逐项密码学判定**：自实现 RSA 验签（`pdf::RsaVerifier`，不依赖 BCrypt/Crypt32）+ 内容摘要比对 + OCSP 请求/响应解析 + RFC 3161 时间戳解析；签名列表多一列判定，成立显绿、不成立显中文原因。`SignatureVerifierTests` 13 条 + `RsaVerifierTests` 14 条 |
+| G5 | 数字签名（手写签章 + 证书签名）与证书链 / 撤销状态 | ✓ | 对齐 | 1.7.0 | 手写 / 导入签章 + PKCS#12 证书签名（**签名结果仍由随包 pyHanko 出，本程序不接管签名动作**）；**但证书链与撤销状态由主程序接管展示**：走 Windows 证书存储 + Crypt32 链策略（`pdf::inspectCertificateChain`），结论拆成**四个独立项** —— 受信任 / 已吊销 / 状态未知 / 已过期；**撤销信息查不到时报「状态未知」，不报「未被吊销」**（那是把「没查出来」说成「查过了、没问题」）；界面「签名列表」的证书链表有「撤销状态」列，链结论写进详情区；**原口径是「数字签名（手写签章 + 证书签名）」且写着「主程序不接管签名结果」；本轮把「证书链 / 撤销状态由主程序接管与展示」一并写进能力名，兑现范围以现在的名字为准**；`CertificateChainTests` 12 条 + `SignatureVerifierTests` 14 条 |
+| G6 | 验签、证书链、文档修改标记 | ✓ | 已具备 | 1.7.0 | 验签改为**逐项密码学判定**：自实现 RSA 验签（`pdf::RsaVerifier`，不依赖 BCrypt/Crypt32）+ 内容摘要比对 + OCSP 请求/响应解析 + RFC 3161 时间戳解析；签名列表多一列判定，成立显绿、不成立显中文原因。`SignatureVerifierTests` 14 条 + `RsaVerifierTests` 14 条 |
 | G7 | 时间戳（RFC 3161） | ✓ | 对齐 | 1.7.0 | 时间戳地址透传给 pyHanko；**应用内现在能解析 TSA 响应**（RFC 3161，提取签发时间与 TSA 主体），但签发时间戳本身仍由外部服务完成 |
 | G8 | 进程隔离与安全阅读模式 | ✓ | 已具备 | — | Worker 隔离 + 现有验收 |
 | G9 | 批量加密 | ✓ | 对齐 | — | 选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件；源文件本身已加密时用源文件密码解开旧的再按新设置加密（`makeEncryptStep` 的 sourcePassword）；`BatchEncryptTests` 11 条；**需要带 qpdf 的构建**（与 G1 同一条限制） |
@@ -108,12 +108,12 @@
 | H2 | 批注随打印输出 | ✓ | 已具备 | 1.2.0 | 打印前先补 /AP 再渲染，同一条路径 |
 | H3 | 导出图片（PNG / JPEG，可选 DPI） | ✓ | 已具备 | 1.2.0 | 尺寸与 DPI 断言 |
 | H4 | 导出纯文本（按阅读顺序） | ✓ | 已具备 | 1.2.0 | 与抽取结果一致 |
-| H5|PDF → Word / Excel / PPT|✓|对齐| 1.9.0 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条。 
+| H5|PDF → Word / Excel / PPT|✓|对齐| 1.9.0 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 13 条。 
 | H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 25 条），有界面入口；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），界面会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体并如实报出替换了多少字符；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」），本项不重复计分；`TrueTypeSubsetTests` 7 条 |
 | H7 | PDF/A 转换与预检（认证需外部 veraPDF） | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**认证走本机的 veraPDF**（`pdf::VeraPdfChecker`：探测本机有没有 veraPDF → 拼命令行 → 跑 → 解析 veraPDF 自己的 XML 报告 → **只转述 veraPDF 的结论**，本程序不自己判合规；Ribbon「PDF/A 合规认证」（`convert.pdfAVeraPdf`）入口已启用，没装 veraPDF 就如实说没装，不会拿预检冒充认证）；**本机没有装 veraPDF、也没有 Java，所以这条认证链路没有在本机跑过真报告**（命令拼装与报告解析按 veraPDF 的文档结构实现并有 13 条专项用例，真 veraPDF 样本要人工补做）；`PdfACheckerTests` 34 条 + `VeraPdfCheckerTests` 13 条 |
 | H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`，带自检负例）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的 |
-|  H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 网页转 PDF 现在走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去，打不开的产物一律不交；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**（不假装是浏览器渲染的版面）；剪贴板转 PDF（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`）照旧：富文本按富文本排版（保留标题、段落、列表结构）、纯文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片现在也转**（图片模式每张图单独一页；原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**剪贴板里的文字与图片分稿，不合并成一份**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；`BrowserPdfPrinterTests` 22 条 + `ConversionInputsTests` 51 条  |
-| H10 | 表单数据文件转 PDF | ✓ | 已具备 | — | FDF / XFDF / XML 三种表单数据文件套进模板 PDF（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过；`ConversionInputsTests` 51 条 |
+|  H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 网页转 PDF 现在走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去，打不开的产物一律不交；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**（不假装是浏览器渲染的版面）；剪贴板转 PDF（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`）照旧：富文本按富文本排版（保留标题、段落、列表结构）、纯文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片现在也转**（图片模式每张图单独一页；原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**剪贴板里的文字与图片分稿，不合并成一份**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；`BrowserPdfPrinterTests` 22 条 + `ConversionInputsTests` 53 条  |
+| H10 | 表单数据文件转 PDF | ✓ | 已具备 | — | FDF / XFDF / XML 三种表单数据文件套进模板 PDF（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过；`ConversionInputsTests` 53 条 |
 | H11 | 发送到 OneNote | ✓ | 对齐 | — | 把当前文档每一页渲染成图片并送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**送出的页面带可搜索的文字层**（按 OneNote 页面 XML 写 `one:Text` run，**文字层写坏时降级为只送图片**而不是整个发送失败，并说明降级了几页）；**先渲染全部页再逐页写入**：渲染失败一页都不写，写入中途失败明确告诉用户已经写进几页，不假装全失败也不声称自动删除；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**，**本机没有 OneNote，COM 写入路径没有真机验证**；`OneNoteExporterTests` 31 条 |
 
 ### I. OCR 与扫描（5 项）
@@ -159,7 +159,7 @@
 | L4 | **引用逐字离线核验** | — | 已具备（超越） | — | 已有负例守卫 |
 | L5 | 数据策略、上传预览、审计 | ± | 已具备（超越） | 0.12.0 | 本地模式零外发 |
 | L6 | 自然语言编辑（命令化、可预演、可撤销） | — | **超越** | 0.14.0 → 2.0.0 | diff 预演 + 撤销链 |
-|  L7 | 文档比较（结构差异 + 引用定位） | ✓ | 对齐 | 2.0.0 | 文档比较已实现，**三层结果并排给**：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ **版面块级比对**（`pdf::compareDocumentLayout`：逐页抽版面块，按内容指纹精确配对 + 归一化 IoU 与文本相似度贪心配对，给出块级归因——哪一块从哪页哪处挪到哪页哪处、哪张图被换掉、哪张表少了几列或多了几行，跨页移动也能归因）+ **可选的像素级视觉比对**（`comparePixels`，界面「同时比较图形…」开关，默认关，渲染慢）；**跨文档自动对齐已实现**（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明；界面新增「版面差异」页签，双击跳页并选中那一块（**`navigateToPage` 此前一直没接线，今天接上了**）；扫描件没有文字层时不做版面分析并写明原因；`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用；`DocumentComparerTests` 28 条 + `LayoutDiffTests` 14 条。 |
+|  L7 | 文档比较（结构差异 + 引用定位） | ✓ | 对齐 | 2.0.0 | 文档比较已实现，**三层结果并排给**：文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）+ **版面块级比对**（`pdf::compareDocumentLayout`：逐页抽版面块，按内容指纹精确配对 + 归一化 IoU 与文本相似度贪心配对，给出块级归因——哪一块从哪页哪处挪到哪页哪处、哪张图被换掉、哪张表少了几列或多了几行，跨页移动也能归因）+ **可选的像素级视觉比对**（`comparePixels`，界面「同时比较图形…」开关，默认关，渲染慢）；**跨文档自动对齐已实现**（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明；界面新增「版面差异」页签，双击跳页并选中那一块（**`navigateToPage` 此前一直没接线，今天接上了**）；扫描件没有文字层时不做版面分析并写明原因；`pdf::compareDocuments` + `app::DocumentCompareDialog`，Ribbon「比较」（`view.compareDocuments`）入口已启用；`DocumentComparerTests` 26 条 + `LayoutDiffTests` 13 条。 |
 | L8 | 本地模型离线问答 | — | 对齐 | 2.x | 本地离线问答：不联网、不配 Provider，用本地索引检索 + 抽取式回答，每条回答都带可核对的引用；检索不到时明确说「没找到」并列出最接近的片段，**不编答案**；有界面入口（`ai::OfflineQa`，`OfflineQaTests`） |
 
 ## 3. 汇总与达标线
@@ -171,7 +171,7 @@
 | Must（待补齐） | 33 | Must 共 102 项（102 − 0 Nice − 0 不做），已达「对齐」及以上 69 |
 | Nice（可延后） | 0 | 全部已实现，见评分卡 |
 | 未做（未实现） | 0 | L7 文档比较本轮已实现（文字层 + 可选的像素比对），**没有未实现项** |
-| 欠账（对齐但承诺范围未达成） | 3 | A11 / G5 / H7；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
+| 欠账（对齐但承诺范围未达成） | 0 | 无：登记在欠账清单里的 12 项已全部清零（清账口径见 [欠账清单](benchmark/scorecard-debt.csv)）；**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
 | 不做（含理由） | 0 | 本轮已全部有实现，1.2 相应条目已移出 |
 
 校准记录：
@@ -499,8 +499,8 @@
 | L AI 能力 | 6 / 8 | 文生图、总结配图、PPT 四模式、内容检测、智能朗读、本地离线问答已补齐；本地离线问答是抽取式，不是模型推理；**文档比较已补像素级视觉比对**（默认关闭）与**跨文档自动对齐**（页指纹 + 相似度贪心配对，插页 / 删页不再让配对整体后移），但仍不做版面结构分析，**矩阵这一行仍是「部分」** |
 | **合计** | **69 / 102（68%）** | 本轮把上一版记成「不做 / 未做 / 部分」的那一批补上了 |
 
-**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 197 条完全对齐、50 条部分、
-0 条未做，**对齐率 71%**（去掉 🚫/➖ 的 247 条里占 80%）。能力评分卡按域计，
+**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 198 条完全对齐、49 条部分、
+0 条未做，**对齐率 72%**（去掉 🚫/➖ 的 247 条里占 80%）。能力评分卡按域计，
 命令矩阵按按钮计，两者不可互相换算。
 
 **这一段动的三项都来自同一条通路。** 打印、导出图片、导出文本共用

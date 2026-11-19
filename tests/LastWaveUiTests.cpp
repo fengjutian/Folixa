@@ -566,14 +566,18 @@ void LastWaveUiTests::xfaDynamicNoticeIsShown() {
 void LastWaveUiTests::richMediaNoticeDoesNotPromiseRendering() {
     const QString scope = app::richMediaScopeNoticeText();
     QVERIFY(!scope.isEmpty());
-    // 负例守卫：本程序不渲染 3D、不解码音视频，文案不许反过来。
-    QVERIFY2(!scope.contains(QStringLiteral("可播放")), qPrintable(scope));
-    QVERIFY2(!scope.contains(QStringLiteral("可以播放")), qPrintable(scope));
+    // 负例守卫（2026-11-18 改过一轮）：3D 仍然不渲染，音视频现在能在预览里
+    // 解码与播放 —— 两条边界要分开说，谁也不许越界。
+    //
+    // 旧口径是「不解码音视频」，现在解码与播放是真的（Media Foundation +
+    // 系统声卡），所以那条断言反过来了：文案**不许**再说「不解码」，
+    // 否则用户会以为预览放不出来。
     QVERIFY2(!scope.contains(QStringLiteral("可旋转")), qPrintable(scope));
     QVERIFY2(!scope.contains(QStringLiteral("可以旋转")), qPrintable(scope));
     QVERIFY2(!scope.contains(QStringLiteral("可以查看")), qPrintable(scope));
     QVERIFY2(scope.contains(QStringLiteral("不渲染")), qPrintable(scope));
-    QVERIFY2(scope.contains(QStringLiteral("不解码")), qPrintable(scope));
+    QVERIFY2(scope.contains(QStringLiteral("预览")), qPrintable(scope));
+    QVERIFY2(!scope.contains(QStringLiteral("不解码")), qPrintable(scope));
 
     app::RichMediaDialog dialog;
     QCOMPARE(dialog.scopeNoticeText(), scope);

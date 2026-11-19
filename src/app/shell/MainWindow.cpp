@@ -1746,12 +1746,14 @@ void MainWindow::buildUi() {
                 "freetext", "edit.addText");
     addEditTool(insertEditGroup, "添加图像", "在页面上添加图片", ":/icons/annotation.svg",
                 "imagestamp", "edit.addImage");
-    // 3D 与多媒体注解：只写对结构，不渲染 3D、不解码音视频。
+    // 3D 与多媒体注解：只写对结构。3D 不渲染（没有 3D 运行时）；
+    // 音视频可以在对话框里预览解码与播放（Media Foundation + 系统声卡），
+    // 但写进文档的注解仍然只带结构。
     addRibbonCommand(insertEditGroup, "插入 3D 模型", "插入一个 3D 模型注解（只写结构，本程序不渲染）",
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(true); }
     }, true, "edit.insert3d");
-    addRibbonCommand(insertEditGroup, "插入多媒体", "插入一个多媒体注解（只写结构，本程序不播放）",
+    addRibbonCommand(insertEditGroup, "插入多媒体", "插入一个多媒体注解（可先预览解码与播放；注解本身只写结构）",
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(false); }
     }, true, "edit.insertMedia");

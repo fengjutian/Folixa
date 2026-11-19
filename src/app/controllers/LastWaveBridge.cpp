@@ -457,9 +457,15 @@ QString xfaFieldRowText(const XfaFieldRow& row) {
 // ================================================================ 任务 R ====
 
 QString richMediaScopeNoticeText() {
+    // 两条边界要**分开说**，不能混成一句「什么都不支持」：
+    //  * 3D：仍然只写结构、不渲染（没有 3D 运行时，模型不会转起来）；
+    //  * 音视频：文件可以在预览面板里解码与播放（Windows Media Foundation +
+    //    系统声卡），但**写进文档的注解**仍然只写结构 —— 别人用别的阅读器
+    //    打开时能不能放出来，取决于那个阅读器有没有相应运行时。
     return i18n::tr("aipdf::app::LastWaveBridge",
-                     "本程序只写对 3D 与多媒体注解的结构，不渲染 3D、不解码音视频；"
-                     "要让模型动起来或把视频放出来，得用带相应运行时的阅读器。");
+                    "3D 注解：只写对结构，**不渲染**（本程序没有 3D 运行时，模型不会转起来）；"
+                    "多媒体注解：同样只写结构，但**音视频文件可以在下面的预览里解码并播放**"
+                    "（Windows Media Foundation + 系统声卡）；写进文档的注解要靠带相应运行时的阅读器才放得出来。");
 }
 
 QString richMediaResultText(const pdf::RichMediaReadResult& result) {

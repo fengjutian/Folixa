@@ -43,7 +43,7 @@
 主页,放映,从头开始,aligned,A5,F5 全屏逐页
 主页,放映,从当前页开始,aligned,A5,从当前页进入放映
 主页,放映,循环放映,aligned,A13,循环放映已实现：放映到最后一页时绕回第一页（`app::nextPresentationPage` 纯函数状态机+ `PresentationWindow::setLoop`，Ribbon「循环放映」（`present.loop`）入口已启用）；**关掉循环就逐字保持原来的「到头就停」**；**只影响手动翻页到头时的行为，不做定时自动翻页**；循环状态由 `PdfView` 持有，放映中改了立刻生效；`PresentationLoopTests` 9 条
-主页,放映,页面过渡,aligned,—,翻页过渡已实现：淡入淡出 / 左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；Ribbon「翻页过渡」入口已启用；`app::ViewModes::pageTransitionFrame`，`ViewModesTests` 22 条
+主页,放映,页面过渡,aligned,—,翻页过渡已实现：淡入淡出 / 左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；Ribbon「翻页过渡」入口已启用；`app::ViewModes::pageTransitionFrame`，`ViewModesTests` 27 条
 主页,放映,手机遥控,na,—,需要移动端
 主页,商业,激活,na,—,无账号体系
 主页,商业,立即购买,na,—,无订阅
@@ -51,7 +51,7 @@
 主页,AI,翻译助手,aligned,L2,翻译选区/当前页
 转换,输入,文件转换,aligned,H6,文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 25 条），Office / HTML 另走本机 LibreOffice；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」三行），本行不重复计分；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），子集化做不了时退回整份嵌入（文件大一点，但字不丢）；`TrueTypeSubsetTests` 7 条
 转换,输入,从扫描仪,partial,I5,与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG**；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 28 条 + `ScannerCaptureTests` 9 条
-转换,输入,从剪贴板,partial,H9,剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；剪贴板里的图片现在也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 51 条
+转换,输入,从剪贴板,partial,H9,剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；剪贴板里的图片现在也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 53 条
 转换,输入,从网页,aligned,H9,网页转 PDF 走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**；`BrowserPdfPrinterTests` 22 条
 转换,输入,从CAJ,na,—,地区性格式
 转换,输入,表单,aligned,H10,表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过
@@ -60,7 +60,7 @@
 转换,组装,合并文件,aligned,D2,一次可多选多份合并，跨文件书签按层级搬运并加来源名前缀，内部跳转改指合并后页号；有专项单测（`DocumentMergerTests` 13 条）
 转换,组装,空白页,aligned,D1,插入空白页
 转换,输出,导出全部图像,aligned,H3,按 DPI 导出 PNG/JPEG
-转换,输出,到MS Office,aligned,H5,PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条
+转换,输出,到MS Office,aligned,H5,PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 13 条
 转换,输出,到图片,aligned,H3,与导出图片同一条通路
 转换,输出,到HTML,partial,—,整篇导出 HTML；**不含图片与图形，字号按字形高度估算**；`pdf::exportPageToHtml`，`ExportFormatsTests`
 转换,输出,转为基于图像的PDF,aligned,—,整篇栅格化成基于图像的 PDF；`pdf::exportToImagePdf`，`ExportFormatsTests`
@@ -93,7 +93,7 @@
 编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
 编辑,附件,图像标注,aligned,C7,图片图章
 编辑,附件,音频&视频,partial,C8,录音以 WAV 附件保存；无视频
-编辑,3D,添加3D,partial,A11,3D 与多媒体注解能写能读回：`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`（`RichMedia3dTests` 26 条）；**只写对结构（`/3D`、`/Screen`、Filespec），不渲染 3D、不解码音视频**，界面文案如实说明，不承诺「可以旋转模型」「可以播放视频」
+编辑,3D,添加3D,partial,A11,3D 与多媒体注解能写能读回：`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`（`RichMedia3dTests` 26 条）；**3D 只写对结构（`/3D`、`/Screen`、Filespec），不渲染、不旋转**（本机没有 3D 运行时）；**音视频文件能在「插入多媒体」对话框里预览解码并播放**（Windows Media Foundation + 系统声卡，`pdf::openMediaFile` / `MediaDecoder` / `MediaPlaybackController`，`MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条），但**写进文档的注解仍然只带结构**
 页面管理,页面,插入,aligned,D1,插入空白页；也可从别的文件插入页面
 页面管理,页面,删除,aligned,D1,删除当前页，可撤销
 页面管理,页面,提取,aligned,D3,提取当前页与按范围提取；切分逻辑抽到 PageSplitPlanner 并有专项单测
@@ -144,19 +144,19 @@
 注释,工具,批注模式,aligned,—,连续批注模式：开关式；开时放完批注保持工具激活，关时放完回选择态；墨迹/橡皮/声音/附件等会越用越歪的工具仍放完即退；`pdf::ContinuousAnnotationMode`，`AnnotationToolkitTests`
 视图,阅读,阅读模式,aligned,A4,阅读模式：沉浸阅读把功能区、标签栏、状态栏与左右面板一起藏起来并全屏，光标静止自动隐藏，Esc 退出；界面计划在 `app::viewmodes::immersiveReadingPlan`，`ViewModesTests` 27 条
 视图,阅读,重排,aligned,A8,整篇重排已实现并写回打开的文档：Ribbon「按新页宽重排」（`pdf::reflowTaggedDocument`）→ 页面对象模型（`pdf::readPageObjectModel`：文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚，稳定 id 由「种类 + 内容指纹 + 量化几何 + 序号」派生）→ 重排与搬运（`pdf::ReflowPlan` 记「源对象 id → 目标页与矩形」的锚点）→ PDFium 就地写回；**写回前有门禁**：重排结果重新打开、重新统计一遍，文字块 / 图片 / 表格少一个就拦住写回并写明少了什么（`report.error` 写原因、`bytes` 置空），不再静默丢；页眉页脚按每页重复放到每一页；无结构标签的文档明确拒绝，不做启发式重排；重排不保留书签与内部链接的目标（页码变了，界面必须提示）；竖排文字按横排重排；`DocumentReflowTests` 19 条 + `ReflowWriteBackTests` 14 条 + `PageObjectModelTests` 11 条。
-视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 22 条）
+视图,阅读,逆序阅读,aligned,—,逆序镜像：只镜像显示空间（页面本身不翻），鼠标命中用 mirrorX 反算；有界面入口与专项单测（`ViewModesTests` 27 条）
 视图,显示,视觉模式,aligned,A9,夜间/护眼/高对比四套配色，QSettings 持久化，Ribbon 有切换入口；有专项单测（`ReadingSchemeTests`）
-视图,显示,文本查看器,aligned,—,纯文本查看器：可看本页或整篇，词间空格保留；有界面入口与专项单测（`ViewModesTests` 22 条）
+视图,显示,文本查看器,aligned,—,纯文本查看器：可看本页或整篇，词间空格保留；有界面入口与专项单测（`ViewModesTests` 27 条）
 视图,显示,旋转视图,aligned,A7,90° 步进并记忆
-视图,显示,切换标尺,aligned,—,标尺：横竖两杆，刻度锚在当前页绝对坐标，单位可切点/毫米/英寸；有界面入口与专项单测（`ViewModesTests` 22 条）
+视图,显示,切换标尺,aligned,—,标尺：横竖两杆，刻度锚在当前页绝对坐标，单位可切点/毫米/英寸；有界面入口与专项单测（`ViewModesTests` 27 条）
 视图,布局,单页,aligned,A4,连续单页
 视图,布局,双页,aligned,A4,对开
 视图,布局,连续,aligned,A3,连续滚动 + 瓦片渲染
-视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 22 条）
-视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 22 条）
+视图,交互,自动滚动,aligned,—,自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 27 条）
+视图,交互,页面过渡,aligned,—,页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 27 条）
 视图,AI,助手,partial,L2,AI 面板可总结/解释当前页与选区；需配置 Provider：**内置 DeepSeek / Kimi / Qwen / MiniMax 与本机 Ollama**（OpenAI 兼容；预设表 `ai::ProviderPreset` 是唯一来源）；本机模型不需要密钥、且在「本地模式」下照常可用；`ProviderPresetTests` 14 条 + `OllamaProviderTests` 2 条
 视图,朗读,朗读,aligned,J4,逐词朗读并逐词高亮；朗读设置可调音色 / 语速 / 音量；依赖系统语音合成，长文逐词合成较慢；`speech::SpeechSettings`，`SpeechEngineTests`
-视图,比较,比较,aligned,L7,文档比较已实现，三层结果并排给：① 文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）；② 版面块级比对（`pdf::compareDocumentLayout`）：逐页抽出版面块（文字段落 / 图片 / 表格 / 图形），按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，给出块级归因——哪一块从哪页哪处挪到了哪页哪处、哪张图被换掉、哪张表少了几列或多了几行；跨页移动也能归因（页级相似度跌破门槛时会在未配对的页之间再配一次）；③ 可选的像素级视觉比对（`comparePixels`，默认关，渲染慢）：逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（`alignmentMode` / `alignmentNote`）；界面新增「版面差异」页签，双击跳页并选中那一块（新文里的页跳不过去时会明说，因为当前打开的是原文）；扫描件没有文字层时不做版面分析并写明原因；批注与表单域由 PDFium 画在内容层之外，版面块枚举看不到，它们的增删由像素通路负责；`DocumentComparerTests` 28 条 + `LayoutDiffTests` 14 条。
+视图,比较,比较,aligned,L7,文档比较已实现，三层结果并排给：① 文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）；② 版面块级比对（`pdf::compareDocumentLayout`）：逐页抽出版面块（文字段落 / 图片 / 表格 / 图形），按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，给出块级归因——哪一块从哪页哪处挪到了哪页哪处、哪张图被换掉、哪张表少了几列或多了几行；跨页移动也能归因（页级相似度跌破门槛时会在未配对的页之间再配一次）；③ 可选的像素级视觉比对（`comparePixels`，默认关，渲染慢）：逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（`alignmentMode` / `alignmentNote`）；界面新增「版面差异」页签，双击跳页并选中那一块（新文里的页跳不过去时会明说，因为当前打开的是原文）；扫描件没有文字层时不做版面分析并写明原因；批注与表单域由 PDFium 画在内容层之外，版面块枚举看不到，它们的增删由像素通路负责；`DocumentComparerTests` 26 条 + `LayoutDiffTests` 13 条。
 视图,统计,字数统计,aligned,—,总字数/字符数/页数/标题数 + 每页分布；有专项单测
 视图,设置,视图设置,partial,A6,缩放/布局/面板可见性记忆
 表单,识别,执行表单自动识别,partial,F5,只枚举已有 AcroForm 字段，不识别无域表单页
@@ -189,9 +189,9 @@
 保护,设置,设置,partial,—,有「保护」标签页与「加密与权限」入口（AES-256 加密 + 权限位，`EncryptionDialog`）；**权限位随保存写入，没有独立的权限管理面板**（不能事后单独改权限而不重新加密）
 保护,企业,敏感度,na,—,企业敏感度标签
 保护,签名,填写&签名,aligned,F1,表单填写与证书签名均可用
-保护,签名,签名&认证,partial,G5,PKCS#12 证书签名走随包 pyHanko
+保护,签名,签名&认证,aligned,G5,PKCS#12 证书签名走随包 pyHanko（签名结果直接落进文档）；**验签、证书链与撤销状态由主程序接管**：走 Windows 证书存储 + Crypt32 链策略（`pdf::inspectCertificateChain`），结论拆成**四个独立项** —— 受信任 / 已吊销 / 状态未知 / 已过期；**撤销信息查不到时报「状态未知」**，不报「未被吊销」；界面「签名列表」的证书链表有「撤销状态」列，链结论写进详情区；篡改正文 / 证书过期 / 撤销 / TSA 失败各有明确结论（`SignatureVerifierTests` 14 条 + `CertificateChainTests` 12 条）
 保护,签名,时间戳文档,partial,G7,时间戳地址透传给 pyHanko
-保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 13 条 + `RsaVerifierTests` 14 条
+保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 14 条 + `RsaVerifierTests` 14 条
 电子签章,签署,对外签署,na,—,云端电子签平台
 电子签章,签署,对内签署,na,—,同上
 电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；无对外平台

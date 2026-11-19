@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFile>
 
+#include "pdf/security/SignatureInspector.h"
 #include "pdf/security/SignatureVerifier.h"
 
 using namespace aipdf::pdf;
@@ -159,6 +160,7 @@ private slots:
     void signedSampleVerifies();
     void tamperedSampleFailsWithReason();
     void signerCertificateCanBeExtracted();
+    void signatureChainIsActuallyBuiltAndNamesHaveNoTrailingNul();
     void verifyFailsOnGarbageInput();
     void verifyPkcs7RejectsMismatchedBytes();
     void timestampTokenRejectsGarbage();
@@ -224,6 +226,32 @@ void SignatureVerifierTests::signerCertificateCanBeExtracted() {
     QVERIFY2(!certificate.isEmpty(), qPrintable(error));
     // DER 证书一定以 SEQUENCE 开头。
     QCOMPARE(static_cast<quint8>(certificate.at(0)), quint8(0x30));
+}
+
+void SignatureVerifierTests::signatureChainIsActuallyBuiltAndNamesHaveNoTrailingNul() {
+    // 这条钉住 2026-11-18 修掉的两个真缺陷：
+    //  ① CertGetCertificateChain 的 pChainPara 传 nullptr → 直接
+    //     ERROR_INVALID_PARAMETER，链一次都没建起来，trusted 永远是 false
+    //     （界面上等于「所有签名都不受系统信任」）；
+    //  ② CertNameToStrW 返回的长度**含结尾 NUL**，不减 1 的话主体名与
+    //     颁发者后面会挂一个看不见的 '\0'。
+    const QByteArray bytes = readFixture(QStringLiteral("signed-sample.pdf"));
+    QVERIFY2(!bytes.isEmpty(), "缺少签名夹具 signed-sample.pdf");
+
+    QString error;
+    const QVector<SignatureInfo> signatures = inspectSignatures(bytes, &error);
+    QVERIFY2(!signatures.isEmpty(), qPrintable(error));
+    const QVector<SignerCertificate>& chain = signatures.first().chain;
+    QVERIFY(!chain.isEmpty());
+    for (const SignerCertificate& certificate : chain) {
+        // 链引擎真的把链建起来了（夹具是自签证书，所以 trusted 为假是对的；
+        // 但「链建起来了」与「链没建起来」必须分得开）。
+        QVERIFY2(certificate.chainBuilt, "系统链引擎没有把链建起来");
+        // 名字尾部不能挂 NUL。
+        QVERIFY2(!certificate.subject.endsWith(QChar('\0')), qPrintable(certificate.subject));
+        QVERIFY2(!certificate.issuer.endsWith(QChar('\0')), qPrintable(certificate.issuer));
+        QVERIFY2(!certificate.subject.isEmpty(), "证书主体不能是空串");
+    }
 }
 
 void SignatureVerifierTests::verifyFailsOnGarbageInput() {

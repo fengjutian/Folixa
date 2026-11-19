@@ -22,6 +22,7 @@
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QGroupBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -253,6 +254,8 @@ private:
     QLabel* resultLabel_ = nullptr;
     // 音视频预览（Media Foundation 解码 + 声卡播放）。3D 模型那一路用不上。
     class MediaPreviewPanel* preview_ = nullptr;
+    // 预览区的外框（3D 那一路要把它藏起来）。
+    QGroupBox* previewBox_ = nullptr;
     pdf::RichMediaReadResult readResult_;
     bool hasResult_ = false;
 };

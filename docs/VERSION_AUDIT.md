@@ -586,6 +586,92 @@ Ghostscript ✗、pyHanko 不在 PATH。路线待定。
 对标口径同步重算第十六次：变的是**命令矩阵 6 行的状态**（partial → aligned）。
 **第十六次（本轮）增至 65 / 102 与 71%（196 / 276）**。
 
+## 1.4 2026-11-18 第十七次重算（欠账整改批次收口：系统组件路线）
+
+这一轮把上一轮剩下的 **5 项「要新依赖」欠账**按**系统组件路线**收口：
+不引入新的第三方依赖，改用**本机现成的系统组件**（浏览器引擎 / Media Foundation /
+Windows 证书存储 / 外部 veraPDF）；确实没有现成组件可用的（XFA 动态表单运行时、
+3D 运行时），**改能力名**让它不再承诺未达成的范围。
+**欠账清单从 5 项清到 0 项**（`docs/benchmark/scorecard-debt.csv` 已只剩表头）。
+
+### 本轮落地的 5 项
+
+- **H9 网页转 PDF（系统浏览器引擎）**：新增 `doc::BrowserPdfPrinter` ——
+  探测本机的 Chromium 内核浏览器（Edge / Chrome / Chromium；注册表 App Paths
+  × 3 个视图 + 常见安装路径），拼 `--headless=new --print-to-pdf=… --user-data-dir=…`
+  命令行，跑完用 PDFium 复验产物（能打开、页数大于 0）才交出去；
+  **坏产物一律不交**。**JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS
+  背景图按渲染结果落位**：对照实测（Edge 157）同一份 HTML 注入 40 行 JS 时
+  产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时
+  1 页 12.2 KB、含 1 张图。界面入口仍是 Ribbon「从网页」（`convert.fromWeb`）——
+  **没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**（不假装是
+  浏览器渲染出来的版面）。`BrowserPdfPrinterTests` 22 条；3 处负例对照实测变红
+  后恢复：① 去掉 `--print-to-pdf=` 参数 ② 去掉空引擎列表守卫 ③ 把页数下限
+  `> 0` 放宽成 `>= 0`。
+- **A11 音视频（Media Foundation）**：新增 `pdf::MediaSource`（MF 接入：线程级
+  COM + MF 运行时成对、`ComPtr` RAII、RGB32 / PCM 协商、帧抽取、失败三分类）+
+  `pdf::MediaPlaybackController`（播放 / 暂停 / 停止 / 拖动 / 播完的纯状态机，
+  不依赖 MF）+ 界面 `app::MediaPreviewPanel` + `app::PcmPlayer`（Win32 waveOut
+  出声）。真机解码实测：WAV 5572 ms / 22050 Hz / 2 声道 / PCM；MP3 14759 ms /
+  44100 Hz / 1 声道；视频（现场生成的 96×48 WMV2）30 fps、中心像素实测为红
+  （端到端验了色彩通道顺序）。**3D 仍然不渲染**（本机没有 3D 运行时），
+  所以 A11 的能力名改成「嵌入 3D / 媒体资源」，不再承诺「可以旋转模型」。
+  `MediaSourceTests` 22 条（3 处负例对照：状态机暂停仍推进 / 两类失败共用一句
+  话 / 红蓝通道换位，三次都当场变红后恢复）。
+- **G5 证书链与撤销状态（Windows 证书存储）**：新增 `pdf::CertificateChain` ——
+  自写 DER 解析 + Crypt32 链策略引擎（`CertGetCertificateChain` +
+  `CertVerifyCertificateChainPolicy` + `CERT_CHAIN_POLICY_REVOCATION`），
+  结论拆成**四个独立项**：受信任 / 已吊销 / 状态未知 / 已过期；
+  **撤销信息查不到时报「状态未知」，不报「未被吊销」**（那是把「没查出来」
+  说成「查过了、没问题」）。界面「签名列表」的证书链表加了「撤销状态」列
+  （按序列号对上链报告里的那一张），链结论写进详情区。
+  能力名改成「数字签名（手写签章 + 证书签名）与证书链 / 撤销状态」——
+  **签名本身仍由随包 pyHanko 出，本程序接管的是验签与证书链 / 撤销状态的展示**。
+- **H7 PDF/A 合规认证（外部 veraPDF 接入点）**：新增 `pdf::VeraPdfChecker` ——
+  探测本机有没有 veraPDF → 拼命令行 → 跑 → 解析 veraPDF 自己的 XML 报告 →
+  **只转述 veraPDF 的结论**（本程序不自己判合规）；Ribbon 新增
+  「PDF/A 合规认证」（`convert.pdfAVeraPdf`），没装 veraPDF 就如实说没装，
+  不拿预检冒充认证。**本机没有装 veraPDF、也没有 Java，所以这条链路没在本机
+  跑过真报告**（按 veraPDF 的文档结构实现并有 13 条专项用例，真样本要人工补做）。
+  能力名改成「PDF/A 转换与预检（认证需外部 veraPDF）」。
+- **F6 XFA**：本机没有 XFA SOM / 布局 / 事件运行时，能力名改成
+  「XFA 静态字段提取（动态逻辑不执行）」，不再承诺动态表单范围。
+
+### 口径变化
+
+能力评分卡的状态词表与计分项没有变化（102 项，已具备 65、超越 4、对齐 33、
+未做 0）—— 本轮补的是**能力范围**，不产生新的计分项上调。
+**欠账清单从 5 项降到 0 项**。
+
+对标口径同步重算第十七次：变的是**命令矩阵 2 行的状态**（partial → aligned：
+「转换 → 输入 → 从网页」改走浏览器引擎；「保护 → 签名 → 签名 & 认证」接管了
+证书链与撤销状态）。
+**第十七次（本轮）增至 65 / 102 与 72%（198 / 276）**。
+
+### 顺带修掉的三个真问题
+
+- `scripts/verify-navigation.ps1` **缺 UTF-8 BOM** —— `scripts/ci.ps1` 自己有
+  一道 BOM 自检（PowerShell 5.1 没 BOM 就按 GBK 解析），所以**整条流水线会在
+  第一步就抛错**，谁也跑不到后面的门。已补回 BOM（行尾仍是 CRLF）。
+- 「界面验收脚本没有全部进 CI」这条横向问题：`verify-forms.ps1` /
+  `verify-editing.ps1` / `verify-i18n.ps1` 三张已接进 `scripts/ci.ps1` 的
+  界面验收段（`-SkipAcceptance` 时本地跳过、CI 上照跑 —— 这三张会抢前台，
+  本机不能跑）。
+- **文档里的「专项单测条数」与实测脱节** —— 能力表、矩阵与版本审计里到处写着
+  「`XxxTests` N 条」，这是给能力背书的数字；代码加了用例、文档没跟上，
+  这条数字就变成过期承诺，看着还有 N 条兜底、实际早已变了。本轮全量对账后
+  改了 **23 处当前口径**的漂移（例：G5 的 `CertificateChainTests` 13 → 实测 12、
+  G6 的 `SignatureVerifierTests` 13 → 实测 14、H5 的 `OfficeExportTests` 11 → 13），
+  并新增 `scripts/check-test-counts.py` 把这道对账接进 `scripts/ci.ps1`
+  （配套负例对照 `scripts/test-test-counts-negative.py`：改坏一处 → 门禁当场变红 →
+  还原 → 复绿）。
+  **口径**：真实用例数 = 测试 exe 报的 `Totals` − 2（Qt 会隐式调用并报告
+  `initTestCase()` / `cleanupTestCase()`，即使源码里没声明；数据驱动用例
+  `Totals` 把每个数据行各算一条，数 slot 会两个方向都数错）。
+  **范围**：只对「当前口径」——评分卡第 2 节能力表、矩阵 CSV、版本审计的最新一轮段；
+  更早轮次的版本审计段与评分卡的校准记录是仓库自述的「当时看到的账」存档，
+  连同负例对照里的「N 条变红」（那是变红的用例数，不是目标总数）一律保留原样。
+
 ## 1. 结论
 
 计划中的 1.1 → 1.11 没有按顺序推进。实际代码集中在 **1.1–1.5、1.8、1.10，以及 1.11 的一部分**；

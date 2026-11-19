@@ -118,13 +118,17 @@ QString mediaPreviewInfoText(const pdf::MediaInfo& info) {
 }
 
 QString mediaPreviewErrorText(pdf::MediaErrorKind kind) {
-    // NEGCTL-C: 故意把三类失败改成同一句文案。
     switch (kind) {
     case pdf::MediaErrorKind::None:
         return QString();
-    default:
-        return i18n::tr("aipdf::app::MediaPreview", "媒体文件有问题。");
+    case pdf::MediaErrorKind::OpenFailed:
+        return i18n::tr("aipdf::app::MediaPreview", "打不开这个媒体文件。");
+    case pdf::MediaErrorKind::NotMedia:
+        return i18n::tr("aipdf::app::MediaPreview", "这不是媒体文件，里面没有可以预览的音视频内容。");
+    case pdf::MediaErrorKind::DecodeFailed:
+        return i18n::tr("aipdf::app::MediaPreview", "解码失败，这个文件放不出内容。");
     }
+    return QString();
 }
 
 QString mediaPreviewVideoHintText(const pdf::MediaInfo& info) {
@@ -230,10 +234,13 @@ void MediaPreviewPanel::buildUi() {
 
     // 拖动时先更新数字，松手才真的定位：
     // 每挪一格就重开一次解码器，界面会卡成幻灯片。
+    connect(slider_, &QSlider::sliderPressed, this, [this]() { sliderPressed_ = true; });
     connect(slider_, &QSlider::sliderMoved, this,
             [this](int value) { updatePositionLabel(value); });
-    connect(slider_, &QSlider::sliderReleased, this,
-            [this]() { seekTo(slider_->value()); });
+    connect(slider_, &QSlider::sliderReleased, this, [this]() {
+        sliderPressed_ = false;
+        seekTo(slider_->value());
+    });
 
     retranslateUi();
     updateInfoArea();
@@ -465,8 +472,11 @@ void MediaPreviewPanel::updateControls() {
 
     slider_->setRange(0, static_cast<int>(qBound<qint64>(qint64(0), controller_.durationMs(),
                                                         qint64(1000000))));
-    slider_->setValue(static_cast<int>(qBound<qint64>(qint64(0), controller_.positionMs(),
-                                                      controller_.durationMs())));
+    // 用户正按着滑块时不要改它的值：否则滑块会被拽回播放位置，拖不动。
+    if (!sliderPressed_) {
+        slider_->setValue(static_cast<int>(qBound<qint64>(qint64(0), controller_.positionMs(),
+                                                          controller_.durationMs())));
+    }
 
     updatePositionLabel(controller_.positionMs());
 

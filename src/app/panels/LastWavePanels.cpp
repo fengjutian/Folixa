@@ -23,6 +23,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include "app/panels/MediaPreviewPanel.h"
 #include "app/ui/SystemCjkFont.h"
 #include "i18n/Translate.h"
 #include "pdf/content/ParagraphFormat.h"
@@ -742,7 +743,8 @@ QByteArray XfaFieldsDialog::exportCsv() const {
 RichMediaDialog::RichMediaDialog(QWidget* parent) : QDialog(parent) {
     setObjectName(QStringLiteral("lastWave.richMediaDialog"));
     setWindowTitle(i18n::tr("aipdf::app::LastWavePanels", "插入 3D 模型 / 多媒体"));
-    resize(640, 320);
+    // 320 高只够放输入框；加了预览区（画面 + 控件 + 进度条）之后要更高。
+    resize(720, 620);
 
     auto* layout = new QVBoxLayout(this);
     auto* form = new QFormLayout();
@@ -772,6 +774,17 @@ RichMediaDialog::RichMediaDialog(QWidget* parent) : QDialog(parent) {
     scopeLabel_->setWordWrap(true);
     layout->addWidget(scopeLabel_);
 
+    // 音视频预览：选完文件就能解帧、播放（Media Foundation + 系统声卡）。
+    // 3D 模型那一路用不上 —— 没有 3D 运行时，所以那一路不显示预览区。
+    auto* previewBox = new QGroupBox(i18n::tr("aipdf::app::LastWavePanels", "预览"), this);
+    previewBox->setObjectName(QStringLiteral("lastWave.richMedia.previewBox"));
+    previewBox_ = previewBox;
+    auto* previewLayout = new QVBoxLayout(previewBox);
+    preview_ = new MediaPreviewPanel(previewBox);
+    preview_->setObjectName(QStringLiteral("lastWave.richMedia.preview"));
+    previewLayout->addWidget(preview_);
+    layout->addWidget(previewBox);
+
     resultLabel_ = new QLabel(this);
     resultLabel_->setObjectName(QStringLiteral("lastWave.richMedia.result"));
     resultLabel_->setAccessibleName(i18n::tr("aipdf::app::LastWavePanels", "写入结果"));
@@ -793,6 +806,8 @@ RichMediaDialog::RichMediaDialog(QWidget* parent) : QDialog(parent) {
         const QString path = QFileDialog::getOpenFileName(this, i18n::tr("aipdf::app::LastWavePanels", "选择文件"), pathEdit_->text());
         if (!path.isEmpty()) {
             pathEdit_->setText(path);
+            // 选完立刻预览：用户要的是「这个文件放不放得出来」。
+            refreshPreview();
         }
     });
     connect(kindBox_, &QComboBox::currentIndexChanged, this, [this] { refreshKind(); });
@@ -801,10 +816,32 @@ RichMediaDialog::RichMediaDialog(QWidget* parent) : QDialog(parent) {
 
 void RichMediaDialog::refreshKind() {
     scopeLabel_->setText(richMediaScopeNoticeText());
+    refreshPreview();
+}
+
+// 预览区跟着「类型」与「文件」走。
+//
+// 为什么要按类型分：3D 模型那一路没有预览（没有 3D 运行时），
+// 硬显示一个空面板只会让人以为程序坏了。
+void RichMediaDialog::refreshPreview() {
+    if (preview_ == nullptr) {
+        return;
+    }
+    const bool media = kind() == Kind::Media;
+    if (previewBox_ != nullptr) {
+        previewBox_->setVisible(media);
+    }
+    if (!media) {
+        // 换回 3D 时把解码器与声卡停下来，别让它在背后继续跑。
+        preview_->stop();
+        return;
+    }
+    preview_->setSourcePath(sourcePath());
 }
 
 void RichMediaDialog::setSourcePath(const QString& path) {
     pathEdit_->setText(path);
+    refreshPreview();
 }
 
 QString RichMediaDialog::sourcePath() const {

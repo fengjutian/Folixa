@@ -21,6 +21,12 @@ struct SignerCertificate {
     QString notAfter;          // 失效时间（本地可读格式）
     bool selfSigned = false;   // 主体 == 签发者
     bool trusted = false;      // 系统证书链校验通过
+    // 系统链引擎有没有真的把链建起来。
+    //
+    // 为什么单独给一个标志：trusted 为假有两种原因 ——
+    // 「链建起来了但根证书不受本机信任」与「链根本就没建起来」。
+    // 只看 trusted 分不出来这两件事，而它们的处置完全不同。
+    bool chainBuilt = false;
 };
 
 // 一个签名域的完整信息。

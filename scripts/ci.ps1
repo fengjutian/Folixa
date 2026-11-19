@@ -297,6 +297,15 @@ try {
     Invoke-Native 'i18n 覆盖校验' 'python' @(
         'scripts/check-i18n.py', '--src', 'src', '--ts', 'src/i18n/ai-pdf-editor_en.ts'
     )
+    # 这道门要求 Debug 的测试二进制已经在（上面 112 行跑过 ctest），所以放在这里。
+    # 它对的是「文档里写的专项单测条数 == 实测条数」，防止加了用例却忘了改文档，
+    # 让能力背书的数字变成过期承诺。
+    Invoke-Native '专项单测条数对账' 'python' @(
+        'scripts/check-test-counts.py', '--bin-dir', 'build/windows-debug/bin'
+    )
+    Invoke-Native '专项单测条数对账的负例对照' 'python' @(
+        'scripts/test-test-counts-negative.py'
+    )
 
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
     # 这一行必须单独一行：跟 Write-Host 写在一行会被当成 Write-Host 的参数吃掉，

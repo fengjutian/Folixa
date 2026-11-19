@@ -171,6 +171,8 @@ private:
     QImage currentFrame_;
     // 播完过（用来决定「再按播放」是不是从头开始）。
     bool finished_ = false;
+    // 用户正按着进度条：这时候不要把滑块拽回播放位置。
+    bool sliderPressed_ = false;
 
     QLabel* infoLabel_ = nullptr;
     QLabel* videoLabel_ = nullptr;

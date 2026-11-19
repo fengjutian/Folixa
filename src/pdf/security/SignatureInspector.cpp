@@ -439,7 +439,14 @@ QString nameBlobToString(const CERT_NAME_BLOB* blob) {
     QByteArray buffer(static_cast<int>(needed + 1) * static_cast<int>(sizeof(wchar_t)), '\0');
     wchar_t* text = reinterpret_cast<wchar_t*>(buffer.data());
     const DWORD written = CertNameToStrW(X509_ASN_ENCODING, mutableBlob, CERT_X500_NAME_STR, text, needed);
-    return QString::fromWCharArray(text, static_cast<int>(written));
+    // written **包含结尾的 NUL**（MSDN 写明："the length of the string, in characters,
+    // including the terminating null character"）。不减 1 的话，主体名与颁发者
+    // 后面会挂一个看不见的 '\0' —— 界面上就是名字末尾多一个空字符，
+    // 复制出去、比对串长、拼路径时都会出问题。
+    if (written == 0) {
+        return QString();
+    }
+    return QString::fromWCharArray(text, static_cast<int>(written - 1));
 }
 
 // 从 Name 里取 CN（OID 2.5.4.3）。
@@ -552,7 +559,7 @@ QString thumbprintOf(PCCERT_CONTEXT context) {
     return digest.toHex().toUpper();
 }
 
-SignerCertificate describeCertificate(PCCERT_CONTEXT context, bool trusted) {
+SignerCertificate describeCertificate(PCCERT_CONTEXT context, bool trusted, bool chainBuilt) {
     SignerCertificate result;
     const CERT_INFO* info = context->pCertInfo;
     result.subject = nameBlobToString(&info->Subject);
@@ -567,6 +574,9 @@ SignerCertificate describeCertificate(PCCERT_CONTEXT context, bool trusted) {
                         std::memcmp(info->Subject.pbData, info->Issuer.pbData,
                                     info->Subject.cbData) == 0;
     result.trusted = trusted;
+    // 链引擎有没有真的把链建起来。trusted 为假有两种原因：「链建起来了但不受信任」
+    // 与「链根本没建起来」—— 只看 trusted 分不出来，所以单独记一个标志。
+    result.chainBuilt = chainBuilt;
     return result;
 }
 
@@ -645,9 +655,10 @@ using ChainContextHandle = CERT_CHAIN_CONTEXT*;
 // 叶子不靠「第一张就是叶子」这种假设，而是按签发者+序列号去认 SignerInfo；
 // 认不出时退回到「PKCS#7 里带的全部证书」，此时不报信任。
 QVector<SignerCertificate> buildChain(const QByteArray& pkcs7, const Pkcs7Signer& signer,
-                                      bool* trusted) {
+                                      bool* trusted, bool* chainBuilt) {
     QVector<SignerCertificate> result;
     *trusted = false;
+    *chainBuilt = false;
 
     // CERT_STORE_PROV_PKCS7 这个 provider 不会自己去读文件：
     // PKCS#7 的字节必须通过 pvPara 传进去（传 nullptr 会在 crypt32 内部空指针崩溃）。
@@ -683,10 +694,26 @@ QVector<SignerCertificate> buildChain(const QByteArray& pkcs7, const Pkcs7Signer
 
     if (leaf) {
         // 让系统链引擎判断这张证书能不能被信任（额外的 store 里是 PKCS#7 自带的证书）。
+        //
+        // 为什么要自己填 CERT_CHAIN_PARA：**pChainPara 传 nullptr 时
+        // CertGetCertificateChain 直接返回 ERROR_INVALID_PARAMETER**（实测），
+        // 链根本建不起来，trusted 就永远是 false —— 界面上等于「所有签名都显示
+        // 不受系统信任」。这不是理论问题：修之前链一次都没建成过。
+        //
+        // 撤销检查这里不开（CHECK_NONE）：这一段只回答「受不受信任」，
+        // 撤销结论由 pdf::CertificateChain 那一路给（那边有三态与超时）。
+        CERT_CHAIN_PARA chainPara;
+        ZeroMemory(&chainPara, sizeof(chainPara));
+        chainPara.cbSize = sizeof(chainPara);
         ChainContextHandle chainContext = nullptr;
-        if (CertGetCertificateChain(nullptr, leaf, nullptr, store, nullptr, 0, nullptr,
+        // 吊销只看本机缓存、不走网络：这一段只回答「受不受信任」，
+        // 撤销结论由 pdf::CertificateChain 那一路给（那边有超时与三态）。
+        // 走网络的话默认 15 秒超时会把这个界面卡住。
+        if (CertGetCertificateChain(nullptr, leaf, nullptr, store, &chainPara,
+                                    CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY, nullptr,
                                     reinterpret_cast<ChainContextHandle*>(&chainContext)) &&
             chainContext) {
+            *chainBuilt = true;
             CERT_CHAIN_POLICY_STATUS status;
             status.dwError = 0;
             if (CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_BASE, chainContext, nullptr,
@@ -700,7 +727,7 @@ QVector<SignerCertificate> buildChain(const QByteArray& pkcs7, const Pkcs7Signer
 
     const QVector<PCCERT_CONTEXT> ordered = orderCertificates(collected, leaf);
     for (PCCERT_CONTEXT context : ordered) {
-        result.append(describeCertificate(context, *trusted));
+        result.append(describeCertificate(context, *trusted, *chainBuilt));
     }
     for (PCCERT_CONTEXT context : collected) {
         CertFreeCertificateContext(context);
@@ -1027,7 +1054,8 @@ QVector<SignatureInfo> inspectSignatures(const QByteArray& pdfBytes, QString* er
         }
 #ifdef Q_OS_WIN
         bool trusted = false;
-        info.chain = buildChain(info.pkcs7, signer, &trusted);
+        bool chainBuilt = false;
+        info.chain = buildChain(info.pkcs7, signer, &trusted, &chainBuilt);
 #else
         info.chain.clear();
 #endif

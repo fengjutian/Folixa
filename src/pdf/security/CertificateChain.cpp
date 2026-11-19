@@ -134,7 +134,7 @@ public:
     }
     ~ChainContextHandle() {
         if (context_) {
-            // [NEG-CONTROL-3] 故意漏掉 CertFreeCertificateChain(context_);
+            CertFreeCertificateChain(context_);
             --gLiveHandleCount;
         }
     }
@@ -544,8 +544,8 @@ int findLeafCertificateIndex(const QVector<PCCERT_CONTEXT>& certificates,
             }
         }
     }
-    int issuerCount = 0;
-    int issuerIndex = -1;
+    int leafCandidateCount = 0;
+    int leafCandidateIndex = -1;
     for (int i = 0; i < certificates.size(); ++i) {
         const CERT_INFO* candidate = certificates.at(i)->pCertInfo;
         if (!candidate) {
@@ -563,12 +563,12 @@ int findLeafCertificateIndex(const QVector<PCCERT_CONTEXT>& certificates,
             }
         }
         if (!issuesSomeone) {
-            ++issuerCount;
-            issuerIndex = i;
+            ++leafCandidateCount;
+            leafCandidateIndex = i;
         }
     }
-    if (issuerCount == 1) {
-        return issuerIndex;
+    if (leafCandidateCount == 1) {
+        return leafCandidateIndex;
     }
     return 0;
 }
@@ -759,7 +759,7 @@ CertificateChainReport inspectCertificateChain(const QByteArray& leafDer,
     }
     ChainContextHandle chain(rawChain);
 
-    if (true) { // [NEG-CONTROL-3] 故意强制走早退分支
+    if (chain.get()->cChain == 0) {
         // 引擎给了链上下文却没有链元素：当作链建不起来。
         // （这一条早退分支上链句柄还活着，必须由 RAII 归还——
         //   漏释放的话 certificateChainLiveHandleCount() 会一直涨。）

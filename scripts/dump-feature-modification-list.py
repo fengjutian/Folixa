@@ -136,7 +136,11 @@ def main():
             row["owed"], row["acceptance"]))
     lines.append("")
     kind_counter = collections.Counter(r["kind"] for r in debt)
-    lines.append("按归因：" + "、".join("%s **%d** 项" % (k, v) for k, v in kind_counter.most_common()) + "。")
+    if kind_counter:
+        lines.append("按归因：" + "、".join("%s **%d** 项" % (k, v) for k, v in kind_counter.most_common()) + "。")
+    else:
+        # 欠账清零时别写出一句「按归因：。」—— 那看起来像坏了。
+        lines.append("**欠账已清零**：登记在 `scorecard-debt.csv` 里的项一条不剩。")
     lines.append("")
 
     # ---------------- 第二梯队 ----------------

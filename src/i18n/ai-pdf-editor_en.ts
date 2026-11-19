@@ -1140,6 +1140,10 @@
             <source>建不出临时目录，认证没法跑。</source>
             <translation>Could not create a temporary directory, so the check cannot run.</translation>
         </message>
+        <message>
+            <source>插入一个多媒体注解（可先预览解码与播放；注解本身只写结构）</source>
+            <translation>Insert a multimedia annotation (you can preview, decode and play it first; the annotation itself only carries the structure)</translation>
+        </message>
 <message>
             <source>生成 PDF/UA 文件</source>
             <translation>Generate a PDF/UA file</translation>
@@ -2856,7 +2860,6 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
     <message><source>插入 3D 模型</source><translation>Insert 3D model</translation></message>
     <message><source>插入一个 3D 模型注解（只写结构，本程序不渲染）</source><translation>Insert a 3D model annotation (structure only; this program does not render it)</translation></message>
     <message><source>插入多媒体</source><translation>Insert media</translation></message>
-    <message><source>插入一个多媒体注解（只写结构，本程序不播放）</source><translation>Insert a media annotation (structure only; this program does not play it)</translation></message>
     <message><source>按 PDF/UA 逐项检查并给出修复建议</source><translation>Check item by item against PDF/UA and suggest fixes</translation></message>
     <message><source>列出 XFA 表单字段并导出成 CSV</source><translation>List the XFA form fields and export them as CSV</translation></message>
     <message><source>列出文档里的图层，逐个显示或隐藏</source><translation>List the layers of the document and show or hide each one</translation></message>
@@ -3170,7 +3173,118 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <translation>Hold the left mouse button and drag to pan the view</translation>
         </message>
 </context>
-    <context>
+        <context>
+        <name>aipdf::app::MediaPreview</name>
+        <message>
+            <source>编码：%1</source>
+            <translation>Codec: %1</translation>
+        </message>
+        <message>
+            <source>播放</source>
+            <translation>Play</translation>
+        </message>
+        <message>
+            <source>播放进度</source>
+            <translation>Playback position</translation>
+        </message>
+        <message>
+            <source>采样率：%1 Hz</source>
+            <translation>Sample rate: %1 Hz</translation>
+        </message>
+        <message>
+            <source>打不开音频输出设备。</source>
+            <translation>Could not open the audio output device.</translation>
+        </message>
+        <message>
+            <source>打不开音频输出设备（错误码 %1）。</source>
+            <translation>Could not open the audio output device (error code %1).</translation>
+        </message>
+        <message>
+            <source>打不开这个媒体文件。</source>
+            <translation>Could not open this media file.</translation>
+        </message>
+        <message>
+            <source>还没有读到媒体信息。</source>
+            <translation>Media information has not been read yet.</translation>
+        </message>
+        <message>
+            <source>画面</source>
+            <translation>Video frame</translation>
+        </message>
+        <message>
+            <source>画面尺寸：%1 × %2</source>
+            <translation>Frame size: %1 × %2</translation>
+        </message>
+        <message>
+            <source>解码器还没有打开。</source>
+            <translation>The decoder is not open.</translation>
+        </message>
+        <message>
+            <source>解码失败，这个文件放不出内容。</source>
+            <translation>Decoding failed; this file cannot be played.</translation>
+        </message>
+        <message>
+            <source>类型：%1</source>
+            <translation>Type: %1</translation>
+        </message>
+        <message>
+            <source>媒体信息</source>
+            <translation>Media information</translation>
+        </message>
+        <message>
+            <source>声道数：%1</source>
+            <translation>Channels: %1</translation>
+        </message>
+        <message>
+            <source>声音放不出来：%1</source>
+            <translation>Sound cannot be played: %1</translation>
+        </message>
+        <message>
+            <source>时长：%1</source>
+            <translation>Duration: %1</translation>
+        </message>
+        <message>
+            <source>视频</source>
+            <translation>Video</translation>
+        </message>
+        <message>
+            <source>停止</source>
+            <translation>Stop</translation>
+        </message>
+        <message>
+            <source>写入音频数据失败（错误码 %1）。</source>
+            <translation>Writing audio data failed (error code %1).</translation>
+        </message>
+        <message>
+            <source>写入音频数据失败：播放器还没有打开。</source>
+            <translation>Writing audio data failed: the player is not open.</translation>
+        </message>
+        <message>
+            <source>音频</source>
+            <translation>Audio</translation>
+        </message>
+        <message>
+            <source>暂停</source>
+            <translation>Pause</translation>
+        </message>
+        <message>
+            <source>这不是媒体文件，里面没有可以预览的音视频内容。</source>
+            <translation>This is not a media file; it contains no audio or video to preview.</translation>
+        </message>
+        <message>
+            <source>这是音频，没有画面。</source>
+            <translation>This is audio; there is no video.</translation>
+        </message>
+        <message>
+            <source>这台机器没有音频输出设备。</source>
+            <translation>This machine has no audio output device.</translation>
+        </message>
+        <message>
+            <source>帧率：%1 帧/秒</source>
+            <translation>Frame rate: %1 fps</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::app::OcrController</name>
         <message>
             <source>取不到页面尺寸</source>
@@ -5723,7 +5837,70 @@ Write them into the document?</translation>
             <translation>Page</translation>
         </message>
     </context>
-        <context>
+            <context>
+        <name>aipdf::pdf::CertificateChain</name>
+        <message>
+            <source>未被吊销</source>
+            <translation>Not revoked</translation>
+        </message>
+        <message>
+            <source>已被吊销</source>
+            <translation>Revoked</translation>
+        </message>
+        <message>
+            <source>状态未知（没有 CRL/OCSP）</source>
+            <translation>Unknown (no CRL/OCSP)</translation>
+        </message>
+        <message>
+            <source>签名证书解析失败：数据不是有效的 X.509 证书。</source>
+            <translation>Failed to parse the signer certificate: the data is not a valid X.509 certificate.</translation>
+        </message>
+        <message>
+            <source>证书链构建失败：缺少中间证书或链结构不完整。</source>
+            <translation>Failed to build the certificate chain: intermediate certificates are missing or the chain is incomplete.</translation>
+        </message>
+        <message>
+            <source>证书链的根证书不在本机受信任的证书存储中。</source>
+            <translation>The chain's root certificate is not in this computer's trusted certificate store.</translation>
+        </message>
+        <message>
+            <source>证书链无法建立。</source>
+            <translation>The certificate chain could not be built.</translation>
+        </message>
+        <message>
+            <source>证书链上存在已被吊销的证书。</source>
+            <translation>A certificate in the chain has been revoked.</translation>
+        </message>
+        <message>
+            <source>证书链上存在不在有效期内的证书。</source>
+            <translation>A certificate in the chain is outside its validity period.</translation>
+        </message>
+        <message>
+            <source>证书链不在本机受信任的证书存储中。</source>
+            <translation>The certificate chain is not trusted by this computer's certificate store.</translation>
+        </message>
+        <message>
+            <source>证书链完整且受本机信任。</source>
+            <translation>The certificate chain is complete and trusted by this computer.</translation>
+        </message>
+        <message>
+            <source>CRL 分发点：%1</source>
+            <translation>CRL distribution points: %1</translation>
+        </message>
+        <message>
+            <source>OCSP 响应地址：%1</source>
+            <translation>OCSP responder: %1</translation>
+        </message>
+        <message>
+            <source>CA 吊销地址：%1</source>
+            <translation>CA revocation URL: %1</translation>
+        </message>
+        <message>
+            <source>证书声明无需检查 OCSP。</source>
+            <translation>The certificate declares that OCSP checking is not required.</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::pdf::DocumentReflow</name>
         <message>
             <source>%1 个文字块</source>
@@ -5896,7 +6073,134 @@ Write them into the document?</translation>
             <translation>Missing annotation marker; cannot locate the annotation</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::pdf::MediaSource</name>
+        <message>
+            <source>不是媒体文件：%1</source>
+            <translation>Not a media file: %1</translation>
+        </message>
+        <message>
+            <source>内存不够</source>
+            <translation>Out of memory</translation>
+        </message>
+        <message>
+            <source>创建媒体类型失败</source>
+            <translation>Failed to create the media type</translation>
+        </message>
+        <message>
+            <source>参数不对</source>
+            <translation>Invalid argument</translation>
+        </message>
+        <message>
+            <source>只支持 16 位 PCM 的音频</source>
+            <translation>Only 16-bit PCM audio is supported</translation>
+        </message>
+        <message>
+            <source>找不到这个文件</source>
+            <translation>File not found</translation>
+        </message>
+        <message>
+            <source>找不到这个路径</source>
+            <translation>Path not found</translation>
+        </message>
+        <message>
+            <source>文件打不开：%1</source>
+            <translation>Cannot open file: %1</translation>
+        </message>
+        <message>
+            <source>文件打不开：%1（%2）</source>
+            <translation>Cannot open file: %1 (%2)</translation>
+        </message>
+        <message>
+            <source>文件打不开：没有读这个文件的权限（%1）</source>
+            <translation>Cannot open file: no permission to read it (%1)</translation>
+        </message>
+        <message>
+            <source>文件格式不对</source>
+            <translation>Wrong file format</translation>
+        </message>
+        <message>
+            <source>文件里的数据不完整</source>
+            <translation>The data in the file is incomplete</translation>
+        </message>
+        <message>
+            <source>无法把视频轨转换成 RGB32：%1</source>
+            <translation>Cannot convert the video track to RGB32: %1</translation>
+        </message>
+        <message>
+            <source>无法把音频轨转换成 PCM：%1</source>
+            <translation>Cannot convert the audio track to PCM: %1</translation>
+        </message>
+        <message>
+            <source>没有给出文件路径</source>
+            <translation>No file path was given</translation>
+        </message>
+        <message>
+            <source>没有读这个文件的权限</source>
+            <translation>No permission to read this file</translation>
+        </message>
+        <message>
+            <source>系统不接受这个文件格式</source>
+            <translation>The system does not accept this file format</translation>
+        </message>
+        <message>
+            <source>系统不认识这个文件的格式</source>
+            <translation>The system does not recognize this file format</translation>
+        </message>
+        <message>
+            <source>系统媒体组件已经关闭</source>
+            <translation>The system media components are already shut down</translation>
+        </message>
+        <message>
+            <source>系统媒体组件还没初始化</source>
+            <translation>The system media components are not initialized yet</translation>
+        </message>
+        <message>
+            <source>系统媒体组件（Media Foundation）初始化失败</source>
+            <translation>Failed to initialize the system media components (Media Foundation)</translation>
+        </message>
+        <message>
+            <source>系统返回了一个未知的错误</source>
+            <translation>The system returned an unknown error</translation>
+        </message>
+        <message>
+            <source>解码器还没有打开</source>
+            <translation>The decoder is not open yet</translation>
+        </message>
+        <message>
+            <source>解码失败：%1</source>
+            <translation>Decoding failed: %1</translation>
+        </message>
+        <message>
+            <source>解码失败：取不到声音数据（%1）</source>
+            <translation>Decoding failed: cannot get the audio data (%1)</translation>
+        </message>
+        <message>
+            <source>解码失败：取不到画面数据（%1）</source>
+            <translation>Decoding failed: cannot get the video data (%1)</translation>
+        </message>
+        <message>
+            <source>解码失败：画面尺寸和实际数据对不上</source>
+            <translation>Decoding failed: the frame size does not match the actual data</translation>
+        </message>
+        <message>
+            <source>解码失败：画面换算失败</source>
+            <translation>Decoding failed: the frame could not be converted</translation>
+        </message>
+        <message>
+            <source>解码失败：读不出声音数据（%1）</source>
+            <translation>Decoding failed: cannot read the audio data (%1)</translation>
+        </message>
+        <message>
+            <source>解码失败：读不出画面数据（%1）</source>
+            <translation>Decoding failed: cannot read the video data (%1)</translation>
+        </message>
+        <message>
+            <source>这个文件正被别的程序占用</source>
+            <translation>This file is in use by another program</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::pdf::PdfiumAdapter</name>
         <message>
             <source>PDFium 保存失败</source>
@@ -6966,7 +7270,11 @@ Notes: %1</translation></message>
             <translation>%1 bytes</translation>
         </message>
 <message><source>-</source><translation>-</translation></message>
-    <message><source>[%1] 第 %2 页：%3</source><translation>[%1] page %2: %3</translation></message>
+            <message>
+            <source>3D 注解：只写对结构，**不渲染**（本程序没有 3D 运行时，模型不会转起来）；多媒体注解：同样只写结构，但**音视频文件可以在下面的预览里解码并播放**（Windows Media Foundation + 系统声卡）；写进文档的注解要靠带相应运行时的阅读器才放得出来。</source>
+            <translation>3D annotations: only the structure is written, **nothing is rendered** (this program has no 3D runtime, so the model does not spin); multimedia annotations likewise only carry the structure, but **audio and video files can be decoded and played in the preview below** (Windows Media Foundation + the system sound card); an annotation written into the document can only be played back by a reader that has the matching runtime.</translation>
+        </message>
+<message><source>[%1] 第 %2 页：%3</source><translation>[%1] page %2: %3</translation></message>
     <message><source>两端对齐</source><translation>Justify</translation></message>
     <message><source>共 %1 个图层。</source><translation>%1 layer(s) in total.</translation></message>
     <message><source>共 %1 步：执行 %2 步，成功 %3 步，失败 %4 步，因前一步失败没执行 %5 步。</source><translation>%1 step(s) in total: %2 executed, %3 succeeded, %4 failed, %5 not executed because an earlier step failed.</translation></message>
@@ -6996,7 +7304,6 @@ Notes: %1</translation></message>
     <message><source>文档语言：文件里没有写。</source><translation>Document language: not written in the file.</translation></message>
     <message><source>有 %1 个字符无法显示，已替换（默认用标准 14 字体，它没有中文字形；要正确显示中文请用「选择字体文件」选一份 TTF）。</source><translation>%1 character(s) cannot be shown and were replaced (the standard 14 fonts have no Chinese glyphs; use &quot;Select a font file&quot; to pick a TTF so Chinese shows correctly).</translation></message>
     <message><source>本地索引里没找到相关内容。</source><translation>Nothing related was found in the local index.</translation></message>
-    <message><source>本程序只写对 3D 与多媒体注解的结构，不渲染 3D、不解码音视频；要让模型动起来或把视频放出来，得用带相应运行时的阅读器。</source><translation>This program only writes the structure of 3D and media annotations; it does not render 3D and does not decode audio or video. A reader with the matching runtime is needed to move the model or play the video.</translation></message>
     <message><source>没有地方可以放转换结果。</source><translation>There is nowhere to put the conversion result.</translation></message>
     <message><source>沿用发票上的税率</source><translation>keep the tax rate on the invoice</translation></message>
     <message><source>用标准 14 字体排版（没有嵌入字体）。</source><translation>Laid out with the standard 14 fonts (no embedded font).</translation></message>
@@ -7199,7 +7506,11 @@ Notes: %1</translation></message>
     <message><source>页面级覆盖：
 %1</source><translation>Page-level overrides:
 %1</translation></message>
-    <message><source>首行缩进</source><translation>First line indent</translation></message>
+            <message>
+            <source>预览</source>
+            <translation>Preview</translation>
+        </message>
+<message><source>首行缩进</source><translation>First line indent</translation></message>
     <message><source>首行缩进（点）</source><translation>First line indent (points)</translation></message>
     <message><source>高</source><translation>Height</translation></message>
     <message><source>（没有内容被丢掉）</source><translation>(Nothing was dropped)</translation></message>

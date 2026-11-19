@@ -68,6 +68,19 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/doc/index/OfflineQa.h
     ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.cpp
     ${CMAKE_SOURCE_DIR}/src/doc/index/LocalHashEmbedding.h
+    # 插入 3D / 多媒体对话框现在带音视频预览（Media Foundation 解码 + waveOut 出声），
+    # 所以媒体那一层的源文件要一起编进来，否则链接会缺符号。
+    ${CMAKE_SOURCE_DIR}/src/app/panels/MediaPreviewPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/panels/MediaPreviewPanel.h
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/PcmPlayer.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/PcmPlayer.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/media/MediaSource.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/media/MediaSource.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/media/MediaPlayback.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/media/MediaPlayback.h
+    # 预览面板要接语言切换（就地重译），所以语言管理器也得编进来。
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/Language.h
     ${CMAKE_SOURCE_DIR}/src/i18n/Translate.h
 )
 
@@ -75,6 +88,11 @@ target_link_libraries(LastWaveUiTests PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test
     ${AIPDF_PDFIUM_LIBRARY}
 )
+
+# 音视频预览要链 Media Foundation（解码）与 waveOut（出声），都是系统自带的库。
+if (WIN32)
+    target_link_libraries(LastWaveUiTests PRIVATE mf mfplat mfreadwrite winmm)
+endif()
 
 # 这一批任务里有一半是对象级信息（结构树、图层、PDF/UA、XFA、3D/多媒体），
 # 只有真正的 PDF 解析器能给答案，所以必须链 qpdf。
