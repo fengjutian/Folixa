@@ -29,6 +29,9 @@ private slots:
     void syntaxErrorIsReported();
     void afNumberFormatFormatsValue();
     void afNumberKeystrokeRejectsLetters();
+    void afDateFormatsIsoValue();
+    void afSpecialFormatsPhone();
+    void afNumberParseStripsGrouping();
     void infiniteLoopIsInterrupted();
 };
 
@@ -117,6 +120,30 @@ void QuickJsFormScriptTests::afNumberKeystrokeRejectsLetters() {
         QStringLiteral("A"), QStringLiteral("12"), QStringLiteral("x"));
     QVERIFY(rejected.ok);
     QVERIFY(!rejected.rc);
+}
+
+void QuickJsFormScriptTests::afDateFormatsIsoValue() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("AFDate_FormatEx(\"mm/dd/yyyy\");"), fields(), QStringLiteral("A"),
+        QStringLiteral("2026-11-19"));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("11/19/2026"));
+}
+
+void QuickJsFormScriptTests::afSpecialFormatsPhone() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("AFSpecial_Format(2);"), fields(), QStringLiteral("A"),
+        QStringLiteral("1380013800"));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("(138) 001-3800"));
+}
+
+void QuickJsFormScriptTests::afNumberParseStripsGrouping() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("AFNumber_Parse(2, 0, 0, 0, \"\", false);"), fields(),
+        QStringLiteral("A"), QStringLiteral("1,234.50"));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("1234.5"));
 }
 
 void QuickJsFormScriptTests::infiniteLoopIsInterrupted() {

@@ -128,8 +128,7 @@ function AFPercent_Format(decimals, sepStyle) {
     event.value = (n * 100).toFixed(decimals) + "%";
 }
 
-function AFSimple_Calculate(op, fieldNames) {
-    var names = (typeof fieldNames === "string") ? [fieldNames] : fieldNames;
+function AFSimple_Calculate(op, fieldNames) {    var names = (typeof fieldNames === "string") ? [fieldNames] : fieldNames;
     var values = [];
     for (var i = 0; i < names.length; i++) {
         var field = getField(names[i]);
@@ -150,6 +149,67 @@ function AFSimple_Calculate(op, fieldNames) {
         result = values.length > 0 ? Math.max.apply(null, values) : 0;
     }
     event.value = result;
+}
+
+function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+}
+
+function AFParseDate(text) {
+    var s = String(text).trim();
+    var m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(s);
+    if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+    m = /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/.exec(s);
+    if (m) return { y: +m[3], m: +m[1], d: +m[2] };
+    return null;
+}
+
+function AFDate_FormatEx(format) {
+    var d = AFParseDate(event.value);
+    if (d === null) return;
+    var out = String(format || "mm/dd/yyyy");
+    out = out.replace(/yyyy/g, d.y).replace(/mm/g, pad2(d.m)).replace(/dd/g, pad2(d.d));
+    event.value = out;
+}
+
+function AFDate_KeystrokeEx(format) {
+    var change = event.change;
+    if (change === undefined || change === null) return;
+    var candidate = String(event.value) + String(change);
+    if (!/^[0-9\-\/\. ]*$/.test(candidate)) event.rc = false;
+}
+
+function AFTime_FormatEx(format) {
+    var m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(event.value).trim());
+    if (!m) return;
+    var out = String(format || "HH:MM");
+    out = out.replace(/HH/g, pad2(+m[1])).replace(/MM/g, m[2]).replace(/ss/g, m[3] || "00");
+    event.value = out;
+}
+
+function AFSpecial_Format(kind) {
+    var digits = String(event.value).replace(/\D/g, "");
+    if (kind === 0) {
+        event.value = digits.slice(0, 5);
+    } else if (kind === 1) {
+        event.value = digits.length > 5 ? digits.slice(0, 5) + "-" + digits.slice(5, 9) : digits;
+    } else if (kind === 2) {
+        event.value = digits.length === 10
+            ? "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6)
+            : digits;
+    } else if (kind === 3) {
+        event.value = digits.length === 9
+            ? digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5)
+            : digits;
+    } else {
+        event.value = digits;
+    }
+}
+
+function AFSpecial_Keystroke(kind) {
+    var change = event.change;
+    if (change === undefined || change === null) return;
+    if (!/^[0-9\-\(\) ]*$/.test(String(change))) event.rc = false;
 }
 )JS";
 
