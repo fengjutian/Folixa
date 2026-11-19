@@ -114,6 +114,7 @@ private slots:
     void replacementKeepsFollowingGlyphPosition();
     void replacesOnlySelectedOccurrence();
     void replacesAllOccurrencesWhenRequested();
+    void replacesAllOccurrencesCaseInsensitively();
     void deletesText();
     void refusesGlyphsMissingFromFont();
     void replacesInsideTjArray();
@@ -176,6 +177,16 @@ void TextSpliceTests::replacesAllOccurrencesWhenRequested() {
     QCOMPARE(pageText(result.bytes), QStringLiteral("bar bar"));
 }
 
+void TextSpliceTests::replacesAllOccurrencesCaseInsensitively() {
+    const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td (Foo foo) Tj ET");
+    TextSpliceTarget target = makeTarget(QStringLiteral("foo"), QStringLiteral("bar"));
+    target.occurrence = -1;
+    target.sensitivity = Qt::CaseInsensitive;
+    const TextSpliceResult result = splicePageText(pdf, target);
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    QCOMPARE(result.report.occurrences, 2);
+    QCOMPARE(pageText(result.bytes), QStringLiteral("bar bar"));
+}
 void TextSpliceTests::deletesText() {
     const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td (Hello world) Tj ET");
     const TextSpliceResult result =

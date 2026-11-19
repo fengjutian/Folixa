@@ -32,6 +32,8 @@ private slots:
     void afDateFormatsIsoValue();
     void afSpecialFormatsPhone();
     void afNumberParseStripsGrouping();
+    void docObjectExposesFields();
+    void utilPrintfFormatsNumbers();
     void infiniteLoopIsInterrupted();
 };
 
@@ -146,6 +148,21 @@ void QuickJsFormScriptTests::afNumberParseStripsGrouping() {
     QCOMPARE(result.value, QStringLiteral("1234.5"));
 }
 
+void QuickJsFormScriptTests::docObjectExposesFields() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("event.value = doc.getNthFieldName(1) + \"/\" + doc.numFields;"), fields(),
+        QStringLiteral("A"), QString());
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("B/2"));
+}
+
+void QuickJsFormScriptTests::utilPrintfFormatsNumbers() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("event.value = util.printf(\"%.2f\", 1.234);"), fields(),
+        QStringLiteral("A"), QString());
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("1.23"));
+}
 void QuickJsFormScriptTests::infiniteLoopIsInterrupted() {
     aipdf::pdf::QuickJsLimits limits;
     limits.timeoutMs = 30;

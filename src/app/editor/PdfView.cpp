@@ -5021,19 +5021,31 @@ void PdfView::searchReplaceDialog() {
         const pdf::PdfDocument before = document_.backupPage(pageIndex);
         QString serializeError;
         const QByteArray input = document_.serialize(&serializeError);
-        int safeCount = 0;
-        QString rewriteError;
-        const QByteArray rewritten = pdf::ContentStream::rewritePdfText(
-            input, {pageIndex}, query, replacement, Qt::CaseInsensitive, &safeCount, &rewriteError);
-        if (safeCount <= 0 || rewritten.isEmpty()) continue;
+        if (input.isEmpty()) continue;
+        // 字形级替换：一次把这一页上的所有匹配换掉，沿用原字体与字宽。
+        pdf::TextSpliceTarget target;
+        target.pageIndex = pageIndex;
+        target.find = query;
+        target.replace = replacement;
+        target.sensitivity = Qt::CaseInsensitive;
+        target.occurrence = -1;
+        const pdf::TextSpliceResult spliced = pdf::splicePageText(input, target);
+        if (!spliced.ok()) {
+            if (spliced.report.error.contains(QStringLiteral("写不出"))) {
+                QMessageBox::warning(this, tr("搜索替换"),
+                                     tr("原字体写不出新文字：%1；这次替换已取消。")
+                                         .arg(spliced.report.error));
+                return;
+            }
+            continue;
+        }
         QString reloadError;
-        if (!before.isValid() || !document_.reloadFromBytes(rewritten, &reloadError)) {
+        if (!before.isValid() || !document_.reloadFromBytes(spliced.bytes, &reloadError)) {
             QMessageBox::warning(this, tr("搜索替换"),
-                                 tr("安全内容流重写失败：%1").arg(
-                                     reloadError.isEmpty() ? rewriteError : reloadError));
+                                 tr("安全内容流重写失败：%1").arg(reloadError));
             return;
         }
-        replacementCount += safeCount;
+        replacementCount += spliced.report.occurrences;
         recordContentEdit(pageIndex, before, tr("安全搜索替换"));
     }
     if (replacementCount > 0) {

@@ -66,6 +66,19 @@ JSValue jsGetField(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     return makeFieldObject(ctx, value);
 }
 
+// doc.getNthFieldName / doc.numFields 要用：把字段名列表交给脚本。
+JSValue jsFieldNames(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    auto* bridge = static_cast<FieldBridge*>(JS_GetContextOpaque(ctx));
+    JSValue array = JS_NewArray(ctx);
+    if (bridge == nullptr || bridge->fields == nullptr) return array;
+    for (int i = 0; i < bridge->fields->size(); ++i) {
+        const QByteArray name = bridge->fields->at(i).name.toUtf8();
+        JS_SetPropertyUint32(ctx, array, static_cast<uint32_t>(i),
+                             JS_NewString(ctx, name.constData()));
+    }
+    return array;
+}
+
 QString exceptionText(JSContext* ctx) {
     JSValue exception = JS_GetException(ctx);
     QString text;
@@ -211,6 +224,51 @@ function AFSpecial_Keystroke(kind) {
     if (change === undefined || change === null) return;
     if (!/^[0-9\-\(\) ]*$/.test(String(change))) event.rc = false;
 }
+
+// Acrobat 脚本里最常见的几类宿主对象。没有真实副作用（alert 不弹窗、
+// printd 不打印），只保证脚本能跑通、能拿到字段列表。
+var doc = {
+    getField: function (name) { return getField(name); },
+    getNthFieldName: function (index) { return __fieldNames()[index]; },
+    calculateNow: function () { return; },
+    resetForm: function () { return; }
+};
+Object.defineProperty(doc, "numFields", {
+    get: function () { return __fieldNames().length; }
+});
+
+var app = {
+    alert: function (message) { return; },
+    beep: function () { return; },
+    viewerVersion: "11.0.0",
+    language: "ENU"
+};
+
+var util = {
+    printf: function (format) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        var index = 0;
+        return String(format).replace(/%(\d+)?(?:\.(\d+))?([sdif])/g,
+            function (token, width, precision, kind) {
+                var value = args[index++];
+                if (kind === "d" || kind === "i") {
+                    return String(parseInt(value, 10));
+                }
+                if (kind === "f") {
+                    var number = parseFloat(value);
+                    return precision === undefined ? String(number) : number.toFixed(+precision);
+                }
+                return String(value);
+            });
+    },
+    printd: function () { return; },
+    byteToChar: function (code) { return String.fromCharCode(code); }
+};
+
+var console = {
+    log: function () { return; },
+    println: function () { return; }
+};
 )JS";
 
 }  // namespace
@@ -265,6 +323,8 @@ FormJsResult QuickJsFormScript::evaluate(const QString& script,
     JS_FreeValue(ctx, prelude);
 
     JSValue global = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(ctx, global, "__fieldNames",
+                      JS_NewCFunction(ctx, jsFieldNames, "__fieldNames", 0));
 
     JSValue self = JS_NewObject(ctx);
     setString(ctx, self, "name", eventField);
