@@ -18,22 +18,34 @@ struct FormJsResult {
     QString value;
     // 校验脚本的结果；其它脚本恒为 true。
     bool valid = true;
+    // 事件是否被接受：对应 Acrobat 的 event.rc。
+    // 击键脚本把它置 false 表示「这次输入不接受」，缺省为 true。
+    bool rc = true;
+    // 脚本有没有给 event.value 赋值。
+    // 没有赋值时 value 只是最后一条语句的求值结果，调用方不能拿它当新值。
+    bool valueAssigned = false;
 };
 
 // 求值一段表单域脚本。
 // fieldValues：当前所有字段的值（按名字索引；找不到的名字当空串）。
 // eventField：event 上下文里的字段名（脚本里写 this.name / event.target 时用）。
 // eventValue：event 上下文里的旧值（脚本里写 event.value 时用）。
+// eventChange：击键脚本里的 event.change（本次输入的字符或替换文本）。
+// selectionStart / selectionEnd：event.selStart / event.selEnd。
 //
 // 说明：
 // - ok=false 表示脚本没跑通（语法不支持、运行出错），error 里是中文原因。
 // - 脚本引用了不存在的字段不算失败：按空串继续跑，同时在 error 里留一条
 //   "未知字段：xxx" 提示，ok 仍然是 true。
 // - 校验脚本返回 true/false 时 valid 反映这个布尔值，其它脚本 valid 恒为 true。
+// - 击键脚本里的 event.rc = false 反映在 rc 上（默认 true）。
 FormJsResult evaluateFormScript(const QString& script,
                                 const QVector<FormFieldValue>& fieldValues,
                                 const QString& eventField = QString(),
-                                const QString& eventValue = QString());
+                                const QString& eventValue = QString(),
+                                const QString& eventChange = QString(),
+                                int selectionStart = 0,
+                                int selectionEnd = 0);
 
 // 只做格式化：把 format 套到 value 上，返回格式化结果。
 // format 用 AFNumber_Format 的参数语义：decimals 小数位数、thousandsSeparator 千分位开关等。

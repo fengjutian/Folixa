@@ -23,6 +23,8 @@ struct FormFieldScript {
     QString format;
     // /AA /V：校验脚本。
     QString validate;
+    // /AA /K：击键脚本（每敲一个字符执行一次，可以用 event.rc = false 拒绝输入）。
+    QString keystroke;
     // /A /JS：动作脚本。
     QString action;
     // /DV：默认值。「重置表单」用它恢复。

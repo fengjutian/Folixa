@@ -196,6 +196,7 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormData.h
     pdf/forms/FormFieldWriter.h
     pdf/forms/FormJsEvaluator.h
+    pdf/forms/FormRuntime.h
     pdf/forms/FormTemplateStore.h
     pdf/forms/FormScriptStore.h
     pdf/forms/BarcodeEncoder.h
@@ -208,6 +209,7 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormData.cpp
     pdf/forms/FormFieldWriter.cpp
     pdf/forms/FormJsEvaluator.cpp
+    pdf/forms/FormRuntime.cpp
     pdf/forms/FormTemplateStore.cpp
     pdf/forms/FormScriptStore.cpp
     pdf/forms/BarcodeEncoder.cpp

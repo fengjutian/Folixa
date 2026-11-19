@@ -632,8 +632,9 @@ private:
         }
         if (isPunct(QStringLiteral("="))) {
             advance();
-            if (!isEventValueTarget(left)) {
-                fail(unsupported(QStringLiteral("赋值目标只能是 event.value")));
+            const QString target = eventTargetMember(left);
+            if (target.isEmpty()) {
+                fail(unsupported(QStringLiteral("赋值目标只能是 event.value 或 event.rc")));
                 return nullptr;
             }
             ExprPtr right = parseAssign(depth);
@@ -644,6 +645,8 @@ private:
             assign->kind = Expr::Assign;
             assign->left = left;
             assign->right = right;
+            // 记下这次赋值改的是 event 的哪个成员（value / rc）。
+            assign->text = target;
             assign->depth = qMax(left->depth, right->depth) + 1;
             if (!checkAstDepth(assign->depth)) {
                 return nullptr;
@@ -653,13 +656,16 @@ private:
         return left;
     }
 
-    static bool isEventValueTarget(const ExprPtr& expr) {
+    static QString eventTargetMember(const ExprPtr& expr) {
         if (!expr || expr->kind != Expr::Member || !expr->left || expr->left->kind != Expr::Ident) {
-            return false;
+            return {};
         }
         const QString& base = expr->left->text;
-        return (base == QLatin1String("event") || base == QLatin1String("this")) &&
-               expr->text == QLatin1String("value");
+        if (base != QLatin1String("event") && base != QLatin1String("this")) return {};
+        if (expr->text == QLatin1String("value") || expr->text == QLatin1String("rc")) {
+            return expr->text;
+        }
+        return {};
     }
 
     ExprPtr parseBinary(int depth, int minPrecedence) {
@@ -939,8 +945,15 @@ bool parseNumericPrefix(const QString& text, double* out, bool integerOnly) {
 
 class Evaluator {
 public:
-    Evaluator(const QVector<FormFieldValue>& fields, const QString& eventField, const QString& eventValue)
-        : m_fields(fields), m_eventField(eventField), m_eventValue(eventValue) {}
+    Evaluator(const QVector<FormFieldValue>& fields, const QString& eventField,
+              const QString& eventValue, const QString& eventChange, int selectionStart,
+              int selectionEnd)
+        : m_fields(fields),
+          m_eventField(eventField),
+          m_eventValue(eventValue),
+          m_eventChange(eventChange),
+          m_selStart(selectionStart),
+          m_selEnd(selectionEnd) {}
 
     bool run(const QVector<StmtPtr>& program, Value* out) {
         for (const StmtPtr& stmt : program) {
@@ -957,6 +970,10 @@ public:
 
     const QString& error() const { return m_error; }
     const QStringList& notices() const { return m_notices; }
+    // event.rc：击键 / 校验脚本可以拒绝这次输入。
+    bool rc() const { return m_eventRc; }
+    // 脚本有没有给 event.value 赋过值。
+    bool valueAssigned() const { return m_valueAssigned; }
 
 private:
     bool fail(const QString& message) {
@@ -1057,8 +1074,15 @@ private:
             if (!evalExpr(expr->right, &value)) {
                 return false;
             }
+            if (expr->text == QLatin1String("rc")) {
+                // event.rc = false：拒绝这次输入。
+                m_eventRc = truthy(value);
+                *out = makeBool(m_eventRc);
+                return true;
+            }
             // event.value 存的是文本，跟 PDF 域值一致。
             m_eventValue = valueToText(value);
+            m_valueAssigned = true;
             *out = value;
             return true;
         }
@@ -1105,10 +1129,42 @@ private:
                     *out = makeStr(m_eventField);
                     return true;
                 }
+                if (expr->text == QLatin1String("change")) {
+                    *out = makeStr(m_eventChange);
+                    return true;
+                }
+                if (expr->text == QLatin1String("rc")) {
+                    *out = makeBool(m_eventRc);
+                    return true;
+                }
+                if (expr->text == QLatin1String("selStart")) {
+                    *out = makeNumber(m_selStart);
+                    return true;
+                }
+                if (expr->text == QLatin1String("selEnd")) {
+                    *out = makeNumber(m_selEnd);
+                    return true;
+                }
                 return fail(unsupported(QStringLiteral("不支持的属性 ") + baseName + QLatin1Char('.') + expr->text));
             }
             if (baseName == QLatin1String("Math")) {
                 return fail(unsupported(QStringLiteral("Math 对象（只能调用 Math.round 等函数）")));
+            }
+            // 字段按名字直接引用：A.value 取 A 的值。
+            if (expr->text == QLatin1String("value") || expr->text == QLatin1String("valueAsString")) {
+                for (const FormFieldValue& field : m_fields) {
+                    if (field.name == baseName) {
+                        *out = makeStr(field.value);
+                        return true;
+                    }
+                }
+            }
+        }
+        // event.target.value：目标域的值（event.target 在本子集里是域名）。
+        if (base && base->kind == Expr::Member && base->text == QLatin1String("target")) {
+            if (expr->text == QLatin1String("value")) {
+                *out = makeStr(m_eventValue);
+                return true;
             }
         }
         return fail(unsupported(QStringLiteral("不支持的属性访问")));
@@ -1413,6 +1469,11 @@ private:
     const QVector<FormFieldValue>& m_fields;
     QString m_eventField;
     QString m_eventValue;
+    QString m_eventChange;
+    bool m_eventRc = true;
+    bool m_valueAssigned = false;
+    int m_selStart = 0;
+    int m_selEnd = 0;
     QHash<QString, Value> m_vars;
     QStringList m_notices;
     QString m_error;
@@ -1552,7 +1613,9 @@ QString unquote(const QString& text) {
 }  // namespace
 
 FormJsResult evaluateFormScript(const QString& script, const QVector<FormFieldValue>& fieldValues,
-                                const QString& eventField, const QString& eventValue) {
+                                const QString& eventField, const QString& eventValue,
+                                const QString& eventChange, int selectionStart,
+                                int selectionEnd) {
     FormJsResult result;
     if (script.trimmed().isEmpty()) {
         // 空脚本不是错误：域本来就可以没有脚本。
@@ -1581,7 +1644,8 @@ FormJsResult evaluateFormScript(const QString& script, const QVector<FormFieldVa
         return result;
     }
 
-    Evaluator evaluator(fieldValues, eventField, eventValue);
+    Evaluator evaluator(fieldValues, eventField, eventValue, eventChange, selectionStart,
+                        selectionEnd);
     Value outcome;
     if (!evaluator.run(program, &outcome)) {
         result.ok = false;
@@ -1594,6 +1658,8 @@ FormJsResult evaluateFormScript(const QString& script, const QVector<FormFieldVa
     result.value = valueToText(outcome);
     // 校验脚本返回布尔值时，valid 跟着它走；其它脚本恒为 true。
     result.valid = (outcome.kind == Value::Bool) ? outcome.boolean : true;
+    result.rc = evaluator.rc();
+    result.valueAssigned = evaluator.valueAssigned();
     if (!evaluator.notices().isEmpty()) {
         result.error = evaluator.notices().join(QStringLiteral("；"));
     }
