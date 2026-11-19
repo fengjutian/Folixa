@@ -12,6 +12,10 @@ qt_add_executable(FormRuntimeTests
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/QuickJsFormScript.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
 )
 

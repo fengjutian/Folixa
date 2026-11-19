@@ -242,9 +242,17 @@ QTreeWidget#outlineTree::item {
 QTreeWidget#outlineTree::item:hover { background: #F1F4FF; color: #365AA8; }
 QTreeWidget#outlineTree::item:selected { background: #EEF3FC; color: #3555B7; }
 QTreeWidget#outlineTree::branch { background: transparent; }
-QToolButton[railButton="true"] { min-width: 36px; max-width: 36px; min-height: 36px; padding: 0; border: 0; background: transparent; color: #465267; font-size: 18px; }
-QToolButton[railButton="true"]:hover { background: #EAF0F8; color: #365AA8; }
-QToolButton[railButton="true"]:checked { background: #EEF3FC; color: #365AA8; border-left: 3px solid #4169C1; }
+/* 导航轨按钮：扁平图标，选中只换图标颜色（QIcon::On 的那份重染色），
+   不再画整块浅蓝底 + 左侧竖条——那套边框在圆角下会弯成一只「括号」，
+   看着像残缺的控件。 */
+QToolButton[railButton="true"] {
+    min-width: 36px; max-width: 36px; min-height: 36px;
+    padding: 0; border: 0; border-radius: 8px; background: transparent;
+}
+QToolButton[railButton="true"]:hover,
+QToolButton[railButton="true"]:checked:hover { background: #EFF2F8; }
+QToolButton[railButton="true"]:pressed { background: #E4EAF4; }
+QToolButton[railButton="true"]:checked { background: transparent; }
 
 /* ---------------------------------------------------------------- AI -- */
 QWidget#aiPanel { background: #F6F8FB; }
@@ -489,6 +497,7 @@ QMap<QString, QString> darkSurfaceColors() {
         {"#EEF2FF", "rgba(62,99,190,0.26)"},     // 缩略图选中
         {"#E9F0FB", "rgba(62,99,190,0.28)"},     // 按钮 pressed
         {"#E8EFFB", "rgba(62,99,190,0.28)"},     // 命令栏按钮 pressed
+        {"#E4EAF4", "rgba(62,99,190,0.26)"},     // 导航轨按钮 pressed
         {"#E7EEF9", "rgba(62,99,190,0.28)"},     // Ribbon 命令 pressed
         {"#E5EDF9", "rgba(62,99,190,0.30)"},     // AI 快捷动作 primary hover
 

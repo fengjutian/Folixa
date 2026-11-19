@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     v0.6.0 目录、书签与页面链接验收。
 
@@ -338,10 +338,23 @@ try {
         (Wait-AiPdfTraceMatch -Path $tracePath -Pattern 'panel outline items=2' -TimeoutSeconds 10) `
         (Get-AiPdfTraceText -Path $tracePath)
 
-    # 页签按钮只做定位断言，不再点它：面板已经自动展开，
-    # 再点一次「目录」是把面板收起来（图标是开关），后面的条目就点不到了。
+    # 页签按钮是「切页 + 展开」，不是开关：面板已经自动展开时再点一次「目录」，
+    # 面板必须还在（v0.15.1 之前这里会把面板收起来，图标还高亮着，看着像点坏了）。
     $button = Get-AiPdfNavButton -Process $app -IdPattern '*railButton.outline*'
     Test-Check '找到「目录」页签按钮' ($null -ne $button) ''
+    if ($button) {
+        $clicksBefore =
+            ([regex]::Matches((Get-AiPdfTraceText -Path $tracePath), 'panel outline items=2')).Count
+        Click-AiPdfElement -Process $app -Element $button | Out-Null
+        Start-Sleep -Milliseconds 800
+        $clicksAfter =
+            ([regex]::Matches((Get-AiPdfTraceText -Path $tracePath), 'panel outline items=2')).Count
+        Test-Check '再点已选中的「目录」图标仍会切回该页' ($clicksAfter -gt $clicksBefore) `
+            "before=$clicksBefore after=$clicksAfter"
+        $treeAfter = Get-AiPdfElementById -Process $app -IdPattern '*outlineTree*'
+        Test-Check '再点已选中的「目录」图标，面板仍然展开' `
+            ($null -ne $treeAfter -and -not $treeAfter.Current.IsOffscreen) ''
+    }
 
     if ($ScreenshotPath) {
         $taken = Save-AiPdfWindowScreenshot -Process $app -Path $ScreenshotPath

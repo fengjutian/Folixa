@@ -215,6 +215,33 @@ QIcon commandIcon(const QString& name) {
     return icon.isNull() ? source : icon;
 }
 
+// 导航栏图标：未选中用原来的深灰笔画，选中换成主题蓝。
+//
+// 图标是写死颜色的 SVG，QSS 的 color 管不到笔画；所以「选中」不能只靠底色，
+// 否则要么退化成一块色块，要么干脆看不出选中了哪一页。这里给 QIcon 备一份
+// 重染色的 On 状态：checkable 按钮选中时 Qt 会自动取 QIcon::On 那一份。
+QIcon railIcon(const QString& resourcePath) {
+    const QIcon source(resourcePath);
+    QIcon icon;
+    for (const int scale : {1, 2}) {
+        const QSize size(20 * scale, 20 * scale);
+        QPixmap normal = source.pixmap(size, QIcon::Normal);
+        if (normal.isNull()) {
+            continue;
+        }
+        normal.setDevicePixelRatio(scale);
+        icon.addPixmap(normal, QIcon::Normal, QIcon::Off);
+        QPixmap checked = source.pixmap(size, QIcon::Normal);
+        QPainter painter(&checked);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(checked.rect(), QColor(0x36, 0x5A, 0xA8));
+        painter.end();
+        checked.setDevicePixelRatio(scale);
+        icon.addPixmap(checked, QIcon::Normal, QIcon::On);
+    }
+    return icon.isNull() ? source : icon;
+}
+
 // 把大纲树灌进目录树控件。目标页解析不出来的条目照样显示，只是不能点。
 void addOutlineItems(QTreeWidgetItem* parent, const std::vector<pdf::OutlineItem>& items) {
     for (const pdf::OutlineItem& item : items) {
@@ -2447,7 +2474,7 @@ void MainWindow::buildUi() {
         // 而 QSS 的 #railButton 是精确匹配，带点就匹配不上（按钮会退化成
         // 普通白色按钮），所以另用一个属性做样式钩子。
         button->setProperty("railButton", true);
-        button->setIcon(QIcon(entry.icon));
+        button->setIcon(railIcon(entry.icon));
         button->setIconSize(QSize(20, 20));
         texts_.bind([this, button, source = entry.tip] {
             button->setToolTip(tr(source));
@@ -2460,11 +2487,12 @@ void MainWindow::buildUi() {
     }
     railLayout->addStretch();
     connect(railGroup, &QButtonGroup::idClicked, this, [this, navigationPages](int index) {
-        const bool wasVisible = navigationPages->isVisible();
-        const bool samePage = navigationPages->currentIndex() == index;
+        // 导航栏图标只负责「切到这一页并展开面板」，不是开关。
+        //
+        // 之前再点一次当前页会把面板收起来：图标明明还高亮着，面板却消失了，
+        // 看起来像点坏了。收起面板走「视图 → 导航」——那里的开关有明确的收起含义。
         navigationPages->setCurrentIndex(index);
-        const bool shouldShow = !wasVisible || !samePage;
-        setNavigationExpanded(shouldShow);
+        setNavigationExpanded(true);
         updateNavigationHeader(index);
         traceNavigationPanel(index);
     });
@@ -6073,9 +6101,8 @@ void MainWindow::editBookmarkHierarchy() {
 
 // 切到导航栏的某一页并把它显示出来。
 //
-// 导航栏的图标按钮是开关：再点一次当前页会把面板收起来。
-// 命令栏的「页面」「批注」是导航命令，不是开关——连点两次把面板关掉，
-// 会让人以为功能坏了。
+// 导航栏的图标按钮是「切页 + 展开」，不是开关：连点两次当前页不会把面板关掉。
+// 命令栏的「页面」「批注」也是导航命令，两边行为一致——点一下总要看见东西。
 void MainWindow::showNavigationPage(int index) {
     // 兜底：没有文档时面板里七个页签都没有可指的对象。命令入口已经统一走
     // openNavigationPanel，这里再挡一层，将来新加的调用点也不会把空面板撑开。

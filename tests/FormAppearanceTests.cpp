@@ -9,6 +9,8 @@
 #include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFWriter.hh>
 
+#include <QRegularExpression>
+
 #include <memory>
 #include <optional>
 
@@ -29,7 +31,8 @@ QByteArray toPdfBytes(QPDF& pdf) {
 }
 
 // 一个文本域 + /DA + AcroForm /DR /Font /Helv。
-QByteArray makeFormPdf(const QString& initialValue = QString(), int flags = 0) {
+QByteArray makeFormPdf(const QString& initialValue = QString(), int flags = 0, int quadding = 0,
+                        double boxHeight = 20.0) {
     QPDF pdf;
     pdf.emptyPDF();
 
@@ -61,11 +64,12 @@ QByteArray makeFormPdf(const QString& initialValue = QString(), int flags = 0) {
     field.replaceKey("/V", QPDFObjectHandle::newString(initialValue.toStdString()));
     field.replaceKey("/DA", QPDFObjectHandle::newString("/Helv 12 Tf 0 g"));
     field.replaceKey("/Ff", QPDFObjectHandle::newInteger(flags));
+    if (quadding != 0) field.replaceKey("/Q", QPDFObjectHandle::newInteger(quadding));
     QPDFObjectHandle rect = QPDFObjectHandle::newArray();
     rect.appendItem(QPDFObjectHandle::newInteger(72));
     rect.appendItem(QPDFObjectHandle::newInteger(700));
     rect.appendItem(QPDFObjectHandle::newInteger(272));
-    rect.appendItem(QPDFObjectHandle::newInteger(720));
+    rect.appendItem(QPDFObjectHandle::newInteger(700 + static_cast<int>(boxHeight)));
     field.replaceKey("/Rect", rect);
     field.replaceKey("/P", pageRef);
     const QPDFObjectHandle fieldRef = pdf.makeIndirectObject(field);
@@ -109,7 +113,9 @@ class FormAppearanceTests : public QObject {
 private slots:
     void writesValueAndAppearance();
     void writesRichTextValue();
-    void rejectsNonLatinText();
+    void writesChineseValueWithEmbeddedFont();
+    void multilineValueWrapsIntoMultipleLines();
+    void rightAlignedValueIsPushedRight();
     void rejectsUnknownField();
     void rejectsReadOnlyField();
 };
@@ -181,16 +187,62 @@ void FormAppearanceTests::writesRichTextValue() {
     QVERIFY(fonts.hasKey("/Helv-Bold"));
 }
 
-void FormAppearanceTests::rejectsNonLatinText() {
+void FormAppearanceTests::writesChineseValueWithEmbeddedFont() {
     const QByteArray pdf = makeFormPdf();
     const FormAppearanceResult result =
         writeFormValues(pdf, {{QStringLiteral("name"), QStringLiteral("中文")}});
-    QVERIFY(!result.ok());
-    QVERIFY2(result.report.error.contains(QStringLiteral("非单字节")),
-             qPrintable(result.report.error));
-    QVERIFY(result.bytes.isEmpty());
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    QCOMPARE(fieldValueViaPdfium(result.bytes), QStringLiteral("中文"));
+
+    QPDF check;
+    check.processMemoryFile("check.pdf", result.bytes.constData(),
+                            static_cast<size_t>(result.bytes.size()));
+    const QPDFObjectHandle annot = check.getAllPages().at(0).getKey("/Annots").getArrayItem(0);
+    QPDFObjectHandle appearance = annot.getKey("/AP").getKey("/N");
+    const QPDFObjectHandle fonts = appearance.getDict().getKey("/Resources").getKey("/Font");
+    QVERIFY(fonts.isDictionary());
+    bool foundType0 = false;
+    for (const std::string& key : fonts.getKeys()) {
+        if (fonts.getKey(key).getKey("/Subtype").isName() &&
+            fonts.getKey(key).getKey("/Subtype").getName() == "/Type0") {
+            foundType0 = true;
+        }
+    }
+    QVERIFY2(foundType0, "中文外观流必须用 Type0 字体");
+}
+QByteArray apContentOf(const QByteArray& bytes) {
+    QPDF pdf;
+    pdf.processMemoryFile("ap.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
+    QPDFObjectHandle annot = pdf.getAllPages().at(0).getKey("/Annots").getArrayItem(0);
+    QPDFObjectHandle appearance = annot.getKey("/AP").getKey("/N");
+    const std::shared_ptr<Buffer> data = appearance.getStreamData(qpdf_dl_generalized);
+    if (!data) return {};
+    return QByteArray(reinterpret_cast<const char*>(data->getBuffer()),
+                      static_cast<qsizetype>(data->getSize()));
 }
 
+void FormAppearanceTests::multilineValueWrapsIntoMultipleLines() {
+    const QByteArray pdf = makeFormPdf(QString(), 1 << 12, 0, 200.0);
+    const QString longText(120, QLatin1Char('a'));
+    const FormAppearanceResult result =
+        writeFormValues(pdf, {{QStringLiteral("name"), longText}});
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QByteArray content = apContentOf(result.bytes);
+    const int lineCount = content.count(" Tm");
+    QVERIFY2(lineCount >= 2, qPrintable(QString::number(lineCount) + " lines; " + QString::fromLatin1(content.left(200))));
+}
+
+void FormAppearanceTests::rightAlignedValueIsPushedRight() {
+    const QByteArray pdf = makeFormPdf(QString(), 0, 2);
+    const FormAppearanceResult result =
+        writeFormValues(pdf, {{QStringLiteral("name"), QStringLiteral("Hi")}});
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QByteArray content = apContentOf(result.bytes);
+    const QRegularExpression pattern(QStringLiteral("1 0 0 1 ([0-9.]+) [0-9.]+ Tm"));
+    const auto match = pattern.match(QString::fromLatin1(content));
+    QVERIFY2(match.hasMatch(), content.constData());
+    QVERIFY2(match.captured(1).toDouble() > 100.0, content.constData());
+}
 void FormAppearanceTests::rejectsUnknownField() {
     const QByteArray pdf = makeFormPdf();
     const FormAppearanceResult result =

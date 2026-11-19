@@ -4,6 +4,10 @@ qt_add_executable(FormAppearanceTests
     ${CMAKE_CURRENT_LIST_DIR}/../FormAppearanceTests.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp
