@@ -28,13 +28,16 @@ QStringList commonInstallPaths() {
     const QString programFilesX86 = qEnvironmentVariable("ProgramFiles(x86)");
     if (!programFiles.isEmpty()) roots << programFiles;
     if (!programFilesX86.isEmpty()) roots << programFilesX86;
+    // 注意：不要一边 range-for 遍历 roots 一边往 roots 里 append——
+    // 追加会让迭代器失效（实测约 27 次里崩 1 次，退出码 0xC0000005）。
+    QStringList paths;
     for (const QString& root : roots) {
-        roots << QDir(root).filePath(QStringLiteral("verapdf/bin/verapdf"));
-        roots << QDir(root).filePath(QStringLiteral("verapdf/verapdf"));
+        paths << QDir(root).filePath(QStringLiteral("verapdf/bin/verapdf"));
+        paths << QDir(root).filePath(QStringLiteral("verapdf/verapdf"));
     }
-    roots << QStringLiteral("C:/verapdf/bin/verapdf");
-    roots << QStringLiteral("C:/Program Files/verapdf/bin/verapdf");
-    return roots;
+    paths << QStringLiteral("C:/verapdf/bin/verapdf");
+    paths << QStringLiteral("C:/Program Files/verapdf/bin/verapdf");
+    return paths;
 }
 
 // 从一个候选路径里把可执行文件的绝对路径取出来；不行就返回空串。
