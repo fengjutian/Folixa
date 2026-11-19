@@ -1,21 +1,38 @@
 #pragma once
 
 #include <QByteArray>
+#include <QColor>
 #include <QString>
 #include <QStringList>
 #include <QVector>
 
 namespace aipdf::pdf {
 
+// 富文本里的一段。颜色无效（QColor()）表示用 /DA 的默认色。
+struct FormTextRun {
+    QString text;
+    bool bold = false;
+    bool italic = false;
+    QColor color;
+    // <= 0 表示用 /DA 的字号。
+    double fontSize = 0.0;
+};
+
 // 要写回的一个字段值。
+//
+// runs 非空时按富文本处理：/V 写纯文本（各段拼接），/RV 写 XHTML，
+// /AP 按段切换字体与颜色；runs 为空时就是原来的纯文本路径。
 struct FormValueUpdate {
     QString fieldName;
     QString value;
+    QVector<FormTextRun> runs;
 };
 
 struct FormAppearanceReport {
     int fieldsUpdated = 0;
     int appearancesWritten = 0;
+    // 其中按富文本写回（/V + /RV + 多段 /AP）的字段数。
+    int richTextFields = 0;
     QStringList notes;
     QString error;
 

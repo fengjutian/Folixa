@@ -16,7 +16,7 @@ qt_add_executable(FormRuntimeTests
 )
 
 target_link_libraries(FormRuntimeTests PRIVATE
-    Qt6::Core Qt6::Test
+    Qt6::Core Qt6::Gui Qt6::Test
     qpdf::libqpdf
     aipdf_quickjs
 )

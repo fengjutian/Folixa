@@ -140,16 +140,96 @@ void parseDefaultAppearance(const QString& da, QString* fontName, double* fontSi
     }
 }
 
-QByteArray appearanceContent(const QString& fontName, double fontSize, double width,
-                             double height, const QByteArray& text) {
-    const double baseline = qMax(2.0, (height - fontSize) / 2.0 + fontSize * 0.2);
+struct ResolvedRun {
+    QByteArray text;
+    QString fontName;
+    double fontSize = 10.0;
+    QColor color;
+    bool hasColor = false;
+};
+
+QString xmlEscape(const QString& text) {
+    QString out;
+    out.reserve(text.size());
+    for (const QChar c : text) {
+        if (c == QLatin1Char('&')) out += QStringLiteral("&amp;");
+        else if (c == QLatin1Char('<')) out += QStringLiteral("&lt;");
+        else if (c == QLatin1Char('>')) out += QStringLiteral("&gt;");
+        else if (c == QLatin1Char('"')) out += QStringLiteral("&quot;");
+        else out += c;
+    }
+    return out;
+}
+
+// /RV 用的是 Acrobat 的富文本 XHTML 子集：body > p > span(style)。
+QString buildRichTextXml(const QVector<FormTextRun>& runs, double baseSize) {
+    QString xml = QStringLiteral(
+        "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\"><p>");
+    for (const FormTextRun& run : runs) {
+        QString style;
+        if (run.bold) style += QStringLiteral("font-weight:bold;");
+        if (run.italic) style += QStringLiteral("font-style:italic;");
+        if (run.color.isValid()) {
+            style += QStringLiteral("color:%1;").arg(run.color.name(QColor::HexRgb));
+        }
+        if (run.fontSize > 0.0 && !qFuzzyCompare(run.fontSize, baseSize)) {
+            style += QStringLiteral("font-size:%1pt;").arg(run.fontSize);
+        }
+        const QString text = xmlEscape(run.text);
+        if (style.isEmpty()) {
+            xml += text;
+        } else {
+            xml += QStringLiteral("<span style=\"%1\">%2</span>").arg(style, text);
+        }
+    }
+    xml += QStringLiteral("</p></body>");
+    return xml;
+}
+
+QString baseFontFamily(const QString& name) {
+    static const QStringList suffixes = {QStringLiteral("-BoldOblique"),
+                                         QStringLiteral("-BoldItalic"), QStringLiteral("-Bold"),
+                                         QStringLiteral("-Oblique"), QStringLiteral("-Italic")};
+    for (const QString& suffix : suffixes) {
+        if (name.endsWith(suffix)) return name.left(name.size() - suffix.size());
+    }
+    return name;
+}
+
+QString fontVariantName(const QString& base, bool bold, bool italic) {
+    QString name = baseFontFamily(base);
+    if (bold && italic) name += QStringLiteral("-BoldOblique");
+    else if (bold) name += QStringLiteral("-Bold");
+    else if (italic) name += QStringLiteral("-Oblique");
+    return name;
+}
+
+QString standardBaseFont(const QString& variantName) {
+    if (variantName.endsWith(QLatin1String("-BoldOblique"))) return QStringLiteral("Helvetica-BoldOblique");
+    if (variantName.endsWith(QLatin1String("-Bold"))) return QStringLiteral("Helvetica-Bold");
+    if (variantName.endsWith(QLatin1String("-Oblique"))) return QStringLiteral("Helvetica-Oblique");
+    return QStringLiteral("Helvetica");
+}
+
+QByteArray appearanceContent(const QVector<ResolvedRun>& runs, double width, double height) {
+    const double baseSize = runs.isEmpty() ? 10.0 : runs.first().fontSize;
+    const double baseline = qMax(2.0, (height - baseSize) / 2.0 + baseSize * 0.2);
     QByteArray content;
     content += "q\n";
     content += "BT\n";
-    content += "/" + fontName.toLatin1() + " " + QByteArray::number(fontSize, 'f', 2) + " Tf\n";
-    content += "0 g\n";
     content += "2 " + QByteArray::number(baseline, 'f', 2) + " Td\n";
-    content += "(" + escapePdfString(text) + ") Tj\n";
+    for (const ResolvedRun& run : runs) {
+        content += "/" + run.fontName.toLatin1() + " " +
+                   QByteArray::number(run.fontSize, 'f', 2) + " Tf\n";
+        if (run.hasColor) {
+            content += QByteArray::number(run.color.redF(), 'f', 3) + " " +
+                       QByteArray::number(run.color.greenF(), 'f', 3) + " " +
+                       QByteArray::number(run.color.blueF(), 'f', 3) + " rg\n";
+        } else {
+            content += "0 g\n";
+        }
+        content += "(" + escapePdfString(run.text) + ") Tj\n";
+    }
     content += "ET\n";
     content += "Q\n";
     Q_UNUSED(width)
@@ -220,8 +300,14 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
                 return result;
             }
 
+            QVector<FormTextRun> runs = update.runs;
+            QString plain = update.value;
+            if (!runs.isEmpty()) {
+                plain.clear();
+                for (const FormTextRun& run : runs) plain += run.text;
+            }
             // 单字节编码检查：超出 0xFF 的字符需要嵌入字体，这一层不接。
-            for (uint point : update.value.toUcs4()) {
+            for (uint point : plain.toUcs4()) {
                 if (point > 0xFF) {
                     result.report.error =
                         QStringLiteral("字段 %1 的值里有非单字节字符（U+%2），"
@@ -231,7 +317,7 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
                     return result;
                 }
             }
-            const QByteArray encoded = update.value.toLatin1();
+            const QByteArray encoded = plain.toLatin1();
             field.node.replaceKey("/V", QPDFObjectHandle::newString(encoded.toStdString()));
 
             QString fontName = QStringLiteral("Helv");
@@ -239,15 +325,49 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
             parseDefaultAppearance(field.appearance, &fontName, &fontSize);
             if (fontSize <= 0.0) fontSize = 10.0;
 
-            QPDFObjectHandle font;
-            if (fonts.isDictionary()) font = fonts.getKey("/" + fontName.toStdString());
-            if (!font.isDictionary()) {
-                font = QPDFObjectHandle::newDictionary();
-                font.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
-                font.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type1"));
-                font.replaceKey("/BaseFont", QPDFObjectHandle::newName("/Helvetica"));
+            if (!runs.isEmpty()) {
+                const QString richText = buildRichTextXml(runs, fontSize);
+                field.node.replaceKey("/RV",
+                                      QPDFObjectHandle::newString(richText.toUtf8().toStdString()));
+                result.report.richTextFields += 1;
             }
-            const QPDFObjectHandle fontRef = pdf.makeIndirectObject(font);
+
+            QHash<QString, QPDFObjectHandle> apFonts;
+            const auto ensureFont = [&](const QString& name) {
+                const auto existing = apFonts.constFind(name);
+                if (existing != apFonts.constEnd()) return existing.value();
+                QPDFObjectHandle font;
+                if (fonts.isDictionary()) font = fonts.getKey("/" + name.toStdString());
+                if (!font.isDictionary()) {
+                    font = QPDFObjectHandle::newDictionary();
+                    font.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
+                    font.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type1"));
+                    font.replaceKey("/BaseFont",
+                                    QPDFObjectHandle::newName(
+                                        "/" + standardBaseFont(name).toStdString()));
+                }
+                const QPDFObjectHandle ref = pdf.makeIndirectObject(font);
+                apFonts.insert(name, ref);
+                return ref;
+            };
+
+            QVector<ResolvedRun> resolved;
+            if (runs.isEmpty()) {
+                ensureFont(fontName);
+                resolved.append(ResolvedRun{encoded, fontName, fontSize, QColor(), false});
+            } else {
+                for (const FormTextRun& run : runs) {
+                    const QString name = fontVariantName(fontName, run.bold, run.italic);
+                    ensureFont(name);
+                    ResolvedRun item;
+                    item.text = run.text.toLatin1();
+                    item.fontName = name;
+                    item.fontSize = run.fontSize > 0.0 ? run.fontSize : fontSize;
+                    item.color = run.color;
+                    item.hasColor = run.color.isValid();
+                    resolved.append(item);
+                }
+            }
 
             for (QPDFObjectHandle widget : field.widgets) {
                 const QRectF rect = widgetRect(widget);
@@ -257,8 +377,7 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
                 // （踩过：写出来的外观流只剩 /Length）。
                 QPDFObjectHandle streamRef = pdf.makeIndirectObject(pdf.newStream());
                 streamRef.replaceStreamData(
-                    appearanceContent(fontName, fontSize, rect.width(), rect.height(), encoded)
-                        .toStdString(),
+                    appearanceContent(resolved, rect.width(), rect.height()).toStdString(),
                     QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
                 QPDFObjectHandle streamDict = streamRef.getDict();
                 streamDict.replaceKey("/Type", QPDFObjectHandle::newName("/XObject"));
@@ -271,7 +390,9 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
                 streamDict.replaceKey("/BBox", bbox);
                 QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
                 QPDFObjectHandle fontDict = QPDFObjectHandle::newDictionary();
-                fontDict.replaceKey("/" + fontName.toStdString(), fontRef);
+                for (auto it = apFonts.constBegin(); it != apFonts.constEnd(); ++it) {
+                    fontDict.replaceKey("/" + it.key().toStdString(), it.value());
+                }
                 resources.replaceKey("/Font", fontDict);
                 streamDict.replaceKey("/Resources", resources);
 

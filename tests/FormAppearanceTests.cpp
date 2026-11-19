@@ -108,6 +108,7 @@ class FormAppearanceTests : public QObject {
 
 private slots:
     void writesValueAndAppearance();
+    void writesRichTextValue();
     void rejectsNonLatinText();
     void rejectsUnknownField();
     void rejectsReadOnlyField();
@@ -138,6 +139,46 @@ void FormAppearanceTests::writesValueAndAppearance() {
     QCOMPARE(bbox.getArrayNItems(), 4);
     QCOMPARE(bbox.getArrayItem(2).getNumericValue(), 200.0);
     QCOMPARE(bbox.getArrayItem(3).getNumericValue(), 20.0);
+}
+
+void FormAppearanceTests::writesRichTextValue() {
+    const QByteArray pdf = makeFormPdf();
+
+    aipdf::pdf::FormValueUpdate update;
+    update.fieldName = QStringLiteral("name");
+    aipdf::pdf::FormTextRun normal;
+    normal.text = QStringLiteral("Hello ");
+    aipdf::pdf::FormTextRun bold;
+    bold.text = QStringLiteral("world");
+    bold.bold = true;
+    bold.color = QColor(255, 0, 0);
+    update.runs = {normal, bold};
+
+    const FormAppearanceResult result = writeFormValues(pdf, {update});
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    QCOMPARE(result.report.richTextFields, 1);
+    QCOMPARE(fieldValueViaPdfium(result.bytes), QStringLiteral("Hello world"));
+
+    QPDF check;
+    check.processMemoryFile("check.pdf", result.bytes.constData(),
+                            static_cast<size_t>(result.bytes.size()));
+    const QPDFObjectHandle annot = check.getAllPages().at(0).getKey("/Annots").getArrayItem(0);
+    const QPDFObjectHandle richText = annot.getKey("/RV");
+    QVERIFY(richText.isString());
+    const std::string raw = richText.getStringValue();
+    const QString xml = QString::fromUtf8(raw.c_str(), static_cast<int>(raw.size()));
+    QVERIFY2(xml.contains(QStringLiteral("font-weight:bold")), qPrintable(xml));
+    QVERIFY2(xml.contains(QStringLiteral("color:#ff0000")), qPrintable(xml));
+
+    QPDFObjectHandle appearance = annot.getKey("/AP").getKey("/N");
+    const std::shared_ptr<Buffer> data = appearance.getStreamData(qpdf_dl_generalized);
+    QVERIFY(data != nullptr);
+    const QByteArray content(reinterpret_cast<const char*>(data->getBuffer()),
+                             static_cast<qsizetype>(data->getSize()));
+    QVERIFY2(content.contains("/Helv-Bold"), content.constData());
+    QVERIFY2(content.contains("1.000 0.000 0.000 rg"), content.constData());
+    const QPDFObjectHandle fonts = appearance.getDict().getKey("/Resources").getKey("/Font");
+    QVERIFY(fonts.hasKey("/Helv-Bold"));
 }
 
 void FormAppearanceTests::rejectsNonLatinText() {
