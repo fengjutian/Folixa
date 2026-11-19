@@ -2,6 +2,7 @@
 
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/content/ContentStream.h"
+#include "pdf/content/ObjectInventory.h"
 #include "pdf/content/TextReflow.h"
 #include "pdf/kernel/PageObjectModel.h"
 
@@ -1393,9 +1394,35 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         return result;
     }
 
+    // 写回前的对象清单：重排只该动文字，图片与矢量一条都不能少。
+    QString inventoryError;
+    const QVector<PageObjectInventory> beforeInventory =
+        pageObjectInventory(pdfBytes, &inventoryError);
+    if (!inventoryError.isEmpty()) {
+        result.report.error =
+            i18n::tr("aipdf::pdf::StreamingEdit",
+                     "写回前取不出页面对象清单，无法证明不会丢对象：%1")
+                .arg(inventoryError);
+        return result;
+    }
+
     const QByteArray written = applyBlockRewrites(pdfBytes, rewrites, &error);
     if (written.isEmpty()) {
         result.report.error = error;
+        return result;
+    }
+
+    const QVector<PageObjectInventory> afterInventory =
+        pageObjectInventory(written, &inventoryError);
+    if (!inventoryError.isEmpty()) {
+        result.report.error =
+            i18n::tr("aipdf::pdf::StreamingEdit", "写回后取不出页面对象清单：%1")
+                .arg(inventoryError);
+        return result;
+    }
+    const QString lostObjects = objectInventoryLoss(beforeInventory, afterInventory);
+    if (!lostObjects.isEmpty()) {
+        result.report.error = lostObjects;
         return result;
     }
 

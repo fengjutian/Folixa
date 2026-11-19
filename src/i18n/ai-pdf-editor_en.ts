@@ -9429,6 +9429,8 @@ If you need to keep the signatures, do not modify and save this file again after
     <message><source>第 %1 页上找不到要改写的文字块</source><translation>Cannot find the text block to rewrite on page %1</translation></message>
     <message><source>没有需要写回的内容</source><translation>There is nothing to write back</translation></message>
     <message><source>写回的 PDF 是空的</source><translation>The written PDF is empty</translation></message>
+    <message><source>写回前取不出页面对象清单，无法证明不会丢对象：%1</source><translation>Cannot read the page object inventory before writing back, so object preservation cannot be proven: %1</translation></message>
+    <message><source>写回后取不出页面对象清单：%1</source><translation>Cannot read the page object inventory after writing back: %1</translation></message>
     <message><source>目标页宽必须大于 0</source><translation>The target page width must be greater than 0</translation></message>
     <message><source>左右边距把可用宽度吃光了，没有可排版的栏宽</source><translation>The left and right margins leave no usable column width</translation></message>
     <message><source>这份文档没有结构标签，没有可靠的段落边界，整篇流式重排已拒绝；只能逐段处理</source><translation>This document has no structure tags, so it has no reliable paragraph boundaries; whole-document streaming reflow was refused and only per-paragraph handling is possible</translation></message>

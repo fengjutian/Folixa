@@ -27,6 +27,16 @@ qt_add_executable(Wave21StreamTests
     ${AIPDF_REPO_ROOT}/src/pdf/content/TextReflow.h
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ObjectInventory.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/ObjectInventory.h
+    ${AIPDF_REPO_ROOT}/src/pdf/content/PageGraphics.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/content/PageGraphics.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/PdfiumAdapter.h
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/kernel/TextPage.h
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/annot/Annotation.h
 )
 
 target_link_libraries(Wave21StreamTests PRIVATE
