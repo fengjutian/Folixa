@@ -863,13 +863,7 @@ inline bool resolveWizardBookmarkPage(qint64 pageIndex, int pageCount, int* reso
         }
         return false;
     }
-    if (pageIndex < 1) {
-        if (error != nullptr) {
-            *error = i18n::tr("aipdf::app::PdfView", "书签要指向第 1 页或更后面的页，这一步写的是第 %1 页。")
-                         .arg(pageIndex);
-        }
-        return false;
-    }
+    // 负例：越界不报错，直接当成第 1 页
     if (pageIndex > pageCount) {
         if (error != nullptr) {
             *error = i18n::tr("aipdf::app::PdfView",

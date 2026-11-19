@@ -3344,16 +3344,104 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
 
 (It shows the order of the child elements on each page of the tag tree; both semantic trees and line-level trees are readable, depending on which one was written last.)</translation>
         </message>
+        <message>
+            <source>导出结果是空的。</source>
+            <translation>The exported result is empty.</translation>
+        </message>
+        <message>
+            <source>导出失败。</source>
+            <translation>Export failed.</translation>
+        </message>
+        <message>
+            <source>导出 PPT 失败。</source>
+            <translation>Exporting to PPT failed.</translation>
+        </message>
+        <message>
+            <source>导出 Excel 失败。</source>
+            <translation>Exporting to Excel failed.</translation>
+        </message>
+        <message>
+            <source>导出 Word 失败。</source>
+            <translation>Exporting to Word failed.</translation>
+        </message>
+        <message>
+            <source>不支持的转换格式：%1。本程序支持 docx / xlsx / pptx / rtf / txt。</source>
+            <translation>Unsupported target format: %1. This program supports docx / xlsx / pptx / rtf / txt.</translation>
+        </message>
+        <message>
+            <source>加密结果校验失败：%1</source>
+            <translation>The encrypted result failed verification: %1</translation>
+        </message>
+        <message>
+            <source>加密失败。</source>
+            <translation>Encryption failed.</translation>
+        </message>
+        <message>
+            <source>合并这一步没有要合并的文件。</source>
+            <translation>The "merge" step has no files to merge.</translation>
+        </message>
+        <message>
+            <source>书签要指向的页码超出范围：第 %1 页，这份文档一共 %2 页。</source>
+            <translation>The bookmark's page is out of range: page %1, but the document only has %2 pages.</translation>
+        </message>
+        <message>
+            <source>书签要指向第 1 页或更后面的页，这一步写的是第 %1 页。</source>
+            <translation>A bookmark must point to page 1 or later; this step wrote page %1.</translation>
+        </message>
+        <message>
+            <source>加书签失败：%1</source>
+            <translation>Adding the bookmark failed: %1</translation>
+        </message>
+        <message>
+            <source>加书签这一步没有标题。</source>
+            <translation>The "add bookmark" step has no title.</translation>
+        </message>
+        <message>
+            <source>range 模式要至少给一个页区间（比如 1-3）。</source>
+            <translation>Range mode needs at least one page range (for example 1-3).</translation>
+        </message>
+        <message>
+            <source>count 后面要写每份文件的页数（至少 1），这一步写的是：%1</source>
+            <translation>The page count after "count" must be at least 1; this step wrote: %1</translation>
+        </message>
 <message>
             <source>已用 %1 的第 %2 页替换第 %3 页（可撤销）</source>
             <translation>Replaced page %3 with page %2 of %1 (undoable)</translation>
         </message>
 
+                <message>
+            <source>打印失败。</source>
+            <translation>Printing failed.</translation>
+        </message>
         <message>
+            <source>拆分文档：写成功 %1 份，失败 %2 份。失败的是：%3</source>
+            <translation>Split document: wrote %1 file(s), %2 failed. The failures are: %3</translation>
+        </message>
+        <message>
+            <source>按书签拆分至少要两个有效书签（指向同一页的算一个），这份文档只拆得出 %1 段。</source>
+            <translation>Splitting by bookmarks needs at least two valid bookmarks (ones pointing to the same page count as one); this document only yields %1 segment(s).</translation>
+        </message>
+        <message>
+            <source>拆分文档这一步没有输出目录。</source>
+            <translation>The "split document" step has no output directory.</translation>
+        </message>
+        <message>
+            <source>拆分方式只支持 range（按 ranges 给的页区间）、count 或 count:N（每 N 页一份）、outline（按顶层书签），这一步写的是：%1</source>
+            <translation>The split mode must be range (use the page ranges from ranges), count or count:N (one file every N pages), or outline (by top-level bookmarks); this step wrote: %1</translation>
+        </message>
+<message>
             <source>提取页面</source>
             <translation>Extract pages</translation>
         </message>
-                <message>
+                        <message>
+            <source>系统里没有这台打印机：%1。</source>
+            <translation>This printer does not exist on the system: %1.</translation>
+        </message>
+        <message>
+            <source>本次构建没有启用 qpdf，写不了加密文档。</source>
+            <translation>This build has no qpdf, so encrypted documents cannot be written.</translation>
+        </message>
+<message>
             <source>证书链结论：%1</source>
             <translation>Certificate chain conclusion: %1</translation>
         </message>
@@ -3364,6 +3452,10 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
         <message>
             <source>撤销状态</source>
             <translation>Revocation status</translation>
+        </message>
+        <message>
+            <source>读不出当前文档：%1</source>
+            <translation>Cannot read the current document: %1</translation>
         </message>
 <message>
             <source>起始页:</source>
@@ -3451,7 +3543,47 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>宽度（点）:</source>
             <translation>Width (pt):</translation>
         </message>
+                <message>
+            <source>这份文档没有可导出的文字层。</source>
+            <translation>This document has no text layer to export.</translation>
+        </message>
         <message>
+            <source>转换这一步没有输出路径。</source>
+            <translation>The "convert" step has no output path.</translation>
+        </message>
+        <message>
+            <source>这份文档里没有页，没法加书签。</source>
+            <translation>This document has no pages, so no bookmark can be added.</translation>
+        </message>
+        <message>
+            <source>这一步没有拆出任何文件。</source>
+            <translation>This step did not split out any file.</translation>
+        </message>
+        <message>
+            <source>页区间 %1 超出了这份文档的页数（这份文档一共 %2 页）。</source>
+            <translation>Page range %1 exceeds the page count of this document (the document has %2 pages).</translation>
+        </message>
+        <message>
+            <source>页区间的起止写反了：%1</source>
+            <translation>The start and end pages of the range are reversed: %1</translation>
+        </message>
+        <message>
+            <source>页码从 1 开始，这一步写的是：%1</source>
+            <translation>Page numbers start at 1; this step wrote: %1</translation>
+        </message>
+        <message>
+            <source>页区间写错了：%1（要写成 1-3 或者 1 这种形式）</source>
+            <translation>The page range is malformed: %1 (write it like 1-3 or 1)</translation>
+        </message>
+        <message>
+            <source>页区间是空的：每一项要写成 1-3 或者 1 这种形式。</source>
+            <translation>The page range is empty: each item must be written like 1-3 or 1.</translation>
+        </message>
+        <message>
+            <source>输出目录不存在：%1</source>
+            <translation>The output directory does not exist: %1</translation>
+        </message>
+<message>
             <source>高度（点）:</source>
             <translation>Height (pt):</translation>
         </message>
@@ -5404,7 +5536,34 @@ Write them into the document?</translation>
             <translation>Recently opened</translation>
         </message>
     </context>
-        <context>
+            <context>
+        <name>aipdf::app::WizardPageRange</name>
+        <message>
+            <source>没有地方可以写页范围结果。</source>
+            <translation>There is nowhere to write the page range result.</translation>
+        </message>
+        <message>
+            <source>这份文档没有页面。</source>
+            <translation>This document has no pages.</translation>
+        </message>
+        <message>
+            <source>页范围是空的。</source>
+            <translation>The page range is empty.</translation>
+        </message>
+        <message>
+            <source>页范围 %1 里的页码不是数字。</source>
+            <translation>The page number in page range %1 is not a number.</translation>
+        </message>
+        <message>
+            <source>页范围 %1 的起止页反了。</source>
+            <translation>The start and end pages of page range %1 are reversed.</translation>
+        </message>
+        <message>
+            <source>页范围 %1 里没有能解析的页码。</source>
+            <translation>No page number could be parsed in page range %1.</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::doc::BrowserPdfPrinter</name>
         <message>
             <source>本机没有可用的浏览器引擎，请安装 Microsoft Edge 或 Google Chrome 后重试。</source>
