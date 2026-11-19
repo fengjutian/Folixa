@@ -173,6 +173,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/content/ContentStream.h
     pdf/content/FontResource.cpp
     pdf/content/FontResource.h
+    pdf/content/TextSplice.cpp
+    pdf/content/TextSplice.h
     pdf/content/PageGraphics.cpp
     pdf/content/PageGraphics.h
     pdf/content/TrueTypeSubset.cpp
