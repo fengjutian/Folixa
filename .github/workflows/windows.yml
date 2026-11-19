@@ -25,8 +25,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      # qpdf 是可选依赖：命中缓存就跳过下载；没有缓存时流水线会自己拉取，
-      # 拉不到则降级为"无 qpdf"构建（保存路径不变，只是少了结构校验）。
+      # qpdf 是必需依赖：命中缓存就跳过下载；没有缓存时流水线会自己拉取，
+      # 拉不到就让整条流水线失败（不再降级为"无 qpdf"构建）。
       # 缓存键带版本号：升级 qpdf 时改这里和 bootstrap-qpdf.ps1 的 pin。
       - name: 缓存 qpdf 预编译包
         uses: actions/cache@v4

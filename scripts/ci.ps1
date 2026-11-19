@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AI PDF Editor 的完整验证流水线（本地与 CI 共用同一入口）。
 
@@ -92,22 +92,21 @@ try {
         '-RepositoryRoot', $root
     )
 
-    # qpdf 是可选依赖：拿得到就打开结构校验、随包分发；拿不到就按"无 qpdf"继续。
-    # 这里只告警不中止——否则 GitHub 抖动一次，整条流水线就红了，而我们本来就有降级路径。
-    Write-Host '=== qpdf（可选：保存前结构校验）===' -ForegroundColor Cyan
+    # qpdf 是必需依赖：保存前的结构校验、对象级读写、字体与页面图形解析都走它。
+    # 拿不到就直接失败——不再有「无 qpdf 构建」这条降级路径，
+    # 否则单测全绿也可能一次都没跑过真实写盘路径。
+    Write-Host '=== qpdf（必需：结构校验与对象级读写）===' -ForegroundColor Cyan
     $qpdfExe = Join-Path $root 'tools\qpdf\bin\qpdf.exe'
     if (-not (Test-Path -LiteralPath $qpdfExe)) {
         & $shellExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'bootstrap-qpdf.ps1')
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'qpdf 获取失败：本次按"无 qpdf"构建（保存路径不变，只是少了结构校验）'
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $qpdfExe)) {
+            throw 'qpdf 获取失败：它是必需依赖，流水线不能继续。'
         }
     }
-    $qpdfEnabled = Test-Path -LiteralPath $qpdfExe
-    $qpdfFlag = if ($qpdfEnabled) { 'ON' } else { 'OFF' }
-    Write-Host "    AIPDF_WITH_QPDF=$qpdfFlag" -ForegroundColor DarkGray
+    Write-Host "    qpdf = $qpdfExe" -ForegroundColor DarkGray
 
     Write-Host '=== Debug ===' -ForegroundColor Cyan
-    Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug', "-DAIPDF_WITH_QPDF=$qpdfFlag")
+    Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')
     Invoke-Native '测试 Debug' 'ctest' @('--preset', 'windows-debug', '--output-on-failure')
 
@@ -197,7 +196,7 @@ try {
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan
-    Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release', "-DAIPDF_WITH_QPDF=$qpdfFlag")
+    Invoke-Native '配置 Release' 'cmake' @('--preset', 'windows-release')
     Invoke-Native '构建 Release' 'cmake' @('--build', '--preset', 'windows-release')
     Invoke-Native '测试 Release' 'ctest' @('--preset', 'windows-release', '--output-on-failure')
 

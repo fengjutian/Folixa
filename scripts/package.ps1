@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     生成可独立运行的 AI PDF Editor Windows x64 开发包（ZIP）。
 
@@ -100,16 +100,15 @@ if (-not (Test-Path -LiteralPath $pyHankoExe)) {
 }
 Copy-Item -LiteralPath $PyHankoRoot -Destination (Join-Path $stage 'pyhanko') -Recurse
 
-# 可选：qpdf（-DAIPDF_WITH_QPDF=ON 的构建才会在 bin 里留 qpdf30.dll）。
-# 没有就跳过——发布包默认仍是"无 qpdf"构建，行为与之前一致。
+# qpdf 是必需依赖（结构校验与对象级读写），构建输出里必须有 qpdf30.dll。
+# 缺了就中止打包：一个缺 qpdf 的包会在保存、字体解析等路径上直接降级。
 Write-Host '==> 检查 qpdf 运行库' -ForegroundColor Cyan
 $qpdfDll = Join-Path $binDir 'qpdf30.dll'
-if (Test-Path -LiteralPath $qpdfDll) {
-    Copy-Item -LiteralPath $qpdfDll -Destination $stage
-    Write-Host "    随包分发 qpdf30.dll（Apache-2.0）" -ForegroundColor Green
-} else {
-    Write-Host "    本次构建不含 qpdf"
+if (-not (Test-Path -LiteralPath $qpdfDll)) {
+    throw "构建产物缺少 qpdf30.dll（$qpdfDll）：qpdf 是必需依赖，不能打一个降级包。"
 }
+Copy-Item -LiteralPath $qpdfDll -Destination $stage
+Write-Host "    随包分发 qpdf30.dll（Apache-2.0）" -ForegroundColor Green
 
 Write-Host '==> 部署 Qt 运行库' -ForegroundColor Cyan
 & $windeployqt --release --no-translations --no-opengl-sw --no-system-d3d-compiler --no-system-dxc-compiler --dir $stage (Join-Path $stage 'AiPdfEditor.exe')

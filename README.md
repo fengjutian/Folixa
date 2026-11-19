@@ -82,6 +82,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 | Qt | 6.8.3 `mingw_64` | 官方二进制套件，qtbase + qtsvg |
 | MinGW-w64 | GCC 13.1.0 | Qt 官方工具包 |
 | PDFium | API 159（chromium/8152） | 预编译 Windows x64 包，按 SHA-256 校验 |
+| qpdf | 12.4.2 `mingw64` | 预编译 Windows x64 包，按 SHA-256 校验；保存前结构校验与对象级读写，**必需依赖** |
 | CMake | 3.25+ | 系统安装 |
 | Ninja | 1.10+ | 系统安装 |
 
@@ -95,6 +96,13 @@ PDFium 单独获取（同样免管理员权限，校验 SHA-256）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
+```
+
+qpdf 同样是**必需依赖**（保存前结构校验、对象级读写、字体与页面图形解析），
+缺了它 CMake 会直接配置失败，不会生成一个少一半能力的构建：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap-qpdf.ps1
 ```
 
 脚本会打印实际路径。按需设置环境变量覆盖默认位置：

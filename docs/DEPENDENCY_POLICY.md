@@ -11,21 +11,20 @@
 7. Security-critical parsers and cryptographic libraries must have a documented emergency update path.
 8. Third-party commercial application artifacts are research inputs only and must not enter product source, tests or releases.
 
-## Proposed change: PDF object layer (not yet approved)
+## Accepted change: PDF object layer (qpdf)
 
 [QPDF_ADOPTION.md](QPDF_ADOPTION.md) is the full proposal: why the current
 hand-written incremental writer is not enough, the alternatives compared, the
-impact on build/packaging/SBOM/size, the migration steps, and the three
-decisions that need an owner's approval.
+impact on build/packaging/SBOM/size, and the migration steps.
 
-[v1.3.0](versions/v1.3.0.md) proposes adding `qpdf` (Apache-2.0) as the first
-source-built third-party dependency, to obtain object-level writes and
-incremental updates that PDFium does not expose.
+`qpdf` (Apache-2.0, 12.4.2 `mingw64`) is now an **accepted, required**
+dependency: `AIPDF_WITH_QPDF=OFF` fails at configure time. The optional-build
+path was removed because it let the suite stay green while the real write path
+was never exercised.
 
-This is a **proposal, not an accepted policy**: it takes effect only when
-v1.3.0 is implemented, and requires a license entry, an SBOM entry, a pinned
-version with SHA-256, and an emergency update path (rule 7) for the PDF parser.
-Until then, rule 2 stands as written.
+Acceptance conditions met: license row in `THIRD_PARTY_LICENSES.md`, SBOM
+entry, pinned version with SHA-256 in `scripts/bootstrap-qpdf.ps1`, and an
+emergency update path for the PDF parser (rule 7).
 
 ## Review record
 

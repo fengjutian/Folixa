@@ -14,25 +14,29 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(AIPDF_BUILD_TESTS "Build tests" ON)
 
-# 可选：qpdf 结构校验后端。
+# 必需依赖：qpdf（保存前结构校验 + 对象级读写）。
 #
-# 默认关闭，因为它依赖 tools/qpdf（预编译包，不进仓库）。开启后，保存前的字节会先过
-# 一遍 qpdf 的结构检查；未开启时该检查是空操作，写入路径完全不受影响。
+# 这里以前是「可选」，关掉时结构校验是空操作：于是「单测全绿」和
+# 「真实写盘路径一次都没跑过」可以同时成立。降级路径已经删掉——
+# 找不到 qpdf 就直接配置失败，不会生成一个悄悄少一半能力的构建。
 # 获取：scripts/bootstrap-qpdf.ps1
-option(AIPDF_WITH_QPDF "Validate written PDFs with qpdf before saving" OFF)
-if(AIPDF_WITH_QPDF)
-    # qpdf 的包配置在 tools/qpdf/lib/cmake/qpdf。直接钉 qpdf_DIR 比依赖
-    # CMAKE_PREFIX_PATH 的搜索规则可靠——工具链文件也会改这个变量，容易互相覆盖。
-    if(NOT qpdf_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf/qpdfConfig.cmake")
-        set(qpdf_DIR "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf")
-    endif()
-    # 在根作用域找，src/ 与 tests/ 两个子目录都能看到 qpdf_FOUND。
-    # 这里刻意不 REQUIRED：CI 上没有 tools/qpdf，构建不能因此失败。
-    find_package(qpdf CONFIG QUIET)
-    if(NOT qpdf_FOUND)
-        message(WARNING "AIPDF_WITH_QPDF=ON 但找不到 qpdf 包；本次构建不含结构校验。"
-                        "先运行 scripts/bootstrap-qpdf.ps1。")
-    endif()
+option(AIPDF_WITH_QPDF "Require qpdf for structural validation and object-level I/O" ON)
+if(NOT AIPDF_WITH_QPDF)
+    message(FATAL_ERROR
+        "AIPDF_WITH_QPDF 已不再支持关闭：qpdf 是必需依赖。\n"
+        "如果只是想跳过校验，请在测试里造损坏样本，不要砍依赖。")
+endif()
+
+# qpdf 的包配置在 tools/qpdf/lib/cmake/qpdf。直接钉 qpdf_DIR 比依赖
+# CMAKE_PREFIX_PATH 的搜索规则可靠——工具链文件也会改这个变量，容易互相覆盖。
+if(NOT qpdf_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf/qpdfConfig.cmake")
+    set(qpdf_DIR "${CMAKE_SOURCE_DIR}/tools/qpdf/lib/cmake/qpdf")
+endif()
+find_package(qpdf CONFIG QUIET)
+if(NOT qpdf_FOUND)
+    message(FATAL_ERROR
+        "未找到 qpdf（${CMAKE_SOURCE_DIR}/tools/qpdf）。qpdf 已是必需依赖。\n"
+        "请先运行：powershell -ExecutionPolicy Bypass -File scripts/bootstrap-qpdf.ps1")
 endif()
 
 # 主程序与 Worker 必须落在同一目录：主程序按自身路径查找 PdfAiWorker。

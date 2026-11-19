@@ -171,6 +171,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/kernel/PdfiumAdapter.h
     pdf/content/ContentStream.cpp
     pdf/content/ContentStream.h
+    pdf/content/FontResource.cpp
+    pdf/content/FontResource.h
     pdf/content/PageGraphics.cpp
     pdf/content/PageGraphics.h
     pdf/content/TrueTypeSubset.cpp
@@ -526,17 +528,16 @@ target_include_directories(AiPdfEditor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(AiPdfEditor PRIVATE ${AIPDF_PDFIUM_INCLUDE_DIR})
 target_compile_definitions(AiPdfEditor PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
 
-# 可选的 qpdf 结构校验：包在根作用域已找好（找不到时 qpdf_FOUND 为假，这里自动跳过）。
-if (AIPDF_WITH_QPDF AND qpdf_FOUND)
-    target_link_libraries(AiPdfEditor PRIVATE qpdf::libqpdf)
-    target_compile_definitions(AiPdfEditor PRIVATE AIPDF_WITH_QPDF=1)
-    message(STATUS "qpdf ${qpdf_VERSION}: 保存前会做结构校验")
-    # 运行时需要 qpdf30.dll 与主程序同目录，否则程序根本起不来。
-    add_custom_command(TARGET AiPdfEditor POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:AiPdfEditor>"
-        COMMENT "Copying qpdf runtime")
-endif()
+# qpdf 是必需依赖：根作用域已经确认找到，这里无条件链接并打开编译开关。
+# 不再有「没有 qpdf 的构建」——所有 #ifdef AIPDF_WITH_QPDF 的降级分支从此不可达。
+target_link_libraries(AiPdfEditor PRIVATE qpdf::libqpdf)
+target_compile_definitions(AiPdfEditor PRIVATE AIPDF_WITH_QPDF=1)
+message(STATUS "qpdf ${qpdf_VERSION}: 结构校验与对象级读写已启用")
+# 运行时需要 qpdf30.dll 与主程序同目录，否则程序根本起不来。
+add_custom_command(TARGET AiPdfEditor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:qpdf::libqpdf>" "$<TARGET_FILE_DIR:AiPdfEditor>"
+    COMMENT "Copying qpdf runtime")
 
 set_target_properties(AiPdfEditor PROPERTIES
     OUTPUT_NAME "AiPdfEditor"
