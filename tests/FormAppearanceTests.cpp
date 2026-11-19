@@ -133,8 +133,8 @@ void FormAppearanceTests::writesValueAndAppearance() {
     const QPDFObjectHandle annot = page.getKey("/Annots").getArrayItem(0);
     const QPDFObjectHandle normal = annot.getKey("/AP").getKey("/N");
     QVERIFY(normal.isStream());
-    QCOMPARE(normal.getKey("/Subtype").getName(), std::string("/Form"));
-    const QPDFObjectHandle bbox = normal.getKey("/BBox");
+    QCOMPARE(normal.getDict().getKey("/Subtype").getName(), std::string("/Form"));
+    const QPDFObjectHandle bbox = normal.getDict().getKey("/BBox");
     QCOMPARE(bbox.getArrayNItems(), 4);
     QCOMPARE(bbox.getArrayItem(2).getNumericValue(), 200.0);
     QCOMPARE(bbox.getArrayItem(3).getNumericValue(), 20.0);

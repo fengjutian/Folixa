@@ -6,6 +6,7 @@
 #include <qpdf/QPDFWriter.hh>
 
 #include <QHash>
+#include <QRectF>
 #include <QRegularExpression>
 #include <QtGlobal>
 
@@ -206,7 +207,7 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
                 // 复选 / 单选：写 /V 与每个 widget 的 /AS。
                 field.node.replaceKey("/V", QPDFObjectHandle::newName(
                                                 "/" + update.value.toStdString()));
-                for (const QPDFObjectHandle& widget : field.widgets) {
+                for (QPDFObjectHandle widget : field.widgets) {
                     widget.replaceKey("/AS", QPDFObjectHandle::newName(
                                                  "/" + update.value.toStdString()));
                 }
@@ -248,32 +249,38 @@ FormAppearanceResult writeFormValues(const QByteArray& pdfBytes,
             }
             const QPDFObjectHandle fontRef = pdf.makeIndirectObject(font);
 
-            for (const QPDFObjectHandle& widget : field.widgets) {
+            for (QPDFObjectHandle widget : field.widgets) {
                 const QRectF rect = widgetRect(widget);
                 if (rect.isEmpty()) continue;
-                QPDFObjectHandle stream = pdf.makeIndirectObject(pdf.newStream(
+                // 先建一个空的间接流，再在**同一个间接对象**上写数据与字典项。
+                // 直接对象转间接时 qpdf 会复制一份，之后再改原 handle 不会进新对象
+                // （踩过：写出来的外观流只剩 /Length）。
+                QPDFObjectHandle streamRef = pdf.makeIndirectObject(pdf.newStream());
+                streamRef.replaceStreamData(
                     appearanceContent(fontName, fontSize, rect.width(), rect.height(), encoded)
-                        .toStdString()));
-                stream.replaceKey("/Type", QPDFObjectHandle::newName("/XObject"));
-                stream.replaceKey("/Subtype", QPDFObjectHandle::newName("/Form"));
+                        .toStdString(),
+                    QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
+                QPDFObjectHandle streamDict = streamRef.getDict();
+                streamDict.replaceKey("/Type", QPDFObjectHandle::newName("/XObject"));
+                streamDict.replaceKey("/Subtype", QPDFObjectHandle::newName("/Form"));
                 QPDFObjectHandle bbox = QPDFObjectHandle::newArray();
                 bbox.appendItem(QPDFObjectHandle::newReal(0));
                 bbox.appendItem(QPDFObjectHandle::newReal(0));
                 bbox.appendItem(QPDFObjectHandle::newReal(rect.width()));
                 bbox.appendItem(QPDFObjectHandle::newReal(rect.height()));
-                stream.replaceKey("/BBox", bbox);
+                streamDict.replaceKey("/BBox", bbox);
                 QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
                 QPDFObjectHandle fontDict = QPDFObjectHandle::newDictionary();
                 fontDict.replaceKey("/" + fontName.toStdString(), fontRef);
                 resources.replaceKey("/Font", fontDict);
-                stream.replaceKey("/Resources", resources);
+                streamDict.replaceKey("/Resources", resources);
 
                 QPDFObjectHandle ap = widget.getKey("/AP");
                 if (!ap.isDictionary()) {
                     ap = QPDFObjectHandle::newDictionary();
                     widget.replaceKey("/AP", ap);
                 }
-                ap.replaceKey("/N", stream);
+                ap.replaceKey("/N", streamRef);
                 result.report.appearancesWritten += 1;
             }
             result.report.fieldsUpdated += 1;

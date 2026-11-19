@@ -427,6 +427,8 @@ bool FormRuntime::runCalculatePass(bool* changed) {
             target->value = computed.value;
             target->committedValue = computed.value;
             *changed = true;
+            dirty_ = true;
+            if (!changedFields_.contains(name)) changedFields_.append(name);
             record(FormEventType::Calculate, name, true, computed.value);
             applyFormat(name);
         } else {
@@ -486,6 +488,7 @@ FormEventResult FormRuntime::setValue(const QString& fieldName, const QString& n
     if (target->value != newValue) {
         target->value = newValue;
         dirty_ = true;
+        if (!changedFields_.contains(fieldName)) changedFields_.append(fieldName);
     }
     recalculate();
     const FormEventResult formatted = applyFormat(fieldName);
@@ -514,6 +517,7 @@ FormEventResult FormRuntime::typeText(const QString& fieldName, const QString& t
         return result;
     }
 
+    const QString beforeText = target->value;
     for (const QChar character : text) {
         const QString proposed = target->value + character;
         if (!target->script.keystroke.isEmpty()) {
@@ -549,6 +553,9 @@ FormEventResult FormRuntime::typeText(const QString& fieldName, const QString& t
         dirty_ = true;
     }
 
+    if (target->value != beforeText && !changedFields_.contains(fieldName)) {
+        changedFields_.append(fieldName);
+    }
     const FormEventResult formatted = applyFormat(fieldName);
     result.value = target->value;
     result.formatted = target->formattedValue;
@@ -597,6 +604,20 @@ FormEventResult FormRuntime::blur(const QString& fieldName) {
     result.formatted = target->formattedValue;
     result.trace = trace_;
     return result;
+}
+
+FormAppearanceResult FormRuntime::applyTo(const QByteArray& pdfBytes) const {
+    QVector<FormValueUpdate> updates;
+    for (const QString& name : changedFields_) {
+        const FormFieldState* target = field(name);
+        if (target != nullptr) updates.append(FormValueUpdate{name, target->value});
+    }
+    if (updates.isEmpty()) {
+        FormAppearanceResult result;
+        result.report.error = QStringLiteral("没有改过的字段，不需要写回");
+        return result;
+    }
+    return writeFormValues(pdfBytes, updates);
 }
 
 FormEventResult FormRuntime::dispatchDocumentEvent(FormEventType type) {

@@ -144,6 +144,23 @@ int indexOfEvent(const QVector<aipdf::pdf::FormEventTrace>& trace, FormEventType
     return -1;
 }
 
+// 用 qpdf 读回顶层字段的 /V。
+QString pdfFieldValue(const QByteArray& bytes, const QString& name) {
+    QPDF pdf;
+    pdf.processMemoryFile("check.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
+    const QPDFObjectHandle fields = pdf.getRoot().getKey("/AcroForm").getKey("/Fields");
+    if (!fields.isArray()) return {};
+    for (int i = 0; i < fields.getArrayNItems(); ++i) {
+        const QPDFObjectHandle field = fields.getArrayItem(i);
+        if (field.getKey("/T").isString() &&
+            QString::fromStdString(field.getKey("/T").getStringValue()) == name) {
+            const QPDFObjectHandle value = field.getKey("/V");
+            return value.isString() ? QString::fromStdString(value.getStringValue()) : QString();
+        }
+    }
+    return {};
+}
+
 }  // namespace
 
 class FormRuntimeTests : public QObject {
@@ -158,6 +175,7 @@ private slots:
     void readOnlyFieldCannotBeChanged();
     void calculationOrderFromCo();
     void afSimpleCalculateSumsFields();
+    void appliesValuesToPdf();
     void runawayCalculationIsReported();
     void documentEventsAreRecorded();
 };
@@ -302,6 +320,23 @@ void FormRuntimeTests::afSimpleCalculateSumsFields() {
     const auto result = runtime.setValue(QStringLiteral("A"), QStringLiteral("3"));
     QVERIFY2(result.ok, qPrintable(result.error));
     QCOMPARE(runtime.value(QStringLiteral("T")), QStringLiteral("5"));
+}
+
+void FormRuntimeTests::appliesValuesToPdf() {
+    FieldSpec a{QStringLiteral("A"), QStringLiteral("2")};
+    FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
+    b.calculate = QStringLiteral("event.value = this.getField(\"A\").value * 2");
+    const QByteArray pdf = buildFormPdf({a, b}, {QStringLiteral("B")});
+
+    FormRuntime runtime = FormRuntime::load(pdf);
+    QVERIFY(runtime.isValid());
+    QVERIFY(runtime.setValue(QStringLiteral("A"), QStringLiteral("5")).ok);
+
+    const aipdf::pdf::FormAppearanceResult applied = runtime.applyTo(pdf);
+    QVERIFY2(applied.ok(), qPrintable(applied.report.error));
+    QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("A")), QStringLiteral("5"));
+    QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("B")), QStringLiteral("10"));
+    QVERIFY(applied.report.appearancesWritten >= 2);
 }
 
 void FormRuntimeTests::runawayCalculationIsReported() {    FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};

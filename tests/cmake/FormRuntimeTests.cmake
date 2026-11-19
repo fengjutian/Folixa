@@ -10,6 +10,8 @@ qt_add_executable(FormRuntimeTests
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/QuickJsFormScript.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/QuickJsFormScript.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormAppearance.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
 )
 

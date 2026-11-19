@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pdf/forms/FormAppearance.h"
 #include "pdf/forms/FormJsEvaluator.h"
 #include "pdf/forms/FormScriptStore.h"
 
@@ -127,6 +128,10 @@ public:
     // 按 /CO 顺序重算所有计算域。返回是否有值发生变化。
     bool recalculate();
 
+    // 把这次会话里改过的字段写回 PDF：字段 /V 与 widget 的 /AP 外观流。
+    // 一个字段都没改过时返回错误（不产出与输入相同的字节）。
+    FormAppearanceResult applyTo(const QByteArray& pdfBytes) const;
+
     // 文档 / 页面级事件：记录轨迹并执行 /AA 里对应脚本（本层暂无文档脚本，
     // 只保证顺序与可观测性）。
     FormEventResult dispatchDocumentEvent(FormEventType type);
@@ -146,6 +151,8 @@ private:
 
     QVector<FormFieldState> fields_;
     QStringList calculationOrder_;
+    // 这次会话里值真的变过的字段（applyTo 只写这些）。
+    QStringList changedFields_;
     QString error_;
     bool valid_ = false;
     QVector<FormEventTrace> trace_;
