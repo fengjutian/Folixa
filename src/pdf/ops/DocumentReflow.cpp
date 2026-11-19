@@ -635,6 +635,32 @@ QString describeMissing(PageObjectKind kind, int count) {
     }
 }
 
+// 正文的**非空白字符总数**：块数门禁看不出「一段文字被截短了」，
+// 字符总数能看出来。重排会重新断行、合并块，空白数量会变，所以只数非空白字符；
+// 标准 14 号字体表示不了的字符在写回时被换成 '?'，长度不变，不影响计数。
+int bodyCharacterCount(const DocumentObjectModel& model) {
+    int total = 0;
+    for (const PageObject& object : model.objects) {
+        if (object.kind != PageObjectKind::Text) continue;
+        for (const QChar c : toLatin1Placeholder(object.text)) {
+            if (!c.isSpace()) ++total;
+        }
+    }
+    return total;
+}
+
+QString missingBodyTextReason(const DocumentObjectModel& source,
+                              const DocumentObjectModel& output) {
+    const int sourceChars = bodyCharacterCount(source);
+    const int outputChars = bodyCharacterCount(output);
+    if (outputChars >= sourceChars) return QString();
+    return i18n::tr("aipdf::pdf::DocumentReflow",
+                    "重排后正文少了 %1 个字符（%2 → %3），已阻止写回")
+        .arg(sourceChars - outputChars)
+        .arg(sourceChars)
+        .arg(outputChars);
+}
+
 // 页眉／页脚按「每页重复」写出去，个数本来就对不上，
 // 所以门禁比的是**文字还在不在**。
 //
@@ -1003,6 +1029,14 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
     if (!missingParts.isEmpty()) {
         result.report.error = i18n::tr("aipdf::pdf::DocumentReflow", "重排后少了 %1，已阻止写回")
                                   .arg(missingParts.join(QStringLiteral("、")));
+        result.bytes.clear();
+        return result;
+    }
+
+    // 块数没少、但某一段被截短了：用非空白字符总数兜底。
+    const QString bodyLoss = missingBodyTextReason(sourceModel, outputModel);
+    if (!bodyLoss.isEmpty()) {
+        result.report.error = bodyLoss;
         result.bytes.clear();
         return result;
     }

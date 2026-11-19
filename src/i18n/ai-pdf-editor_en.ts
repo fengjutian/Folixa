@@ -6153,6 +6153,10 @@ Write them into the document?</translation>
 <context>
         <name>aipdf::pdf::DocumentReflow</name>
         <message>
+            <source>重排后正文少了 %1 个字符（%2 → %3），已阻止写回</source>
+            <translation>Reflow lost %1 body characters (%2 → %3); write-back was blocked</translation>
+        </message>
+        <message>
             <source>%1 个文字块</source>
             <translation>%1 text blocks</translation>
         </message>
