@@ -5,7 +5,9 @@
 #include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFWriter.hh>
 
+#include <QHash>
 #include <QRegularExpression>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <memory>
