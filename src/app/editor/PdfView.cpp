@@ -13,7 +13,11 @@
 #include "app/ui/ReadingScheme.h"
 #include "app/dialogs/StampNumberDialog.h"
 #include "app/layout/PageTextLines.h"
+#include "app/util/WizardPageRange.h"
 #include "doc/batch/BatchProcessor.h"
+#include "doc/batch/WizardActions.h"
+#include "doc/export/OfficeExport.h"
+#include "doc/export/PdfToOffice.h"
 #include "doc/model/ChunkBuilder.h"
 #include "doc/model/DocumentStatistics.h"
 #include "pdf/annot/AnnotationSummary.h"
@@ -63,6 +67,7 @@
 #include "pdf/ops/OutlineWriter.h"
 #include "pdf/content/TextReflow.h"
 #include "pdf/content/ContentStream.h"
+#include "i18n/Translate.h"
 
 #include <QColorDialog>
 #include <QComboBox>
@@ -8014,8 +8019,480 @@ bool PdfView::applyDocumentAction(doc::WizardActionType type,
             setModified(true);
             return true;
         }
+        case doc::WizardActionType::AddBookmark: {
+            const QString title = stringParam("title");
+            if (title.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "加书签这一步没有标题。");
+                }
+                return false;
+            }
+            // pageIndex 是 1 基的页码（与界面层的参数表一致）。越界要报错：
+            // 指向文档外的书签点开就是坏的（OutlineItem 越界的语义是「目标损坏」）。
+            const qint64 pageNumber = integerParam("pageIndex", 1);
+            int targetPage = -1;
+            if (!resolveWizardBookmarkPage(pageNumber, document_.pageCount(), &targetPage, reason)) {
+                return false;
+            }
+            // 新书签追加到**顶层**：顶层书签才是「章」的粒度，插到某个子节点底下
+            // 就变成了那一章里的小节。
+            std::vector<pdf::OutlineItem> items = outline();
+            pdf::OutlineItem item;
+            item.title = title;
+            item.pageIndex = targetPage;
+            items.push_back(item);
+            QString outlineError;
+            if (!replaceOutline(items, &outlineError)) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "加书签失败：%1").arg(outlineError);
+                }
+                return false;
+            }
+            return true;
+        }
+        case doc::WizardActionType::SplitDocument: {
+            const QString directory = stringParam("outputDirectory");
+            if (directory.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "拆分文档这一步没有输出目录。");
+                }
+                return false;
+            }
+            const QFileInfo directoryInfo(directory);
+            if (!directoryInfo.exists() || !directoryInfo.isDir()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "输出目录不存在：%1").arg(directory);
+                }
+                return false;
+            }
+            // 拆分口径：range（按 ranges 给的页区间）、count 或 count:N（每 N 页一份）、
+            // outline（按顶层书签）。空字符串按默认的 range 处理。
+            WizardSplitMode splitMode = WizardSplitMode::Range;
+            int pagesPerFile = 1;
+            if (!parseWizardSplitMode(stringParam("mode"), &splitMode, &pagesPerFile, reason)) {
+                return false;
+            }
+            const int pageCount = document_.pageCount();
+            // 切法交给 pdf 层算：界面只负责选参数、拼文件名、写文件。
+            QVector<pdf::PageRange> ranges;
+            if (splitMode == WizardSplitMode::Count) {
+                ranges = pdf::PageSplitPlanner::byCount(pageCount, pagesPerFile);
+            } else if (splitMode == WizardSplitMode::Outline) {
+                ranges = pdf::PageSplitPlanner::byOutline(pageCount, outline());
+                if (ranges.size() < 2) {
+                    if (reason != nullptr) {
+                        *reason = i18n::tr("aipdf::app::PdfView",
+                                          "按书签拆分至少要两个有效书签（指向同一页的算一个），"
+                                          "这份文档只拆得出 %1 段。")
+                                     .arg(ranges.size());
+                    }
+                    return false;
+                }
+            } else {
+                // range 模式：ranges 里每一项是「1-3」或者「1」（1 基、含两端）。
+                QStringList rangeItems;
+                for (const doc::WizardParam& param : params) {
+                    if (param.name == QStringLiteral("ranges")) {
+                        rangeItems = param.listValue;
+                        break;
+                    }
+                }
+                if (rangeItems.isEmpty()) {
+                    if (reason != nullptr) {
+                        *reason = i18n::tr("aipdf::app::PdfView",
+                                          "range 模式要至少给一个页区间（比如 1-3）。");
+                    }
+                    return false;
+                }
+                for (const QString& item : rangeItems) {
+                    int firstPage = 0;
+                    int lastPage = 0;
+                    if (!parseWizardSplitRangeItem(item, &firstPage, &lastPage, reason)) {
+                        return false;
+                    }
+                    // extract 会把越界的页码夹到文档范围内；这里先自己判越界并报错，
+                    // 免得用户以为拆出了他要的那几页（夹完其实是另一段）。
+                    if (lastPage > pageCount) {
+                        if (reason != nullptr) {
+                            *reason = i18n::tr("aipdf::app::PdfView",
+                                              "页区间 %1 超出了这份文档的页数（这份文档一共 %2 页）。")
+                                         .arg(item.trimmed())
+                                         .arg(pageCount);
+                        }
+                        return false;
+                    }
+                    ranges += pdf::PageSplitPlanner::extract(pageCount, firstPage, lastPage);
+                }
+                // 同样的页区间写两遍会落到同一个文件名上（后写的盖掉先写的），
+                // 重复的直接跳过。
+                QVector<pdf::PageRange> uniqueRanges;
+                for (const pdf::PageRange& range : ranges) {
+                    bool seen = false;
+                    for (const pdf::PageRange& known : uniqueRanges) {
+                        if (known.first == range.first && known.last == range.last) {
+                            seen = true;
+                            break;
+                        }
+                    }
+                    if (!seen) {
+                        uniqueRanges.append(range);
+                    }
+                }
+                ranges = uniqueRanges;
+            }
+            if (ranges.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "这一步没有拆出任何文件。");
+                }
+                return false;
+            }
+            const QString base = QFileInfo(filePath_).completeBaseName();
+            int written = 0;
+            QStringList failed;
+            for (const pdf::PageRange& range : ranges) {
+                const QString name = wizardSplitPartFileName(base, range);
+                const QString path = QDir(directory).filePath(name);
+                QString writeError;
+                if (writePageRange(range.first, range.last, path, &writeError)) {
+                    ++written;
+                } else {
+                    failed.append(QStringLiteral("%1（%2）").arg(name, writeError));
+                    trace(QStringLiteral("wizard split failed file=%1 error=%2").arg(name, writeError));
+                }
+            }
+            if (!failed.isEmpty()) {
+                // 哪几份失败要写清楚：只说「失败」的话，用户没法知道该重做哪几份。
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView",
+                                      "拆分文档：写成功 %1 份，失败 %2 份。失败的是：%3")
+                                 .arg(written)
+                                 .arg(failed.size())
+                                 .arg(failed.join(QStringLiteral("、")));
+                }
+                return false;
+            }
+            emit statusMessage(i18n::tr("aipdf::app::PdfView", "已拆分出 %1 个文件").arg(written));
+            return true;
+        }
         case doc::WizardActionType::End:
             return true;
+        case doc::WizardActionType::MergeDocuments: {
+            // 合并：把当前文档与指定的几份文件合并成一个新文件写到 outputPath。
+            //
+            // 为什么不在这里做「合并结果直接替换当前文档」：向导的语义是
+            // 「按步骤编排文档级操作」，合并的产物是**另一个文件**
+            //（outputPath 是必填参数），不是把当前文档改掉。
+            // 当前文档作为第一份参与合并，与合并对话框的既有口径一致
+            //（当前文档排在第一位）。
+            doc::WizardActionData data;
+            QString parseError;
+            if (!doc::parseWizardAction(type, params, &data, &parseError)) {
+                if (reason != nullptr) {
+                    *reason = parseError;
+                }
+                return false;
+            }
+            const QString outputPath = data.merge.outputPath;
+            const QStringList inputPaths = data.merge.inputPaths;
+            if (inputPaths.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "合并这一步没有要合并的文件。");
+                }
+                return false;
+            }
+            QString serializeError;
+            const QByteArray currentBytes = document_.serialize(&serializeError);
+            if (currentBytes.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "读不出当前文档：%1")
+                                  .arg(serializeError);
+                }
+                return false;
+            }
+            QVector<pdf::MergeInput> inputs;
+            inputs.append(pdf::MergeInput{currentBytes, QFileInfo(filePath_).fileName()});
+            for (const QString& path : inputPaths) {
+                const auto opened = pdf::openDocument(path);
+                if (!opened.document.isValid()) {
+                    if (reason != nullptr) {
+                        *reason = i18n::tr("aipdf::app::PdfView", "打不开 %1：%2")
+                                      .arg(QFileInfo(path).fileName(), opened.errorMessage);
+                    }
+                    return false;
+                }
+                QString readError;
+                const QByteArray bytes = opened.document.serialize(&readError);
+                if (bytes.isEmpty()) {
+                    if (reason != nullptr) {
+                        *reason = i18n::tr("aipdf::app::PdfView", "读不出 %1：%2")
+                                      .arg(QFileInfo(path).fileName(), readError);
+                    }
+                    return false;
+                }
+                inputs.append(pdf::MergeInput{bytes, QFileInfo(path).fileName()});
+            }
+            pdf::MergeOptions options;
+            pdf::MergeOutcome outcome;
+            QString mergeError;
+            if (!pdf::mergeDocuments(inputs, options, &outcome, &mergeError)) {
+                if (reason != nullptr) {
+                    *reason = mergeError.isEmpty()
+                                  ? i18n::tr("aipdf::app::PdfView", "合并失败。")
+                                  : mergeError;
+                }
+                return false;
+            }
+            // 合并结果必须能被重新打开才算数：不交一份打不开的文件。
+            const auto reopened = pdf::openDocumentFromBytes(outcome.bytes, outputPath);
+            if (!reopened.document.isValid()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "合并结果校验失败：%1")
+                                  .arg(reopened.errorMessage);
+                }
+                return false;
+            }
+            QFile file(outputPath);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "写入 %1 失败。").arg(outputPath);
+                }
+                return false;
+            }
+            file.write(outcome.bytes);
+            file.close();
+            return true;
+        }
+        case doc::WizardActionType::Encrypt: {
+            // 加密：按向导给的密码与权限位，把当前文档重写成加密 PDF。
+            //
+            // 加密依赖 qpdf；没有 qpdf 的构建要如实说，不能假装加密了。
+            if (!pdf::encryptionAvailable()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView",
+                                       "本次构建没有启用 qpdf，写不了加密文档。");
+                }
+                return false;
+            }
+            doc::WizardActionData data;
+            QString parseError;
+            if (!doc::parseWizardAction(type, params, &data, &parseError)) {
+                if (reason != nullptr) {
+                    *reason = parseError;
+                }
+                return false;
+            }
+            const QString userPassword = data.encrypt.userPassword;
+            const QString ownerPassword = data.encrypt.ownerPassword;
+            pdf::PdfEncryptionOptions options;
+            options.userPassword = userPassword;
+            options.ownerPassword = ownerPassword;
+            options.permissions.allowPrinting = data.encrypt.allowPrinting;
+            QString serializeError;
+            const QByteArray plain = document_.serialize(&serializeError);
+            if (plain.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "读不出当前文档：%1")
+                                  .arg(serializeError);
+                }
+                return false;
+            }
+            QString encryptError;
+            const QByteArray encrypted = pdf::encryptPdf(plain, options, &encryptError);
+            if (encrypted.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = encryptError.isEmpty()
+                                  ? i18n::tr("aipdf::app::PdfView", "加密失败。")
+                                  : encryptError;
+                }
+                return false;
+            }
+            // 加密后的字节要能重新打开（用用户密码）才算成功。
+            // encryptPdf 内部已做过一次自检，这里再确认一次是防御性的。
+            QString reopenError;
+            if (!pdf::openDocumentFromBytes(encrypted, filePath_, userPassword).document.isValid()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "加密结果校验失败：%1")
+                                  .arg(reopenError);
+                }
+                return false;
+            }
+            // 加密件替换当前文档：后续步骤（在它上面加水印之类）读到的是加密后的内容。
+            if (!replaceDocumentBytes(encrypted, reason)) {
+                return false;
+            }
+            // 记下加密设置，保存时仍按加密写。
+            encryptionOptions_ = options;
+            encryptionEnabled_ = true;
+            return true;
+        }
+        case doc::WizardActionType::ConvertToFormat: {
+            // 转格式：把当前文档导成另一种格式写到 outputPath。
+            //
+            // 支持 docx / xlsx / pptx / rtf / txt。
+            // 这几个格式都是**整篇**导出（图片与表格带得过去）；
+            // HTML / DXF / OFD 那几个只导文字与几何，不在这里承诺。
+            doc::WizardActionData data;
+            QString parseError;
+            if (!doc::parseWizardAction(type, params, &data, &parseError)) {
+                if (reason != nullptr) {
+                    *reason = parseError;
+                }
+                return false;
+            }
+            const QString format = data.convert.format.trimmed().toLower();
+            const QString outputPath = data.convert.outputPath;
+            if (outputPath.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "转换这一步没有输出路径。");
+                }
+                return false;
+            }
+            QString serializeError;
+            const QByteArray bytes = document_.serialize(&serializeError);
+            if (bytes.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "读不出当前文档：%1")
+                                  .arg(serializeError);
+                }
+                return false;
+            }
+            QByteArray exported;
+            if (format == QLatin1String("docx")) {
+                const doc::WordExportResult result = doc::exportPdfToWord(bytes);
+                if (!result.ok) {
+                    if (reason != nullptr) {
+                        *reason = result.error.isEmpty()
+                                      ? i18n::tr("aipdf::app::PdfView", "导出 Word 失败。")
+                                      : result.error;
+                    }
+                    return false;
+                }
+                exported = result.bytes;
+            } else if (format == QLatin1String("xlsx")) {
+                const doc::ExcelExportResult result = doc::exportPdfToExcel(bytes);
+                if (!result.ok) {
+                    if (reason != nullptr) {
+                        *reason = result.error.isEmpty()
+                                      ? i18n::tr("aipdf::app::PdfView", "导出 Excel 失败。")
+                                      : result.error;
+                    }
+                    return false;
+                }
+                exported = result.bytes;
+            } else if (format == QLatin1String("pptx")) {
+                const doc::PptxExportResult result = doc::exportPdfToPptx(bytes);
+                if (!result.ok) {
+                    if (reason != nullptr) {
+                        *reason = result.error.isEmpty()
+                                      ? i18n::tr("aipdf::app::PdfView", "导出 PPT 失败。")
+                                      : result.error;
+                    }
+                    return false;
+                }
+                exported = result.bytes;
+            } else if (format == QLatin1String("rtf") || format == QLatin1String("txt")) {
+                const doc::ExportFormat exportFormat = (format == QLatin1String("rtf"))
+                                                           ? doc::ExportFormat::Rtf
+                                                           : doc::ExportFormat::PlainText;
+                const QVector<pdf::TextPage> pages = documentTextPages();
+                if (pages.isEmpty()) {
+                    if (reason != nullptr) {
+                        *reason = i18n::tr("aipdf::app::PdfView",
+                                           "这份文档没有可导出的文字层。");
+                    }
+                    return false;
+                }
+                const QSizeF pageSize = pageSizePoints(0);
+                const doc::ExportResult result =
+                    doc::exportPagesTo(exportFormat, pages, pageSize);
+                if (!result.ok) {
+                    if (reason != nullptr) {
+                        *reason = result.error.isEmpty()
+                                      ? i18n::tr("aipdf::app::PdfView", "导出失败。")
+                                      : result.error;
+                    }
+                    return false;
+                }
+                exported = result.bytes;
+            } else {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView",
+                                       "不支持的转换格式：%1。本程序支持 docx / xlsx / pptx / rtf / txt。")
+                                  .arg(format);
+                }
+                return false;
+            }
+            if (exported.isEmpty()) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "导出结果是空的。");
+                }
+                return false;
+            }
+            QFile file(outputPath);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView", "写入 %1 失败。").arg(outputPath);
+                }
+                return false;
+            }
+            file.write(exported);
+            file.close();
+            return true;
+        }
+        case doc::WizardActionType::Print: {
+            // 打印：按向导给的份数与页范围打印到指定打印机。
+            //
+            // 打印机名留空就是默认打印机。页范围用「1-3,5」这种写法，
+            // 1 基含两端；留空是整篇。
+            doc::WizardActionData data;
+            QString parseError;
+            if (!doc::parseWizardAction(type, params, &data, &parseError)) {
+                if (reason != nullptr) {
+                    *reason = parseError;
+                }
+                return false;
+            }
+            const QString printerName = data.print.printerName;
+            const int copies = data.print.copies;
+            const QString pageRange = data.print.pageRange.trimmed();
+            OutputRange range;
+            if (!pageRange.isEmpty()) {
+                QString rangeError;
+                if (!parseWizardPageRange(pageRange, document_.pageCount(), &range, &rangeError)) {
+                    if (reason != nullptr) {
+                        *reason = rangeError;
+                    }
+                    return false;
+                }
+            }
+            PrintOptions options;
+            options.copies = copies;
+            options.range = range;
+            QPrinter printer(QPrinter::HighResolution);
+            if (!printerName.isEmpty()) {
+                printer.setPrinterName(printerName);
+            }
+            // 打印机名给了但系统里没有这台打印机，要当场说清楚：
+            // 否则打印会静默落到默认打印机上，用户以为打到了指定的那台。
+            if (!printerName.isEmpty() && printer.printerName() != printerName) {
+                if (reason != nullptr) {
+                    *reason = i18n::tr("aipdf::app::PdfView",
+                                       "系统里没有这台打印机：%1。")
+                                  .arg(printerName);
+                }
+                return false;
+            }
+            QString printError;
+            if (!app::printDocument(document_, &printer, options, &printError)) {
+                if (reason != nullptr) {
+                    *reason = printError.isEmpty()
+                                  ? i18n::tr("aipdf::app::PdfView", "打印失败。")
+                                  : printError;
+                }
+                return false;
+            }
+            return true;
+        }
         default:
             break;
     }

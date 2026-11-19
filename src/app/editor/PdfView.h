@@ -22,6 +22,7 @@
 #include "i18n/Translate.h"
 #include "speech/SpeechSettings.h"
 #include "speech/SpeechText.h"
+#include "pdf/ops/PageSplitPlanner.h"
 
 #include <memory>
 
@@ -685,5 +686,201 @@ private:
     // 一次设定、长期显示的界面文案：切换语言时就地重译。
     i18n::TextBindings texts_;
 };
+
+// =============================================================================
+//  动作向导「加书签」「拆分文档」两步的纯计算
+// =============================================================================
+//
+// 为什么做成头文件里的自由函数：这两步里能单测的部分全是「参数怎么解释、
+// 页区间怎么换算、文件名怎么拼、页码越不越界」，跟窗口、跟 PDF 引擎都没有
+// 关系。写成 PdfView 的成员函数就只能靠真开一个窗口来测（要 PDFium、要文档、
+// 要显示器），慢又脆；做成自由函数之后，测试直接调它们即可
+// （tests/WizardDocumentActionsTests.cpp）。
+//
+// 领域层已有的部分不在这里重写：页区间的切法归 pdf::PageSplitPlanner
+// （byCount / byOutline / extract），这里只负责把向导参数翻译成它的入参。
+
+// 拆分口径。
+enum class WizardSplitMode {
+    Range,    // 按 ranges 参数给的页区间拆
+    Count,    // 按每 N 页一份
+    Outline,  // 按顶层书签拆
+};
+
+// 解析 mode 参数。空字符串按默认的 range 处理。
+//
+// 支持的取值（其余一律报错，并把支持的取值写进错误信息里）：
+//   - "range"    按 ranges 参数给的页区间拆（默认口径）。
+//   - "count"    每 1 页一份（等价于 "count:1"）。
+//   - "count:N"  每 N 页一份，N ≥ 1。
+//   - "outline"  按顶层书签拆（走 pdf::PageSplitPlanner::byOutline）。
+//   - "each"     每 1 页一份（领域层 doc/batch/WizardActions 里的同义写法）。
+//
+// 为什么 N 只能写在 mode 里：动作向导给「拆分文档」准备的参数只有
+// outputDirectory / mode / ranges 三个（见 app/panels/LastWavePanels.cpp 的
+// wizardParamFields），没有 pagesPerFile；再加一个参数就得改界面层的参数表，
+// 那不在本轮范围内。mode 是这一轮唯一能带值的参数，所以 N 跟它走。
+inline bool parseWizardSplitMode(const QString& mode, WizardSplitMode* out, int* pagesPerFile,
+                                 QString* error) {
+    if (out == nullptr || pagesPerFile == nullptr) {
+        return false;
+    }
+    const QString trimmed = mode.trimmed();
+    if (trimmed.isEmpty()) {
+        *out = WizardSplitMode::Range;
+        *pagesPerFile = 1;
+        return true;
+    }
+    const QString lower = trimmed.toLower();
+    if (lower == QStringLiteral("range")) {
+        *out = WizardSplitMode::Range;
+        *pagesPerFile = 1;
+        return true;
+    }
+    if (lower == QStringLiteral("count") || lower == QStringLiteral("each")) {
+        *out = WizardSplitMode::Count;
+        *pagesPerFile = 1;
+        return true;
+    }
+    if (lower.startsWith(QStringLiteral("count:"))) {
+        bool ok = false;
+        const int pages = trimmed.mid(6).trimmed().toInt(&ok);
+        if (!ok || pages < 1) {
+            if (error != nullptr) {
+                *error = i18n::tr("aipdf::app::PdfView",
+                                  "count 后面要写每份文件的页数（至少 1），这一步写的是：%1")
+                             .arg(trimmed);
+            }
+            return false;
+        }
+        *out = WizardSplitMode::Count;
+        *pagesPerFile = pages;
+        return true;
+    }
+    if (lower == QStringLiteral("outline")) {
+        *out = WizardSplitMode::Outline;
+        *pagesPerFile = 1;
+        return true;
+    }
+    if (error != nullptr) {
+        *error = i18n::tr("aipdf::app::PdfView",
+                          "拆分方式只支持 range（按 ranges 给的页区间）、count 或 count:N"
+                          "（每 N 页一份）、outline（按顶层书签），这一步写的是：%1")
+                     .arg(trimmed);
+    }
+    return false;
+}
+
+// 解析 ranges 里的一项："1-3" 或者 "1"（页码 1 基、含两端）。
+//
+// 失败时（空项、不是数字、起止写反、页码小于 1）error 里写明是哪一项错了。
+inline bool parseWizardSplitRangeItem(const QString& item, int* firstPage, int* lastPage,
+                                      QString* error) {
+    if (firstPage == nullptr || lastPage == nullptr) {
+        return false;
+    }
+    const QString trimmed = item.trimmed();
+    if (trimmed.isEmpty()) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView",
+                              "页区间是空的：每一项要写成 1-3 或者 1 这种形式。");
+        }
+        return false;
+    }
+    const int dash = trimmed.indexOf(QLatin1Char('-'));
+    int first = 0;
+    int last = 0;
+    bool ok = false;
+    if (dash < 0) {
+        first = trimmed.toInt(&ok);
+        if (!ok) {
+            if (error != nullptr) {
+                *error = i18n::tr("aipdf::app::PdfView",
+                                  "页区间写错了：%1（要写成 1-3 或者 1 这种形式）")
+                             .arg(trimmed);
+            }
+            return false;
+        }
+        last = first;
+    } else {
+        first = trimmed.left(dash).trimmed().toInt(&ok);
+        if (!ok) {
+            if (error != nullptr) {
+                *error = i18n::tr("aipdf::app::PdfView",
+                                  "页区间写错了：%1（要写成 1-3 或者 1 这种形式）")
+                             .arg(trimmed);
+            }
+            return false;
+        }
+        last = trimmed.mid(dash + 1).trimmed().toInt(&ok);
+        if (!ok) {
+            if (error != nullptr) {
+                *error = i18n::tr("aipdf::app::PdfView",
+                                  "页区间写错了：%1（要写成 1-3 或者 1 这种形式）")
+                             .arg(trimmed);
+            }
+            return false;
+        }
+    }
+    if (first < 1 || last < 1) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView", "页码从 1 开始，这一步写的是：%1").arg(trimmed);
+        }
+        return false;
+    }
+    if (first > last) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView", "页区间的起止写反了：%1").arg(trimmed);
+        }
+        return false;
+    }
+    *firstPage = first;
+    *lastPage = last;
+    return true;
+}
+
+// 拆分出来的文件名（与 PdfView::splitDocumentDialog 的命名保持一致：
+// "%1_%2-%3.pdf"，页码 1 基、含两端）。
+inline QString wizardSplitPartFileName(const QString& baseName, const pdf::PageRange& range) {
+    return QStringLiteral("%1_%2-%3.pdf")
+        .arg(baseName.isEmpty() ? QStringLiteral("part") : baseName)
+        .arg(range.first + 1)
+        .arg(range.last);
+}
+
+// 书签要指向的页：1 基 → 0 基，并检查越界。
+//
+// 为什么要查越界：pdf::OutlineItem::pageIndex 越界的语义是「目标损坏」，
+// 写进去的书签点开会跳到文档外面去——看着存上了，其实是个坏书签。
+inline bool resolveWizardBookmarkPage(qint64 pageIndex, int pageCount, int* resolved,
+                                      QString* error) {
+    if (resolved == nullptr) {
+        return false;
+    }
+    if (pageCount <= 0) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView", "这份文档里没有页，没法加书签。");
+        }
+        return false;
+    }
+    if (pageIndex < 1) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView", "书签要指向第 1 页或更后面的页，这一步写的是第 %1 页。")
+                         .arg(pageIndex);
+        }
+        return false;
+    }
+    if (pageIndex > pageCount) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::app::PdfView",
+                              "书签要指向的页码超出范围：第 %1 页，这份文档一共 %2 页。")
+                         .arg(pageIndex)
+                         .arg(pageCount);
+        }
+        return false;
+    }
+    *resolved = static_cast<int>(pageIndex - 1);
+    return true;
+}
 
 }  // namespace aipdf::app

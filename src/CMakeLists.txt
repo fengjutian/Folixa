@@ -98,6 +98,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/util/ConversionReports.h
     app/util/ConversionExports.cpp
     app/util/ConversionExports.h
+    app/util/WizardPageRange.cpp
+    app/util/WizardPageRange.h
     app/dialogs/AnnotationToolboxDialog.cpp
     app/dialogs/AnnotationToolboxDialog.h
     app/dialogs/StampNumberDialog.cpp
@@ -255,6 +257,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/convert/InvoiceLayout.h
     doc/batch/ActionWizard.cpp
     doc/batch/ActionWizard.h
+    doc/batch/WizardActions.cpp
+    doc/batch/WizardActions.h
     pdf/ops/OcrSuspicion.cpp
     pdf/ops/OcrSuspicion.h
     pdf/convert/PortfolioWriter.cpp

@@ -84,8 +84,12 @@ QVector<WizardParamField> wizardParamFields(doc::WizardActionType type) {
             return {{QStringLiteral("title"), WizardParamType::String, QString(), true},
                     {QStringLiteral("pageIndex"), WizardParamType::Integer, QStringLiteral("1"), false}};
         case doc::WizardActionType::AddPageNumbers:
+            // 默认值必须与程序实际支持的一致：页码只落在右下角
+            // （pdf::PageNumberOptions 只支持 bottomRight）。
+            // 原来这里写的是 bottomCenter —— 面板默认填了一个程序拒绝的值，
+            // 用户不改任何东西直接跑向导，这一步必定失败。
             return {{QStringLiteral("position"), WizardParamType::String,
-                     QStringLiteral("bottomCenter"), true},
+                     QStringLiteral("bottomRight"), true},
                     {QStringLiteral("startNumber"), WizardParamType::Integer,
                      QStringLiteral("1"), false}};
         case doc::WizardActionType::AddWatermark:
