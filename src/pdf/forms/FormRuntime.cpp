@@ -1,6 +1,7 @@
 #include "pdf/forms/FormRuntime.h"
 
 #include "pdf/forms/FormJsEvaluator.h"
+#include "pdf/forms/QuickJsFormScript.h"
 
 #include <qpdf/Buffer.hh>
 #include <qpdf/QPDF.hh>
@@ -391,7 +392,7 @@ FormEventResult FormRuntime::applyFormat(const QString& fieldName) {
         result.formatted = target->value;
         return result;
     }
-    const FormJsResult formatted = evaluateFormScript(target->script.format, fieldValues(),
+    const FormJsResult formatted = QuickJsFormScript::evaluate(target->script.format, fieldValues(),
                                                      fieldName, target->value);
     if (!formatted.ok) {
         record(FormEventType::Format, fieldName, false, formatted.error);
@@ -415,7 +416,7 @@ bool FormRuntime::runCalculatePass(bool* changed) {
     for (const QString& name : order) {
         FormFieldState* target = mutableField(name);
         if (target == nullptr || target->script.calculate.isEmpty()) continue;
-        const FormJsResult computed = evaluateFormScript(target->script.calculate, fieldValues(),
+        const FormJsResult computed = QuickJsFormScript::evaluate(target->script.calculate, fieldValues(),
                                                         name, target->value);
         if (!computed.ok) {
             record(FormEventType::Calculate, name, false, computed.error);
@@ -464,7 +465,7 @@ FormEventResult FormRuntime::setValue(const QString& fieldName, const QString& n
     }
 
     if (!target->script.validate.isEmpty()) {
-        const FormJsResult checked = evaluateFormScript(target->script.validate, fieldValues(),
+        const FormJsResult checked = QuickJsFormScript::evaluate(target->script.validate, fieldValues(),
                                                         fieldName, newValue);
         if (!checked.ok) {
             record(FormEventType::Validate, fieldName, false, checked.error);
@@ -517,7 +518,7 @@ FormEventResult FormRuntime::typeText(const QString& fieldName, const QString& t
         const QString proposed = target->value + character;
         if (!target->script.keystroke.isEmpty()) {
             const FormJsResult checked =
-                evaluateFormScript(target->script.keystroke, fieldValues(), fieldName,
+                QuickJsFormScript::evaluate(target->script.keystroke, fieldValues(), fieldName,
                                    target->value, QString(character), target->value.size(),
                                    target->value.size());
             if (!checked.ok) {
@@ -567,7 +568,7 @@ FormEventResult FormRuntime::blur(const QString& fieldName) {
     }
 
     if (!target->script.validate.isEmpty()) {
-        const FormJsResult checked = evaluateFormScript(target->script.validate, fieldValues(),
+        const FormJsResult checked = QuickJsFormScript::evaluate(target->script.validate, fieldValues(),
                                                         fieldName, target->value);
         if (!checked.ok || !checked.valid || !checked.rc) {
             const QString reason = !checked.ok

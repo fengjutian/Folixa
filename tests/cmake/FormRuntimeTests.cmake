@@ -8,12 +8,15 @@ qt_add_executable(FormRuntimeTests
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormRuntime.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/QuickJsFormScript.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/QuickJsFormScript.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
 )
 
 target_link_libraries(FormRuntimeTests PRIVATE
     Qt6::Core Qt6::Test
     qpdf::libqpdf
+    aipdf_quickjs
 )
 target_compile_definitions(FormRuntimeTests PRIVATE AIPDF_WITH_QPDF=1)
 

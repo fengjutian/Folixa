@@ -5,6 +5,7 @@ extern "C" {
 }
 
 #include <chrono>
+#include <cstring>
 
 namespace aipdf::pdf {
 namespace {
@@ -78,6 +79,80 @@ QString exceptionText(JSContext* ctx) {
     return text;
 }
 
+// Acrobat 表单脚本最常用的内置函数。
+//
+// 不是「全部 Acrobat JS」，而是真实表单里出现频率最高的那一批：
+// 数字格式化 / 击键过滤 / 求和求平均。函数体用 JS 写，避免在 C++ 里
+// 再实现一遍字符串与正则。
+const char* const kAcrobatPrelude = R"JS(
+function AFMakeNumber(value) {
+    var n = parseFloat(value);
+    return isNaN(n) ? 0 : n;
+}
+
+function AFNumber_Format(decimals, sepStyle, negStyle, currStyle, strCurrency, bCurrencyPrepend) {
+    var n = parseFloat(event.value);
+    if (isNaN(n)) return;
+    var negative = n < 0;
+    var text = Math.abs(n).toFixed(decimals);
+    var parts = text.split(".");
+    if (sepStyle === 0) {
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    } else if (sepStyle === 2) {
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    } else if (sepStyle === 3) {
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+    text = parts.join(decimals > 0 ? "." : "");
+    if (currStyle !== 0 && strCurrency) {
+        text = bCurrencyPrepend === false ? text + strCurrency : strCurrency + text;
+    }
+    if (negative) text = "-" + text;
+    event.value = text;
+}
+
+function AFNumber_Keystroke(decimals, sepStyle, negStyle, currStyle, strCurrency, bCurrencyPrepend) {
+    var change = event.change;
+    if (change === undefined || change === null) return;
+    var candidate = String(event.value) + String(change);
+    if (!/^-?\d*\.?\d*$/.test(candidate)) event.rc = false;
+}
+
+function AFNumber_Parse(decimals, sepStyle, negStyle, currStyle, strCurrency, bCurrencyPrepend) {
+    event.value = AFMakeNumber(String(event.value).replace(/,/g, ""));
+}
+
+function AFPercent_Format(decimals, sepStyle) {
+    var n = parseFloat(event.value);
+    if (isNaN(n)) return;
+    event.value = (n * 100).toFixed(decimals) + "%";
+}
+
+function AFSimple_Calculate(op, fieldNames) {
+    var names = (typeof fieldNames === "string") ? [fieldNames] : fieldNames;
+    var values = [];
+    for (var i = 0; i < names.length; i++) {
+        var field = getField(names[i]);
+        values.push(field === undefined ? 0 : AFMakeNumber(field.value));
+    }
+    var result = 0;
+    if (op === "SUM") {
+        for (var a = 0; a < values.length; a++) result += values[a];
+    } else if (op === "AVG") {
+        for (var b = 0; b < values.length; b++) result += values[b];
+        result = values.length > 0 ? result / values.length : 0;
+    } else if (op === "PRD") {
+        result = 1;
+        for (var c = 0; c < values.length; c++) result *= values[c];
+    } else if (op === "MIN") {
+        result = values.length > 0 ? Math.min.apply(null, values) : 0;
+    } else if (op === "MAX") {
+        result = values.length > 0 ? Math.max.apply(null, values) : 0;
+    }
+    event.value = result;
+}
+)JS";
+
 }  // namespace
 
 bool QuickJsFormScript::available() { return true; }
@@ -116,6 +191,18 @@ FormJsResult QuickJsFormScript::evaluate(const QString& script,
     FieldBridge bridge;
     bridge.fields = &fields;
     JS_SetContextOpaque(ctx, &bridge);
+
+    // Acrobat 内置函数（AF*）先装进上下文；装不上说明预置脚本本身有问题。
+    JSValue prelude = JS_Eval(ctx, kAcrobatPrelude, std::strlen(kAcrobatPrelude),
+                              "aipdf-prelude.js", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(prelude)) {
+        result.error = QStringLiteral("Acrobat 预置脚本执行失败：%1").arg(exceptionText(ctx));
+        JS_FreeValue(ctx, prelude);
+        JS_FreeContext(ctx);
+        JS_FreeRuntime(runtime);
+        return result;
+    }
+    JS_FreeValue(ctx, prelude);
 
     JSValue global = JS_GetGlobalObject(ctx);
 

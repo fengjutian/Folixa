@@ -157,6 +157,7 @@ private slots:
     void keystrokeScriptCanRejectInput();
     void readOnlyFieldCannotBeChanged();
     void calculationOrderFromCo();
+    void afSimpleCalculateSumsFields();
     void runawayCalculationIsReported();
     void documentEventsAreRecorded();
 };
@@ -192,7 +193,7 @@ void FormRuntimeTests::loadsFieldTree() {
 void FormRuntimeTests::calculationRunsInDocumentOrder() {
     FieldSpec a{QStringLiteral("A"), QStringLiteral("2")};
     FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
-    b.calculate = QStringLiteral("event.value = A * 2");
+    b.calculate = QStringLiteral("event.value = this.getField(\"A\").value * 2");
     const QByteArray pdf = buildFormPdf({a, b}, {QStringLiteral("B")});
 
     FormRuntime runtime = FormRuntime::load(pdf);
@@ -206,7 +207,7 @@ void FormRuntimeTests::calculationRunsInDocumentOrder() {
 void FormRuntimeTests::calculateThenFormatIsOrdered() {
     FieldSpec a{QStringLiteral("A"), QStringLiteral("7")};
     FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
-    b.calculate = QStringLiteral("event.value = A * 2");
+    b.calculate = QStringLiteral("event.value = this.getField(\"A\").value * 2");
     b.format = QStringLiteral("AFNumber_Format(2, 0, 0, 0, \".\", false)");
     const QByteArray pdf = buildFormPdf({a, b}, {QStringLiteral("B")});
 
@@ -225,7 +226,7 @@ void FormRuntimeTests::calculateThenFormatIsOrdered() {
 
 void FormRuntimeTests::validationRejectsAndKeepsValue() {
     FieldSpec a{QStringLiteral("A"), QStringLiteral("ok")};
-    a.validate = QStringLiteral("event.value != \"bad\"");
+    a.validate = QStringLiteral("this.value != \"bad\"");
     const QByteArray pdf = buildFormPdf({a}, {});
 
     FormRuntime runtime = FormRuntime::load(pdf);
@@ -274,9 +275,9 @@ void FormRuntimeTests::readOnlyFieldCannotBeChanged() {
 void FormRuntimeTests::calculationOrderFromCo() {
     FieldSpec c{QStringLiteral("C"), QStringLiteral("1")};
     FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
-    b.calculate = QStringLiteral("event.value = C * 1 + 1");
+    b.calculate = QStringLiteral("event.value = this.getField(\"C\").value * 1 + 1");
     FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};
-    a.calculate = QStringLiteral("event.value = B * 1 + 1");
+    a.calculate = QStringLiteral("event.value = this.getField(\"B\").value * 1 + 1");
     const QByteArray pdf = buildFormPdf({a, b, c}, {QStringLiteral("B"), QStringLiteral("A")});
 
     FormRuntime runtime = FormRuntime::load(pdf);
@@ -289,11 +290,24 @@ void FormRuntimeTests::calculationOrderFromCo() {
     QCOMPARE(runtime.value(QStringLiteral("A")), QStringLiteral("7"));
 }
 
-void FormRuntimeTests::runawayCalculationIsReported() {
-    FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};
-    a.calculate = QStringLiteral("event.value = B * 1 + 1");
+void FormRuntimeTests::afSimpleCalculateSumsFields() {
+    FieldSpec a{QStringLiteral("A"), QStringLiteral("1")};
+    FieldSpec b{QStringLiteral("B"), QStringLiteral("2")};
+    FieldSpec total{QStringLiteral("T"), QStringLiteral("0")};
+    total.calculate = QStringLiteral("AFSimple_Calculate(\"SUM\", new Array(\"A\", \"B\"))");
+    const QByteArray pdf = buildFormPdf({a, b, total}, {QStringLiteral("T")});
+
+    FormRuntime runtime = FormRuntime::load(pdf);
+    QVERIFY(runtime.isValid());
+    const auto result = runtime.setValue(QStringLiteral("A"), QStringLiteral("3"));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(runtime.value(QStringLiteral("T")), QStringLiteral("5"));
+}
+
+void FormRuntimeTests::runawayCalculationIsReported() {    FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};
+    a.calculate = QStringLiteral("event.value = this.getField(\"B\").value * 1 + 1");
     FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
-    b.calculate = QStringLiteral("event.value = A + 1");
+    b.calculate = QStringLiteral("event.value = this.getField(\"A\").value * 1 + 1");
     const QByteArray pdf = buildFormPdf({a, b}, {QStringLiteral("A"), QStringLiteral("B")});
 
     FormRuntime runtime = FormRuntime::load(pdf);

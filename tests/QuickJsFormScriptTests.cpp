@@ -27,6 +27,8 @@ private slots:
     void standardLibraryIsAvailable();
     void validationReturnsBoolean();
     void syntaxErrorIsReported();
+    void afNumberFormatFormatsValue();
+    void afNumberKeystrokeRejectsLetters();
     void infiniteLoopIsInterrupted();
 };
 
@@ -93,6 +95,28 @@ void QuickJsFormScriptTests::syntaxErrorIsReported() {
         QStringLiteral("event.value = ;"), fields(), QStringLiteral("A"), QString());
     QVERIFY(!result.ok);
     QVERIFY(!result.error.isEmpty());
+}
+
+void QuickJsFormScriptTests::afNumberFormatFormatsValue() {
+    const FormJsResult result = QuickJsFormScript::evaluate(
+        QStringLiteral("AFNumber_Format(2, 0, 0, 0, \"\", false);"), fields(),
+        QStringLiteral("A"), QStringLiteral("1234.5"));
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QCOMPARE(result.value, QStringLiteral("1,234.50"));
+}
+
+void QuickJsFormScriptTests::afNumberKeystrokeRejectsLetters() {
+    const FormJsResult accepted = QuickJsFormScript::evaluate(
+        QStringLiteral("AFNumber_Keystroke(2, 0, 0, 0, \"\", false);"), fields(),
+        QStringLiteral("A"), QStringLiteral("12"), QStringLiteral("3"));
+    QVERIFY(accepted.ok);
+    QVERIFY(accepted.rc);
+
+    const FormJsResult rejected = QuickJsFormScript::evaluate(
+        QStringLiteral("AFNumber_Keystroke(2, 0, 0, 0, \"\", false);"), fields(),
+        QStringLiteral("A"), QStringLiteral("12"), QStringLiteral("x"));
+    QVERIFY(rejected.ok);
+    QVERIFY(!rejected.rc);
 }
 
 void QuickJsFormScriptTests::infiniteLoopIsInterrupted() {

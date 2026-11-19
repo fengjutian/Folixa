@@ -98,8 +98,9 @@ struct FormEventResult {
 //   setValue: Validate -> Calculate -> Format（导入 / 粘贴走这条）。
 //
 // 边界：
-//   * 脚本仍由 FormJsEvaluator 的白名单子集执行；子集外的语法会明确报错，
-//     不会静默放行（这一步不换 QuickJS 引擎）；
+//   * 脚本由 QuickJS 执行（见 QuickJsFormScript）：变量、循环、Math、字符串方法、
+//     this.getField(...) 与常用 AF* 函数都可用；Acrobat 的 app / doc / 网络 / 文件
+//     API 不提供，遇到就是一条失败记录，不会静默放行；
 //   * 只改运行时状态，不写回 PDF；写回与 /AP 外观流是后面的事；
 //   * 计算脚本按 /CO 顺序跑，最多 8 轮；不收敛时如实报「没有收敛」。
 class FormRuntime {
