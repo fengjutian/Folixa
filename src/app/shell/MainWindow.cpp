@@ -3608,11 +3608,14 @@ void MainWindow::applyFormValue() {
     if (name.isEmpty()) {
         return;
     }
-    if (view->setFormFieldValue(pageIndex, name, formValueEdit_->text())) {
+    QString reason;
+    if (view->setFormFieldValueWithScripts(pageIndex, name, formValueEdit_->text(), &reason)) {
         statusBar()->showMessage(tr("已写入 %1").arg(name), 3000);
         refreshForms(view);
     } else {
-        statusBar()->showMessage(tr("写入失败：这个字段可能只读"), 4000);
+        statusBar()->showMessage(reason.isEmpty() ? tr("写入失败：这个字段可能只读")
+                                                  : tr("写入失败：%1").arg(reason),
+                                 6000);
     }
 }
 

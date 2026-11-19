@@ -189,6 +189,11 @@ public slots:
     // 表单（v1.5.0）：字段列表、写值、扁平化。
     QVector<pdf::FormField> formFields() const;
     bool setFormFieldValue(int pageIndex, const QString& name, const QString& value);
+    // 交互填写：走 FormRuntime（Keystroke/Validate/Calculate/Format 事件顺序），
+    // 值写回 /V 并重生成 /AP。计算域跟着变、校验失败会回滚并给出原因。
+    // 批量导入仍用上面的轻量接口，避免每个字段都重写一遍文档。
+    bool setFormFieldValueWithScripts(int pageIndex, const QString& name, const QString& value,
+                                      QString* reason = nullptr);
     bool flattenFormsOnPage(int pageIndex);
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);

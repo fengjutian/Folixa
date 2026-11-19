@@ -68,6 +68,7 @@
 #include "pdf/content/TextReflow.h"
 #include "pdf/content/ContentStream.h"
 #include "pdf/content/TextSplice.h"
+#include "pdf/forms/FormRuntime.h"
 #include "i18n/Translate.h"
 
 #include <QColorDialog>
@@ -2869,6 +2870,61 @@ bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QStrin
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
     }
+    setModified(true);
+    emit formFieldsChanged();
+    return true;
+}
+
+bool PdfView::setFormFieldValueWithScripts(int pageIndex, const QString& name,
+                                           const QString& value, QString* reason) {
+    if (!requirePermission(effectivePermissions().allowFormFilling, tr("填写表单"))) {
+        if (reason != nullptr) *reason = tr("这份文档不允许填写表单。");
+        return false;
+    }
+    // 只接管文本域与复选 / 单选；下拉、列表、签名仍走 PDFium 的原路径。
+    for (const pdf::FormField& field : document_.formFields()) {
+        if (field.name != name || field.pageIndex != pageIndex) continue;
+        if (field.type != 2 && field.type != 3 && field.type != 6) {
+            return setFormFieldValue(pageIndex, name, value);
+        }
+        break;
+    }
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        if (reason != nullptr) *reason = tr("无法序列化文档：%1").arg(error);
+        return false;
+    }
+
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    pdf::FormRuntime runtime = pdf::FormRuntime::load(source, &error);
+    if (!runtime.isValid()) {
+        if (reason != nullptr) *reason = error;
+        return false;
+    }
+
+    const pdf::FormEventResult applied = runtime.setValue(name, value);
+    if (!applied.ok) {
+        if (reason != nullptr) *reason = applied.error;
+        return false;
+    }
+
+    const pdf::FormAppearanceResult written = runtime.applyTo(source);
+    if (!written.ok()) {
+        if (reason != nullptr) *reason = written.report.error;
+        return false;
+    }
+
+    if (!document_.reloadFromBytes(written.bytes, &error)) {
+        if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
+        return false;
+    }
+    QString serializeError;
+    const QByteArray refreshed = document_.serialize(&serializeError);
+    if (!refreshed.isEmpty()) document_.syncBytes(refreshed);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    if (before.isValid()) recordContentEdit(pageIndex, before, tr("填写表单"));
     setModified(true);
     emit formFieldsChanged();
     return true;

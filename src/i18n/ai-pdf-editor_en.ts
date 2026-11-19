@@ -3919,6 +3919,14 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
             <translation>Replace text</translation>
         </message>
         <message>
+            <source>这份文档不允许填写表单。</source>
+            <translation>This document does not allow form filling.</translation>
+        </message>
+        <message>
+            <source>写回后重新打开失败：%1</source>
+            <translation>Failed to reopen the document after writing: %1</translation>
+        </message>
+        <message>
             <source>先选中要替换的文字。</source>
             <translation>Select the text to replace first.</translation>
         </message>
