@@ -7,6 +7,9 @@
 #include <QUrl>
 #include <QVector>
 
+#include <functional>
+
+#include "doc/convert/BrowserPdfPrinter.h"
 #include "doc/convert/ConversionInputs.h"
 
 class QComboBox;
@@ -149,6 +152,18 @@ public:
     // 执行转换。失败时返回 false，outcome->error 是中文原因。
     bool convert(ConversionInputOutcome* outcome);
 
+    // 覆盖「网页 → PDF 走浏览器引擎」这一步（给单测用）。
+    //
+    // 为什么要有这个注入口：网页转 PDF 现在有两条路 —— 浏览器引擎（首选，
+    // JavaScript 会执行、CSS 会渲染）与抓正文排版（降级）。要测
+    // 「浏览器失败时确实退回降级路径、并且**明说**这次走的是降级」，
+    // 就得能塞一个假的浏览器结果；真的起一个浏览器既慢又不稳定。
+    //
+    // 传空的函数恢复默认（真的调 doc::printWebPageToPdf）。
+    using WebBrowserPrinter =
+        std::function<doc::BrowserPrintResult(const doc::BrowserPrintOptions&)>;
+    void setWebBrowserPrinter(WebBrowserPrinter printer);
+
     // 上一次转换的结果。
     const ConversionInputOutcome& outcome() const;
 
@@ -177,6 +192,8 @@ private:
     QLabel* statusLabel_ = nullptr;
     ConversionInputOutcome outcome_;
     bool generated_ = false;
+    // 网页打印的注入点（空 = 用真的浏览器引擎）。
+    WebBrowserPrinter webBrowserPrinter_;
 };
 
 // ---------------------------------------------------------- 三个入口 ----

@@ -84,7 +84,7 @@
 | F3 | 表单域 JS 子集（计算、校验、格式化） | ✓ | 已具备 | 1.5.0 | 手写子集求值器（`FormJsEvaluator`，18 条单测）+ 对象层读写（`FormScriptStore`，9 条单测）；「JavaScript」可写脚本并写回字段，「计算次序」按 AcroForm `/CO` 执行并可调序写回（PDFium 重新序列化后仍在）；**是白名单子集，不是完整 JS 引擎** |
 | F4 | FDF / XFDF / CSV 数据导入导出 | ✓ | 已具备 | 1.5.0 | CSV、FDF 与 **XFDF 表单数据**都双向可用（XFDF 表单数据与批注 XFDF 分文件，避免对方软件认不得）；`XfdfTests` 有往返单测 |
 | F5 | 表单创建与域属性编辑 | ✓ | 已具备 | 1.5.0 | **原口径是「不做」，因建域与域属性编辑已实现而上调**；建域限制同 E7，域属性含提示、必填、只读与多行，表单面板另加提示列；表单工具设置可统一新建域的字体、字号与颜色（写入 /DA，**标准 14 号字体全部可选**，新建或补写 AcroForm 时都把 14 个字体登记进 /DR /Font，`FormToolSettingsTests` 13 条） |
-| F6 | XFA 动态表单 | ✓ | 对齐 | 1.5.0 | XFA **静态**表单字段已支持：字段名 / 标签 / 类型 / 当前值 / 是否必填可列出并导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**含动态逻辑的 XFA 只做静态字段提取，不执行脚本**，界面必须显示这句提示 |
+| F6 | XFA 静态字段提取（动态逻辑不执行） | ✓ | 对齐 | 1.5.0 | XFA **静态**表单字段已支持：字段名 / 标签 / 类型 / 当前值 / 是否必填可列出并导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**含动态逻辑的 XFA 按静态字段提取处理，不执行脚本**（本仓库没有 XFA SOM / 布局 / 事件运行时），界面必须显示这句提示；**字段值改写不在这一条路径里**（面板列出与导出，改值走 AcroForm 路径）；**原口径是「XFA 动态表单」，因没有 XFA 运行时而改名成现在这个名字，不再承诺动态表单的范围** |
 
 ### G. 安全与签名（9 项）
 
@@ -110,9 +110,9 @@
 | H4 | 导出纯文本（按阅读顺序） | ✓ | 已具备 | 1.2.0 | 与抽取结果一致 |
 | H5|PDF → Word / Excel / PPT|✓|对齐| 1.9.0 | PDF → Word（DOCX）/ Excel（XLSX）/ PowerPoint（PPTX）**整篇导出**已实现并有界面入口（Ribbon「转换 → 到 MS Office」，`doc::PdfToOffice`）：Word 页与页之间有分页符、**图片作为真图片带过去**（`word/media/*.png` + `<w:drawing>`）、**表格写成真表格对象**（`<w:tbl>`）；PPT 一页一张幻灯片、**图片与表格同样带过去**（`<p:pic>` / `<a:tbl>`）；Excel 按页拆工作表、认得出的表格写成表格；**双栏正文不会被并成一段**（按空白带右沿聚类、栏口那里要真的有空隙才断开，通栏标题不被切开）；**表格检不出就不出表格**（不猜）；**50 份「双栏 + 表格 + 图片 + CJK」四合一语料**逐份导出后由**独立解析器**（python-docx / python-pptx / openpyxl）回读，断言页数 / 图片数 / 表格数一致（`scripts/gen-office-corpus.py` + `scripts/verify-office-images.py`）；**负例必须红**：删图片部件 / 改坏关系号 / 删整张表 / 期望值改错，校验当场报错；`OfficeImagesTests` 12 条 + `PdfToOfficeTests` 6 条 + `OfficeExportTests` 11 条。 
 | H6 | 任意文件 → PDF | ✓ | 对齐 | 1.9.0 | 任意文件 → PDF 现在有两条路：本机 LibreOffice（Office / HTML）与**不依赖外部引擎**的自建转换（txt / md / csv / json / html，`doc::UniversalConverter`，`UniversalConverterTests` 25 条），有界面入口；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），界面会说清嵌的是哪份字体、省了多少体积；本机一份中文字体都没有时才退回标准 14 字体并如实报出替换了多少字符；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」），本项不重复计分；`TrueTypeSubsetTests` 7 条 |
-| H7 | PDF/A 转换 | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**现在有 PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**但预检不是合规认证** —— 认证要 veraPDF（Java 依赖），本仓库不引入新依赖，所以界面只说「预检发现 N 个问题」；`PdfACheckerTests` 34 条 |
+| H7 | PDF/A 转换与预检（认证需外部 veraPDF） | ✓ | 对齐 | 1.9.0 | Ghostscript 转 PDF/A-2b 有界面入口；**PDF/A-2b 预检器**（`pdf::checkPdfAPreflight`，Ribbon「PDF/A-2b 预检」入口已启用）：逐条给结论与修复建议（文件头版本、trailer `/ID`、加密、XMP 与 pdfaid 声明、OutputIntent 与嵌入的 ICC、字体内嵌、LZW、外部文件引用、JavaScript、色彩空间、透明、注解），每条带 ISO 19005-2 条款号；**认证走本机的 veraPDF**（`pdf::VeraPdfChecker`：探测本机有没有 veraPDF → 拼命令行 → 跑 → 解析 veraPDF 自己的 XML 报告 → **只转述 veraPDF 的结论**，本程序不自己判合规；Ribbon「PDF/A 合规认证」（`convert.pdfAVeraPdf`）入口已启用，没装 veraPDF 就如实说没装，不会拿预检冒充认证）；**本机没有装 veraPDF、也没有 Java，所以这条认证链路没有在本机跑过真报告**（命令拼装与报告解析按 veraPDF 的文档结构实现并有 13 条专项用例，真 veraPDF 样本要人工补做）；`PdfACheckerTests` 34 条 + `VeraPdfCheckerTests` 13 条 |
 | H8 | 优化与压缩（对象流、字体子集、图像降采样） | ✓ | 对齐 | 1.9.0 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`，带自检负例）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的 |
-|  H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 剪贴板转 PDF（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`）与网页转 PDF（`app::fetchWebPage` + `doc::extractHtmlBody` / `htmlToPdf`）都有界面入口（`convert.fromClipboard` / `convert.fromWeb`）；**剪贴板里有富文本时按富文本排版**（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片现在也转**（图片模式每张图单独一页；原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**混合内容（文字 + 图片）还不能合成一份 PDF**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；**网页正文里的 `<img src>` 会下载并嵌进 PDF**（每张单独一页，插在它出现的那段正文之后；**任一张图失败都不中断整篇转换**，逐条记原因；格式只支持 JPEG / BMP / PNG，TIFF / GIF / WebP 逐条报「格式不支持」）；**网页仍然不执行 JavaScript、不渲染 CSS**，`srcset`、CSS `background-image`、脚本动态插的图都不取；`data:` 内联图不支持；单次最多 50 张；只支持 UTF-8 / UTF-16（GBK 明确报错），抓取超时 15 秒；`ConversionInputsTests` 51 条  |
+|  H9 | 剪贴板 / 网页转 PDF | ✓ | 对齐 | — | 网页转 PDF 现在走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`，Ribbon「从网页」（`convert.fromWeb`）入口已启用）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去，打不开的产物一律不交；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**（不假装是浏览器渲染的版面）；剪贴板转 PDF（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf`）照旧：富文本按富文本排版（保留标题、段落、列表结构）、纯文本才退回纯文本，结果里会写明这次用的是哪一种；**剪贴板里的图片现在也转**（图片模式每张图单独一页；原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式不支持 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；**剪贴板里的文字与图片分稿，不合并成一份**（自动模式按文字排版并明说图片没进去，要图片得手动切到图片模式）；`BrowserPdfPrinterTests` 22 条 + `ConversionInputsTests` 51 条  |
 | H10 | 表单数据文件转 PDF | ✓ | 已具备 | — | FDF / XFDF / XML 三种表单数据文件套进模板 PDF（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过；`ConversionInputsTests` 51 条 |
 | H11 | 发送到 OneNote | ✓ | 对齐 | — | 把当前文档每一页渲染成图片并送进本机 OneNote 的笔记本分区（`app::OneNoteExporter`，Ribbon「发送到 OneNote」（`share.oneNote`）入口已启用）；**送出的页面带可搜索的文字层**（按 OneNote 页面 XML 写 `one:Text` run，**文字层写坏时降级为只送图片**而不是整个发送失败，并说明降级了几页）；**先渲染全部页再逐页写入**：渲染失败一页都不写，写入中途失败明确告诉用户已经写进几页，不假装全失败也不声称自动删除；**没装 OneNote / COM 起不来 / 写页失败是三种不同的中文原因**，不笼统说「发送失败」；**依赖本机装 OneNote 桌面版**，**本机没有 OneNote，COM 写入路径没有真机验证**；`OneNoteExporterTests` 31 条 |
 
@@ -171,7 +171,7 @@
 | Must（待补齐） | 33 | Must 共 102 项（102 − 0 Nice − 0 不做），已达「对齐」及以上 69 |
 | Nice（可延后） | 0 | 全部已实现，见评分卡 |
 | 未做（未实现） | 0 | L7 文档比较本轮已实现（文字层 + 可选的像素比对），**没有未实现项** |
-| 欠账（对齐但承诺范围未达成） | 5 | A11 / F6 / G5 / H7 / H9；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
+| 欠账（对齐但承诺范围未达成） | 3 | A11 / G5 / H7；逐条欠什么见 [欠账清单](benchmark/scorecard-debt.csv)，**全部要改的功能**见 [要修改的功能列表](FEATURE_MODIFICATION_BACKLOG.md) |
 | 不做（含理由） | 0 | 本轮已全部有实现，1.2 相应条目已移出 |
 
 校准记录：
@@ -499,8 +499,8 @@
 | L AI 能力 | 6 / 8 | 文生图、总结配图、PPT 四模式、内容检测、智能朗读、本地离线问答已补齐；本地离线问答是抽取式，不是模型推理；**文档比较已补像素级视觉比对**（默认关闭）与**跨文档自动对齐**（页指纹 + 相似度贪心配对，插页 / 删页不再让配对整体后移），但仍不做版面结构分析，**矩阵这一行仍是「部分」** |
 | **合计** | **69 / 102（68%）** | 本轮把上一版记成「不做 / 未做 / 部分」的那一批补上了 |
 
-**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 196 条完全对齐、51 条部分、
-0 条未做，**对齐率 71%**（去掉 🚫/➖ 的 247 条里占 79%）。能力评分卡按域计，
+**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 197 条完全对齐、50 条部分、
+0 条未做，**对齐率 71%**（去掉 🚫/➖ 的 247 条里占 80%）。能力评分卡按域计，
 命令矩阵按按钮计，两者不可互相换算。
 
 **这一段动的三项都来自同一条通路。** 打印、导出图片、导出文本共用

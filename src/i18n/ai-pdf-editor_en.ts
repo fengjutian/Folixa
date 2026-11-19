@@ -1072,7 +1072,23 @@
             <source>Excel 工作簿 (*.xlsx)</source>
             <translation>Excel workbook (*.xlsx)</translation>
         </message>
-                <message>
+                        <message>
+            <source>veraPDF 跑了 3 分钟还没结束，已经停掉。</source>
+            <translation>veraPDF did not finish within 3 minutes and was stopped.</translation>
+        </message>
+        <message>
+            <source>临时文件写不出来，认证没法跑。</source>
+            <translation>Could not write the temporary file, so the check cannot run.</translation>
+        </message>
+        <message>
+            <source>PDF/A 合规认证（veraPDF）</source>
+            <translation>PDF/A certification (veraPDF)</translation>
+        </message>
+        <message>
+            <source>PDF/A 合规认证</source>
+            <translation>PDF/A certification</translation>
+        </message>
+<message>
             <source>保留文字层与图片，表格按识别结果写成表格；精确版式、批注与字体样式会简化。</source>
             <translation>Text layer and images are kept; tables are written as tables when recognised; exact layout, annotations and font styles are simplified.</translation>
         </message>
@@ -1112,13 +1128,25 @@
             <source>只包含文字层：图片、批注与精确版式不会带过去；表格按识别结果写成表格，认不出的按文字行导出。</source>
             <translation>Text layer only: images, annotations and exact layout are not carried over; tables are written as tables when recognised, otherwise as text lines.</translation>
         </message>
-        <message>
+                <message>
+            <source>启动不了 veraPDF：%1</source>
+            <translation>Could not start veraPDF: %1</translation>
+        </message>
+<message>
             <source>导出为 %1：%2</source>
             <translation>Exported as %1: %2</translation>
         </message>
-                        <message>
+                                <message>
+            <source>建不出临时目录，认证没法跑。</source>
+            <translation>Could not create a temporary directory, so the check cannot run.</translation>
+        </message>
+<message>
             <source>生成 PDF/UA 文件</source>
             <translation>Generate a PDF/UA file</translation>
+        </message>
+        <message>
+            <source>用系统浏览器引擎渲染网页并打印成 PDF（执行 JavaScript、渲染 CSS）</source>
+            <translation>Render the web page with the system browser engine and print it to PDF (executes JavaScript, renders CSS)</translation>
         </message>
 <message>
             <source>结构元素类型：%1</source>
@@ -1155,7 +1183,11 @@
             <source>字体…</source>
             <translation>Font…</translation>
         </message>
-                <message>
+                        <message>
+            <source>调用本机的 veraPDF 出合规结论（没装 veraPDF 就做不了）</source>
+            <translation>Ask the local veraPDF for a compliance verdict (unavailable without veraPDF)</translation>
+        </message>
+<message>
             <source>这条差异在新文里，当前打开的是原文，页面跳不过去。</source>
             <translation>This difference is in the new document; the open document is the original, so the page cannot be jumped to.</translation>
         </message>
@@ -2942,10 +2974,6 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
                 <translation>From Web Page</translation>
             </message>
             <message>
-                <source>抓取网页正文并排版成 PDF</source>
-                <translation>Fetch the web page text and lay it out as a PDF</translation>
-            </message>
-            <message>
                 <source>用模板 PDF 加表单数据文件生成 PDF</source>
                 <translation>Fill a template PDF with a form data file</translation>
             </message>
@@ -3211,7 +3239,19 @@ Install pyhanko-cli and ensure pyhanko is on PATH.</translation></message>
             <source>提取页面</source>
             <translation>Extract pages</translation>
         </message>
+                <message>
+            <source>证书链结论：%1</source>
+            <translation>Certificate chain conclusion: %1</translation>
+        </message>
         <message>
+            <source>状态未知</source>
+            <translation>Status unknown</translation>
+        </message>
+        <message>
+            <source>撤销状态</source>
+            <translation>Revocation status</translation>
+        </message>
+<message>
             <source>起始页:</source>
             <translation>First page:</translation>
         </message>
@@ -5250,7 +5290,62 @@ Write them into the document?</translation>
             <translation>Recently opened</translation>
         </message>
     </context>
-    <context>
+        <context>
+        <name>aipdf::doc::BrowserPdfPrinter</name>
+        <message>
+            <source>本机没有可用的浏览器引擎，请安装 Microsoft Edge 或 Google Chrome 后重试。</source>
+            <translation>No usable browser engine was found on this machine. Please install Microsoft Edge or Google Chrome and try again.</translation>
+        </message>
+        <message>
+            <source>启动浏览器引擎 %1 失败：找不到可执行文件或被系统拒绝。</source>
+            <translation>Failed to launch the browser engine %1: the executable was not found or was blocked by the system.</translation>
+        </message>
+        <message>
+            <source>浏览器引擎 %1 退出码 %2，没有生成 PDF。</source>
+            <translation>The browser engine %1 exited with code %2 without producing a PDF.</translation>
+        </message>
+        <message>
+            <source>等了 %1 秒还没出结果，已终止浏览器进程。</source>
+            <translation>Waited %1 seconds without a result; the browser process was terminated.</translation>
+        </message>
+        <message>
+            <source>浏览器没有生成 PDF（产物是空的）。</source>
+            <translation>The browser did not produce a PDF (the output is empty).</translation>
+        </message>
+        <message>
+            <source>浏览器生成的 PDF 打不开。</source>
+            <translation>The PDF produced by the browser cannot be opened.</translation>
+        </message>
+        <message>
+            <source>浏览器生成的 PDF 里没有内容页。</source>
+            <translation>The PDF produced by the browser has no content pages.</translation>
+        </message>
+        <message>
+            <source>没有可打印的网页：既没有网址也没有 HTML 内容。</source>
+            <translation>No web page to print: neither a URL nor HTML content was provided.</translation>
+        </message>
+        <message>
+            <source>没有可用的打印工作区。</source>
+            <translation>No printable workspace is available.</translation>
+        </message>
+        <message>
+            <source>建临时目录失败：%1</source>
+            <translation>Failed to create the temporary directory: %1</translation>
+        </message>
+        <message>
+            <source>建浏览器临时 profile 目录失败。</source>
+            <translation>Failed to create the temporary browser profile directory.</translation>
+        </message>
+        <message>
+            <source>写临时 HTML 文件失败：%1</source>
+            <translation>Failed to write the temporary HTML file: %1</translation>
+        </message>
+        <message>
+            <source>临时 HTML 文件没写完整。</source>
+            <translation>The temporary HTML file was not written completely.</translation>
+        </message>
+    </context>
+<context>
         <name>aipdf::doc::CitationVerifier</name>
         <message>
             <source>引用 %1 没有给出原文，无法核对</source>
@@ -5946,6 +6041,45 @@ Write them into the document?</translation>
         <message>
             <source>扫描 PDF 内容失败</source>
             <translation>Scanning the PDF content failed</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::pdf::VeraPdfChecker</name>
+        <message>
+            <source>本机没有找到 veraPDF。合规认证要用 veraPDF（Java 程序），本仓库不自带它：装好并加入 PATH，或在界面上填它的完整路径。</source>
+            <translation>veraPDF was not found on this machine. Compliance certification needs veraPDF (a Java program); this repository does not bundle it: install it and add it to PATH, or enter its full path in the app.</translation>
+        </message>
+        <message>
+            <source>没有找到 veraPDF，没法做合规认证。</source>
+            <translation>veraPDF was not found, so compliance certification is not possible.</translation>
+        </message>
+        <message>
+            <source>没有待认证的文件。</source>
+            <translation>There is no file to certify.</translation>
+        </message>
+        <message>
+            <source>veraPDF 没有给出报告。</source>
+            <translation>veraPDF produced no report.</translation>
+        </message>
+        <message>
+            <source>veraPDF 的报告读不出来：%1</source>
+            <translation>The veraPDF report could not be read: %1</translation>
+        </message>
+        <message>
+            <source>veraPDF 的报告里没有逐条结论，读不出认证结果。</source>
+            <translation>The veraPDF report contains no per-rule findings, so no verdict could be derived.</translation>
+        </message>
+        <message>
+            <source>veraPDF 判定这份文件合规（%1 条规则全部通过）。</source>
+            <translation>veraPDF judged this file compliant (%1 rules, all passed).</translation>
+        </message>
+        <message>
+            <source>veraPDF 判定这份文件不合规：%1 条规则没通过。</source>
+            <translation>veraPDF judged this file non-compliant: %1 rule(s) failed.</translation>
+        </message>
+        <message>
+            <source>本机没有装 veraPDF，本程序做不了 PDF/A 合规认证。本程序自带的 PDF/A 预检只看文件结构里能读出来的要求，**预检通过不等于合规**——认证结论只能由 veraPDF 给。</source>
+            <translation>veraPDF is not installed, so this program cannot certify PDF/A compliance. The built-in PDF/A preflight only checks the requirements that can be read from the file structure; a passing preflight is not compliance. Only veraPDF can give a certification verdict.</translation>
         </message>
     </context>
 <context>
@@ -7194,7 +7328,15 @@ Notes: %1</translation></message>
                 <source>剪贴板.pdf</source>
                 <translation>Clipboard.pdf</translation>
             </message>
-            <message>
+                    <message>
+            <source>浏览器引擎没跑起来（%1），这次按网页正文里的文字排版：JavaScript 没有执行，CSS 没有渲染。</source>
+            <translation>The browser engine did not start (%1), so this time the text of the page body was laid out instead: JavaScript was not executed and CSS was not rendered.</translation>
+        </message>
+        <message>
+            <source>本机没有可用的浏览器引擎（Edge / Chrome），这次按网页正文里的文字排版：JavaScript 没有执行，CSS 没有渲染。</source>
+            <translation>There is no usable browser engine on this machine (Edge / Chrome), so this time the text of the page body was laid out instead: JavaScript was not executed and CSS was not rendered.</translation>
+        </message>
+<message>
                 <source>网页地址</source>
                 <translation>Web address</translation>
             </message>
@@ -7214,7 +7356,11 @@ Notes: %1</translation></message>
                 <source>等了 %1 秒还没拿到网页，已经放弃。</source>
                 <translation>Waited %1 seconds for the page and gave up.</translation>
             </message>
-            <message>
+                    <message>
+            <source>这次用浏览器引擎 %1 渲染：JavaScript 已执行，CSS 已渲染，图片按渲染结果落位。</source>
+            <translation>This time it was rendered with browser engine %1: JavaScript was executed, CSS was rendered, and images were placed according to the rendered result.</translation>
+        </message>
+<message>
                 <source>连不上这个网址：%1</source>
                 <translation>Could not reach this address: %1</translation>
             </message>
@@ -7446,6 +7592,10 @@ Notes: %1</translation></message>
                 <source>图片（每张一页）</source>
                 <translation>Images (one per page)</translation>
             </message>
+        <message>
+            <source>首选的浏览器引擎没跑起来，换了另一个引擎渲染。</source>
+            <translation>The preferred browser engine did not start; another engine was used for rendering.</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::DocumentCompareDialog</name>

@@ -1818,6 +1818,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerticalWritingTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/LayoutDiffTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticTagWriterTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UaGeneratorTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/VeraPdfCheckerTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BrowserPdfPrinterTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MediaSourceTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CertificateChainTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MediaPreviewPanelTests.cmake)
 
 # H5 的片段由 Office 导出任务一并落地，落地后同样去掉 EXISTS 判断。
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfficeImagesTests.cmake)

@@ -182,6 +182,18 @@ try {
         '-BuildDir', 'build/windows-debug/bin',
         '-ScreenshotPath', 'build/acceptance/annotation-types.png'
     )
+    # 这三张是第三梯队里漏接的界面验收（表单 / 编辑 / 界面语言）。
+    # 它们会抢前台，所以放在 -SkipAcceptance 的 else 分支里：本地默认跳过，CI 上照跑。
+    Invoke-Script '表单界面验收' (Join-Path $PSScriptRoot 'verify-forms.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin',
+        '-ScreenshotPath', 'build/acceptance/forms.png'
+    )
+    Invoke-Script '编辑动作验收' (Join-Path $PSScriptRoot 'verify-editing.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin'
+    )
+    Invoke-Script '界面语言验收' (Join-Path $PSScriptRoot 'verify-i18n.ps1') @(
+        '-BuildDir', 'build/windows-debug/bin'
+    )
     }
 
     Write-Host '=== Release ===' -ForegroundColor Cyan

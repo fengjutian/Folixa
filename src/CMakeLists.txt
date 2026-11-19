@@ -82,6 +82,10 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/DocumentCompareDialog.h
     app/panels/LastWavePanels.cpp
     app/panels/LastWavePanels.h
+    app/panels/MediaPreviewPanel.cpp
+    app/panels/MediaPreviewPanel.h
+    app/controllers/PcmPlayer.cpp
+    app/controllers/PcmPlayer.h
     app/controllers/LastWaveBridge.cpp
     app/controllers/LastWaveBridge.h
     app/shell/WiringActions.cpp
@@ -261,6 +265,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/convert/ExportFormats.h
     doc/export/ZipWriter.cpp
     doc/export/ZipWriter.h
+    doc/convert/BrowserPdfPrinter.cpp
+    doc/convert/BrowserPdfPrinter.h
     doc/convert/ConversionInputs.cpp
     doc/convert/ConversionInputs.h
     doc/convert/FontFlattening.cpp
@@ -314,6 +320,14 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ops/PageLabels.h
     pdf/compliance/PdfAChecker.cpp
     pdf/compliance/PdfAChecker.h
+    pdf/compliance/VeraPdfChecker.cpp
+    pdf/compliance/VeraPdfChecker.h
+    pdf/security/CertificateChain.cpp
+    pdf/security/CertificateChain.h
+    pdf/media/MediaSource.cpp
+    pdf/media/MediaSource.h
+    pdf/media/MediaPlayback.cpp
+    pdf/media/MediaPlayback.h
     pdf/forms/FormAutoTag.cpp
     pdf/forms/FormAutoTag.h
     pdf/convert/ImageToPdf.cpp
@@ -469,6 +483,11 @@ target_link_libraries(AiPdfEditor PRIVATE
 # 验签的证书链解析走 crypt32，证书 SHA-1 指纹走 bcrypt。
 if (WIN32)
     target_link_libraries(AiPdfEditor PRIVATE advapi32 crypt32 bcrypt)
+    # Media Foundation（音视频解码，A11）：mfplat 是入口（MFStartup / 媒体类型），
+    # mfreadwrite 是源读取器，mf 是解码器与视频处理。
+    # 都是 Windows 自带的系统库，不引入新第三方依赖。
+    # MF 的 GUID 在 MediaSource.cpp 里用 INITGUID 本地定义，不需要额外的 GUID 库。
+    target_link_libraries(AiPdfEditor PRIVATE mf mfplat mfreadwrite)
     # OneNote 导出走 COM 晚绑定（CoCreateInstance + IDispatch）。
     # Qt6::Core 的接口库目前已经带了这两个，但显式写出来更稳：
     # Qt 哪天改成动态库、接口库不再传递它们时，链接不会莫名其妙地断。

@@ -242,6 +242,8 @@ signals:
 
 private:
     void refreshKind();
+    // 选了文件 / 换了类型之后，把预览面板同步过去。
+    void refreshPreview();
 
     QComboBox* kindBox_ = nullptr;
     QLineEdit* pathEdit_ = nullptr;
@@ -249,6 +251,8 @@ private:
     QPushButton* insertButton_ = nullptr;
     QLabel* scopeLabel_ = nullptr;
     QLabel* resultLabel_ = nullptr;
+    // 音视频预览（Media Foundation 解码 + 声卡播放）。3D 模型那一路用不上。
+    class MediaPreviewPanel* preview_ = nullptr;
     pdf::RichMediaReadResult readResult_;
     bool hasResult_ = false;
 };

@@ -32,6 +32,7 @@
 #include <utility>
 
 #include "app/ui/SystemCjkFont.h"
+#include "doc/convert/BrowserPdfPrinter.h"
 #include "doc/convert/ConversionInputs.h"
 #include "i18n/Translate.h"
 
@@ -841,6 +842,10 @@ bool ConversionInputDialog::convertClipboard(ConversionInputOutcome* outcome) {
     return buildClipboardOutcome(text, html, fontPath(), outcome);
 }
 
+void ConversionInputDialog::setWebBrowserPrinter(WebBrowserPrinter printer) {
+    webBrowserPrinter_ = std::move(printer);
+}
+
 bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
     const QString address = urlText().trimmed();
     if (address.isEmpty()) {
@@ -848,9 +853,58 @@ bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
         return false;
     }
     const QUrl url(address);
+    // 先把网址校验掉：非法网址不该白等一次浏览器启动（启动超时 60 秒）。
+    if (!url.isValid() || (url.scheme().toLower() != QLatin1String("http")
+                            && url.scheme().toLower() != QLatin1String("https"))) {
+        outcome->error = i18n::tr("aipdf::app::ConversionInputs", "只支持 http / https 网址。");
+        return false;
+    }
+
+    // ================================================================ 路径一 ====
+    //
+    // 系统浏览器引擎优先：它执行 JavaScript、渲染 CSS，脚本动态插的图与
+    // CSS 背景图都按**渲染结果**落位 —— 产物与用户在浏览器里看到的一致。
+    // 自己抓 HTML 再排版只能拿到静态正文（那条路留在下面做降级）。
+    doc::BrowserPrintOptions printOptions;
+    printOptions.url = url;
+    // 注入点：单测塞一个假的浏览器结果，用来验证「失败时退回降级并明说降级」。
+    const doc::BrowserPrintResult printed = webBrowserPrinter_
+        ? webBrowserPrinter_(printOptions)
+        : doc::printWebPageToPdf(printOptions);
+    if (printed.ok) {
+        outcome->ok = true;
+        outcome->bytes = printed.bytes;
+        outcome->pageCount = printed.pageCount;
+        const QString host = url.host().isEmpty() ? QStringLiteral("网页") : url.host();
+        outcome->suggestedFileName = sanitizeFileName(host) + QStringLiteral(".pdf");
+        outcome->detailLines.append(
+            i18n::tr("aipdf::app::ConversionInputs",
+                     "这次用浏览器引擎 %1 渲染：JavaScript 已执行，CSS 已渲染，图片按渲染结果落位。")
+                .arg(printed.engineName));
+        if (printed.usedFallbackEngine) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "首选的浏览器引擎没跑起来，换了另一个引擎渲染。"));
+        }
+        return true;
+    }
+
+    // ================================================================ 路径二 ====
+    //
+    // 浏览器引擎没成（没装 / 起不来 / 超时 / 产物坏掉）：退回抓正文自己排版。
+    // 降级必须**明说** —— 不能让用户以为看到的是浏览器渲染出来的版面。
+    const QString fallbackNote =
+        printed.errorKind == doc::BrowserPrintError::NoEngine
+            ? i18n::tr("aipdf::app::ConversionInputs",
+                       "本机没有可用的浏览器引擎（Edge / Chrome），这次按网页正文里的文字排版："
+                       "JavaScript 没有执行，CSS 没有渲染。")
+            : i18n::tr("aipdf::app::ConversionInputs",
+                       "浏览器引擎没跑起来（%1），这次按网页正文里的文字排版："
+                       "JavaScript 没有执行，CSS 没有渲染。")
+                  .arg(printed.error);
+
     const WebFetchResult fetched = fetchWebPage(url);
     if (!fetched.ok) {
-        outcome->error = fetched.error;
+        outcome->error = fetched.error + QStringLiteral(" ") + fallbackNote;
         return false;
     }
     const QUrl base = fetched.finalUrl.isValid() && !fetched.finalUrl.isEmpty()
@@ -873,7 +927,11 @@ bool ConversionInputDialog::convertWeb(ConversionInputOutcome* outcome) {
     }
     outcome->ok = true;
     outcome->bytes = result.bytes;
-    outcome->warning = result.warning;
+    // 两句话都要说：网页转换自己的警告 + 这次走的是降级路径（没走浏览器）。
+    outcome->warning = result.warning.isEmpty()
+        ? fallbackNote
+        : (fallbackNote.isEmpty() ? result.warning
+                                  : result.warning + QStringLiteral(" ") + fallbackNote);
     outcome->pageCount = result.pageCount;
     const QString host = base.host().isEmpty() ? QStringLiteral("网页") : base.host();
     outcome->suggestedFileName =

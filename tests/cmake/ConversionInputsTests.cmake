@@ -59,6 +59,11 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/PdfiumAdapter.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/kernel/TextPage.h
+    # 网页 → PDF 现在有两条路：浏览器引擎（首选）与抓正文排版（降级）。
+    # 对话框里那条「浏览器优先、失败才降级」的分支要能在单测里塞假引擎，
+    # 所以浏览器打印模块必须一起编进来。
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/BrowserPdfPrinter.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/doc/convert/BrowserPdfPrinter.h
     ${AIPDF_CONVERSION_ROOT}/src/app/dialogs/ConversionInputDialog.cpp
     ${AIPDF_CONVERSION_ROOT}/src/app/dialogs/ConversionInputDialog.h
     ${AIPDF_CONVERSION_ROOT}/src/i18n/Translate.h

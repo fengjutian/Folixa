@@ -201,7 +201,8 @@ def main():
                  " 每个 P0 项挂到具体里程碑 + 唯一验收脚本，且 VERSION_AUDIT §5 的三选一已定 |")
     lines.append("| 4 | 界面验收脚本进流水线（`verify-forms.ps1` / `verify-editing.ps1` / `verify-i18n.ps1`） |"
                  " 版本审计 §7 已记录「验收脚本没有全部进 CI」；这三张本地不能跑（会抢桌面），只能由 CI 跑 |"
-                 " CI 上三张脚本实跑通过 |")
+                 " **已接进 `scripts/ci.ps1` 的界面验收段**（`-SkipAcceptance` 时本地跳过、CI 上照跑）；"
+                 "CI 上三张脚本实跑通过 |")
     lines.append("")
     lines.append("## 怎么用这份清单")
     lines.append("")

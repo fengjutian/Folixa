@@ -7,9 +7,11 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QMap>
+#include <QProcess>
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QUuid>
 
 #include "ai/content/AiContentDetection.h"
@@ -44,6 +46,7 @@
 #include "doc/convert/UniversalConverter.h"
 #include "i18n/Translate.h"
 #include "pdf/compliance/UaGenerator.h"
+#include "pdf/compliance/VeraPdfChecker.h"
 #include "ipc/WorkerClient.h"
 #include "pdf/ops/DocumentReflow.h"
 #include "pdf/convert/ExportFormats.h"
@@ -992,6 +995,105 @@ void WiringActions::pdfAPreflight() {
     PdfAPreflightDialog dialog(parentWidget_);
     dialog.setReport(report);
     dialog.exec();
+}
+
+// PDF/A 合规认证：调本机的 veraPDF。
+//
+// 为什么单独一条命令而不是并进预检：预检是本程序看文件结构，
+// 认证是 veraPDF 的结论 —— 两件事的**出具方**不一样，混在一起用户就会
+// 把「预检没问题」当成「已经合规」。这里只转述 veraPDF 的结论，本程序不自己判断。
+void WiringActions::pdfAVeraPdfCertification() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "PDF/A 合规认证（veraPDF）");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+
+    // 1) 找 veraPDF。没有就如实说没有，不拿预检冒充认证。
+    const pdf::VeraPdfTool tool = pdf::findVeraPdf();
+    if (!tool.found) {
+        QMessageBox::warning(parentWidget_, title, pdf::veraPdfUnavailableNotice());
+        return;
+    }
+
+    // 2) 落到临时文件：veraPDF 读文件，不读内存。
+    QTemporaryDir workDir;
+    if (!workDir.isValid()) {
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "建不出临时目录，认证没法跑。"));
+        return;
+    }
+    const QString inputPath = QDir(workDir.path()).filePath(QStringLiteral("input.pdf"));
+    const QString reportPath = QDir(workDir.path()).filePath(QStringLiteral("report.xml"));
+    {
+        QFile input(inputPath);
+        if (!input.open(QIODevice::WriteOnly)) {
+            QMessageBox::warning(parentWidget_, title,
+                                 i18n::tr("aipdf::app::MainWindow", "临时文件写不出来，认证没法跑。"));
+            return;
+        }
+        input.write(bytes);
+    }
+
+    // 3) 跑 veraPDF。
+    const pdf::VeraPdfPlan plan =
+        pdf::planVeraPdfValidation(tool.executable, inputPath, reportPath);
+    if (!plan.valid) {
+        QMessageBox::warning(parentWidget_, title, plan.error);
+        return;
+    }
+    QProcess process;
+    process.setProgram(plan.program);
+    process.setArguments(plan.arguments);
+    process.start();
+    if (!process.waitForStarted(30000)) {
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "启动不了 veraPDF：%1")
+                                 .arg(process.errorString()));
+        return;
+    }
+    if (!process.waitForFinished(180000)) {
+        process.kill();
+        process.waitForFinished(3000);
+        QMessageBox::warning(parentWidget_, title,
+                             i18n::tr("aipdf::app::MainWindow", "veraPDF 跑了 3 分钟还没结束，已经停掉。"));
+        return;
+    }
+
+    // 4) 读它的报告。报告文件没有就退一步看标准输出（有的版本直接打在 stdout）。
+    QByteArray xml;
+    QFile reportFile(reportPath);
+    if (reportFile.open(QIODevice::ReadOnly)) {
+        xml = reportFile.readAll();
+    }
+    if (xml.trimmed().isEmpty()) {
+        xml = process.readAllStandardOutput();
+    }
+
+    // 5) 结论只转述 veraPDF 的。
+    QString parseError;
+    const pdf::VeraPdfReport report = pdf::parseVeraPdfXmlReport(xml, &parseError);
+    if (!report.ok) {
+        QString message = parseError;
+        const QByteArray standardError = process.readAllStandardError();
+        if (!standardError.trimmed().isEmpty()) {
+            message += QStringLiteral("\n") + QString::fromUtf8(standardError).trimmed();
+        }
+        QMessageBox::warning(parentWidget_, title, message);
+        return;
+    }
+    if (report.compliant) {
+        QMessageBox::information(parentWidget_, title, report.summary);
+        return;
+    }
+    QMessageBox::warning(parentWidget_, title, pdf::veraPdfFailedNotice(report));
 }
 
 // ---------------------------------------------------------------- 任务 Q ----

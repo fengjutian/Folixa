@@ -1579,7 +1579,7 @@ void MainWindow::buildUi() {
                      ":/icons/clipboard-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->convertFromClipboard(); }
     }, true, "convert.fromClipboard");
-    addRibbonCommand(convertInputGroup, "从网页", "抓取网页正文并排版成 PDF",
+    addRibbonCommand(convertInputGroup, "从网页", "用系统浏览器引擎渲染网页并打印成 PDF（执行 JavaScript、渲染 CSS）",
                      ":/icons/web-to-pdf.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->convertFromWeb(); }
     }, true, "convert.fromWeb");
@@ -1652,6 +1652,13 @@ void MainWindow::buildUi() {
                      ":/icons/protect.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->pdfAPreflight(); }
     }, true, "convert.pdfAPreflight");
+    // PDF/A 合规认证：调用本机的 veraPDF 出结论（没装 veraPDF 就如实说没装，
+    // 不用预检冒充认证）。
+    addRibbonCommand(convertCheckGroup, "PDF/A 合规认证",
+                     "调用本机的 veraPDF 出合规结论（没装 veraPDF 就做不了）",
+                     ":/icons/protect.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->pdfAVeraPdfCertification(); }
+    }, true, "convert.pdfAVeraPdf");
     // XFA 字段：只做静态字段提取，不执行脚本。
     addRibbonCommand(convertCheckGroup, "XFA 字段", "列出 XFA 表单字段并导出成 CSV",
                      ":/icons/form.svg", [this] {

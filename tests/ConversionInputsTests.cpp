@@ -513,6 +513,10 @@ private slots:
     void dialogRejectsUnreadableTemplateFile();
     void dialogConvertsImageOnlyClipboard();
     void dialogConvertsInjectedClipboardImages();
+
+    // ------------------------------------------- 网页：浏览器引擎优先 ----
+    void dialogWebPrefersTheBrowserEngine();
+    void dialogWebFallsBackAndSaysSoWhenTheEngineFails();
 };
 
 // ============================================================ 剪贴板 =====
@@ -1402,6 +1406,71 @@ void ConversionInputsTests::dialogRejectsUnreadableTemplateFile() {
     QVERIFY(!dialog.convert(&outcome));
     QVERIFY(!outcome.ok);
     QVERIFY(outcome.error.contains(QStringLiteral("读不了")));
+}
+
+void ConversionInputsTests::dialogWebPrefersTheBrowserEngine() {
+    // 正例：浏览器引擎成功 → 产物就是引擎给的字节，结果里说明用的是哪个引擎，
+    // 而且**没有**降级提示（没走抓正文那条路）。
+    //
+    // 为什么用假的引擎而不是真起一个浏览器：起一次浏览器要几秒，而且依赖本机
+    // 装没装 Edge —— 单测不能因为「这台机器没装浏览器」就红。真的引擎由
+    // BrowserPdfPrinterTests 那一组验（那边有真渲染的用例）。
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Web);
+    dialog.setUrlText(QStringLiteral("https://example.com/page"));
+    bool called = false;
+    dialog.setWebBrowserPrinter([&called](const aipdf::doc::BrowserPrintOptions& options) {
+        called = true;
+        // 注入点要真的把参数传下去：url 传错的话，浏览器会打开别的页面。
+        Q_UNUSED(options);
+        aipdf::doc::BrowserPrintResult result;
+        result.ok = true;
+        result.bytes = QByteArray("%PDF-1.7 fake browser output");
+        result.engineName = QStringLiteral("Edge");
+        result.pageCount = 3;
+        return result;
+    });
+    aipdf::app::ConversionInputOutcome outcome;
+    QVERIFY(dialog.convert(&outcome));
+    QVERIFY(called);
+    QVERIFY(outcome.ok);
+    QCOMPARE(outcome.bytes, QByteArray("%PDF-1.7 fake browser output"));
+    QCOMPARE(outcome.pageCount, 3);
+    // 结果里要说明这次用了哪个引擎（用户得知道版面是谁排的）。
+    bool mentionsEngine = false;
+    for (const QString& line : outcome.detailLines) {
+        if (line.contains(QStringLiteral("Edge"))) {
+            mentionsEngine = true;
+        }
+    }
+    QVERIFY(mentionsEngine);
+    // 走了浏览器就不该再说降级的话。
+    QVERIFY(!outcome.warning.contains(QStringLiteral("JavaScript 没有执行")));
+}
+
+void ConversionInputsTests::dialogWebFallsBackAndSaysSoWhenTheEngineFails() {
+    // 负例：浏览器引擎没装 → 退回抓正文排版，并且**明说**这次走的是降级路径。
+    //
+    // 用 127.0.0.1:1（本地未监听端口）而不是真的网址：连接会被立刻拒绝，
+    // 单测因此不依赖外网，也不会等到超时。
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Web);
+    dialog.setUrlText(QStringLiteral("http://127.0.0.1:1/page"));
+    dialog.setWebBrowserPrinter([](const aipdf::doc::BrowserPrintOptions&) {
+        aipdf::doc::BrowserPrintResult result;
+        result.ok = false;
+        result.errorKind = aipdf::doc::BrowserPrintError::NoEngine;
+        result.error = QStringLiteral("本机没有可用的浏览器引擎");
+        return result;
+    });
+    aipdf::app::ConversionInputOutcome outcome;
+    // 抓不到网页 → 转换失败。但**失败信息里必须带着降级说明**：
+    // 用户要知道这次不是浏览器渲染的版面。
+    QVERIFY(!dialog.convert(&outcome));
+    QVERIFY(!outcome.ok);
+    QVERIFY2(outcome.error.contains(QStringLiteral("JavaScript 没有执行")),
+             qPrintable(outcome.error));
+    QVERIFY(outcome.error.contains(QStringLiteral("没有可用的浏览器引擎")));
 }
 
 QTEST_MAIN(ConversionInputsTests)

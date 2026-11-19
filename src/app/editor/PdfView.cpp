@@ -30,6 +30,7 @@
 #include "pdf/ops/PageLabels.h"
 #include "pdf/ops/PageSplitPlanner.h"
 #include "pdf/security/Redaction.h"
+#include "pdf/security/CertificateChain.h"
 #include "pdf/security/SignatureInspector.h"
 #include "pdf/security/SignatureVerifier.h"
 #include "pdf/security/SignatureWorkflow.h"
@@ -7122,10 +7123,10 @@ void PdfView::showSignatureListDialog() {
     layout->addWidget(table);
 
     layout->addWidget(new QLabel(tr("证书链"), &dialog));
-    auto* chainTable = new QTableWidget(0, 7, &dialog);
+    auto* chainTable = new QTableWidget(0, 8, &dialog);
     chainTable->setObjectName(QStringLiteral("signature.chain"));
     chainTable->setHorizontalHeaderLabels({tr("主体"), tr("签发者"), tr("序列号"), tr("SHA-1 指纹"),
-                                           tr("生效"), tr("失效"), tr("状态")});
+                                           tr("生效"), tr("失效"), tr("状态"), tr("撤销状态")});
     chainTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     chainTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     layout->addWidget(chainTable);
@@ -7140,6 +7141,15 @@ void PdfView::showSignatureListDialog() {
             return;
         }
         const pdf::SignatureInfo& signature = signatures.at(row);
+        // 证书链与撤销状态：走 **Windows 证书存储**（Crypt32 链策略），
+        // 结论是「受信任 / 已吊销 / 状态未知 / 已过期」四个**分开**的结论。
+        // 撤销信息查不到时报「状态未知」—— 不报「未被吊销」，
+        // 那是把「没查出来」说成「查过了、没问题」。
+        const QVector<QByteArray> chainDer = pdf::signatureCertificateDer(signature);
+        pdf::CertificateChainReport chainReport;
+        if (!chainDer.isEmpty()) {
+            chainReport = pdf::inspectCertificateChain(chainDer.first(), chainDer.mid(1));
+        }
         chainTable->setRowCount(0);
         for (const pdf::SignerCertificate& certificate : signature.chain) {
             const int chainRow = chainTable->rowCount();
@@ -7159,6 +7169,26 @@ void PdfView::showSignatureListDialog() {
                 state = tr("不受系统信任");
             }
             chainTable->setItem(chainRow, 6, new QTableWidgetItem(state));
+
+            // 撤销状态：按序列号对上链报告里的那一张（两张表的顺序不一定一样）。
+            // 对不上就说「状态未知」—— 不能因为没对上就报「未被吊销」。
+            QString revocation = tr("状态未知");
+            QColor revocationColor(140, 140, 140);
+            for (const pdf::ChainCertificateInfo& info : chainReport.certificates) {
+                if (info.serialNumber.isEmpty() || info.serialNumber != certificate.serialNumber) {
+                    continue;
+                }
+                revocation = info.revocationStatus.isEmpty() ? tr("状态未知") : info.revocationStatus;
+                if (info.revocationState == pdf::RevocationState::Revoked) {
+                    revocationColor = QColor(198, 40, 40);
+                } else if (info.revocationState == pdf::RevocationState::NotRevoked) {
+                    revocationColor = QColor(46, 160, 67);
+                }
+                break;
+            }
+            auto* revocationItem = new QTableWidgetItem(revocation);
+            revocationItem->setForeground(revocationColor);
+            chainTable->setItem(chainRow, 7, revocationItem);
         }
         QStringList ranges;
         for (int i = 0; i + 1 < signature.byteRange.size(); i += 2) {
@@ -7197,6 +7227,13 @@ void PdfView::showSignatureListDialog() {
                                           ? tr("（未知）")
                                           : verdict.timestampAuthority));
             }
+        }
+        // 证书链结论：受信任 / 已吊销 / 状态未知 / 已过期，四个结论**分开**给。
+        // 链建不起来时给失败原因，不给一句笼统的「证书有问题」。
+        if (!chainReport.error.isEmpty()) {
+            lines.append(tr("证书链结论：%1").arg(chainReport.error));
+        } else if (!chainReport.summary.isEmpty()) {
+            lines.append(tr("证书链结论：%1").arg(chainReport.summary));
         }
         detail->setPlainText(lines.join('\n'));
     };

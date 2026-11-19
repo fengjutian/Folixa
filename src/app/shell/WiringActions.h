@@ -94,6 +94,8 @@ public:
     void pdfUaCheck();
     // PDF/A-2b **预检**（只给逐条结论，不出合规认证结论）。
     void pdfAPreflight();
+    // PDF/A **合规认证**：调本机的 veraPDF 出结论（没装 veraPDF 就如实说没装）。
+    void pdfAVeraPdfCertification();
     // Q：静态 XFA 表单字段。
     void xfaFields();
     // R：插入 3D 模型 / 多媒体注解（只写结构，不渲染）。
