@@ -199,6 +199,7 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormFieldWriter.h
     pdf/forms/FormJsEvaluator.h
     pdf/forms/FormRuntime.h
+    pdf/forms/QuickJsFormScript.h
     pdf/forms/FormTemplateStore.h
     pdf/forms/FormScriptStore.h
     pdf/forms/BarcodeEncoder.h
@@ -212,6 +213,7 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormFieldWriter.cpp
     pdf/forms/FormJsEvaluator.cpp
     pdf/forms/FormRuntime.cpp
+    pdf/forms/QuickJsFormScript.cpp
     pdf/forms/FormTemplateStore.cpp
     pdf/forms/FormScriptStore.cpp
     pdf/forms/BarcodeEncoder.cpp
@@ -536,6 +538,8 @@ target_compile_definitions(AiPdfEditor PRIVATE AIPDF_VERSION="${PROJECT_VERSION}
 # 不再有「没有 qpdf 的构建」——所有 #ifdef AIPDF_WITH_QPDF 的降级分支从此不可达。
 target_link_libraries(AiPdfEditor PRIVATE qpdf::libqpdf)
 target_compile_definitions(AiPdfEditor PRIVATE AIPDF_WITH_QPDF=1)
+# QuickJS 同样是必需依赖：表单脚本引擎，源码一起编译（见根 CMakeLists）。
+target_link_libraries(AiPdfEditor PRIVATE aipdf_quickjs)
 message(STATUS "qpdf ${qpdf_VERSION}: 结构校验与对象级读写已启用")
 # 运行时需要 qpdf30.dll 与主程序同目录，否则程序根本起不来。
 add_custom_command(TARGET AiPdfEditor POST_BUILD

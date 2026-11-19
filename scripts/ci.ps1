@@ -105,6 +105,17 @@ try {
     }
     Write-Host "    qpdf = $qpdfExe" -ForegroundColor DarkGray
 
+    # QuickJS-ng 同样是必需依赖（表单脚本引擎）。取不到就中止。
+    Write-Host '=== QuickJS（必需：表单脚本引擎）===' -ForegroundColor Cyan
+    $quickJsHeader = Join-Path $root 'third_party\quickjs\quickjs.h'
+    if (-not (Test-Path -LiteralPath $quickJsHeader)) {
+        & $shellExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'bootstrap-quickjs.ps1')
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $quickJsHeader)) {
+            throw 'QuickJS 获取失败：它是必需依赖，流水线不能继续。'
+        }
+    }
+    Write-Host "    quickjs = $(Split-Path -Parent $quickJsHeader)" -ForegroundColor DarkGray
+
     Write-Host '=== Debug ===' -ForegroundColor Cyan
     Invoke-Native '配置 Debug' 'cmake' @('--preset', 'windows-debug')
     Invoke-Native '构建 Debug' 'cmake' @('--build', '--preset', 'windows-debug')

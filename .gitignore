@@ -144,6 +144,7 @@ credentials.json
 
 # Generated packages and archives
 /dist/
+/site-dist/
 /packages/
 node_modules/
 .astro/
@@ -184,3 +185,6 @@ tools/tesseract-cf/
 # qpdf 预编译包（约 25 MB），由 scripts/bootstrap-qpdf.ps1 获取，不进仓库
 tools/qpdf/
 tools/pyhanko/
+
+# QuickJS 源码（约 3 MB），由 scripts/bootstrap-quickjs.ps1 获取，不进仓库
+third_party/quickjs/

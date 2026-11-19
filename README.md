@@ -83,6 +83,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
 | MinGW-w64 | GCC 13.1.0 | Qt 官方工具包 |
 | PDFium | API 159（chromium/8152） | 预编译 Windows x64 包，按 SHA-256 校验 |
 | qpdf | 12.4.2 `mingw64` | 预编译 Windows x64 包，按 SHA-256 校验；保存前结构校验与对象级读写，**必需依赖** |
+| QuickJS-ng | 0.9.0（源码） | 表单脚本引擎，随构建一起编译，**必需依赖** |
 | CMake | 3.25+ | 系统安装 |
 | Ninja | 1.10+ | 系统安装 |
 
@@ -103,6 +104,12 @@ qpdf 同样是**必需依赖**（保存前结构校验、对象级读写、字�
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap-qpdf.ps1
+```
+
+QuickJS-ng 也是**必需依赖**（表单脚本引擎，源码随构建编译）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap-quickjs.ps1
 ```
 
 脚本会打印实际路径。按需设置环境变量覆盖默认位置：
@@ -305,6 +312,33 @@ powershell -ExecutionPolicy Bypass -File scripts\bootstrap-pdfium.ps1
 `.github/workflows/windows.yml` 在 `windows-2022` 上调用 `scripts/ci.ps1`，
 即与本地完全相同的流水线：安装固定工具链 → Debug/Release 构建与测试 → 启动验收
 → 打包 → 无 SDK 打包验收 → 发布门，并上传安装包与验收证据。
+
+`.github/workflows/site.yml` 单独构建项目静态站点（Astro，位于 `src/pages/`）：
+`npm ci` → `npm run check` → `npm run build`，产物落在 `site-dist/`。
+
+## 项目站点
+
+项目介绍站点用 Astro 构建，源码在 `src/pages/`，样式在 `src/styles/global.css`，
+站点位图资源由 `assets/branding/build_site_assets.py` 生成到 `public/`。
+
+```bash
+npm install
+npm run dev        # 本地开发
+npm run check      # 类型与模板检查
+npm run build      # 产物输出到 site-dist/（与打包目录 dist/ 隔离）
+npm run preview    # 预览已构建产物
+```
+
+发布地址由环境变量决定，两个变量都需覆盖以适配不同托管：
+
+| 变量 | 含义 | 默认值 |
+| --- | --- | --- |
+| `SITE_URL` | 站点根的完整公开地址，**必须已包含 base** 且以 `/` 结尾 | `https://fengjutian.github.io/Folixa/` |
+| `SITE_BASE` | 部署路径前缀，首尾都带 `/` | `/Folixa/` |
+
+例如部署到域名根目录：`SITE_URL=https://example.com/ SITE_BASE=/ npm run build`。
+canonical、Open Graph、Twitter 分享卡、JSON-LD、robots.txt 与 sitemap.xml 全部由
+这两个变量派生，改地址不需要再手工改页面。
 
 ## 文档
 

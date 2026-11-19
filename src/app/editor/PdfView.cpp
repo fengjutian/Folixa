@@ -3914,7 +3914,7 @@ void PdfView::replaceSelectionTextDialog() {
             } else if (spliced.report.error.contains(QStringLiteral("写不出"))) {
                 // 明确告诉用户「原字体没有这些字」，并停止；不要退回白块路径。
                 QMessageBox::warning(this, tr("替换文字"),
-                                     tr("原字体写不出新文字：%1\n\n这次替换已取消。")
+                                     tr("原字体写不出新文字：%1；这次替换已取消。")
                                          .arg(spliced.report.error));
                 return;
             }

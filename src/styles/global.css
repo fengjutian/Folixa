@@ -394,6 +394,10 @@ h2 {
   color: #5fbf8f;
   background: #162b22;
 }
+.copy.failed {
+  color: #e08b8b;
+  background: #2b1a1f;
+}
 .usage-grid {
   display: grid;
   grid-template-columns: .86fr 1.14fr;

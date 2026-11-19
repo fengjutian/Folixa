@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(AiPdfEditor VERSION 0.15.0 LANGUAGES CXX)
+project(AiPdfEditor VERSION 0.15.0 LANGUAGES C CXX)
 
 # 应用图标：Windows 资源里嵌一份（资源管理器、任务栏与文件关联用），
 # 运行时窗口图标用同一份设计的 SVG（src/app/icons/app.svg），
@@ -38,6 +38,30 @@ if(NOT qpdf_FOUND)
         "未找到 qpdf（${CMAKE_SOURCE_DIR}/tools/qpdf）。qpdf 已是必需依赖。\n"
         "请先运行：powershell -ExecutionPolicy Bypass -File scripts/bootstrap-qpdf.ps1")
 endif()
+
+# 必需依赖：QuickJS-ng（表单脚本引擎）。
+#
+# 表单脚本不能永远靠手写白名单子集：real-world 的 /AA 脚本里有变量、循环、
+# Math、getField、字符串方法，子集永远追不上。这里把源码一起编译，
+# 不引动态库、不跨 ABI。
+# 获取：scripts/bootstrap-quickjs.ps1
+set(AIPDF_QUICKJS_ROOT "${CMAKE_SOURCE_DIR}/third_party/quickjs")
+if(NOT EXISTS "${AIPDF_QUICKJS_ROOT}/quickjs.h")
+    message(FATAL_ERROR
+        "未找到 QuickJS 源码（${AIPDF_QUICKJS_ROOT}）。\n"
+        "请先运行：powershell -ExecutionPolicy Bypass -File scripts/bootstrap-quickjs.ps1")
+endif()
+add_library(aipdf_quickjs STATIC
+    "${AIPDF_QUICKJS_ROOT}/quickjs.c"
+    "${AIPDF_QUICKJS_ROOT}/libregexp.c"
+    "${AIPDF_QUICKJS_ROOT}/libunicode.c"
+    "${AIPDF_QUICKJS_ROOT}/libbf.c"
+    "${AIPDF_QUICKJS_ROOT}/cutils.c"
+)
+target_include_directories(aipdf_quickjs PUBLIC "${AIPDF_QUICKJS_ROOT}")
+target_compile_definitions(aipdf_quickjs PRIVATE
+    _GNU_SOURCE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601)
+set_target_properties(aipdf_quickjs PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # 主程序与 Worker 必须落在同一目录：主程序按自身路径查找 PdfAiWorker。
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

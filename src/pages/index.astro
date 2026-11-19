@@ -1,6 +1,4 @@
 ---
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import '../styles/global.css';
 
 // ── 站点地址 ─────────────────────────────────────────────
@@ -13,17 +11,13 @@ const repoUrl = 'https://github.com/fengjutian/Folixa';
 const docsUrl = `${repoUrl}/tree/main/docs`;
 
 // ── 版本号直接从 CMake 读取，避免页面与发布产物脱节 ──────
-function findRepoRoot() {
-  let dir = process.cwd();
-  for (let i = 0; i < 6; i += 1) {
-    if (existsSync(resolve(dir, 'CMakeLists.txt'))) return dir;
-    const parent = resolve(dir, '..');
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return process.cwd();
-}
-const cmakeLists = readFileSync(resolve(findRepoRoot(), 'CMakeLists.txt'), 'utf8');
+// 用 Vite 的 import.meta.glob 读原始文本，前端代码里不依赖 Node API。
+const cmakeFiles = import.meta.glob('../../CMakeLists.txt', {
+  query: '?raw',
+  import: 'default',
+  eager: true
+}) as Record<string, string>;
+const cmakeLists = Object.values(cmakeFiles)[0] ?? '';
 const version = cmakeLists.match(/project\(\s*\w+\s+VERSION\s+([0-9.]+)/)?.[1] ?? '0.0.0';
 
 const description =
@@ -69,6 +63,9 @@ const faqs = [
 ];
 
 // ── 图标（16×16 线性图标，stroke 走 currentColor）────────
+// 只存内部图形，渲染时统一补上 <svg> 包装层
+const svgIcon = (body: string) =>
+  `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">${body}</svg>`;
 const toolIcons = [
   '<rect x="4" y="2.5" width="8" height="11" rx="1.4"/><path d="M6 5.6h4M6 8h4M6 10.4h2.6"/>',
   '<path d="M8.3 2.6 13.4 7.7 7.7 13.4 2.6 8.3z"/><circle cx="6.2" cy="6.2" r="1"/>',
@@ -136,7 +133,7 @@ const jsonLdText = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
   <script type="application/ld+json" is:inline set:html={jsonLdText}/>
 </head>
-<body>
+<body id="top">
   <a class="skip-link" href="#main">跳到主要内容</a>
 
   <header class="wrap">
@@ -157,16 +154,15 @@ const jsonLdText = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
   </header>
 
   <main id="main">
-    <span id="top"></span>
-    <section class="hero"><div class="wrap hero-grid"><div><div class="eyebrow">AI PDF Editor · Windows</div><h1>让文档成为<br/><span>智能工作空间。</span></h1><p class="lead">Folixa 是采用 C++20、Qt 6 与 PDFium 构建的原生 PDF 编辑器。专注阅读、可靠编辑与可验证的 AI 协作。</p><div class="actions"><a class="btn primary" href="#start">开始构建</a><a class="btn" href="#features">了解能力 →</a></div><div class="version"><span>当前版本 {version}</span><span>中文 / English</span><span>Windows x64</span></div></div>
-      <div class="product" role="img" aria-label="Folixa 应用界面示意图"><div class="window"><div class="titlebar"><i class="appmark">F</i><span>加分项目（综合测评加分）.pdf — Folixa</span><span class="controls">— □ ×</span></div><div class="tabs"><b>工作台</b><span>文件</span><span>主页</span><span>转换</span><span>编辑</span><span>页面管理</span><span>AI 助手</span></div><div class="ribbon">{['文档概述','标签','分类','全文搜索','批量重命名'].map((x,i)=><span class="tool"><i class="ico" set:html={toolIcons[i]}/>{x}</span>)}</div><div class="workspace"><aside class="sidebar">{sideIcons.map(p=><span class="ico" set:html={p}/>)}</aside><div class="canvas"><article class="page"><h3>综合测评加分项目</h3><p>考生在取得科学技术成果、文体竞赛、获得证书、德育实践等方面表现突出或平时表现优秀的，可给予综合测评加分。</p><p class="section-title">一、科学技术成果类加分：</p><p>（一）发表文章</p><p>在校内刊物发表文章，每篇加 5 分。</p><p>在校级以上公开出版物发表文章，每篇加 10 分。</p></article></div><aside class="ai-panel"><div class="ai-head">✦ AI 助手</div><div class="bubble">我可以总结当前页、解释选区，或基于整篇文档回答问题。<br/><br/>引用 · 第 1 页</div></aside></div></div></div>
+    <section class="hero" aria-label="产品概览"><div class="wrap hero-grid"><div><div class="eyebrow">AI PDF Editor · Windows</div><h1>让文档成为<br/><span>智能工作空间。</span></h1><p class="lead">Folixa 是采用 C++20、Qt 6 与 PDFium 构建的原生 PDF 编辑器。专注阅读、可靠编辑与可验证的 AI 协作。</p><div class="actions"><a class="btn primary" href="#start">开始构建</a><a class="btn" href="#features">了解能力 →</a></div><div class="version"><span>当前版本 {version}</span><span>中文 / English</span><span>Windows x64</span></div></div>
+      <div class="product" role="img" aria-label="Folixa 应用界面示意图"><div class="window" aria-hidden="true"><div class="titlebar"><i class="appmark">F</i><span>加分项目（综合测评加分）.pdf — Folixa</span><span class="controls">— □ ×</span></div><div class="tabs"><b>工作台</b><span>文件</span><span>主页</span><span>转换</span><span>编辑</span><span>页面管理</span><span>AI 助手</span></div><div class="ribbon">{['文档概述','标签','分类','全文搜索','批量重命名'].map((x,i)=><span class="tool"><i class="ico" set:html={svgIcon(toolIcons[i])}/>{x}</span>)}</div><div class="workspace"><aside class="sidebar">{sideIcons.map(p=><span class="ico" set:html={svgIcon(p)}/>)}</aside><div class="canvas"><article class="page"><h3>综合测评加分项目</h3><p>考生在取得科学技术成果、文体竞赛、获得证书、德育实践等方面表现突出或平时表现优秀的，可给予综合测评加分。</p><p class="section-title">一、科学技术成果类加分：</p><p>（一）发表文章</p><p>在校内刊物发表文章，每篇加 5 分。</p><p>在校级以上公开出版物发表文章，每篇加 10 分。</p></article></div><aside class="ai-panel"><div class="ai-head">✦ AI 助手</div><div class="bubble">我可以总结当前页、解释选区，或基于整篇文档回答问题。<br/><br/>引用 · 第 1 页</div></aside></div></div></div>
     </div></section>
-    <section class="capabilities wrap" id="features"><div class="section-head"><div><div class="eyebrow">核心能力</div><h2>文档在中心，<br/>智能在上下文中。</h2></div><p>从长文档浏览、真实 PDF 批注，到带离线引用核验的整篇问答，每一步都保留用户控制权。</p></div><div class="cards">{features.map(([n,title,text])=><article class="card"><span class="num">{n}</span><h3>{title}</h3><p>{text}</p></article>)}</div></section>
-    <section class="quickstart" id="start"><div class="wrap"><div class="section-head"><div><div class="eyebrow">Quick start</div><h2>四步，在 Windows<br/>跑起 Folixa。</h2></div><p>请在项目根目录打开 PowerShell。工具链与 PDFium 下载脚本均不需要管理员权限。</p></div><div class="steps">{steps.map(([n,title,text,code])=><article class="step"><span class="step-num">{n}</span><h3>{title}</h3><p>{text}</p><div class="code">{code}<button class="copy" type="button" aria-label={`复制${title}命令`} data-copy={code}><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4.5V9A1.5 1.5 0 0 0 4 10.5h1"/></svg></button></div></article>)}</div></div></section>
-    <section class="usage wrap" id="workflow"><div class="usage-grid"><div><div class="eyebrow">日常使用</div><h2>打开文档，<br/>继续你的工作。</h2><p class="intro">启动后拖入 PDF，或直接把文件路径作为命令行参数。扫描件会优先调用本机 Tesseract，未安装时回退到 Windows OCR。</p><div class="tip">AI 密钥保存在 Windows 凭据管理器，不写入配置文件或日志；未配置时可使用明确标注的演示模式。</div></div><div class="checklist">{workflow.map(([title,text],i)=><article class="check"><span class="check-icon">{i+1}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div></div></section>
-    <section class="manual" id="guide"><div class="wrap"><div class="manual-head"><div class="eyebrow">使用指南</div><h2>从第一次打开，<br/>到放心保存。</h2><p>六个高频场景覆盖完整使用路径。每一步都对应当前版本中已经实现的功能。</p></div><div class="guide-grid">{guides.map((g)=><article class="guide"><span class="guide-no">{g.icon}</span><div><h3>{g.title}</h3><p class="guide-lead">{g.lead}</p><ul>{g.items.map(item=><li>{item}</li>)}</ul></div></article>)}</div></div></section>
-    <section class="shortcuts wrap" id="shortcuts"><div class="shortcut-layout"><div><div class="eyebrow">效率工具</div><h2>常用操作，<br/>不必离开键盘。</h2><p class="intro">快捷键在文档视图中生效。焦点位于输入框时，复制等系统快捷键仍按输入框行为处理。</p><div class="tip">布局切换会记住当前文档的阅读状态；F5 可进入专注放映模式。</div></div><div class="key-grid">{shortcuts.map(([key,label])=><div class="key-row"><span>{label}</span><kbd>{key}</kbd></div>)}</div></div></section>
-    <section class="faq" id="faq"><div class="wrap"><div class="eyebrow">常见问题</div><h2>遇到问题，<br/>先从这里开始。</h2><div class="faq-list">{faqs.map(([q,a],i)=><details open={i===0}><summary>{q}<svg class="chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4"/></svg></summary><p>{a}</p></details>)}</div></div></section>
+    <section class="capabilities wrap" id="features" aria-label="核心能力"><div class="section-head"><div><div class="eyebrow">核心能力</div><h2>文档在中心，<br/>智能在上下文中。</h2></div><p>从长文档浏览、真实 PDF 批注，到带离线引用核验的整篇问答，每一步都保留用户控制权。</p></div><div class="cards">{features.map(([n,title,text])=><article class="card"><span class="num">{n}</span><h3>{title}</h3><p>{text}</p></article>)}</div></section>
+    <section class="quickstart" id="start" aria-label="快速开始"><div class="wrap"><div class="section-head"><div><div class="eyebrow">Quick start</div><h2>四步，在 Windows<br/>跑起 Folixa。</h2></div><p>请在项目根目录打开 PowerShell。工具链与 PDFium 下载脚本均不需要管理员权限。</p></div><div class="steps">{steps.map(([n,title,text,code])=><article class="step"><span class="step-num">{n}</span><h3>{title}</h3><p>{text}</p><div class="code">{code}<button class="copy" type="button" aria-label={`复制${title}命令`} data-copy={code}><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4.5V9A1.5 1.5 0 0 0 4 10.5h1"/></svg></button></div></article>)}</div></div></section>
+    <section class="usage wrap" id="workflow" aria-label="日常使用"><div class="usage-grid"><div><div class="eyebrow">日常使用</div><h2>打开文档，<br/>继续你的工作。</h2><p class="intro">启动后拖入 PDF，或直接把文件路径作为命令行参数。扫描件会优先调用本机 Tesseract，未安装时回退到 Windows OCR。</p><div class="tip">AI 密钥保存在 Windows 凭据管理器，不写入配置文件或日志；未配置时可使用明确标注的演示模式。</div></div><div class="checklist">{workflow.map(([title,text],i)=><article class="check"><span class="check-icon">{i+1}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div></div></section>
+    <section class="manual" id="guide" aria-label="使用指南"><div class="wrap"><div class="manual-head"><div class="eyebrow">使用指南</div><h2>从第一次打开，<br/>到放心保存。</h2><p>六个高频场景覆盖完整使用路径。每一步都对应当前版本中已经实现的功能。</p></div><div class="guide-grid">{guides.map((g)=><article class="guide"><span class="guide-no">{g.icon}</span><div><h3>{g.title}</h3><p class="guide-lead">{g.lead}</p><ul>{g.items.map(item=><li>{item}</li>)}</ul></div></article>)}</div></div></section>
+    <section class="shortcuts wrap" id="shortcuts" aria-label="常用快捷键"><div class="shortcut-layout"><div><div class="eyebrow">效率工具</div><h2>常用操作，<br/>不必离开键盘。</h2><p class="intro">快捷键在文档视图中生效。焦点位于输入框时，复制等系统快捷键仍按输入框行为处理。</p><div class="tip">布局切换会记住当前文档的阅读状态；F5 可进入专注放映模式。</div></div><div class="key-grid">{shortcuts.map(([key,label])=><div class="key-row"><span>{label}</span><kbd>{key}</kbd></div>)}</div></div></section>
+    <section class="faq" id="faq" aria-label="常见问题"><div class="wrap"><div class="eyebrow">常见问题</div><h2>遇到问题，<br/>先从这里开始。</h2><div class="faq-list">{faqs.map(([q,a],i)=><details open={i===0}><summary>{q}<svg class="chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4"/></svg></summary><p>{a}</p></details>)}</div></div></section>
   </main>
 
   <footer><div class="wrap footer-row">
@@ -183,7 +179,7 @@ const jsonLdText = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
   <script>
     // 复制命令：navigator.clipboard 只在安全上下文（HTTPS / localhost）可用，
     // 站点若以 http:// 部署就会静默失效，这里补 execCommand 兜底并给出反馈。
-    async function copyText(text) {
+    async function copyText(text: string): Promise<void> {
       if (window.isSecureContext && navigator.clipboard) {
         await navigator.clipboard.writeText(text);
         return;
@@ -201,20 +197,25 @@ const jsonLdText = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
     }
 
     const status = document.getElementById('copy-status');
-    document.querySelectorAll('[data-copy]').forEach((button) => {
+    const CHECK_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m3 8.6 3.4 3.4L13 5"/></svg>';
+    document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
       const original = button.innerHTML;
-      const title = button.getAttribute('aria-label') ?? '命令';
+      const label = (button.getAttribute('aria-label') ?? '').replace(/^复制/, '');
       button.addEventListener('click', async () => {
         const text = button.dataset.copy ?? '';
         try {
           await copyText(text);
+          button.classList.remove('failed');
           button.classList.add('done');
-          if (status) status.textContent = `已复制${title.replace(/^复制/, '')}`;
+          button.innerHTML = CHECK_ICON;
+          if (status) status.textContent = `已复制：${label}`;
         } catch {
+          button.classList.add('failed');
           if (status) status.textContent = '复制失败，请手动选择命令文本';
         }
         setTimeout(() => {
           button.classList.remove('done');
+          button.classList.remove('failed');
           button.innerHTML = original;
         }, 1600);
       });

@@ -8,6 +8,7 @@
 | `LGPL-3.0.txt` | Qt 6.8.3（LGPL v3） | https://www.gnu.org/licenses/lgpl-3.0.txt |
 | `GPL-3.0.txt` | LGPL-3.0 引用的 GPLv3 全文；MinGW-w64 运行库的 GPLv3 部分 | https://www.gnu.org/licenses/gpl-3.0.txt |
 | `GCC-RUNTIME-LIBRARY-EXCEPTION.txt` | MinGW-w64 运行库（libgcc / libstdc++ / libwinpthread）的 GCC 运行时例外 | 随 MinGW-w64 GCC 13.1.0 工具包分发的 `licenses/gcc/COPYING.RUNTIME` |
+| `QuickJS-MIT.txt` | QuickJS-ng 0.9.0（表单脚本引擎，源码编译进主程序） | `third_party/quickjs/LICENSE`（`scripts/bootstrap-quickjs.ps1` 获取） |
 
 ## PDFium 许可证材料清单
 

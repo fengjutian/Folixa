@@ -3935,6 +3935,18 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
             <translation>Replaced the selection (line level)</translation>
         </message>
         <message>
+            <source>原字体写不出新文字：%1；这次替换已取消。</source>
+            <translation>The original font cannot render the new characters: %1. This replacement was cancelled.</translation>
+        </message>
+        <message>
+            <source>字形级替换选中文字</source>
+            <translation>Replace selection at glyph level</translation>
+        </message>
+        <message>
+            <source>已替换选中文字（保留原字体）</source>
+            <translation>Replaced the selection (original font preserved)</translation>
+        </message>
+        <message>
             <source>1 页</source>
             <translation>1 page</translation>
         </message>

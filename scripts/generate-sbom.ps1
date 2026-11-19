@@ -23,6 +23,7 @@ param(
     [string]$MinGWVersion = '13.1.0',
     [string]$PdfiumVersion = '',
     [string]$QpdfVersion = '',
+    [string]$QuickJsVersion = '',
     [string]$QtSbomPath = ''
 )
 
@@ -120,6 +121,27 @@ if ($QpdfVersion) {
     $dependencies.Add([pscustomobject]@{
         ref       = $applicationRef
         dependsOn = @($qpdfRef)
+    })
+}
+
+if ($QuickJsVersion) {
+    $quickJsRef = "pkg:generic/quickjs@$QuickJsVersion"
+    $components.Add([pscustomobject]@{
+        type    = 'library'
+        'bom-ref' = $quickJsRef
+        name    = 'quickjs'
+        version = $QuickJsVersion
+        purl    = $quickJsRef
+        licenses = @(@{ license = @{ id = 'MIT' } })
+        description = 'QuickJS-ng JavaScript engine for AcroForm scripts, MIT (compiled into the executable)'
+        externalReferences = @(
+            [ordered]@{ type = 'website'; url = 'https://quickjs-ng.github.io/quickjs/' },
+            [ordered]@{ type = 'vcs'; url = 'https://github.com/quickjs-ng/quickjs' }
+        )
+    })
+    $dependencies.Add([pscustomobject]@{
+        ref       = $applicationRef
+        dependsOn = @($quickJsRef)
     })
 }
 
