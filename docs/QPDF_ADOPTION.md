@@ -1,7 +1,7 @@
-﻿# qpdf 引入提案
+# qpdf 引入决定
 
-**状态：** 提议，**未批准**（批准前按 [依赖与许可证政策](DEPENDENCY_POLICY.md) 第 2 条，不引入源码构建的第三方依赖）  
-**提出：** 2026-11-14，对应 [v1.3.0](versions/v1.3.0.md) 的依赖变更  
+**状态：** **已采纳，且为必需依赖**（`AIPDF_WITH_QPDF=OFF` 在 CMake 配置阶段直接失败）  
+**决策：** 2026-11-19，按 [依赖与许可证政策](DEPENDENCY_POLICY.md) 登记为生产依赖  
 **决策人：** 项目所有者
 
 ## 1. 为什么现在提
@@ -32,7 +32,7 @@ v1.3.0 先落地了一个刻意做窄的增量写入器（`src/pdf/IncrementalWr
 | 面 | 变化 | 工作量 |
 |---|---|---|
 | 依赖声明 | `vcpkg.json` 增加 `qpdf`，固定 `builtin-baseline` | 小 |
-| 构建 | CMake 增加可选目标，`AIPDF_WITH_QPDF` 开关；无 qpdf 时回落到现有手写实现 | 中 |
+| 构建 | CMake 直接 `find_package(qpdf CONFIG QUIET)` + 找不到即 `FATAL_ERROR`；`AIPDF_WITH_QPDF=OFF` 也直接失败，不再保留手写回落路径 | 小 |
 | 打包 | 随包分发 `qpdf.dll`；许可证清单增加 Apache-2.0 与 qpdf 的 NOTICE | 小 |
 | SBOM | 新增条目（版本、来源、SHA-256） | 小 |
 | CI | `windows-2022` 需要 vcpkg 缓存（首次构建约 10–20 分钟） | 中 |
@@ -43,15 +43,16 @@ v1.3.0 先落地了一个刻意做窄的增量写入器（`src/pdf/IncrementalWr
 
 1. ✅ `scripts/bootstrap-qpdf.ps1`：固定版本 + SHA-256，风格对齐 `bootstrap-pdfium.ps1`；
    下载失败不写半成品。已实测（12.4.2 mingw64，哈希与官方一致）。
-2. ✅ CMake：`-DAIPDF_WITH_QPDF=ON` 时 `find_package(qpdf CONFIG QUIET)`，找不到只告警不失败；
+2. ✅ CMake：`find_package(qpdf CONFIG QUIET)`，找不到直接 `FATAL_ERROR` 并打印获取命令；
+   `AIPDF_WITH_QPDF=OFF` 同样直接失败——**不再有「无 qpdf 构建」这条降级路径**；
    `tools/qpdf/lib/cmake/qpdf` 自动定位，运行时自动把 `qpdf30.dll` 复制到 `bin`。
 3. ✅ 写入路径暂不换后端：qpdf 目前只做**落盘前的结构校验**（`src/pdf/QpdfBackend`），
    序列化与增量写入仍走手写实现。**接口未变**，调用方一行没改。
    等 1.6 加密 / 1.7 签名需要对象级写入时再切换。
 4. ✅ 回归：全量 34 条测试通过（qpdf 开启时，保存路径的 10 条测试全部经过 qpdf 校验）。
 5. ✅ CI 覆盖：流水线启动时自动获取 qpdf（GitHub Actions 按版本缓存 `tools/qpdf`），
-   拿不到就降级为"无 qpdf"构建并打印告警；`AIPDF_WITH_QPDF` 随可用性传给 Debug/Release 两套配置。
-6. ✅ 打包与 SBOM 已纳入：`package.ps1` 在 `bin` 里有 `qpdf30.dll` 时随包带上，
+   拿不到就**中止流水线**，不再降级为"无 qpdf"构建。
+6. ✅ 打包与 SBOM 已纳入：`package.ps1` **要求** `bin` 里必须有 `qpdf30.dll`，缺了直接中止打包；
    `LicenseMap.ps1` 把 `qpdf*.dll` 判为 Apache-2.0，`generate-sbom.ps1` 增加 qpdf 组件，
    `licenses/Apache-2.0.txt` 进 `CHECKSUMS.txt`。实测 0.15.0 包：许可证门、SBOM 门、无 SDK 启动门全绿。
 

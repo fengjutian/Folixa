@@ -112,4 +112,8 @@ add_test(NAME OfficeImagesVerifyTests
 )
 set_tests_properties(OfficeImagesVerifyTests PROPERTIES
     DEPENDS "OfficeImagesTests;OfficeCorpusExportTests"
+    # 校验脚本会打印「✓」这类字符。Windows 的默认控制台编码是 GBK，
+    # 不强制 UTF-8 时 Python 会直接 UnicodeEncodeError，把一次通过的校验
+    # 变成为「测试失败」。这里只改这个测试进程的 IO 编码，不动全局环境。
+    ENVIRONMENT "PYTHONIOENCODING=utf-8;PYTHONUTF8=1"
 )

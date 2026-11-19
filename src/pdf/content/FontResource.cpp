@@ -31,16 +31,18 @@ uint32_t hexToCode(const QByteArray& hex) {
     return value;
 }
 
-// ToUnicode 的目标值是 UTF-16BE；一个字节时按 Latin-1 处理。
+// ToUnicode 的目标值是十六进制数字串，解出来的字节是 UTF-16BE；一个字节时按 Latin-1。
 QString hexToText(const QByteArray& hex) {
     if (hex.isEmpty()) return QString();
-    if (hex.size() == 1) {
-        return QString(QChar(static_cast<char16_t>(static_cast<unsigned char>(hex.at(0)))));
+    const QByteArray raw = QByteArray::fromHex(hex);
+    if (raw.isEmpty()) return QString();
+    if (raw.size() == 1) {
+        return QString(QChar(static_cast<char16_t>(static_cast<unsigned char>(raw.at(0)))));
     }
     QString out;
-    for (int i = 0; i + 1 < hex.size(); i += 2) {
-        const int code = (static_cast<unsigned char>(hex.at(i)) << 8) |
-                         static_cast<unsigned char>(hex.at(i + 1));
+    for (int i = 0; i + 1 < raw.size(); i += 2) {
+        const int code = (static_cast<unsigned char>(raw.at(i)) << 8) |
+                         static_cast<unsigned char>(raw.at(i + 1));
         out += QChar(static_cast<char16_t>(code));
     }
     return out;
@@ -286,7 +288,7 @@ void readEncodingDifferences(const QPDFObjectHandle& font, FontResource* out) {
     }
 }
 
-QByteArray streamBytes(const QPDFObjectHandle& object) {
+QByteArray streamBytes(QPDFObjectHandle object) {
     if (!object.isStream()) return {};
     const std::shared_ptr<Buffer> data = object.getStreamData(qpdf_dl_generalized);
     if (!data) return {};
@@ -297,6 +299,7 @@ QByteArray streamBytes(const QPDFObjectHandle& object) {
 FontResource parseFont(const std::string& key, const QPDFObjectHandle& font) {
     FontResource out;
     out.resourceName = QString::fromStdString(key);
+    if (out.resourceName.startsWith(QLatin1Char('/'))) out.resourceName.remove(0, 1);
     out.baseFont = cleanBaseFont(nameOf(font.getKey("/BaseFont")));
     const QString subtype = nameOf(font.getKey("/Subtype"));
     if (subtype == QLatin1String("Type1")) out.kind = FontKind::Type1;

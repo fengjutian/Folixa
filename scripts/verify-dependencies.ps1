@@ -215,8 +215,7 @@ if ($packageEntries.Count -gt 0) {
         '^AiPdfEditor\.exe$'                                                            = 'project'
         '^PdfAiWorker\.exe$'                                                            = 'project'
         '^pdfium\.dll$'                                                                 = 'PDFium'
-        # qpdf 是可选依赖：只有 -DAIPDF_WITH_QPDF=ON 的包才会带它。
-        # 带上就必须能归到 qpdf（登记表里有对应行与许可证）。
+        # qpdf 是必需依赖：每个包都必须带 qpdf30.dll，且能归到登记表里的 qpdf 行。
         '^qpdf[0-9]*\.dll$'                                                             = 'qpdf'
         '^pyhanko/pyhanko\.exe$'                                                       = 'pyHanko'
         '^Qt6[A-Za-z0-9_]+\.dll$'                                                       = 'Qt'

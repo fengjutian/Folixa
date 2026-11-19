@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     生成可独立运行的 AI PDF Editor Windows x64 开发包（ZIP）。
 

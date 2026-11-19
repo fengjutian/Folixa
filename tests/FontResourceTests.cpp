@@ -1,4 +1,4 @@
-﻿#include "pdf/content/FontResource.h"
+#include "pdf/content/FontResource.h"
 
 #include <QHash>
 #include <QString>
@@ -12,11 +12,12 @@
 
 #include <memory>
 
+using aipdf::pdf::FontGlyph;
 using aipdf::pdf::FontKind;
 using aipdf::pdf::FontResource;
 using aipdf::pdf::PageFontList;
-using aipdf::pdf::readPageFonts;
 using aipdf::pdf::findFontResource;
+using aipdf::pdf::readPageFonts;
 
 namespace {
 
@@ -53,7 +54,7 @@ QPDFObjectHandle makeSimpleFont(QPDF& pdf, int firstChar, const QVector<int>& wi
     }
     font.replaceKey("/FontDescriptor", descriptor);
     if (!cmap.isEmpty()) {
-        font.replaceKey("/ToUnicode", pdf.makeIndirectObject(pdf.newStream(cmap)));
+        font.replaceKey("/ToUnicode", pdf.makeIndirectObject(pdf.newStream(cmap.toStdString())));
     }
     return font;
 }
@@ -77,20 +78,20 @@ QPDFObjectHandle makeType0Font(QPDF& pdf, const QByteArray& cmap, const QByteArr
     font.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
     font.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type0"));
     font.replaceKey("/BaseFont", QPDFObjectHandle::newName("/TestCID"));
-    font.replaceKey("/Encoding", QPDFObjectHandle::newName(encoding));
+    font.replaceKey("/Encoding", QPDFObjectHandle::newName(encoding.toStdString()));
     QPDFObjectHandle descendants = QPDFObjectHandle::newArray();
     descendants.appendItem(pdf.makeIndirectObject(cidFont));
     font.replaceKey("/DescendantFonts", descendants);
-    font.replaceKey("/ToUnicode", pdf.makeIndirectObject(pdf.newStream(cmap)));
+    font.replaceKey("/ToUnicode", pdf.makeIndirectObject(pdf.newStream(cmap.toStdString())));
     return font;
 }
 
 QByteArray pdfWithFonts(QPDF& pdf,
                         const QVector<QPair<QString, QPDFObjectHandle>>& fonts) {
-    pdf.emptyPDF();
     QPDFObjectHandle fontDictionary = QPDFObjectHandle::newDictionary();
     for (const auto& font : fonts) {
-        fontDictionary.replaceKey(font.first.toStdString(), pdf.makeIndirectObject(font.second));
+        fontDictionary.replaceKey("/" + font.first.toStdString(),
+                                  pdf.makeIndirectObject(font.second));
     }
     QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
     resources.replaceKey("/Font", fontDictionary);
@@ -104,8 +105,8 @@ QByteArray pdfWithFonts(QPDF& pdf,
     mediaBox.appendItem(QPDFObjectHandle::newInteger(792));
     page.replaceKey("/MediaBox", mediaBox);
     page.replaceKey("/Resources", resources);
-    page.replaceKey("/Contents", pdf.makeIndirectObject(pdf.newStream(
-        "BT /F1 12 Tf 72 720 Td (A) Tj ET")));
+    page.replaceKey("/Contents",
+                    pdf.makeIndirectObject(pdf.newStream("BT /F1 12 Tf 72 720 Td (A) Tj ET")));
 
     QPDFObjectHandle pages = QPDFObjectHandle::newDictionary();
     pages.replaceKey("/Type", QPDFObjectHandle::newName("/Pages"));
@@ -169,8 +170,8 @@ private slots:
 void FontResourceTests::simpleFontDecodesAndEncodes() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeSimpleFont(pdf, 65, {600, 700}, latinCmap())}});
+    const QByteArray bytes =
+        pdfWithFonts(pdf, {{QStringLiteral("F1"), makeSimpleFont(pdf, 65, {600, 700}, latinCmap())}});
     QVERIFY(!bytes.isEmpty());
 
     const PageFontList list = readPageFonts(bytes, 0);
@@ -186,7 +187,7 @@ void FontResourceTests::simpleFontDecodesAndEncodes() {
     QVERIFY(!font.covers(QStringLiteral("AZ")));
 
     QCOMPARE(font.decode(QByteArray("AB")), QStringLiteral("AB"));
-    const QVector<aipdf::pdf::FontGlyph> glyphs = font.encode(QStringLiteral("ABZ"));
+    const QVector<FontGlyph> glyphs = font.encode(QStringLiteral("ABZ"));
     QCOMPARE(glyphs.size(), 3);
     QCOMPARE(glyphs.at(0).code, 65u);
     QCOMPARE(glyphs.at(0).width, 600.0);
@@ -201,21 +202,22 @@ void FontResourceTests::simpleFontDecodesAndEncodes() {
 void FontResourceTests::simpleFontReportsUncoveredGlyphs() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeSimpleFont(pdf, 65, {600}, latinCmap())}});
+    const QByteArray bytes =
+        pdfWithFonts(pdf, {{QStringLiteral("F1"), makeSimpleFont(pdf, 65, {600}, latinCmap())}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY(list.ok);
     const FontResource& font = list.fonts.first();
-    const aipdf::pdf::FontGlyph glyph = font.glyphFor(0x4E2D);  // 涓?    QVERIFY(!glyph.covered);
+    const FontGlyph glyph = font.glyphFor(0x4E2D);  // 中
+    QVERIFY(!glyph.covered);
     QCOMPARE(glyph.codeBytes, 1);
-    QCOMPARE(font.measure(QStringLiteral("涓?), 10.0), 5.0);  // 缂虹渷 500
+    QCOMPARE(font.measure(QStringLiteral("中"), 10.0), 5.0);  // 缺省 500
 }
 
 void FontResourceTests::type0FontUsesTwoByteCodesAndCidWidths() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeType0Font(pdf, cjkCmap(), "/Identity-H", {500, 600})}});
+    const QByteArray bytes = pdfWithFonts(
+        pdf, {{QStringLiteral("F1"), makeType0Font(pdf, cjkCmap(), "/Identity-H", {500, 600})}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY2(list.ok, qPrintable(list.error));
     QCOMPARE(list.fonts.size(), 1);
@@ -225,22 +227,22 @@ void FontResourceTests::type0FontUsesTwoByteCodesAndCidWidths() {
     QCOMPARE(font.codeBytes, 2);
     QVERIFY(!font.vertical);
 
-    QCOMPARE(font.decode(QByteArray("\x00\x01\x00\x02", 4)), QStringLiteral("涓枃"));
-    const QVector<aipdf::pdf::FontGlyph> glyphs = font.encode(QStringLiteral("涓枃A"));
+    QCOMPARE(font.decode(QByteArray("\x00\x01\x00\x02", 4)), QStringLiteral("中文"));
+    const QVector<FontGlyph> glyphs = font.encode(QStringLiteral("中文A"));
     QCOMPARE(glyphs.size(), 3);
     QVERIFY(glyphs.at(0).covered);
     QVERIFY(glyphs.at(1).covered);
     QVERIFY(!glyphs.at(2).covered);
     QCOMPARE(glyphs.at(0).width, 500.0);
     QCOMPARE(glyphs.at(1).width, 600.0);
-    QCOMPARE(font.measure(QStringLiteral("涓枃"), 10.0), 11.0);
+    QCOMPARE(font.measure(QStringLiteral("中文"), 10.0), 11.0);
 }
 
 void FontResourceTests::verticalEncodingIsReported() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeType0Font(pdf, cjkCmap(), "/Identity-V", {500, 600})}});
+    const QByteArray bytes = pdfWithFonts(
+        pdf, {{QStringLiteral("F1"), makeType0Font(pdf, cjkCmap(), "/Identity-V", {500, 600})}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY(list.ok);
     QVERIFY(list.fonts.first().vertical);
@@ -262,30 +264,31 @@ void FontResourceTests::differencesProvideCoverageWithoutToUnicode() {
     QVERIFY(list.ok);
     const FontResource& parsed = list.fonts.first();
     QVERIFY(!parsed.toUnicodePresent);
-    QVERIFY(parsed.covers(QStringLiteral("涓?)));
+    QVERIFY(parsed.covers(QStringLiteral("中")));
     QCOMPARE(parsed.glyphFor(0x4E2D).code, 65u);
-    QCOMPARE(parsed.decode(QByteArray("\x41")), QStringLiteral("涓?));
+    QCOMPARE(parsed.decode(QByteArray("\x41")), QStringLiteral("中"));
 }
 
 void FontResourceTests::embeddedFontWithoutToUnicodeDoesNotGuess() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeSimpleFont(pdf, 65, {600}, {}, /*embedded=*/true)}});
+    const QByteArray bytes = pdfWithFonts(
+        pdf, {{QStringLiteral("F1"), makeSimpleFont(pdf, 65, {600}, {}, /*embedded=*/true)}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY(list.ok);
     const FontResource& font = list.fonts.first();
     QVERIFY(font.embedded);
     QVERIFY(!font.toUnicodePresent);
-    // 宓屽叆鍙堢己 ToUnicode锛氫笉鐚滃瓧褰紝瀹佸彲鎶ャ€屽啓涓嶅嚭鏉ャ€嶃€?    QVERIFY(!font.covers(QStringLiteral("Hello")));
-    QVERIFY(!font.covers(QStringLiteral("涓?)));
+    // 嵌入又缺 ToUnicode：不猜字形，宁可报「写不出来」。
+    QVERIFY(!font.covers(QStringLiteral("Hello")));
+    QVERIFY(!font.covers(QStringLiteral("中")));
 }
 
 void FontResourceTests::missingWidthsAreMarkedApproximate() {
     QPDF pdf;
     pdf.emptyPDF();
-    QPDFObjectHandle font = makeSimpleFont(pdf, 65, {}, latinCmap());
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"), font}});
+    const QByteArray bytes =
+        pdfWithFonts(pdf, {{QStringLiteral("F1"), makeSimpleFont(pdf, 65, {}, latinCmap())}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY(list.ok);
     const FontResource& parsed = list.fonts.first();
@@ -306,8 +309,8 @@ void FontResourceTests::invalidInputFails() {
 void FontResourceTests::missingResourceReturnsNull() {
     QPDF pdf;
     pdf.emptyPDF();
-    const QByteArray bytes = pdfWithFonts(pdf, {{QStringLiteral("F1"),
-        makeSimpleFont(pdf, 65, {600}, latinCmap())}});
+    const QByteArray bytes =
+        pdfWithFonts(pdf, {{QStringLiteral("F1"), makeSimpleFont(pdf, 65, {600}, latinCmap())}});
     const PageFontList list = readPageFonts(bytes, 0);
     QVERIFY(list.ok);
     QVERIFY(findFontResource(list, QStringLiteral("F1")) != nullptr);

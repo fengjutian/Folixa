@@ -619,15 +619,31 @@ void buildBlocks(int pageIndex, const QVector<ShowOp>& shows, int* nextBlockId,
 #ifdef AIPDF_WITH_QPDF
 QHash<QString, QString> readPageFonts(const QPDFObjectHandle& page) {
     QHash<QString, QString> fonts;
-    const QPDFObjectHandle resources = page.getKey("/Resources");
+    // /Resources 可以挂在页上，也可以从 /Pages 继承下来。只读页自己的那份，
+    // 继承来的字体就会全体退化成 Helvetica，断行按错误字宽算。
+    QPDFObjectHandle resources;
+    QPDFObjectHandle current = page;
+    for (int depth = 0; depth < 64 && current.isDictionary(); ++depth) {
+        if (current.hasKey("/Resources")) {
+            resources = current.getKey("/Resources");
+            break;
+        }
+        if (!current.hasKey("/Parent")) break;
+        current = current.getKey("/Parent");
+    }
     if (!resources.isDictionary()) return fonts;
     const QPDFObjectHandle fontDict = resources.getKey("/Font");
     if (!fontDict.isDictionary()) return fonts;
     for (const std::string& key : fontDict.getKeys()) {
         const QPDFObjectHandle font = fontDict.getKey(key);
         const QPDFObjectHandle base = font.getKey("/BaseFont");
-        if (!base.isString()) continue;
-        QString name = QString::fromStdString(base.getStringValue());
+        // /BaseFont 是名字对象（/ABCDEF+SimSun），不是字符串。
+        // 以前只认 isString()，于是这个表一直是空的，所有字体都按 Helvetica 量宽。
+        QString name;
+        if (base.isName()) name = QString::fromStdString(base.getName());
+        else if (base.isString()) name = QString::fromStdString(base.getStringValue());
+        if (name.isEmpty()) continue;
+        if (name.startsWith(QLatin1Char('/'))) name.remove(0, 1);
         // 子集前缀（"ABCDEF+"）去掉。
         if (name.size() > 7 && name.at(6) == QLatin1Char('+')) name = name.mid(7);
         // 样式后缀去掉：量宽度只用字族，Bold 之类交给 Qt 自己挑。
