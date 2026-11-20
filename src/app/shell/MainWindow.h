@@ -329,6 +329,8 @@ private:
     QStackedWidget* formStack_ = nullptr;
     QTableWidget* formTable_ = nullptr;
     QLineEdit* formValueEdit_ = nullptr;
+    // 输入框里「上一次被接受的值」：击键被字段脚本拒绝时回退到它。
+    QString formValueText_;
     QPushButton* formApplyButton_ = nullptr;
     QPushButton* formFlattenButton_ = nullptr;
     QPushButton* formPropertiesButton_ = nullptr;

@@ -1696,6 +1696,10 @@
             <translation>Imported %1 fields; %2</translation>
         </message>
         <message>
+            <source>这次输入被字段脚本拒绝：%1</source>
+            <translation>This input was rejected by the field script: %1</translation>
+        </message>
+        <message>
             <source>导入批注（XFDF）…</source>
             <translation>Import annotations (XFDF)…</translation>
         </message>

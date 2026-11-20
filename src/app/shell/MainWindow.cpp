@@ -3571,7 +3571,30 @@ QWidget* MainWindow::createFormTab() {
         const int row = items.first()->row();
         if (auto* valueItem = formTable_->item(row, 3)) {
             formValueEdit_->setText(valueItem->text());
+            formValueText_ = valueItem->text();
         }
+    });
+    connect(formValueEdit_, &QLineEdit::textEdited, this, [this](const QString& text) {
+        PdfView* view = currentView();
+        if (view == nullptr || formTable_ == nullptr) return;
+        const auto items = formTable_->selectedItems();
+        if (items.isEmpty()) return;
+        const int row = items.first()->row();
+        const QString name = formTable_->item(row, 1) != nullptr
+                                 ? formTable_->item(row, 1)->text()
+                                 : QString();
+        const int pageIndex = formTable_->item(row, 0) != nullptr
+                                  ? formTable_->item(row, 0)->text().toInt() - 1
+                                  : 0;
+        if (name.isEmpty()) return;
+        QString reason;
+        if (!view->validateFormKeystroke(pageIndex, name, text, &reason)) {
+            QSignalBlocker blocker(formValueEdit_);
+            formValueEdit_->setText(formValueText_);
+            statusBar()->showMessage(tr("这次输入被字段脚本拒绝：%1").arg(reason), 5000);
+            return;
+        }
+        formValueText_ = text;
     });
     return page;
 }
@@ -3638,6 +3661,7 @@ void MainWindow::applyFormValue() {
     }
     QString reason;
     if (view->setFormFieldValueWithScripts(pageIndex, name, formValueEdit_->text(), &reason)) {
+        formValueText_ = formValueEdit_->text();
         statusBar()->showMessage(tr("已写入 %1").arg(name), 3000);
         refreshForms(view);
     } else {

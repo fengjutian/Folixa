@@ -3003,6 +3003,40 @@ int PdfView::applyFormFieldValues(const QVector<QPair<QString, QString>>& values
     return applied;
 }
 
+bool PdfView::validateFormKeystroke(int pageIndex, const QString& name, const QString& candidate,
+                                    QString* reason) {
+    Q_UNUSED(pageIndex)
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (bytes.isEmpty()) return true;
+    if (!formTypingSession_ || formTypingBytes_ != bytes) {
+        pdf::FormRuntime runtime = pdf::FormRuntime::load(bytes, &error);
+        if (!runtime.isValid()) {
+            formTypingSession_.reset();
+            formTypingBytes_.clear();
+            return true;
+        }
+        formTypingSession_ = std::make_unique<pdf::FormRuntime>(std::move(runtime));
+        formTypingBytes_ = bytes;
+    }
+    const pdf::FormFieldState* state = formTypingSession_->field(name);
+    if (state == nullptr) return true;
+    const QString current = state->value;
+    // 只处理「在现有值后面追加」；删除、整段替换交给提交时的 Validate。
+    if (!candidate.startsWith(current)) return true;
+    const QString typed = candidate.mid(current.size());
+    if (typed.isEmpty()) return true;
+    // 在副本上试跑：被拒绝时不能把已经接受的半截输入留在会话里。
+    pdf::FormRuntime trial = *formTypingSession_;
+    const pdf::FormEventResult result = trial.typeText(name, typed);
+    if (!result.ok) {
+        if (reason != nullptr) *reason = result.error;
+        return false;
+    }
+    *formTypingSession_ = std::move(trial);
+    return true;
+}
+
 bool PdfView::flattenFormsOnPage(int pageIndex) {
     if (!requirePermission(effectivePermissions().allowModifying, tr("扁平化表单"))) return false;
     if (!document_.flattenPage(pageIndex)) {

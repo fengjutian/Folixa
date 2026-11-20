@@ -18,6 +18,7 @@
 #include "pdf/forms/FormFieldWriter.h"
 #include "pdf/security/SignatureWorkflow.h"
 #include "pdf/compliance/TagTreeWriter.h"
+#include "pdf/forms/FormRuntime.h"
 #include "pdf/forms/FormScriptStore.h"
 #include "i18n/Translate.h"
 #include "speech/SpeechSettings.h"
@@ -199,6 +200,11 @@ public slots:
     // 返回真正写成功的字段数。values 是「字段名 → 值」。
     int applyFormFieldValues(const QVector<QPair<QString, QString>>& values,
                              QString* reason = nullptr);
+    // 逐字符校验：candidate 是输入框里的完整新值。字段脚本用 event.rc=false
+    // 拒绝某次击键时返回 false 并给出原因，调用方应把输入框回退到上一个值。
+    // 只校验「在现有值后面追加」的情况；删除/整段粘贴交给提交时的校验。
+    bool validateFormKeystroke(int pageIndex, const QString& name, const QString& candidate,
+                              QString* reason = nullptr);
     bool flattenFormsOnPage(int pageIndex);
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);
@@ -569,6 +575,9 @@ private:
     bool restoringHistory_ = false;
     QVector<ContentEditRecord> contentUndo_;
     QVector<ContentEditRecord> contentRedo_;
+    // 表单逐字符输入的常驻会话：文档字节没变就复用，避免每敲一个键都重新解析。
+    std::unique_ptr<pdf::FormRuntime> formTypingSession_;
+    QByteArray formTypingBytes_;
     enum class EditHistoryKind { Content, Annotation };
     QVector<EditHistoryKind> editUndoTimeline_;
     QVector<EditHistoryKind> editRedoTimeline_;

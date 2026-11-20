@@ -177,6 +177,7 @@ private slots:
     void afSimpleCalculateSumsFields();
     void appliesValuesToPdf();
     void appliesMultipleValuesInOneWriteBack();
+    void trialKeystrokeDoesNotMutateSession();
     void runawayCalculationIsReported();
     void documentEventsAreRecorded();
 };
@@ -360,6 +361,19 @@ void FormRuntimeTests::appliesMultipleValuesInOneWriteBack() {
     QCOMPARE(pdfFieldValue(applied.bytes, QStringLiteral("T")), QStringLiteral("7"));
 }
 
+void FormRuntimeTests::trialKeystrokeDoesNotMutateSession() {
+    FieldSpec a{QStringLiteral("A"), QStringLiteral("ab")};
+    a.keystroke = QStringLiteral("event.rc = event.change != \"x\"");
+    const QByteArray pdf = buildFormPdf({a}, {});
+    FormRuntime runtime = FormRuntime::load(pdf);
+    QVERIFY(runtime.isValid());
+
+    // 界面逐字符校验时是在副本上试跑：被拒绝不能污染原会话。
+    FormRuntime trial = runtime;
+    QVERIFY(!trial.typeText(QStringLiteral("A"), QStringLiteral("x")).ok);
+    QCOMPARE(trial.value(QStringLiteral("A")), QStringLiteral("ab"));
+    QCOMPARE(runtime.value(QStringLiteral("A")), QStringLiteral("ab"));
+}
 void FormRuntimeTests::runawayCalculationIsReported() {    FieldSpec a{QStringLiteral("A"), QStringLiteral("0")};
     a.calculate = QStringLiteral("event.value = this.getField(\"B\").value * 1 + 1");
     FieldSpec b{QStringLiteral("B"), QStringLiteral("0")};
