@@ -70,7 +70,6 @@
 #include "pdf/content/TextReflow.h"
 #include "pdf/content/ContentStream.h"
 #include "pdf/content/TextSplice.h"
-#include "pdf/forms/FormRuntime.h"
 #include "i18n/Translate.h"
 
 #include <QColorDialog>
