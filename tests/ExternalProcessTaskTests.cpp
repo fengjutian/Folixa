@@ -1,9 +1,11 @@
 #include "app/controllers/ExternalProcessTask.h"
+#include "app/controllers/OfdBatchConverter.h"
 
 #include <QSignalSpy>
 #include <QtTest>
 
 using aipdf::app::ExternalProcessTask;
+using aipdf::app::OfdBatchConverter;
 
 class ExternalProcessTaskTests final : public QObject {
     Q_OBJECT
@@ -11,6 +13,7 @@ class ExternalProcessTaskTests final : public QObject {
 private slots:
     void capturesOutputWithoutBlocking();
     void reportsTimeout();
+    void runsBatchSequentially();
 };
 
 void ExternalProcessTaskTests::capturesOutputWithoutBlocking() {
@@ -38,6 +41,21 @@ void ExternalProcessTaskTests::reportsTimeout() {
     const auto result = qvariant_cast<ExternalProcessTask::Result>(finished.first().first());
     QVERIFY(result.timedOut);
     QVERIFY(!result.succeeded());
+}
+
+void ExternalProcessTaskTests::runsBatchSequentially() {
+    OfdBatchConverter batch;
+    QSignalSpy finished(&batch, &OfdBatchConverter::finished);
+
+    batch.start(QStringLiteral(AIPDF_CMAKE_COMMAND),
+                {QStringLiteral("first.ofd"), QStringLiteral("second.ofd")});
+
+    QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 10000);
+    const QList<QVariant> arguments = finished.first();
+    QCOMPARE(arguments.at(0).toInt(), 0);
+    QCOMPARE(arguments.at(1).toStringList(),
+             QStringList({QStringLiteral("first.ofd"), QStringLiteral("second.ofd")}));
+    QCOMPARE(arguments.at(2).toBool(), false);
 }
 
 QTEST_GUILESS_MAIN(ExternalProcessTaskTests)

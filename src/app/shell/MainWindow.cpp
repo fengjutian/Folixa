@@ -21,6 +21,7 @@
 #include "app/controllers/DocumentConverter.h"
 #include "app/controllers/DigitalSignatureBackend.h"
 #include "app/controllers/ExternalProcessTask.h"
+#include "app/controllers/OfdBatchConverter.h"
 #include "app/panels/IndexPanel.h"
 #include "app/panels/AttachmentPanel.h"
 #include "app/controllers/IndexController.h"
@@ -142,7 +143,6 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <functional>
 #include <memory>
 
 namespace aipdf::app {
@@ -6032,61 +6032,36 @@ void MainWindow::batchConvertOfd() {
     progress->setMinimumDuration(0);
     progress->show();
 
-    auto index = std::make_shared<int>(0);
-    auto converted = std::make_shared<int>(0);
-    auto failures = std::make_shared<QStringList>();
-    auto runNext = std::make_shared<std::function<void()>>();
-    *runNext = [this, converter, files, progress, index, converted, failures, runNext] {
-        if (progress->wasCanceled() || *index >= files.size()) {
-            const bool canceled = progress->wasCanceled();
-            progress->setValue(files.size());
-            progress->close();
-            if (canceled) {
-                statusBar()->showMessage(
-                    tr("OFD 转换已取消；已完成 %1 个文件。").arg(*converted), 5000);
-            } else if (!failures->isEmpty()) {
-                QMessageBox::warning(
-                    this, tr("OFD 批量转换"),
-                    tr("已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。\n失败：%3")
-                        .arg(*converted)
-                        .arg(failures->size())
-                        .arg(failures->join(QStringLiteral("、"))));
-            } else {
-                statusBar()->showMessage(tr("已转换 %1 个 OFD 文件。 ").arg(*converted), 5000);
-            }
-            QTimer::singleShot(0, this, [runNext] { *runNext = {}; });
-            return;
-        }
-
-        const QString input = files.at(*index);
-        const QFileInfo inputInfo(input);
-        QString output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
-                                                  QStringLiteral(".pdf"));
-        if (QFileInfo::exists(output)) {
-            output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
-                                              QStringLiteral("-converted.pdf"));
-        }
-        progress->setValue(*index);
-        progress->setLabelText(tr("正在转换：%1").arg(inputInfo.fileName()));
-
-        auto* task = new ExternalProcessTask(this);
-        connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
-        connect(task, &ExternalProcessTask::finished, task, &QObject::deleteLater);
-        connect(task, &ExternalProcessTask::finished, this,
-                [input, output, index, converted, failures, runNext](
-                    const ExternalProcessTask::Result& result) {
-                    if (!result.canceled && result.succeeded() &&
-                        QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
-                        ++*converted;
-                    } else if (!result.canceled) {
-                        failures->append(QFileInfo(input).fileName());
-                    }
-                    ++*index;
-                    (*runNext)();
-                });
-        task->start(converter, {input, output}, 120000);
-    };
-    (*runNext)();
+    auto* batch = new OfdBatchConverter(this);
+    connect(progress, &QProgressDialog::canceled, batch, &OfdBatchConverter::cancel);
+    connect(batch, &OfdBatchConverter::progress, this,
+            [progress](int completed, int total, const QString& fileName) {
+                progress->setMaximum(total);
+                progress->setValue(completed);
+                if (!fileName.isEmpty()) {
+                    progress->setLabelText(
+                        QCoreApplication::translate("MainWindow", "正在转换：%1").arg(fileName));
+                }
+            });
+    connect(batch, &OfdBatchConverter::finished, this,
+            [this, progress, batch](int converted, const QStringList& failures, bool canceled) {
+                progress->close();
+                batch->deleteLater();
+                if (canceled) {
+                    statusBar()->showMessage(
+                        tr("OFD 转换已取消；已完成 %1 个文件。").arg(converted), 5000);
+                } else if (!failures.isEmpty()) {
+                    QMessageBox::warning(
+                        this, tr("OFD 批量转换"),
+                        tr("已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。\n失败：%3")
+                            .arg(converted)
+                            .arg(failures.size())
+                            .arg(failures.join(QStringLiteral("、"))));
+                } else {
+                    statusBar()->showMessage(tr("已转换 %1 个 OFD 文件。 ").arg(converted), 5000);
+                }
+            });
+    batch->start(converter, files);
 }
 
 PdfView* MainWindow::savedShareDocument() {

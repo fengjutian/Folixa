@@ -1,6 +1,8 @@
 add_library(aipdf_app_tasks STATIC
     app/controllers/ExternalProcessTask.cpp
     app/controllers/ExternalProcessTask.h
+    app/controllers/OfdBatchConverter.cpp
+    app/controllers/OfdBatchConverter.h
 )
 target_link_libraries(aipdf_app_tasks PUBLIC Qt6::Core)
 target_include_directories(aipdf_app_tasks PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
