@@ -1,4 +1,5 @@
 #include "pdf/ops/StreamingEdit.h"
+#include "pdf/ops/AnchorPlanner.h"
 
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/content/ContentStream.h"
@@ -1394,6 +1395,73 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         return result;
     }
 
+    // 锚点规划（第一层：只判定「能不能搬」，不写回）。
+    {
+        QString modelError;
+        const DocumentObjectModel model =
+            readPageObjectModel(pdfBytes, PageTextBlockIndex(), &modelError);
+        if (!modelError.isEmpty()) {
+            result.report.notes.append(
+                i18n::tr("aipdf::pdf::StreamingEdit",
+                         "锚点规划跳过：读不出页面对象模型：%1")
+                    .arg(modelError));
+        } else {
+            int total = 0;
+            int movable = 0;
+            QStringList conflicts;
+            for (int page = 0; page < pageBoxes.size(); ++page) {
+                QVector<AnchorBody> bodies;
+                for (const PageObject& object : model.objects) {
+                    if (object.pageIndex != page) continue;
+                    if (object.kind != PageObjectKind::Image &&
+                        object.kind != PageObjectKind::Vector &&
+                        object.kind != PageObjectKind::Table) {
+                        continue;
+                    }
+                    QString kind = QStringLiteral("对象");
+                    if (object.kind == PageObjectKind::Image) kind = QStringLiteral("图片");
+                    else if (object.kind == PageObjectKind::Vector) kind = QStringLiteral("矢量");
+                    else if (object.kind == PageObjectKind::Table) kind = QStringLiteral("表格");
+                    bodies.append(AnchorBody{object.bounds, kind});
+                }
+                if (bodies.isEmpty()) continue;
+                QVector<AnchorShift> shifts;
+                QVector<QRectF> avoid;
+                for (const BlockRewrite& rewrite : rewrites) {
+                    if (rewrite.pageIndex != page) continue;
+                    QRectF oldBounds;
+                    for (const ContentTextBlock& block : blocks) {
+                        if (!rewrite.blockIds.contains(block.blockId)) continue;
+                        oldBounds = oldBounds.united(block.bounds);
+                    }
+                    if (oldBounds.isEmpty()) continue;
+                    const double newHeight = rewrite.lines.size() * rewrite.lineStep;
+                    const double delta = newHeight - oldBounds.height();
+                    shifts.append(AnchorShift{oldBounds, delta});
+                    avoid.append(oldBounds.translated(0.0, -delta));
+                }
+                const AnchorPlan plan =
+                    planAnchorMoves(bodies, shifts, pageBoxes.at(page), avoid);
+                total += plan.decisions.size();
+                movable += plan.movedCount;
+                conflicts += plan.conflicts;
+            }
+            if (total > 0) {
+                result.report.notes.append(
+                    i18n::tr("aipdf::pdf::StreamingEdit",
+                             "锚点规划：%1 个对象需要跟随段落移动，其中 %2 个可安全移动、"
+                             "%3 个有冲突；本版本只报告、不自动搬")
+                        .arg(total)
+                        .arg(movable)
+                        .arg(conflicts.size()));
+                for (int i = 0; i < qMin(3, conflicts.size()); ++i) {
+                    result.report.notes.append(
+                        i18n::tr("aipdf::pdf::StreamingEdit", "锚点冲突：%1")
+                            .arg(conflicts.at(i)));
+                }
+            }
+        }
+    }
     // 写回前的对象清单：重排只该动文字，图片与矢量一条都不能少。
     QString inventoryError;
     const QVector<PageObjectInventory> beforeInventory =

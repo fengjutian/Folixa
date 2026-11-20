@@ -9545,6 +9545,9 @@ If you need to keep the signatures, do not modify and save this file again after
     <message><source>写回的 PDF 是空的</source><translation>The written PDF is empty</translation></message>
     <message><source>写回前取不出页面对象清单，无法证明不会丢对象：%1</source><translation>Cannot read the page object inventory before writing back, so object preservation cannot be proven: %1</translation></message>
     <message><source>写回后取不出页面对象清单：%1</source><translation>Cannot read the page object inventory after writing back: %1</translation></message>
+    <message><source>锚点冲突：%1</source><translation>Anchor conflict: %1</translation></message>
+    <message><source>锚点规划跳过：读不出页面对象模型：%1</source><translation>Anchor planning skipped: cannot read the page object model: %1</translation></message>
+    <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 个可安全移动、%3 个有冲突；本版本只报告、不自动搬</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 can move safely and %3 conflict; this version only reports and does not move them</translation></message>
     <message><source>目标页宽必须大于 0</source><translation>The target page width must be greater than 0</translation></message>
     <message><source>左右边距把可用宽度吃光了，没有可排版的栏宽</source><translation>The left and right margins leave no usable column width</translation></message>
     <message><source>这份文档没有结构标签，没有可靠的段落边界，整篇流式重排已拒绝；只能逐段处理</source><translation>This document has no structure tags, so it has no reliable paragraph boundaries; whole-document streaming reflow was refused and only per-paragraph handling is possible</translation></message>

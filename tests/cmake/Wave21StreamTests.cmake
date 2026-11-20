@@ -19,6 +19,8 @@ qt_add_executable(Wave21StreamTests
     ${CMAKE_CURRENT_LIST_DIR}/../Wave21StreamTests.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/StreamingEdit.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/StreamingEdit.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/AnchorPlanner.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/AnchorPlanner.h
     ${AIPDF_REPO_ROOT}/src/pdf/ops/TranslationWriter.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/TranslationWriter.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp
