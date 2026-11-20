@@ -1,4 +1,5 @@
 #include "pdf/forms/FormRuntime.h"
+#include "app/controllers/FormInteractionController.h"
 
 #include <QHash>
 #include <QRectF>
@@ -15,6 +16,7 @@
 using aipdf::pdf::FormEventType;
 using aipdf::pdf::FormFieldType;
 using aipdf::pdf::FormRuntime;
+using aipdf::app::FormInteractionController;
 
 namespace {
 
@@ -180,6 +182,9 @@ private slots:
     void trialKeystrokeDoesNotMutateSession();
     void runawayCalculationIsReported();
     void documentEventsAreRecorded();
+    void interactionControllerKeepsAcceptedTypingOnly();
+    void interactionControllerWritesOneValue();
+    void interactionControllerReportsPartialBatch();
 };
 
 void FormRuntimeTests::loadsFieldTree() {
@@ -406,6 +411,58 @@ void FormRuntimeTests::documentEventsAreRecorded() {
     QCOMPARE(runtime.trace().size(), 2);
     QCOMPARE(runtime.trace().at(0).type, FormEventType::DocOpen);
     QCOMPARE(runtime.trace().at(1).type, FormEventType::WillSave);
+}
+
+void FormRuntimeTests::interactionControllerKeepsAcceptedTypingOnly() {
+    FieldSpec a{QStringLiteral("A"), QStringLiteral("ab")};
+    a.keystroke = QStringLiteral("event.rc = event.change != \"x\"");
+    const QByteArray pdf = buildFormPdf({a}, {});
+    FormInteractionController controller;
+
+    QString reason;
+    QVERIFY(!controller.validateKeystroke(pdf, QStringLiteral("A"),
+                                          QStringLiteral("abx"), &reason));
+    QVERIFY(!reason.isEmpty());
+    QVERIFY(controller.validateKeystroke(pdf, QStringLiteral("A"),
+                                         QStringLiteral("aby"), &reason));
+    // The accepted y is now part of the cached session. A later append is
+    // validated against that state without reparsing the document.
+    QVERIFY(controller.validateKeystroke(pdf, QStringLiteral("A"),
+                                         QStringLiteral("abyz"), &reason));
+}
+
+void FormRuntimeTests::interactionControllerWritesOneValue() {
+    const QByteArray pdf = buildFormPdf(
+        {{QStringLiteral("A"), QStringLiteral("1")}}, {});
+    FormInteractionController controller;
+
+    const auto result = controller.setValue(pdf, QStringLiteral("A"), QStringLiteral("5"));
+    QVERIFY2(result.ok(), qPrintable(result.error));
+    QCOMPARE(result.applied, 1);
+    QCOMPARE(result.firstPage, 0);
+    QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("A")), QStringLiteral("5"));
+}
+
+void FormRuntimeTests::interactionControllerReportsPartialBatch() {
+    FieldSpec writable{QStringLiteral("A"), QStringLiteral("1")};
+    FieldSpec readOnly{QStringLiteral("B"), QStringLiteral("2")};
+    readOnly.flags = 1;
+    const QByteArray pdf = buildFormPdf({writable, readOnly}, {});
+    FormInteractionController controller;
+
+    const auto result = controller.applyValues(
+        pdf, {{QStringLiteral("A"), QStringLiteral("3")},
+              {QStringLiteral("B"), QStringLiteral("4")},
+              {QStringLiteral("missing"), QStringLiteral("5")}});
+    QVERIFY2(result.ok(), qPrintable(result.error));
+    QCOMPARE(result.applied, 1);
+    QCOMPARE(result.failures.size(), 2);
+    QCOMPARE(result.failures.at(0).kind,
+             FormInteractionController::Failure::Kind::ReadOnly);
+    QCOMPARE(result.failures.at(1).kind,
+             FormInteractionController::Failure::Kind::MissingField);
+    QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("A")), QStringLiteral("3"));
+    QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("B")), QStringLiteral("2"));
 }
 
 QTEST_MAIN(FormRuntimeTests)

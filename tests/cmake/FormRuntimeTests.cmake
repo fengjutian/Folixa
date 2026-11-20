@@ -4,6 +4,8 @@
 
 qt_add_executable(FormRuntimeTests
     ${CMAKE_CURRENT_LIST_DIR}/../FormRuntimeTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/FormInteractionController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/FormInteractionController.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormRuntime.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormRuntime.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormJsEvaluator.cpp

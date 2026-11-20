@@ -56,6 +56,7 @@
 #include "app/layout/TextLayout.h"
 #include "app/controllers/NavigationController.h"
 #include "app/controllers/AnnotationController.h"
+#include "app/controllers/FormInteractionController.h"
 #include "app/controllers/IndexController.h"
 #include "app/controllers/DocumentQaController.h"
 #include "app/layout/PageTransform.h"
@@ -2997,26 +2998,18 @@ bool PdfView::setFormFieldValueWithScripts(int pageIndex, const QString& name,
         return false;
     }
 
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    const FormInteractionController::MutationResult mutation =
+        formInteractionController_->setValue(source, name, value);
+    if (!mutation.ok()) {
+        if (reason != nullptr) *reason = mutation.error;
+        return false;
+    }
+
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
-    pdf::FormRuntime runtime = pdf::FormRuntime::load(source, &error);
-    if (!runtime.isValid()) {
-        if (reason != nullptr) *reason = error;
-        return false;
-    }
-
-    const pdf::FormEventResult applied = runtime.setValue(name, value);
-    if (!applied.ok) {
-        if (reason != nullptr) *reason = applied.error;
-        return false;
-    }
-
-    const pdf::FormAppearanceResult written = runtime.applyTo(source);
-    if (!written.ok()) {
-        if (reason != nullptr) *reason = written.report.error;
-        return false;
-    }
-
-    if (!document_.reloadFromBytes(written.bytes, &error)) {
+    if (!document_.reloadFromBytes(mutation.bytes, &error)) {
         if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
         return false;
     }
@@ -3045,46 +3038,41 @@ int PdfView::applyFormFieldValues(const QVector<QPair<QString, QString>>& values
         return 0;
     }
 
-    pdf::FormRuntime runtime = pdf::FormRuntime::load(source, &error);
-    if (!runtime.isValid()) {
-        if (reason != nullptr) *reason = error;
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    const FormInteractionController::MutationResult mutation =
+        formInteractionController_->applyValues(source, values);
+    const auto failureText = [this](const FormInteractionController::Failure& failure) {
+        switch (failure.kind) {
+        case FormInteractionController::Failure::Kind::MissingField:
+            return tr("没有字段 %1").arg(failure.fieldName);
+        case FormInteractionController::Failure::Kind::ReadOnly:
+            return tr("%1 是只读的").arg(failure.fieldName);
+        case FormInteractionController::Failure::Kind::Rejected:
+            return tr("%1：%2").arg(failure.fieldName, failure.detail);
+        }
+        return QString();
+    };
+    if (mutation.applied == 0) {
+        if (reason != nullptr) {
+            *reason = !mutation.error.isEmpty()
+                          ? mutation.error
+                          : (mutation.failures.isEmpty()
+                                 ? tr("没有可写入的字段")
+                                 : failureText(mutation.failures.first()));
+        }
+        return 0;
+    }
+    if (!mutation.ok()) {
+        if (reason != nullptr) *reason = mutation.error;
         return 0;
     }
 
-    int applied = 0;
-    int firstPage = -1;
-    QStringList failures;
-    for (const QPair<QString, QString>& pair : values) {
-        const pdf::FormFieldState* state = runtime.field(pair.first);
-        if (state == nullptr) {
-            failures.append(tr("没有字段 %1").arg(pair.first));
-            continue;
-        }
-        if (state->readOnly) {
-            failures.append(tr("%1 是只读的").arg(pair.first));
-            continue;
-        }
-        const pdf::FormEventResult result = runtime.setValue(pair.first, pair.second);
-        if (!result.ok) {
-            failures.append(tr("%1：%2").arg(pair.first, result.error));
-            continue;
-        }
-        if (firstPage < 0) firstPage = state->pageIndex;
-        ++applied;
-    }
-    if (applied == 0) {
-        if (reason != nullptr) *reason = failures.value(0, tr("没有可写入的字段"));
-        return 0;
-    }
-
-    const pdf::PdfDocument before =
-        firstPage >= 0 ? document_.backupPage(firstPage) : pdf::PdfDocument();
-    const pdf::FormAppearanceResult written = runtime.applyTo(source);
-    if (!written.ok()) {
-        if (reason != nullptr) *reason = written.report.error;
-        return 0;
-    }
-    if (!document_.reloadFromBytes(written.bytes, &error)) {
+    const pdf::PdfDocument before = mutation.firstPage >= 0
+                                        ? document_.backupPage(mutation.firstPage)
+                                        : pdf::PdfDocument();
+    if (!document_.reloadFromBytes(mutation.bytes, &error)) {
         if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
         return 0;
     }
@@ -3093,15 +3081,17 @@ int PdfView::applyFormFieldValues(const QVector<QPair<QString, QString>>& values
     if (!refreshed.isEmpty()) document_.syncBytes(refreshed);
     cache_.clear();
     if (canvas_ != nullptr) canvas_->viewport()->update();
-    if (before.isValid() && firstPage >= 0) {
-        recordContentEdit(firstPage, before, tr("批量填写表单"));
+    if (before.isValid() && mutation.firstPage >= 0) {
+        recordContentEdit(mutation.firstPage, before, tr("批量填写表单"));
     }
     setModified(true);
     emit formFieldsChanged();
-    if (!failures.isEmpty() && reason != nullptr) {
-        *reason = tr("%1 个字段没写进去：%2").arg(failures.size()).arg(failures.first());
+    if (!mutation.failures.isEmpty() && reason != nullptr) {
+        *reason = tr("%1 个字段没写进去：%2")
+                      .arg(mutation.failures.size())
+                      .arg(failureText(mutation.failures.first()));
     }
-    return applied;
+    return mutation.applied;
 }
 
 bool PdfView::validateFormKeystroke(int pageIndex, const QString& name, const QString& candidate,
@@ -3109,33 +3099,10 @@ bool PdfView::validateFormKeystroke(int pageIndex, const QString& name, const QS
     Q_UNUSED(pageIndex)
     QString error;
     const QByteArray bytes = document_.serialize(&error);
-    if (bytes.isEmpty()) return true;
-    if (!formTypingSession_ || formTypingBytes_ != bytes) {
-        pdf::FormRuntime runtime = pdf::FormRuntime::load(bytes, &error);
-        if (!runtime.isValid()) {
-            formTypingSession_.reset();
-            formTypingBytes_.clear();
-            return true;
-        }
-        formTypingSession_ = std::make_unique<pdf::FormRuntime>(std::move(runtime));
-        formTypingBytes_ = bytes;
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
     }
-    const pdf::FormFieldState* state = formTypingSession_->field(name);
-    if (state == nullptr) return true;
-    const QString current = state->value;
-    // 只处理「在现有值后面追加」；删除、整段替换交给提交时的 Validate。
-    if (!candidate.startsWith(current)) return true;
-    const QString typed = candidate.mid(current.size());
-    if (typed.isEmpty()) return true;
-    // 在副本上试跑：被拒绝时不能把已经接受的半截输入留在会话里。
-    pdf::FormRuntime trial = *formTypingSession_;
-    const pdf::FormEventResult result = trial.typeText(name, typed);
-    if (!result.ok) {
-        if (reason != nullptr) *reason = result.error;
-        return false;
-    }
-    *formTypingSession_ = std::move(trial);
-    return true;
+    return formInteractionController_->validateKeystroke(bytes, name, candidate, reason);
 }
 
 bool PdfView::applyFormFieldRichValue(int pageIndex, const QString& name,

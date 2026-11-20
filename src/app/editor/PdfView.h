@@ -16,9 +16,9 @@
 #include "pdf/security/PdfSecurity.h"
 #include "pdf/annot/AnnotationToolkit.h"
 #include "pdf/forms/FormFieldWriter.h"
+#include "pdf/forms/FormAppearance.h"
 #include "pdf/security/SignatureWorkflow.h"
 #include "pdf/compliance/TagTreeWriter.h"
-#include "pdf/forms/FormRuntime.h"
 #include "pdf/forms/FormScriptStore.h"
 #include "i18n/Translate.h"
 #include "speech/SpeechSettings.h"
@@ -46,6 +46,7 @@ class IndexController;
 class DocumentQaController;
 class PageTransform;
 class PresentationWindow;
+class FormInteractionController;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -617,9 +618,8 @@ private:
     bool restoringHistory_ = false;
     QVector<ContentEditRecord> contentUndo_;
     QVector<ContentEditRecord> contentRedo_;
-    // 表单逐字符输入的常驻会话：文档字节没变就复用，避免每敲一个键都重新解析。
-    std::unique_ptr<pdf::FormRuntime> formTypingSession_;
-    QByteArray formTypingBytes_;
+    // 表单逐字符输入的会话与脚本回滚由独立控制器维护。
+    std::unique_ptr<FormInteractionController> formInteractionController_;
     enum class EditHistoryKind { Content, Annotation };
     QVector<EditHistoryKind> editUndoTimeline_;
     QVector<EditHistoryKind> editRedoTimeline_;
