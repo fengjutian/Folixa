@@ -15,12 +15,16 @@
 
 qt_add_executable(SignatureVerifierTests
     ${CMAKE_CURRENT_LIST_DIR}/../SignatureVerifierTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignatureInspectionController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignatureInspectionController.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureVerifier.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/RsaVerifier.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/RsaVerifier.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureInspector.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureInspector.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/CertificateChain.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/security/CertificateChain.h
 )
 
 target_link_libraries(SignatureVerifierTests PRIVATE

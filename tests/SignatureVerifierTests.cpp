@@ -13,6 +13,7 @@
 
 #include "pdf/security/SignatureInspector.h"
 #include "pdf/security/SignatureVerifier.h"
+#include "app/controllers/SignatureInspectionController.h"
 
 using namespace aipdf::pdf;
 
@@ -169,6 +170,7 @@ private slots:
     void ocspResponseParsesGoodStatus();
     void ocspResponseRejectsGarbage();
     void ocspResponseRejectsServerError();
+    void inspectionControllerAggregatesResults();
 };
 
 void SignatureVerifierTests::digestOidMapsKnownAlgorithms() {
@@ -203,6 +205,19 @@ void SignatureVerifierTests::signedSampleVerifies() {
     QVERIFY(!verdict.signerSubject.isEmpty());
     // 成立时不该留失败原因。
     QVERIFY(verdict.failureReason.isEmpty());
+}
+
+void SignatureVerifierTests::inspectionControllerAggregatesResults() {
+    const QByteArray bytes = readFixture(QStringLiteral("signed-sample.pdf"));
+    QVERIFY(!bytes.isEmpty());
+    const aipdf::app::SignatureInspectionController controller;
+    const auto result = controller.inspect(bytes);
+    QCOMPARE(result.signatures.size(), 1);
+    QCOMPARE(result.verdicts.size(), 1);
+    QVERIFY(result.verdicts.first().signatureValid);
+    const auto chain = controller.certificateChain(result.signatures.first());
+    QVERIFY(chain.error.isEmpty());
+    QVERIFY(!chain.certificates.isEmpty());
 }
 
 void SignatureVerifierTests::tamperedSampleFailsWithReason() {

@@ -58,6 +58,8 @@
 #include "app/controllers/AnnotationController.h"
 #include "app/controllers/FormInteractionController.h"
 #include "app/controllers/FormDocumentController.h"
+#include "app/controllers/SignaturePlacementController.h"
+#include "app/controllers/SignatureInspectionController.h"
 #include "app/controllers/IndexController.h"
 #include "app/controllers/DocumentQaController.h"
 #include "app/layout/PageTransform.h"
@@ -5905,37 +5907,36 @@ void PdfView::activateAttachmentPlacement(const QString& fileName, const QByteAr
 }
 
 bool PdfView::applyRidingSeamSignature(const QByteArray& imageBytes, const QString& name) {
-    QImage image;
-    if (!annotationController_ || pageCount_ < 1 || !image.loadFromData(imageBytes)) return false;
-    // 沿图片宽度均分：每页只保存自己那一条，合拢纸张才能看到完整签章。
-    const int pages = pageCount_;
-    int created = 0;
-    for (int pageIndex = 0; pageIndex < pages; ++pageIndex) {
-        const int left = image.width() * pageIndex / pages;
-        const int right = image.width() * (pageIndex + 1) / pages;
-        const QImage slice = image.copy(left, 0, qMax(1, right - left), image.height());
-        QByteArray sliceBytes;
-        QBuffer buffer(&sliceBytes);
-        if (!buffer.open(QIODevice::WriteOnly) || !slice.save(&buffer, "PNG")) continue;
-
+    if (!annotationController_ || pageCount_ < 1) return false;
+    QVector<QSizeF> pageSizes;
+    pageSizes.reserve(pageCount_);
+    for (int pageIndex = 0; pageIndex < pageCount_; ++pageIndex) {
         auto page = document_.page(pageIndex);
-        if (!page.has_value()) continue;
-        constexpr double kSliceWidth = 18.0;
-        const double sliceHeight = qMin(page->heightPoints() * 0.45,
-                                        kSliceWidth * slice.height() / qMax(1, slice.width()));
-        const QRectF rect(page->widthPoints() - kSliceWidth,
-                          page->heightPoints() / 2.0 - sliceHeight / 2.0,
-                          kSliceWidth, sliceHeight);
+        if (!page.has_value()) return false;
+        pageSizes.append(QSizeF(page->widthPoints(), page->heightPoints()));
+    }
+    const SignaturePlacementController::Result plan =
+        SignaturePlacementController().planRidingSeam(imageBytes, pageSizes);
+    if (!plan.ok()) return false;
+
+    int created = 0;
+    for (const SignaturePlacementController::Placement& placement : plan.placements) {
         if (annotationController_->addImageStamp(
-                pageIndex, rect, sliceBytes, tr("骑缝章：%1 (%2/%3)").arg(name).arg(pageIndex + 1).arg(pages)) != 0) {
+                placement.pageIndex, placement.rect, placement.pngBytes,
+                tr("骑缝章：%1 (%2/%3)")
+                    .arg(name)
+                    .arg(placement.pageIndex + 1)
+                    .arg(plan.placements.size())) != 0) {
             ++created;
         }
     }
-    if (created == pages) {
-        emit statusMessage(tr("骑缝章已拆分到 %1 页；保存文档后写入 PDF。").arg(pages));
+    if (created == plan.placements.size()) {
+        emit statusMessage(
+            tr("骑缝章已拆分到 %1 页；保存文档后写入 PDF。").arg(created));
         return true;
     }
-    emit statusMessage(tr("骑缝章只写入了 %1/%2 页。").arg(created).arg(pages));
+    emit statusMessage(
+        tr("骑缝章只写入了 %1/%2 页。").arg(created).arg(plan.placements.size()));
     return false;
 }
 
@@ -7429,19 +7430,18 @@ void PdfView::showSignatureListDialog() {
         QMessageBox::warning(this, tr("签名列表"), serializeError);
         return;
     }
-    QString error;
-    const QVector<pdf::SignatureInfo> signatures = pdf::inspectSignatures(bytes, &error);
-    if (signatures.isEmpty()) {
+    const SignatureInspectionController inspectionController;
+    const SignatureInspectionController::Result inspection =
+        inspectionController.inspect(bytes);
+    if (inspection.signatures.isEmpty()) {
         QMessageBox::information(this, tr("签名列表"),
-                                 error.isEmpty() ? tr("这份文档里没有数字签名。") : error);
+                                 inspection.inspectionError.isEmpty()
+                                     ? tr("这份文档里没有数字签名。")
+                                     : inspection.inspectionError);
         return;
     }
-
-    // 密码学判定：验签要拿**整份文档的字节**去算摘要，
-    // 只给签名域是判不出来的（摘要覆盖的是整个 /ByteRange）。
-    QString verdictError;
-    const QVector<pdf::SignatureCryptoVerdict> verdicts =
-        pdf::verifyDocumentSignatures(bytes, &verdictError);
+    const QVector<pdf::SignatureInfo>& signatures = inspection.signatures;
+    const QVector<pdf::SignatureCryptoVerdict>& verdicts = inspection.verdicts;
 
     QDialog dialog(this);
     dialog.setWindowTitle(tr("签名列表"));
@@ -7494,7 +7494,9 @@ void PdfView::showSignatureListDialog() {
                                         tr("签名者：%1").arg(verdict.signerSubject));
             }
         } else {
-            verdictItem->setText(verdictError.isEmpty() ? tr("无法判定") : verdictError);
+            verdictItem->setText(inspection.verdictError.isEmpty()
+                                     ? tr("无法判定")
+                                     : inspection.verdictError);
             verdictItem->setForeground(QColor(140, 140, 140));
         }
         table->setItem(row, 5, verdictItem);
@@ -7524,11 +7526,8 @@ void PdfView::showSignatureListDialog() {
         // 结论是「受信任 / 已吊销 / 状态未知 / 已过期」四个**分开**的结论。
         // 撤销信息查不到时报「状态未知」—— 不报「未被吊销」，
         // 那是把「没查出来」说成「查过了、没问题」。
-        const QVector<QByteArray> chainDer = pdf::signatureCertificateDer(signature);
-        pdf::CertificateChainReport chainReport;
-        if (!chainDer.isEmpty()) {
-            chainReport = pdf::inspectCertificateChain(chainDer.first(), chainDer.mid(1));
-        }
+        const pdf::CertificateChainReport chainReport =
+            inspectionController.certificateChain(signature);
         chainTable->setRowCount(0);
         for (const pdf::SignerCertificate& certificate : signature.chain) {
             const int chainRow = chainTable->rowCount();

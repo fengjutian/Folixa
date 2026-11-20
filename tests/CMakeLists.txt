@@ -1834,6 +1834,17 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AiContentDetectionTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AiImageGenerationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignatureWorkflowTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignatureVerifierTests.cmake)
+
+qt_add_executable(SignaturePlacementControllerTests
+    SignaturePlacementControllerTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignaturePlacementController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignaturePlacementController.h
+)
+target_link_libraries(SignaturePlacementControllerTests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_include_directories(SignaturePlacementControllerTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(SignaturePlacementControllerTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(SignaturePlacementControllerTests)
+add_test(NAME SignaturePlacementControllerTests COMMAND SignaturePlacementControllerTests)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AccessibilityWizardTests.cmake)
 
 # 欠账整改批次（2026-11-18）：这几组是 A8 / A12 / H5 / J5-J7 / L7 的专项测试。
