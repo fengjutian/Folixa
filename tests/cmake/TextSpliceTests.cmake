@@ -9,6 +9,10 @@ qt_add_executable(TextSpliceTests
     ${CMAKE_SOURCE_DIR}/src/pdf/content/FontResource.h
     ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/ContentStream.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeFace.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/TextPage.cpp

@@ -1,6 +1,8 @@
 #include "pdf/content/TextSplice.h"
 
 #include "pdf/content/ContentStream.h"
+#include "pdf/content/TrueTypeFace.h"
+#include "pdf/content/TrueTypeSubset.h"
 #include "pdf/content/FontResource.h"
 
 #include <qpdf/Buffer.hh>
@@ -12,6 +14,7 @@
 #include <cmath>
 #include <memory>
 
+#include <QFile>
 #include <QHash>
 #include <QSet>
 
@@ -183,6 +186,176 @@ void collectFormXObjects(QPDFObjectHandle resources, QVector<QPDFObjectHandle>* 
         QPDFObjectHandle child = dict.getKey("/Resources");
         if (child.isDictionary()) collectFormXObjects(child, out, seen, depth + 1);
     }
+}
+
+QString systemFallbackFontPath() {
+    const QString configured = qEnvironmentVariable("AIPDF_CJK_FONT");
+    if (!configured.isEmpty() && QFile::exists(configured)) return configured;
+    static const QStringList candidates = {
+        QStringLiteral("C:/Windows/Fonts/msyh.ttc"),
+        QStringLiteral("C:/Windows/Fonts/simhei.ttf"),
+        QStringLiteral("C:/Windows/Fonts/simsun.ttc"),
+        QStringLiteral("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        QStringLiteral("/System/Library/Fonts/PingFang.ttc")};
+    for (const QString& path : candidates) {
+        if (QFile::exists(path)) return path;
+    }
+    return QString();
+}
+
+QByteArray encodeGidHexCodes(const QVector<uint16_t>& gids) {
+    QByteArray out;
+    for (uint16_t gid : gids) {
+        out += QByteArray::number(gid, 16).rightJustified(4, '0').toUpper();
+    }
+    return out;
+}
+
+struct EmbeddedFallback {
+    bool ok = false;
+    QString error;
+    QString resourceName;
+    TrueTypeFace face;
+};
+
+// 原字体写不出替换文字时，按用到的字形子集化一份系统字体，挂到页面资源里。
+EmbeddedFallback embedFallbackFont(QPDF& pdf, QPDFObjectHandle resources, const QString& text) {
+    EmbeddedFallback result;
+    const QString path = systemFallbackFontPath();
+    if (path.isEmpty()) {
+        result.error = QStringLiteral("本机没有可用的回退字体（可设置 AIPDF_CJK_FONT）");
+        return result;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        result.error = QStringLiteral("打不开回退字体：%1").arg(path);
+        return result;
+    }
+    const QByteArray fontBytes = file.readAll();
+    result.face = TrueTypeFace::load(fontBytes);
+    if (!result.face.ok) {
+        result.error = result.face.error;
+        return result;
+    }
+
+    QSet<int> usedGids;
+    QHash<uint16_t, uint32_t> gidToUnicode;
+    for (const uint code : text.toUcs4()) {
+        const uint16_t gid = result.face.gidFor(static_cast<char32_t>(code));
+        if (gid == 0) {
+            result.error = QStringLiteral("回退字体里也没有这个字（U+%1）")
+                               .arg(code, 4, 16, QLatin1Char('0'));
+            return result;
+        }
+        usedGids.insert(gid);
+        gidToUnicode.insert(gid, code);
+    }
+    usedGids.insert(0);
+    const TrueTypeSubsetResult subset = subsetTrueTypeFont(fontBytes, usedGids);
+    if (!subset.ok) {
+        result.error = QStringLiteral("回退字体子集化失败：%1").arg(subset.error);
+        return result;
+    }
+
+    QPDFObjectHandle fontFile = pdf.newStream(subset.bytes.toStdString());
+    QPDFObjectHandle fontFileDict = fontFile.getDict();
+    fontFileDict.replaceKey("/Length1", QPDFObjectHandle::newInteger(subset.bytes.size()));
+    const QPDFObjectHandle fontFileRef = pdf.makeIndirectObject(fontFile);
+
+    const double scale = 1000.0 / qMax(1, result.face.unitsPerEm);
+    QPDFObjectHandle descriptor = QPDFObjectHandle::newDictionary();
+    descriptor.replaceKey("/Type", QPDFObjectHandle::newName("/FontDescriptor"));
+    descriptor.replaceKey("/FontName", QPDFObjectHandle::newName("/AIPDFFALLBACK"));
+    descriptor.replaceKey("/Flags", QPDFObjectHandle::newInteger(4));
+    QPDFObjectHandle bbox = QPDFObjectHandle::newArray();
+    bbox.appendItem(QPDFObjectHandle::newInteger(-200));
+    bbox.appendItem(QPDFObjectHandle::newInteger(-300));
+    bbox.appendItem(QPDFObjectHandle::newInteger(1200));
+    bbox.appendItem(QPDFObjectHandle::newInteger(1000));
+    descriptor.replaceKey("/FontBBox", bbox);
+    descriptor.replaceKey("/ItalicAngle", QPDFObjectHandle::newInteger(0));
+    descriptor.replaceKey("/Ascent",
+                          QPDFObjectHandle::newInteger(qRound(result.face.ascent * scale)));
+    descriptor.replaceKey("/Descent",
+                          QPDFObjectHandle::newInteger(qRound(result.face.descent * scale)));
+    descriptor.replaceKey("/CapHeight",
+                          QPDFObjectHandle::newInteger(qRound(result.face.ascent * scale)));
+    descriptor.replaceKey("/StemV", QPDFObjectHandle::newInteger(80));
+    descriptor.replaceKey("/FontFile2", fontFileRef);
+    const QPDFObjectHandle descriptorRef = pdf.makeIndirectObject(descriptor);
+
+    QPDFObjectHandle widths = QPDFObjectHandle::newArray();
+    QList<uint16_t> gids = QList<uint16_t>(usedGids.begin(), usedGids.end());
+    std::sort(gids.begin(), gids.end());
+    for (uint16_t gid : gids) {
+        if (gid == 0) continue;
+        widths.appendItem(QPDFObjectHandle::newInteger(gid));
+        QPDFObjectHandle one = QPDFObjectHandle::newArray();
+        one.appendItem(QPDFObjectHandle::newInteger(qRound(result.face.widthForGid(gid))));
+        widths.appendItem(one);
+    }
+
+    QPDFObjectHandle systemInfo = QPDFObjectHandle::newDictionary();
+    systemInfo.replaceKey("/Registry", QPDFObjectHandle::newString("Adobe"));
+    systemInfo.replaceKey("/Ordering", QPDFObjectHandle::newString("Identity"));
+    systemInfo.replaceKey("/Supplement", QPDFObjectHandle::newInteger(0));
+
+    QPDFObjectHandle cidFont = QPDFObjectHandle::newDictionary();
+    cidFont.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
+    cidFont.replaceKey("/Subtype", QPDFObjectHandle::newName("/CIDFontType2"));
+    cidFont.replaceKey("/BaseFont", QPDFObjectHandle::newName("/AIPDFFALLBACK"));
+    cidFont.replaceKey("/CIDSystemInfo", systemInfo);
+    cidFont.replaceKey("/FontDescriptor", descriptorRef);
+    cidFont.replaceKey("/DW", QPDFObjectHandle::newInteger(1000));
+    cidFont.replaceKey("/W", widths);
+    cidFont.replaceKey("/CIDToGIDMap", QPDFObjectHandle::newName("/Identity"));
+    const QPDFObjectHandle cidRef = pdf.makeIndirectObject(cidFont);
+
+    QByteArray cmap;
+    cmap += "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n";
+    cmap += "/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n";
+    cmap += "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n";
+    QList<uint16_t> mapped = gidToUnicode.keys();
+    std::sort(mapped.begin(), mapped.end());
+    for (int start = 0; start < mapped.size(); start += 100) {
+        const int count = qMin(100, mapped.size() - start);
+        cmap += QByteArray::number(count) + " beginbfchar\n";
+        for (int i = 0; i < count; ++i) {
+            const uint16_t gid = mapped.at(start + i);
+            const uint32_t code = gidToUnicode.value(gid);
+            cmap += "<" + QByteArray::number(gid, 16).rightJustified(4, '0').toUpper() + "> <" +
+                    QByteArray::number(code, 16).rightJustified(4, '0').toUpper() + ">\n";
+        }
+        cmap += "endbfchar\n";
+    }
+    cmap += "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
+    const QPDFObjectHandle toUnicodeRef =
+        pdf.makeIndirectObject(pdf.newStream(cmap.toStdString()));
+
+    QPDFObjectHandle type0 = QPDFObjectHandle::newDictionary();
+    type0.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
+    type0.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type0"));
+    type0.replaceKey("/BaseFont", QPDFObjectHandle::newName("/AIPDFFALLBACK"));
+    type0.replaceKey("/Encoding", QPDFObjectHandle::newName("/Identity-H"));
+    QPDFObjectHandle descendants = QPDFObjectHandle::newArray();
+    descendants.appendItem(cidRef);
+    type0.replaceKey("/DescendantFonts", descendants);
+    type0.replaceKey("/ToUnicode", toUnicodeRef);
+    const QPDFObjectHandle type0Ref = pdf.makeIndirectObject(type0);
+
+    QPDFObjectHandle fonts = resources.getKey("/Font");
+    if (!fonts.isDictionary()) {
+        fonts = QPDFObjectHandle::newDictionary();
+        resources.replaceKey("/Font", fonts);
+    }
+    QString name = QStringLiteral("FB0");
+    int suffix = 0;
+    while (fonts.hasKey("/" + name.toStdString())) name = QStringLiteral("FB%1").arg(++suffix);
+    fonts.replaceKey("/" + name.toStdString(), type0Ref);
+
+    result.resourceName = name;
+    result.ok = true;
+    return result;
 }
 
 int previousSignificant(const QVector<ContentToken>& tokens, int index) {
@@ -409,6 +582,45 @@ QByteArray buildReplacement(const QVector<ContentToken>& tokens, const ShowSpan&
     return expression;
 }
 
+QByteArray buildFallbackExpression(const ShowSpan& span, const QString& elementText,
+                                   const ElementEdit& edit, const EmbeddedFallback& fallback,
+                                   double fontSize, int* removedGlyphs, int* insertedGlyphs,
+                                   QString* error) {
+    QByteArray expression;
+    const QString prefix = elementText.left(edit.pos);
+    const QString suffix = elementText.mid(edit.pos + edit.length);
+    if (!prefix.isEmpty()) {
+        QByteArray encoded;
+        if (!encodeWithFont(*span.font, prefix, &encoded, error)) return {};
+        expression += encoded + " Tj\n";
+    }
+    expression += "/" + fallback.resourceName.toLatin1() + " " +
+                  QByteArray::number(fontSize, 'f', 2) + " Tf\n";
+    QVector<uint16_t> gids;
+    for (const uint code : edit.replacement.toUcs4()) {
+        gids.append(fallback.face.gidFor(static_cast<char32_t>(code)));
+    }
+    expression += "<" + encodeGidHexCodes(gids) + "> Tj\n";
+    expression += "/" + span.fontResource.toLatin1() + " " +
+                  QByteArray::number(fontSize, 'f', 2) + " Tf\n";
+
+    const QString removed = elementText.mid(edit.pos, edit.length);
+    const double removedWidth = span.font->measure(removed, fontSize);
+    double insertedWidth = 0.0;
+    for (uint16_t gid : gids) {
+        insertedWidth += fallback.face.widthForGid(gid) * fontSize / 1000.0;
+    }
+    const double adjustment = -(removedWidth - insertedWidth) * 1000.0 / fontSize;
+    *removedGlyphs += edit.length;
+    *insertedGlyphs += edit.replacement.size();
+    QByteArray tail;
+    if (!suffix.isEmpty()) {
+        if (!encodeWithFont(*span.font, suffix, &tail, error)) return {};
+    }
+    expression += "[" + formatAdjustment(adjustment).toLatin1() + " " + tail + "] TJ";
+    return expression;
+}
+
 #endif  // AIPDF_WITH_QPDF
 
 }  // namespace
@@ -442,7 +654,7 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
         }
         QPDFObjectHandle page = pages.at(static_cast<size_t>(target.pageIndex));
         page.coalesceContentStreams();
-        const PageFontList fonts = readPageFonts(pdfBytes, target.pageIndex);
+        PageFontList scanFonts = readPageFonts(pdfBytes, target.pageIndex);
 
         // 文本可能藏在页内容流里，也可能藏在 Form XObject 里。
         // 两类流都收进 containers，改写时按各自的对象写回。
@@ -486,7 +698,7 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
         QVector<ShowSpan> allSpans;
         QVector<int> spanStream;
         for (int index = 0; index < containers.size(); ++index) {
-            QVector<ShowSpan> spans = scanShows(tokens.at(index), fonts);
+            QVector<ShowSpan> spans = scanShows(tokens.at(index), scanFonts);
             for (const ShowSpan& span : spans) {
                 allSpans.append(span);
                 spanStream.append(index);
@@ -571,6 +783,57 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
             return result;
         }
 
+        // 替换文字里有原字体写不出的字：给这一页嵌一份子集化的回退字体。
+        QSet<int> fallbackSpans;
+        EmbeddedFallback fallback;
+        for (const MatchGroup& group : selected) {
+            const ShowSpan& span = allSpans.at(group.spanIndex);
+            if (span.font == nullptr || span.font->covers(target.replace)) continue;
+            if (span.elements.size() != 1 || group.perElement.size() != 1 ||
+                group.perElement.first().size() != 1) {
+                result.report.error = QStringLiteral(
+                    "替换文字里有原字体写不出的字，且匹配跨了多个文本元素；"
+                    "回退字体暂只支持单个文本元素内的整段替换");
+                return result;
+            }
+            const int containerIndex = spanStream.value(group.spanIndex);
+            if (containerIndex >= static_cast<int>(contents.size())) {
+                const QPDFObjectHandle ownResources =
+                    containers.at(containerIndex).handle.getDict().getKey("/Resources");
+                if (ownResources.isDictionary()) {
+                    result.report.error = QStringLiteral(
+                        "XObject 自带 /Resources，回退字体暂不支持这种嵌套");
+                    return result;
+                }
+            }
+            fallbackSpans.insert(group.spanIndex);
+        }
+        if (!fallbackSpans.isEmpty()) {
+            QPDFObjectHandle resources = pageResources(page);
+            if (!resources.isDictionary()) {
+                result.report.error =
+                    QStringLiteral("这一页没有 /Resources，放不下回退字体");
+                return result;
+            }
+            fallback = embedFallbackFont(pdf, resources, target.replace);
+            if (!fallback.ok) {
+                result.report.error = fallback.error;
+                return result;
+            }
+            FontResource decoded;
+            decoded.resourceName = fallback.resourceName;
+            decoded.composite = true;
+            decoded.codeBytes = 2;
+            decoded.toUnicodePresent = true;
+            for (const uint code : target.replace.toUcs4()) {
+                const uint16_t gid = fallback.face.gidFor(static_cast<char32_t>(code));
+                decoded.codeToUnicode.insert(gid, QString::fromUcs4(&code, 1));
+                decoded.unicodeToCode.insert(code, gid);
+                decoded.widths.insert(gid, fallback.face.widthForGid(gid));
+            }
+            scanFonts.fonts.append(decoded);
+        }
+
         // 期望的文字：每个元素按编辑列表重排，再按显示顺序拼起来。
         QString rebuilt;
         for (int spanIndex = 0; spanIndex < allSpans.size(); ++spanIndex) {
@@ -611,9 +874,15 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
             int removed = 0;
             int inserted = 0;
             QString error;
-            const QByteArray expression =
-                buildReplacement(tokens.at(spanStream.at(spanIndex)), span, perElement,
-                                 &removed, &inserted, &error);
+            QByteArray expression;
+            if (fallbackSpans.contains(spanIndex)) {
+                expression = buildFallbackExpression(
+                    span, span.elements.first().text, perElement.value(0).value(0), fallback,
+                    span.fontSize, &removed, &inserted, &error);
+            } else {
+                expression = buildReplacement(tokens.at(spanStream.at(spanIndex)), span,
+                                              perElement, &removed, &inserted, &error);
+            }
             if (expression.isEmpty()) {
                 result.report.error = error.isEmpty() ? QStringLiteral("改写失败") : error;
                 return result;
@@ -682,7 +951,7 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
                     QStringLiteral("改写后的内容流解析失败：%1").arg(parsed.error);
                 return result;
             }
-            afterText += pageTextOf(scanShows(parsed.tokens, fonts));
+            afterText += pageTextOf(scanShows(parsed.tokens, scanFonts));
         }
         if (afterText != expected) {
             result.report.error = QStringLiteral("改写后回读不一致：期望「%1」，实际「%2」")

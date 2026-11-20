@@ -172,7 +172,7 @@ private slots:
     void replacesAllOccurrencesWhenRequested();
     void replacesAllOccurrencesCaseInsensitively();
     void deletesText();
-    void refusesGlyphsMissingFromFont();
+    void usesFallbackFontForMissingGlyphs();
     void replacesInsideTjArray();
     void reportsMissingMatch();
     void rejectsPageOutOfRange();
@@ -255,16 +255,33 @@ void TextSpliceTests::deletesText() {
     QCOMPARE(pageText(result.bytes), QStringLiteral("Hello"));
 }
 
-void TextSpliceTests::refusesGlyphsMissingFromFont() {
+void TextSpliceTests::usesFallbackFontForMissingGlyphs() {
     const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
     const TextSpliceResult result =
         splicePageText(pdf, makeTarget(QStringLiteral("Hello"), QStringLiteral("Hello中")));
-    QVERIFY(!result.ok());
-    QVERIFY(result.bytes.isEmpty());
-    QVERIFY2(result.report.error.contains(QStringLiteral("写不出")),
-             qPrintable(result.report.error));
-}
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QString text = pageText(result.bytes);
+    QVERIFY2(text.contains(QStringLiteral("中")), qPrintable(text));
 
+    // 回退字体必须作为 Type0 资源挂在页面 /Resources /Font 里。
+    QPDF check;
+    check.processMemoryFile("fb.pdf", result.bytes.constData(),
+                            static_cast<size_t>(result.bytes.size()));
+    const QPDFObjectHandle resources = check.getAllPages().at(0).getKey("/Resources");
+    const QPDFObjectHandle fonts = resources.getKey("/Font");
+    QVERIFY(fonts.isDictionary());
+    bool foundFallback = false;
+    for (const std::string& key : fonts.getKeys()) {
+        const QPDFObjectHandle font = fonts.getKey(key);
+        if (font.getKey("/Subtype").isName() &&
+            font.getKey("/Subtype").getName() == "/Type0" &&
+            font.getKey("/BaseFont").isName() &&
+            font.getKey("/BaseFont").getName() == "/AIPDFFALLBACK") {
+            foundFallback = true;
+        }
+    }
+    QVERIFY2(foundFallback, "页面资源里应有回退字体 AIPDFFALLBACK");
+}
 void TextSpliceTests::replacesInsideTjArray() {
     const QByteArray pdf = makePdfWithContent(
         "BT /F1 12 Tf 72 720 Td [(AB) -120 (CD)] TJ ET");
