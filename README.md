@@ -361,7 +361,7 @@ canonical、Open Graph、Twitter 分享卡、JSON-LD、robots.txt 与 sitemap.xm
 [`0.15.0`](docs/versions/v0.15.0.md)，只有当前版本通过验收后才进入下一版本。
 
 1.0 之后的能力路线以 [对标基线](docs/FOXIT_BENCHMARK.md) 为准：先补齐打印、批注互操作、
-表单、加密与签名，再做内容编辑，最后按 96 项评分卡收敛到 2.0。
+表单、加密与签名，再做内容编辑，最后按 102 项评分卡收敛到 2.0。
 
 ## 开发规范
 

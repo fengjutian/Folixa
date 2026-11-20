@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <QHash>
+#include <QSet>
 
 namespace aipdf::pdf {
 namespace {
@@ -136,6 +137,52 @@ bool encodeWithFont(const FontResource& font, const QString& text, QByteArray* o
         *out = encodeLiteral(codes);
     }
     return true;
+}
+
+QString objectNameOf(const QPDFObjectHandle& object) {
+    if (!object.isName()) return QString();
+    std::string name = object.getName();
+    if (!name.empty() && name.front() == '/') name.erase(name.begin());
+    return QString::fromStdString(name);
+}
+
+qint64 objectKeyOf(const QPDFObjectHandle& object) {
+    const QPDFObjGen id = object.getObjGen();
+    if (id.getObj() <= 0) return 0;
+    return (static_cast<qint64>(id.getObj()) << 32) | static_cast<quint32>(id.getGen());
+}
+
+// 页面 /Resources 可以挂在 /Pages 上，沿 /Parent 找。
+QPDFObjectHandle pageResources(QPDFObjectHandle page) {
+    for (int depth = 0; depth < 64 && page.isDictionary(); ++depth) {
+        if (page.hasKey("/Resources")) {
+            const QPDFObjectHandle resources = page.getKey("/Resources");
+            if (resources.isDictionary()) return resources;
+        }
+        if (!page.hasKey("/Parent")) break;
+        page = page.getKey("/Parent");
+    }
+    return {};
+}
+
+// 页面 /Resources 下所有 Form XObject（递归，防环）。
+void collectFormXObjects(QPDFObjectHandle resources, QVector<QPDFObjectHandle>* out,
+                         QSet<qint64>* seen, int depth) {
+    if (!resources.isDictionary() || depth > 8) return;
+    const QPDFObjectHandle xobjects = resources.getKey("/XObject");
+    if (!xobjects.isDictionary()) return;
+    for (const std::string& key : xobjects.getKeys()) {
+        const QPDFObjectHandle object = xobjects.getKey(key);
+        if (!object.isStream()) continue;
+        QPDFObjectHandle dict = object.getDict();
+        if (objectNameOf(dict.getKey("/Subtype")) != QLatin1String("Form")) continue;
+        const qint64 id = objectKeyOf(object);
+        if (id != 0 && seen->contains(id)) continue;
+        if (id != 0) seen->insert(id);
+        out->append(object);
+        QPDFObjectHandle child = dict.getKey("/Resources");
+        if (child.isDictionary()) collectFormXObjects(child, out, seen, depth + 1);
+    }
 }
 
 int previousSignificant(const QVector<ContentToken>& tokens, int index) {
@@ -373,28 +420,48 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
         page.coalesceContentStreams();
         const PageFontList fonts = readPageFonts(pdfBytes, target.pageIndex);
 
-        QVector<QByteArray> streams;
+        // 文本可能藏在页内容流里，也可能藏在 Form XObject 里。
+        // 两类流都收进 containers，改写时按各自的对象写回。
+        struct StreamContainer {
+            QPDFObjectHandle handle;
+            QByteArray bytes;
+        };
+        QVector<StreamContainer> containers;
         QVector<QVector<ContentToken>> tokens;
-        std::vector<QPDFObjectHandle> contents = page.getPageContents();
-        for (QPDFObjectHandle& stream : contents) {
-            if (!stream.isStream()) continue;
-            const std::shared_ptr<Buffer> data = stream.getStreamData(qpdf_dl_generalized);
-            if (!data) continue;
-            streams.append(QByteArray(reinterpret_cast<const char*>(data->getBuffer()),
-                                      static_cast<qsizetype>(data->getSize())));
-            const ContentParseResult parsed = ContentStream::tokenize(streams.last());
+        QString collectError;
+        const auto addContainer = [&](QPDFObjectHandle handle) {
+            if (!handle.isStream() || !collectError.isEmpty()) return;
+            const std::shared_ptr<Buffer> data = handle.getStreamData(qpdf_dl_generalized);
+            if (!data) return;
+            StreamContainer container;
+            container.handle = handle;
+            container.bytes = QByteArray(reinterpret_cast<const char*>(data->getBuffer()),
+                                         static_cast<qsizetype>(data->getSize()));
+            const ContentParseResult parsed = ContentStream::tokenize(container.bytes);
             if (!parsed.isValid()) {
-                result.report.error = QStringLiteral("内容流解析失败：%1").arg(parsed.error);
-                return result;
+                collectError = QStringLiteral("内容流解析失败：%1").arg(parsed.error);
+                return;
             }
+            containers.append(container);
             tokens.append(parsed.tokens);
+        };
+
+        std::vector<QPDFObjectHandle> contents = page.getPageContents();
+        for (QPDFObjectHandle& stream : contents) addContainer(stream);
+        QSet<qint64> seenObjects;
+        QVector<QPDFObjectHandle> formXObjects;
+        collectFormXObjects(pageResources(page), &formXObjects, &seenObjects, 0);
+        for (QPDFObjectHandle& object : formXObjects) addContainer(object);
+        if (!collectError.isEmpty()) {
+            result.report.error = collectError;
+            return result;
         }
 
         // 先扫一遍：把每段显示操作与它们的文字都列出来。
         QVector<QVector<ShowSpan>> streamSpans;
         QVector<ShowSpan> allSpans;
         QVector<int> spanStream;
-        for (int index = 0; index < streams.size(); ++index) {
+        for (int index = 0; index < containers.size(); ++index) {
             QVector<ShowSpan> spans = scanShows(tokens.at(index), fonts);
             for (const ShowSpan& span : spans) {
                 allSpans.append(span);
@@ -512,8 +579,10 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
         }
 
         // 逐流重建：同一条流里按 token 顺序走，遇到被替换的 span 就整段换掉。
-        QVector<QByteArray> rewritten = streams;
-        for (int streamIndex = 0; streamIndex < streams.size(); ++streamIndex) {
+        QVector<QByteArray> rewritten;
+        rewritten.reserve(containers.size());
+        for (const StreamContainer& container : containers) rewritten.append(container.bytes);
+        for (int streamIndex = 0; streamIndex < containers.size(); ++streamIndex) {
             QVector<int> spans;
             for (auto it = expressionBySpan.constBegin(); it != expressionBySpan.constEnd(); ++it) {
                 if (spanStream.value(it.key()) == streamIndex) spans.append(it.key());
@@ -540,17 +609,13 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
             rewritten[streamIndex] = output;
         }
 
-        // 写回 qpdf。
-        int streamCursor = 0;
-        for (QPDFObjectHandle& stream : contents) {
-            if (!stream.isStream()) continue;
-            if (streamCursor >= rewritten.size()) break;
-            if (rewritten.at(streamCursor) != streams.at(streamCursor)) {
-                stream.replaceStreamData(rewritten.at(streamCursor).toStdString(),
-                                         QPDFObjectHandle::newNull(),
-                                         QPDFObjectHandle::newNull());
-            }
-            ++streamCursor;
+        // 写回 qpdf：页内容流与 Form XObject 各自写回自己的对象。
+        for (int index = 0; index < containers.size(); ++index) {
+            if (index >= rewritten.size()) break;
+            if (rewritten.at(index) == containers.at(index).bytes) continue;
+            containers[index].handle.replaceStreamData(
+                rewritten.at(index).toStdString(), QPDFObjectHandle::newNull(),
+                QPDFObjectHandle::newNull());
         }
 
         // 门禁：把改写后的流重新解析、重新解码，与期望串逐字比对。

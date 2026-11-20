@@ -2287,10 +2287,8 @@ Supports reading, comments, page management, forms, OCR, full-text search, and A
 
 Folixa requires no purchase or activation and offers no paid subscription.</translation></message>
         <message><source>屏幕录制</source><translation>Screen Recording</translation></message>
-        <message><source>无法打开 Windows 游戏栏。请在“设置 &gt; 游戏 &gt; Xbox Game Bar”中启用它，或按 Win+Alt+R 开始录制。</source><translation>Could not open Windows Game Bar. Enable it under Settings &gt; Gaming &gt; Xbox Game Bar, or press Win+Alt+R to start recording.</translation></message>
-        <message><source>已打开 Windows 游戏栏；按 Win+Alt+R 开始或停止录制。</source><translation>Windows Game Bar is open. Press Win+Alt+R to start or stop recording.</translation></message>
-        <message><source>请使用系统自带的屏幕录制工具录制 Folixa 窗口。</source><translation>Use your system screen recorder to record the Folixa window.</translation></message>
-        <message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
+<message><source>已打开 Windows 游戏栏；按 Win+Alt+R 开始或停止录制。</source><translation>Windows Game Bar is open. Press Win+Alt+R to start or stop recording.</translation></message>
+<message><source>请先打开一份 PDF。</source><translation>Open a PDF first.</translation></message>
         <message><source>保存截图</source><translation>Save Screenshot</translation></message>
         <message><source>PNG 图片 (*.png)</source><translation>PNG Image (*.png)</translation></message>
         <message><source>截图无法写入所选位置。</source><translation>The screenshot could not be written to the selected location.</translation></message>
@@ -3267,6 +3265,66 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
     <message><source>译成哪种语言？</source><translation>Translate into which language?</translation></message>
     <message><source>整篇翻译会把这份文档的正文按段发给 AI 服务。确定继续吗？</source><translation>Translating the whole document sends its text to the AI service paragraph by paragraph. Continue?</translation></message>
     <message><source>翻译完成：%1 段里写回了 %2 段译文（%3 字），%4 段保留原文。</source><translation>Translation done: %2 of %1 paragraphs were written back (%3 characters); %4 paragraphs kept their original text.</translation></message>
+        <message>
+            <source>● 录制中 %1:%2</source>
+            <translation>● Recording %1:%2</translation>
+        </message>
+        <message>
+            <source>停止录制</source>
+            <translation>Stop recording</translation>
+        </message>
+        <message>
+            <source>声音录制</source>
+            <translation>Audio recording</translation>
+        </message>
+        <message>
+            <source>已取消录制。</source>
+            <translation>Recording cancelled.</translation>
+        </message>
+        <message>
+            <source>已经在录制了。</source>
+            <translation>A recording is already running.</translation>
+        </message>
+        <message>
+            <source>录制完成：%1</source>
+            <translation>Recording finished: %1</translation>
+        </message>
+        <message>
+            <source>录制文件已生成，但没能登记进录制列表。</source>
+            <translation>The recording file was created but could not be added to the recording list.</translation>
+        </message>
+        <message>
+            <source>录制没有完成。</source>
+            <translation>The recording did not finish.</translation>
+        </message>
+        <message>
+            <source>录制没有开始。</source>
+            <translation>The recording did not start.</translation>
+        </message>
+        <message>
+            <source>录制没有正常收尾。</source>
+            <translation>The recording did not close cleanly.</translation>
+        </message>
+        <message>
+            <source>录制范围:</source>
+            <translation>Recording area:</translation>
+        </message>
+        <message>
+            <source>录音写不进文件：%1</source>
+            <translation>The audio could not be written to a file: %1</translation>
+        </message>
+        <message>
+            <source>正在录音…按「确定」停止并保存。</source>
+            <translation>Recording… press OK to stop and save.</translation>
+        </message>
+        <message>
+            <source>没有能用的录音设备。</source>
+            <translation>No usable recording device.</translation>
+        </message>
+        <message>
+            <source>没有录到音频。</source>
+            <translation>No audio was recorded.</translation>
+        </message>
 </context>
         <context>
         <name>aipdf::app::MediaPreview</name>
@@ -9536,4 +9594,119 @@ If you need to keep the signatures, do not modify and save this file again after
     <message><source>合并</source><translation>Merge</translation></message>
     <message><source>取消</source><translation>Cancel</translation></message>
 </context>
+    <context>
+        <name>aipdf::app::RecordingCenterDialog</name>
+        <message>
+            <source>录制中心</source>
+            <translation>Recording center</translation>
+        </message>
+        <message>
+            <source>录制与捕获</source>
+            <translation>Record and capture</translation>
+        </message>
+        <message>
+            <source>录制 PDF 演示、应用窗口或声音，并把产物集中列在下面。</source>
+            <translation>Record a PDF presentation, the app window or audio; the outputs are listed below.</translation>
+        </message>
+        <message>
+            <source>屏幕录制</source>
+            <translation>Screen recording</translation>
+        </message>
+        <message>
+            <source>框选区域或录制整个窗口，产出 AVI 视频</source>
+            <translation>Pick a region or record the whole window into an AVI video</translation>
+        </message>
+        <message>
+            <source>PDF 演示录制</source>
+            <translation>PDF presentation recording</translation>
+        </message>
+        <message>
+            <source>放映当前 PDF 并录下放映过程</source>
+            <translation>Present the current PDF and record the presentation</translation>
+        </message>
+        <message>
+            <source>声音录制</source>
+            <translation>Audio recording</translation>
+        </message>
+        <message>
+            <source>录制麦克风，产出 WAV 音频</source>
+            <translation>Record the microphone and produce a WAV file</translation>
+        </message>
+        <message>
+            <source>窗口截图</source>
+            <translation>Window screenshot</translation>
+        </message>
+        <message>
+            <source>捕获当前窗口并保存为 PNG 图片</source>
+            <translation>Capture the current window and save it as a PNG image</translation>
+        </message>
+        <message>
+            <source>录制列表</source>
+            <translation>Recording list</translation>
+        </message>
+        <message>
+            <source>名称</source>
+            <translation>Name</translation>
+        </message>
+        <message>
+            <source>类型</source>
+            <translation>Type</translation>
+        </message>
+        <message>
+            <source>时长</source>
+            <translation>Duration</translation>
+        </message>
+        <message>
+            <source>大小</source>
+            <translation>Size</translation>
+        </message>
+        <message>
+            <source>录制时间</source>
+            <translation>Recorded at</translation>
+        </message>
+        <message>
+            <source>还没有录制产物。录一段就会出现在这里。</source>
+            <translation>No recordings yet. Record something and it will show up here.</translation>
+        </message>
+        <message>
+            <source>共 %1 条录制产物。</source>
+            <translation>%1 recording(s) in total.</translation>
+        </message>
+        <message>
+            <source>打开</source>
+            <translation>Open</translation>
+        </message>
+        <message>
+            <source>在文件夹中显示</source>
+            <translation>Show in folder</translation>
+        </message>
+        <message>
+            <source>删除</source>
+            <translation>Delete</translation>
+        </message>
+        <message>
+            <source>刷新</source>
+            <translation>Refresh</translation>
+        </message>
+        <message>
+            <source>打开录制文件夹</source>
+            <translation>Open recording folder</translation>
+        </message>
+        <message>
+            <source>删除录制</source>
+            <translation>Delete recording</translation>
+        </message>
+        <message>
+            <source>删除「%1」？文件会一起删掉，删了就找不回来了。</source>
+            <translation>Delete “%1”? The file is deleted as well and cannot be recovered.</translation>
+        </message>
+        <message>
+            <source>删除失败。</source>
+            <translation>Delete failed.</translation>
+        </message>
+        <message>
+            <source>这个录制文件已经不在了：</source>
+            <translation>This recording file is gone:</translation>
+        </message>
+    </context>
 </TS>

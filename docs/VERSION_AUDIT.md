@@ -53,7 +53,7 @@
 | J5 的验收写「**也不读既有 StructTreeRoot**」 | **推翻**：`pdf::readStructTree` 能读任意来源的结构树（`/K` 三种形态、`/Parent` 反查、防环），读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字（`StructTreeReaderTests` 18 条） |
 | E5 的验收写「**段落对齐 / 行距 / 缩进未做**」 | **推翻**：`pdf::layoutParagraph` 复用 `TextReflow` 断行，支持四档对齐、倍数/固定行距、首行与左右缩进，justify 撑满且最后一行不拉伸（`ParagraphFormatTests` 24 条） |
 | A9 与矩阵「只有浅色主题；护眼/夜间未做」 | **推翻**：`app::theme::ReadingScheme` 四套配色 + QSettings 持久化 + Ribbon 入口（`ReadingSchemeTests`） |
-| H5 PDF→Office 的验收写「入口是禁用占位，未实现」 | **推翻**：DOCX（zip 打包的真 .docx）/ RTF / 纯文本导出（`OfficeExportTests` 11 条）；**不含图片、表格与样式，Excel / PPT 仍未做** |
+| H5 PDF→Office 的验收写「入口是禁用占位，未实现」 | **推翻**：DOCX（zip 打包的真 .docx）/ RTF / 纯文本导出（`OfficeExportTests` 11 条）；**不含图片、表格与样式，Excel / PPT 仍未做**（**本行是 2026-11-17 第四次重算的历史结论，已被 §1.3 第十六次重算取代**：H5 后续补上整篇导出与真图片真表格，Excel / PPT 已实现，见下文 1.3） |
 | AI 助手 10 条只对齐「对话」1 条，朗读 / 检测 / PPT 全空 | **推翻**：文生图与总结配图（`AiImageGenerationTests` 27 条）、内容检测（`AiContentDetectionTests` 15 条）、智能朗读（`AiNarrationTests` 15 条）、PPT 四模式（`PptGenerationTests` 31 条）均已实现并有界面入口 |
 | 评分卡 1.2 把「3D / 多媒体 / 作品集」列为明确不追 | **推翻**：作品集已实现（PDF 包，`PortfolioWriterTests` 13 条）；3D（U3D）与 RichMedia 多媒体注解也已落地——**写对结构与读回校验，但不渲染 3D、不解码音视频**（`RichMedia3dTests` 26 条） |
 | F6 XFA 记为「不做（已显式提示）」 | **推翻**：已实现静态 XFA 的字段提取与 CSV 导出（`XfaSupportTests` 20 条）；**动态 XFA（脚本 / 校验 / 计算）明确提示不支持** |

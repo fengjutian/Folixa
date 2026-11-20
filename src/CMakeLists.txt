@@ -112,8 +112,16 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/StampNumberDialog.h
     app/dialogs/RegionPicker.cpp
     app/dialogs/RegionPicker.h
+    app/dialogs/RecordingCenterDialog.cpp
+    app/dialogs/RecordingCenterDialog.h
     app/controllers/ScreenCapture.cpp
     app/controllers/ScreenCapture.h
+    app/recording/MotionJpegAviWriter.cpp
+    app/recording/MotionJpegAviWriter.h
+    app/recording/RecordingLibrary.cpp
+    app/recording/RecordingLibrary.h
+    app/recording/ScreenRecorder.cpp
+    app/recording/ScreenRecorder.h
     app/dialogs/AccessibilityWizard.cpp
     app/dialogs/AccessibilityWizard.h
     app/dialogs/ReadingOptionsDialog.cpp

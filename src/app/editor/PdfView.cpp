@@ -5938,7 +5938,11 @@ void PdfView::startPresentation() {
     presentation->setLoop(presentationLoop_);
     // 记下窗口指针：放映期间改循环开关要能立刻作用到正在放的窗口上。
     presentationWindow_ = presentation;
-    connect(presentation, &QObject::destroyed, this, [this]() { presentationWindow_ = nullptr; });
+    connect(presentation, &QObject::destroyed, this, [this]() {
+        presentationWindow_ = nullptr;
+        // 放映窗口带 WA_DeleteOnClose，关掉就销毁 —— 录制据此收尾。
+        emit presentationClosed();
+    });
     presentation->start();
 }
 

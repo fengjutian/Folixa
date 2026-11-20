@@ -6,6 +6,7 @@
 
 #include "i18n/Translate.h"
 #include "app/controllers/DocumentConverter.h"
+#include "app/recording/RecordingLibrary.h"
 #include "pdf/kernel/Navigation.h"
 
 class QAction;
@@ -54,6 +55,8 @@ class RibbonBar;
 class NavigationController;
 class AnnotationController;
 class WiringActions;
+class RecordingLibrary;
+class ScreenRecorder;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -192,6 +195,19 @@ private:
     void batchConvertOfd();
     void showRecordingCenter();
     void startScreenRecording(bool presentPdf);
+    // 声音录制：录一段麦克风，产出 WAV 文件并登记进录制列表。
+    void startAudioRecording();
+    // 结束当前录制（用户点了「停止录制」，或 PDF 放映结束）。
+    void finishScreenRecording();
+    // 把一次录制登记进录制列表。
+    void registerRecording(RecordingKind kind, const QString& path, qint64 durationMs,
+                           int width, int height);
+    // 录制中的状态条：红点 + 计时 + 停止按钮。
+    void showRecordingIndicator();
+    void hideRecordingIndicator();
+    void updateRecordingIndicator();
+    // 录制列表（惰性创建，全应用共用一份索引）。
+    RecordingLibrary* recordingLibrary();
     void captureWindowScreenshot();
     // 沉浸阅读：藏掉界面外壳、全屏、光标自动隐藏。Esc 退出。
     void enterImmersiveReading();
@@ -410,6 +426,18 @@ private:
     QAction* languageSeparator_ = nullptr;
     QFileSystemWatcher* autoImportWatcher_ = nullptr;
     QHash<QString, qint64> autoImportSizes_;
+
+    // 录制中心：录制列表索引、当前的录制会话、状态条上的录制指示器。
+    //
+    // 为什么录制会话挂在主窗口上：停止录制的入口（状态条按钮）必须在主窗口上，
+    // 而录像是从主窗口这一侧发起的，两边要在同一个对象上对齐。
+    RecordingLibrary* recordingLibrary_ = nullptr;
+    ScreenRecorder* screenRecorder_ = nullptr;
+    // 录制中的状态条部件：红点 + 计时 + 「停止录制」。
+    QLabel* recordingIndicator_ = nullptr;
+    QPushButton* stopRecordingButton_ = nullptr;
+    // 计时刷新（每 500ms 一次，只在录制期间存在）。
+    QTimer* recordingTimer_ = nullptr;
 };
 
 }  // namespace aipdf::app

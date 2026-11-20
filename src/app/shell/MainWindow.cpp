@@ -10,7 +10,10 @@
 #include "app/controllers/TextController.h"
 #include "app/editor/PdfView.h"
 #include "app/dialogs/RegionPicker.h"
+#include "app/dialogs/RecordingCenterDialog.h"
 #include "app/controllers/ScreenCapture.h"
+#include "app/controllers/AudioRecorder.h"
+#include "app/recording/ScreenRecorder.h"
 #include "app/panels/SearchPanel.h"
 #include "app/util/ShareUtils.h"
 #include "app/util/BatchRename.h"
@@ -2252,21 +2255,16 @@ void MainWindow::buildUi() {
     addRibbonCommand(recordStartGroup, "录制中心", "选择录制方式并管理输出文件",
                      ":/icons/app.svg", [this] { showRecordingCenter(); }, true,
                      "record.center");
-    addRibbonCommand(recordStartGroup, "PDF 录制", "放映当前 PDF，并打开系统录屏工具",
+    addRibbonCommand(recordStartGroup, "PDF 录制", "放映当前 PDF，并把放映过程录成视频",
                      ":/icons/book.svg", [this] { startScreenRecording(true); }, true,
                      "record.pdf");
-    addRibbonCommand(recordStartGroup, "屏幕录制", "使用 Windows 游戏栏录制 Folixa 窗口",
+    addRibbonCommand(recordStartGroup, "屏幕录制", "框选区域或录制整个窗口，产出视频文件",
                      ":/icons/convert.svg", [this] { startScreenRecording(false); }, true,
                      "record.screen");
     auto* recordCaptureGroup = ribbonBar_->addGroup(recordTab, tr("捕获"));
-    addRibbonCommand(recordCaptureGroup, "声音录制", "持续录音并插入当前页声音批注",
-                     ":/icons/annotation.svg", [this] {
-        if (PdfView* view = currentView()) {
-            view->recordSoundAnnotationDialog();
-        } else {
-            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
-        }
-    }, true, "record.audio");
+    addRibbonCommand(recordCaptureGroup, "声音录制", "录制麦克风，产出音频文件",
+                     ":/icons/annotation.svg", [this] { startAudioRecording(); }, true,
+                     "record.audio");
     addRibbonCommand(recordCaptureGroup, "截图", "框选屏幕区域或整个窗口，保存为 PNG 图片",
                      ":/icons/square.svg", [this] { captureWindowScreenshot(); }, true,
                      "record.screenshot");
@@ -2274,14 +2272,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(recordManageGroup, "打开录制文件夹", "查看屏幕录制和截图文件",
                      ":/icons/pages.svg", [this] { openRecordingFolder(); }, true,
                      "record.openFolder");
-    addRibbonCommand(recordManageGroup, "录制列表", "在批注面板中查看声音录制",
-                     ":/icons/annotation.svg", [this] {
-        if (!openNavigationPanel(4)) {
-            statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
-            return;
-        }
-        statusBar()->showMessage(tr("声音录制保存在声音批注中。"), 5000);
-    }, true, "record.list");
+    addRibbonCommand(recordManageGroup, "录制列表", "查看并管理已经录出来的文件",
+                     ":/icons/annotation.svg", [this] { showRecordingCenter(); }, true,
+                     "record.list");
     // 帮助页不能继续使用整页占位按钮：这些入口不依赖 PDF 编辑能力，应该在
     // 离线安装包里也能给出明确、可执行的结果。商业版的「立即购买 / 激活」不属于
     // 本项目，刻意不创建按钮（而不是创建后禁用），避免误导用户。
@@ -4847,28 +4840,208 @@ PdfView* MainWindow::shareDocument() {
 }
 
 void MainWindow::startScreenRecording(bool presentPdf) {
+    if (screenRecorder_ != nullptr && screenRecorder_->isRecording()) {
+        statusBar()->showMessage(tr("已经在录制了。"), 3000);
+        return;
+    }
+
+    ScreenRecorder::Options options;
+    PdfView* presentationView = nullptr;
+
     if (presentPdf) {
-        PdfView* view = currentView();
-        if (view == nullptr) {
+        presentationView = currentView();
+        if (presentationView == nullptr) {
             statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
             return;
         }
-        view->startPresentation();
+        // 放映是全屏的，录主屏就录到了整个放映过程。
+    } else {
+        // 问清楚录哪一块：区域框选（默认）还是整个窗口。
+        const QStringList choices{ tr("区域框选"), tr("整个窗口") };
+        bool accepted = false;
+        const QString choice = QInputDialog::getItem(this, tr("屏幕录制"), tr("录制范围:"),
+                                                      choices, 0, false, &accepted);
+        if (!accepted) return;
+        if (choice == choices.at(0)) {
+            QRect region;
+            QImage shot;
+            if (!pickScreenRegion(this, &region, &shot)) {
+                statusBar()->showMessage(tr("已取消录制。"), 3000);
+                return;
+            }
+            options.region = region;
+        } else {
+            // 整个窗口：录 Folixa 自己在屏幕上的那块位置。
+            options.region = frameGeometry();
+        }
     }
-#ifdef Q_OS_WIN
-    if (!QDesktopServices::openUrl(QUrl(QStringLiteral("ms-gamingoverlay:")))) {
-        QMessageBox::warning(
-            this, tr("屏幕录制"),
-            tr("无法打开 Windows 游戏栏。请在“设置 > 游戏 > Xbox Game Bar”中启用它，"
-               "或按 Win+Alt+R 开始录制。"));
+
+    const QString directory = RecordingLibrary::defaultDirectory();
+    QDir().mkpath(directory);
+    const QString output = QDir(directory).filePath(
+        RecordingLibrary::fileNameFor(presentPdf ? RecordingKind::Presentation
+                                                 : RecordingKind::Screen,
+                                      QDateTime::currentDateTime()));
+
+    if (screenRecorder_ == nullptr) {
+        screenRecorder_ = new ScreenRecorder(this);
+        connect(screenRecorder_, &ScreenRecorder::finished, this,
+                [this](bool ok, const QString& path, const QString& error) {
+                    hideRecordingIndicator();
+                    if (!ok) {
+                        statusBar()->showMessage(
+                            error.isEmpty() ? tr("录制没有完成。") : error, 6000);
+                        return;
+                    }
+                    registerRecording(path.endsWith(QStringLiteral(".avi"))
+                                          ? (path.contains(QStringLiteral("presentation"))
+                                                 ? RecordingKind::Presentation
+                                                 : RecordingKind::Screen)
+                                          : RecordingKind::Screen,
+                                      path, 0, 0, 0);
+                });
+    }
+
+    QString error;
+    if (!screenRecorder_->start(options, output, &error)) {
+        QMessageBox::warning(this, tr("屏幕录制"),
+                             error.isEmpty() ? tr("录制没有开始。") : error);
         return;
     }
-    statusBar()->showMessage(
-        tr("录制面板已打开；按 Win+Alt+R 开始或停止，视频保存在“视频\\捕获”。"), 10000);
-#else
-    QMessageBox::information(this, tr("屏幕录制"),
-                             tr("请使用系统自带的屏幕录制工具录制 Folixa 窗口。"));
-#endif
+
+    showRecordingIndicator();
+
+    if (presentationView != nullptr) {
+        // 放映窗口起来之后再开录：先录到的会是一片桌面。
+        connect(presentationView, &PdfView::presentationClosed, this,
+                [this] { finishScreenRecording(); });
+        QTimer::singleShot(600, this, [this, presentationView] { presentationView->startPresentation(); });
+    }
+}
+
+void MainWindow::finishScreenRecording() {
+    if (screenRecorder_ == nullptr || !screenRecorder_->isRecording()) return;
+    QString error;
+    const QString path = screenRecorder_->outputPath();
+    const qint64 duration = screenRecorder_->elapsedMs();
+    const int width = screenRecorder_->width();
+    const int height = screenRecorder_->height();
+    if (!screenRecorder_->stop(&error)) {
+        QMessageBox::warning(this, tr("屏幕录制"),
+                             error.isEmpty() ? tr("录制没有正常收尾。") : error);
+        hideRecordingIndicator();
+        return;
+    }
+    hideRecordingIndicator();
+    registerRecording(path.contains(QStringLiteral("presentation"))
+                          ? RecordingKind::Presentation
+                          : RecordingKind::Screen,
+                      path, duration, width, height);
+}
+
+void MainWindow::startAudioRecording() {
+    AudioRecorder recorder;
+    QString error;
+    if (!recorder.start(&error)) {
+        QMessageBox::warning(this, tr("声音录制"),
+                             error.isEmpty() ? tr("没有能用的录音设备。") : error);
+        return;
+    }
+    // 模态框有自己的事件循环，录音回调照跑（声音批注那条路就是这么做的）。
+    QMessageBox box(QMessageBox::Information, tr("声音录制"),
+                    tr("正在录音…按「确定」停止并保存。"), QMessageBox::Ok, this);
+    box.exec();
+    const QByteArray wav = recorder.stop();
+    if (wav.isEmpty()) {
+        statusBar()->showMessage(tr("没有录到音频。"), 5000);
+        return;
+    }
+
+    const QString directory = RecordingLibrary::defaultDirectory();
+    QDir().mkpath(directory);
+    const QString output = QDir(directory).filePath(
+        RecordingLibrary::fileNameFor(RecordingKind::Audio, QDateTime::currentDateTime()));
+    QFile file(output);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("声音录制"),
+                             tr("录音写不进文件：%1").arg(file.errorString()));
+        return;
+    }
+    file.write(wav);
+    file.close();
+    registerRecording(RecordingKind::Audio, output, 0, 0, 0);
+}
+
+void MainWindow::registerRecording(RecordingKind kind, const QString& path, qint64 durationMs,
+                                   int width, int height) {
+    RecordingLibrary* library = recordingLibrary();
+    if (library == nullptr) return;
+    RecordingEntry entry;
+    entry.kind = kind;
+    entry.path = path;
+    entry.createdAt = QDateTime::currentDateTime();
+    entry.sizeBytes = QFileInfo(path).size();
+    entry.durationMs = static_cast<int>(durationMs);
+    entry.width = width;
+    entry.height = height;
+    QString error;
+    if (!library->add(entry, &error)) {
+        statusBar()->showMessage(
+            error.isEmpty() ? tr("录制文件已生成，但没能登记进录制列表。") : error, 6000);
+    } else {
+        statusBar()->showMessage(
+            tr("录制完成：%1").arg(QDir::toNativeSeparators(path)), 8000);
+    }
+}
+
+RecordingLibrary* MainWindow::recordingLibrary() {
+    if (recordingLibrary_ == nullptr) {
+        recordingLibrary_ = new RecordingLibrary(RecordingLibrary::defaultIndexPath());
+        recordingLibrary_->load(nullptr);
+    }
+    return recordingLibrary_;
+}
+
+void MainWindow::showRecordingIndicator() {
+    if (recordingIndicator_ == nullptr) {
+        recordingIndicator_ = new QLabel(this);
+        recordingIndicator_->setStyleSheet(QStringLiteral("color:#D92D20;font-weight:600;"));
+        stopRecordingButton_ = new QPushButton(this);
+        stopRecordingButton_->setText(tr("停止录制"));
+        connect(stopRecordingButton_, &QPushButton::clicked, this,
+                [this] { finishScreenRecording(); });
+        statusBar()->addPermanentWidget(recordingIndicator_);
+        statusBar()->addPermanentWidget(stopRecordingButton_);
+    }
+    if (recordingTimer_ == nullptr) {
+        recordingTimer_ = new QTimer(this);
+        recordingTimer_->setInterval(500);
+        connect(recordingTimer_, &QTimer::timeout, this, &MainWindow::updateRecordingIndicator);
+    }
+    recordingTimer_->start();
+    updateRecordingIndicator();
+}
+
+void MainWindow::hideRecordingIndicator() {
+    if (recordingTimer_ != nullptr) recordingTimer_->stop();
+    if (recordingIndicator_ != nullptr) {
+        statusBar()->removeWidget(recordingIndicator_);
+        recordingIndicator_->deleteLater();
+        recordingIndicator_ = nullptr;
+    }
+    if (stopRecordingButton_ != nullptr) {
+        statusBar()->removeWidget(stopRecordingButton_);
+        stopRecordingButton_->deleteLater();
+        stopRecordingButton_ = nullptr;
+    }
+}
+
+void MainWindow::updateRecordingIndicator() {
+    if (recordingIndicator_ == nullptr || screenRecorder_ == nullptr) return;
+    const qint64 elapsed = screenRecorder_->elapsedMs();
+    const int seconds = static_cast<int>(elapsed / 1000);
+    recordingIndicator_->setText(
+        tr("● 录制中 %1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0')));
 }
 
 void MainWindow::captureWindowScreenshot() {
@@ -5087,96 +5260,24 @@ void MainWindow::openRecordingFolder() {
 }
 
 void MainWindow::showRecordingCenter() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("录制中心"));
-    dialog.setMinimumSize(720, 520);
-    dialog.setObjectName(QStringLiteral("recordingCenter"));
-    auto* root = new QVBoxLayout(&dialog);
-    root->setContentsMargins(28, 24, 28, 22);
-    root->setSpacing(18);
-
-    auto* title = new QLabel(tr("录制与捕获"), &dialog);
-    QFont titleFont = title->font();
-    titleFont.setPointSize(titleFont.pointSize() + 7);
-    titleFont.setBold(true);
-    title->setFont(titleFont);
-    root->addWidget(title);
-    auto* intro = new QLabel(
-        tr("录制 PDF 演示或应用窗口、创建持续声音批注，并集中查看输出文件。"), &dialog);
-    intro->setStyleSheet(QStringLiteral("color:#667085;"));
-    root->addWidget(intro);
-
-    auto* actions = new QGridLayout();
-    actions->setHorizontalSpacing(12);
-    actions->setVerticalSpacing(12);
-    struct ActionCard { const char* title; const char* detail; };
-    const ActionCard cards[] = {
-        {"PDF 演示录制", "进入放映并打开系统录屏；适合课程、汇报与批注讲解"},
-        {"窗口屏幕录制", "录制 Folixa 操作过程；Win+Alt+R 可快速开始或停止"},
-        {"声音批注", "持续录制麦克风，并把 WAV 音频嵌入当前 PDF 页面"},
-        {"窗口截图", "捕获当前 Folixa 窗口并保存为 PNG 图片"},
-    };
-    for (int i = 0; i < 4; ++i) {
-        auto* button = new QPushButton(&dialog);
-        button->setMinimumHeight(82);
-        button->setText(tr(cards[i].title) + QStringLiteral("\n") + tr(cards[i].detail));
-        button->setStyleSheet(QStringLiteral(
-            "QPushButton{text-align:left;padding:14px 16px;border:1px solid #d8deea;"
-            "border-radius:10px;background:white;color:#182033;font-weight:600;}"
-            "QPushButton:hover{border-color:#4169C1;background:#EEF3FC;}"));
-        actions->addWidget(button, i / 2, i % 2);
-        if (i == 0) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
-            dialog.accept(); startScreenRecording(true);
-        });
-        if (i == 1) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
-            dialog.accept(); startScreenRecording(false);
-        });
-        if (i == 2) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
-            if (PdfView* view = currentView()) { dialog.hide(); view->recordSoundAnnotationDialog(); dialog.show(); }
-            else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
-        });
-        if (i == 3) connect(button, &QPushButton::clicked, &dialog, [this, &dialog] {
-            dialog.hide(); captureWindowScreenshot(); dialog.show();
-        });
-    }
-    root->addLayout(actions);
-
-    auto* recentTitle = new QLabel(tr("最近输出"), &dialog);
-    recentTitle->setStyleSheet(QStringLiteral("font-weight:700;margin-top:6px;"));
-    root->addWidget(recentTitle);
-    auto* recent = new QListWidget(&dialog);
-    recent->setMinimumHeight(130);
-    QStringList roots = {
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation),
-        QDir(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)).filePath("Captures")
-    };
-    QFileInfoList files;
-    for (const QString& directory : roots) {
-        QDir dir(directory);
-        files.append(dir.entryInfoList({QStringLiteral("Folixa-*.png"), QStringLiteral("*.mp4")},
-                                       QDir::Files, QDir::Time));
-    }
-    std::sort(files.begin(), files.end(), [](const QFileInfo& a, const QFileInfo& b) {
-        return a.lastModified() > b.lastModified();
+    RecordingCenterDialog dialog(recordingLibrary(), this);
+    // 四个录制动作由主窗口执行（要开放映窗口、要抓屏），对话框只发信号。
+    connect(&dialog, &RecordingCenterDialog::screenRecordingRequested, this, [this, &dialog] {
+        dialog.accept();
+        startScreenRecording(false);
     });
-    for (int i = 0; i < qMin(8, files.size()); ++i) {
-        auto* item = new QListWidgetItem(
-            QStringLiteral("%1    %2").arg(files[i].fileName(),
-                files[i].lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm"))), recent);
-        item->setData(Qt::UserRole, files[i].absoluteFilePath());
-    }
-    if (recent->count() == 0) recent->addItem(tr("暂无截图或视频输出"));
-    connect(recent, &QListWidget::itemDoubleClicked, &dialog, [](QListWidgetItem* item) {
-        const QString path = item->data(Qt::UserRole).toString();
-        if (!path.isEmpty()) QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    connect(&dialog, &RecordingCenterDialog::presentationRecordingRequested, this, [this, &dialog] {
+        dialog.accept();
+        startScreenRecording(true);
     });
-    root->addWidget(recent);
-
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    auto* folderButton = buttons->addButton(tr("打开录制文件夹"), QDialogButtonBox::ActionRole);
-    connect(folderButton, &QPushButton::clicked, this, &MainWindow::openRecordingFolder);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    root->addWidget(buttons);
+    connect(&dialog, &RecordingCenterDialog::audioRecordingRequested, this, [this, &dialog] {
+        dialog.accept();
+        startAudioRecording();
+    });
+    connect(&dialog, &RecordingCenterDialog::screenshotRequested, this, [this, &dialog] {
+        dialog.accept();
+        captureWindowScreenshot();
+    });
     dialog.exec();
 }
 
@@ -6824,4 +6925,3 @@ void MainWindow::bindWelcomeTab(QWidget* page) {
 }
 
 }  // namespace aipdf::app
-

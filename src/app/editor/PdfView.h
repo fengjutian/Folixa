@@ -497,6 +497,11 @@ signals:
     void zoomChanged(double factor);
     void pageCountChanged(int pages);
     void currentPageChanged(int index);
+    // 放映窗口关闭了。
+    //
+    // 为什么要有这个信号：PDF 演示录制是「边放映边录」，录到什么时候为止
+    // 由放映决定——放映一关，录制就该收尾，主窗口据此把视频文件写完。
+    void presentationClosed();
     // 性能指标文本（缓存占用与待渲染任务数），交给主窗口显示在状态栏。
     void metricsChanged(const QString& text);
     // 历史可用性变化（供菜单项置灰）。

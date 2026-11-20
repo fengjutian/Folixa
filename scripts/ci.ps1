@@ -304,6 +304,14 @@ try {
     Invoke-Native '功能宣称守卫的负例对照' 'python' @(
         'scripts/test-feature-claims-negative.py'
     )
+    # 同一项能力在不同文档里的说法不能打架：矩阵、评分卡、整改方案、版本审计
+    # 对同一能力的措辞要一致（登记表：docs/benchmark/doc-claim-contradictions.csv）。
+    Invoke-Native '跨文档主张守卫' 'python' @(
+        'scripts/check-doc-claims.py'
+    )
+    Invoke-Native '跨文档主张守卫的负例对照' 'python' @(
+        'scripts/test-doc-claims-negative.py'
+    )
     Invoke-Native 'i18n 覆盖校验' 'python' @(
         'scripts/check-i18n.py', '--src', 'src', '--ts', 'src/i18n/ai-pdf-editor_en.ts'
     )

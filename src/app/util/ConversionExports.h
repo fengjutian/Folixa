@@ -46,6 +46,11 @@ public:
     static pdf::CadDxfResult exportCadDxf(const QByteArray& pdfBytes,
                                            const pdf::CadDxfOptions& options = {});
     // 导出到 MS Office 的一种格式（只导一页的文本层）。
+    //
+    // 注意这一条是**单页快路径**：它吃的是一页的文本层，产出也只有文字。
+    // 「导出到 MS Office」的整篇能力走 `doc::PdfToOffice`
+    // （`exportPdfToWord` / `exportPdfToPptx` / `exportPdfToExcel`，
+    // 见 src/doc/export/PdfToOffice.h），那条路会带真图片与真表格。
     static QByteArray exportOffice(doc::ExportFormat format, const pdf::TextPage& text,
                                    const QSizeF& pageSizePt, QString* error = nullptr);
     // 导出到 OFD。

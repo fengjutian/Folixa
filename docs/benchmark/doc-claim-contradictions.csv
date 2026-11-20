@@ -1,0 +1,7 @@
+capability,file,phrase,since,reason
+H5,docs/FOXIT_BENCHMARK.md,Excel / PPT 零实现,,PDF→Office 的 Excel/PPT 早已整篇导出（doc::exportPdfToExcel / doc::exportPdfToPptx），这句是 2026-11-17 之前的旧说法
+H5,docs/FOXIT_BENCHMARK.md,只导一页文本层,,Word 现在是整篇导出（doc::exportPdfToWord），这句是旧说法
+H5,docs/DEGRADED_FEATURE_REMEDIATION.md,DOCX/RTF 只导一页文字层,,整篇导出已实现（见本文件 §3.1 的当前状态），这句是旧说法
+H5,docs/DEGRADED_FEATURE_REMEDIATION.md,Excel 与 PPT 未实现,,Excel/PPT 已实现，这句是旧说法
+H5,docs/VERSION_AUDIT.md,Excel / PPT 仍未做,第十九次重算,历史轮次里的旧结论要留在存档里（那是当时的账），但从最新一轮重算起不得再出现这句
+H5,docs/VERSION_AUDIT.md,不含图片、表格与样式,第十九次重算,同上：DOCX/PPTX 已带真图片与真表格

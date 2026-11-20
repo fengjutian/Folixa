@@ -75,6 +75,62 @@ QByteArray makePdfWithContent(const QByteArray& content) {
     return toPdfBytes(pdf);
 }
 
+// 一页 + 一个 Form XObject（文字藏在 XObject 里）。
+QByteArray makePdfWithXObject(const QByteArray& pageContent, const QByteArray& xobjectContent) {
+    QPDF pdf;
+    pdf.emptyPDF();
+    QPDFObjectHandle font = QPDFObjectHandle::newDictionary();
+    font.replaceKey("/Type", QPDFObjectHandle::newName("/Font"));
+    font.replaceKey("/Subtype", QPDFObjectHandle::newName("/Type1"));
+    font.replaceKey("/BaseFont", QPDFObjectHandle::newName("/Helvetica"));
+    const QPDFObjectHandle fontRef = pdf.makeIndirectObject(font);
+
+    QPDFObjectHandle xobject = pdf.newStream(xobjectContent.toStdString());
+    QPDFObjectHandle xdict = xobject.getDict();
+    xdict.replaceKey("/Type", QPDFObjectHandle::newName("/XObject"));
+    xdict.replaceKey("/Subtype", QPDFObjectHandle::newName("/Form"));
+    QPDFObjectHandle bbox = QPDFObjectHandle::newArray();
+    bbox.appendItem(QPDFObjectHandle::newInteger(0));
+    bbox.appendItem(QPDFObjectHandle::newInteger(0));
+    bbox.appendItem(QPDFObjectHandle::newInteger(200));
+    bbox.appendItem(QPDFObjectHandle::newInteger(20));
+    xdict.replaceKey("/BBox", bbox);
+    QPDFObjectHandle innerFonts = QPDFObjectHandle::newDictionary();
+    innerFonts.replaceKey("/F1", fontRef);
+    QPDFObjectHandle innerResources = QPDFObjectHandle::newDictionary();
+    innerResources.replaceKey("/Font", innerFonts);
+    xdict.replaceKey("/Resources", innerResources);
+    const QPDFObjectHandle xobjectRef = pdf.makeIndirectObject(xobject);
+
+    QPDFObjectHandle fontDict = QPDFObjectHandle::newDictionary();
+    fontDict.replaceKey("/F1", fontRef);
+    QPDFObjectHandle xobjects = QPDFObjectHandle::newDictionary();
+    xobjects.replaceKey("/Fm1", xobjectRef);
+    QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
+    resources.replaceKey("/Font", fontDict);
+    resources.replaceKey("/XObject", xobjects);
+
+    QPDFObjectHandle page = QPDFObjectHandle::newDictionary();
+    page.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
+    QPDFObjectHandle box = QPDFObjectHandle::newArray();
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(612));
+    box.appendItem(QPDFObjectHandle::newInteger(792));
+    page.replaceKey("/MediaBox", box);
+    page.replaceKey("/Resources", resources);
+    page.replaceKey("/Contents", pdf.makeIndirectObject(pdf.newStream(pageContent.toStdString())));
+    const QPDFObjectHandle pageRef = pdf.makeIndirectObject(page);
+
+    QPDFObjectHandle pages = QPDFObjectHandle::newDictionary();
+    pages.replaceKey("/Type", QPDFObjectHandle::newName("/Pages"));
+    QPDFObjectHandle kids = QPDFObjectHandle::newArray();
+    kids.appendItem(pageRef);
+    pages.replaceKey("/Kids", kids);
+    pages.replaceKey("/Count", QPDFObjectHandle::newInteger(1));
+    pdf.getRoot().replaceKey("/Pages", pdf.makeIndirectObject(pages));
+    return toPdfBytes(pdf);
+}
 QString pageText(const QByteArray& bytes) {
     const aipdf::pdf::PdfOpenResult opened = aipdf::pdf::openDocumentFromBytes(bytes);
     if (!opened.document.isValid()) return {};
@@ -120,6 +176,7 @@ private slots:
     void replacesInsideTjArray();
     void reportsMissingMatch();
     void rejectsPageOutOfRange();
+    void replacesTextInsideFormXObject();
 };
 
 void TextSpliceTests::replacesTextInTjAndKeepsBytes() {
@@ -227,6 +284,19 @@ void TextSpliceTests::reportsMissingMatch() {
     QVERIFY(result.report.error.contains(QStringLiteral("没有找到")));
 }
 
+void TextSpliceTests::replacesTextInsideFormXObject() {
+    const QByteArray pdf = makePdfWithXObject(
+        "q 1 0 0 1 72 700 cm /Fm1 Do Q",
+        "BT /F1 12 Tf 0 0 Td (Inside) Tj ET");
+    QVERIFY(pageText(pdf).contains(QStringLiteral("Inside")));
+
+    const TextSpliceResult result =
+        splicePageText(pdf, makeTarget(QStringLiteral("Inside"), QStringLiteral("Outside")));
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QString text = pageText(result.bytes);
+    QVERIFY2(text.contains(QStringLiteral("Outside")), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("Inside")), qPrintable(text));
+}
 void TextSpliceTests::rejectsPageOutOfRange() {
     const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
     TextSpliceTarget target = makeTarget(QStringLiteral("Hello"), QStringLiteral("Hi"));
