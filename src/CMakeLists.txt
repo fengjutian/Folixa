@@ -53,6 +53,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/TextController.cpp
     app/controllers/FormInteractionController.h
     app/controllers/FormInteractionController.cpp
+    app/controllers/FormDocumentController.h
+    app/controllers/FormDocumentController.cpp
     app/controllers/NavigationController.h
     app/controllers/NavigationController.cpp
     app/controllers/AnnotationController.h

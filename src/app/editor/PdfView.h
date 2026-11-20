@@ -47,6 +47,7 @@ class DocumentQaController;
 class PageTransform;
 class PresentationWindow;
 class FormInteractionController;
+class FormDocumentController;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -620,6 +621,7 @@ private:
     QVector<ContentEditRecord> contentRedo_;
     // 表单逐字符输入的会话与脚本回滚由独立控制器维护。
     mutable std::unique_ptr<FormInteractionController> formInteractionController_;
+    std::unique_ptr<FormDocumentController> formDocumentController_;
     enum class EditHistoryKind { Content, Annotation };
     QVector<EditHistoryKind> editUndoTimeline_;
     QVector<EditHistoryKind> editRedoTimeline_;

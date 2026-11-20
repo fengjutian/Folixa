@@ -1,13 +1,16 @@
 ﻿#include "pdf/kernel/PdfiumAdapter.h"
 
 #include "pdf/forms/FormFieldWriter.h"
+#include "app/controllers/FormDocumentController.h"
 
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
 #include <QImage>
 #include <QtTest>
 
 #include <algorithm>
+#include <optional>
 
 namespace {
 
@@ -61,6 +64,7 @@ private slots:
     void formFieldsAreEnumerated();
     void formFieldValueCanBeSet();
     void flattenRemovesFormFields();
+    void formDocumentControllerMutatesSerializedDocument();
     void textLayerChangesPixelsAndExtracts();
     void resizePageScalesContentAndBox();
     void pageBackgroundPaintsPage();
@@ -582,6 +586,40 @@ void PdfiumAdapterTests::flattenRemovesFormFields() {
     QVERIFY(!document.formFields().isEmpty());
     QVERIFY(document.flattenPage(0));
     QVERIFY2(document.formFields().isEmpty(), "扁平化之后不该再有可填字段");
+}
+
+void PdfiumAdapterTests::formDocumentControllerMutatesSerializedDocument() {
+    QFile file(fixturePath(QStringLiteral("form.pdf")));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray source = file.readAll();
+    aipdf::app::FormDocumentController controller;
+
+    aipdf::pdf::FormFieldInsert insert;
+    insert.pageIndex = 0;
+    insert.name = QStringLiteral("controllerField");
+    insert.rect = QRectF(72, 300, 160, 24);
+    insert.kind = aipdf::pdf::FormFieldKind::Text;
+    const auto appended = controller.appendField(source, insert);
+    QVERIFY2(appended.ok(), qPrintable(appended.error));
+
+    const auto updated = controller.updateFieldProperties(
+        appended.bytes, 0, insert.name, insert.name, QStringLiteral("controlled"),
+        true, true, true, std::nullopt);
+    QVERIFY2(updated.ok(), qPrintable(updated.error));
+    auto reopened = openDocumentFromBytes(updated.bytes);
+    QVERIFY(reopened.document.isValid());
+    const QVector<FormField> fields = reopened.document.formFields();
+    const auto stableFound = std::find_if(fields.cbegin(), fields.cend(),
+        [](const FormField& field) { return field.name == QStringLiteral("controllerField"); });
+    QVERIFY(stableFound != fields.cend());
+    QCOMPARE(stableFound->toolTip, QStringLiteral("controlled"));
+    QVERIFY(stableFound->readOnly);
+
+    const auto flattened = controller.flattenPage(updated.bytes, 0);
+    QVERIFY2(flattened.ok(), qPrintable(flattened.error));
+    reopened = openDocumentFromBytes(flattened.bytes);
+    QVERIFY(reopened.document.isValid());
+    QVERIFY(reopened.document.formFields().isEmpty());
 }
 
 void PdfiumAdapterTests::textLayerChangesPixelsAndExtracts() {

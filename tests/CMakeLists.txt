@@ -238,6 +238,8 @@ include(${CMAKE_SOURCE_DIR}/tests/cmake/DocumentPipelineTests.cmake)
 
 qt_add_executable(PdfiumAdapterTests
     PdfiumAdapterTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/FormDocumentController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/FormDocumentController.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/PdfiumAdapter.h
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/Annotation.cpp

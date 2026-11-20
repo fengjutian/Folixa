@@ -57,6 +57,7 @@
 #include "app/controllers/NavigationController.h"
 #include "app/controllers/AnnotationController.h"
 #include "app/controllers/FormInteractionController.h"
+#include "app/controllers/FormDocumentController.h"
 #include "app/controllers/IndexController.h"
 #include "app/controllers/DocumentQaController.h"
 #include "app/layout/PageTransform.h"
@@ -120,6 +121,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <optional>
 
 namespace aipdf::app {
 
@@ -3142,14 +3144,15 @@ bool PdfView::applyFormFieldRichValue(int pageIndex, const QString& name,
 }
 bool PdfView::flattenFormsOnPage(int pageIndex) {
     if (!requirePermission(effectivePermissions().allowModifying, tr("扁平化表单"))) return false;
-    if (!document_.flattenPage(pageIndex)) {
-        return false;
-    }
     QString error;
-    const QByteArray bytes = document_.serialize(&error);
-    if (!bytes.isEmpty()) {
-        document_.syncBytes(bytes);
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) return false;
+    if (!formDocumentController_) {
+        formDocumentController_ = std::make_unique<FormDocumentController>();
     }
+    const FormDocumentController::Result result =
+        formDocumentController_->flattenPage(source, pageIndex);
+    if (!result.ok() || !document_.reloadFromBytes(result.bytes, &error)) return false;
     cache_.clear();
     if (canvas_ != nullptr) {
         canvas_->viewport()->update();
@@ -3267,18 +3270,21 @@ void PdfView::createFormFieldAt(const QString& kind, int pageIndex, const QRectF
     insert.appearance = pdf::FormToolSettings::load().appearance();
     if (hasOptions)
         insert.options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
-    const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
-    if (!written.ok) {
-        QMessageBox::warning(this, tr("创建表单域"), written.error);
+    if (!formDocumentController_) {
+        formDocumentController_ = std::make_unique<FormDocumentController>();
+    }
+    const FormDocumentController::Result result =
+        formDocumentController_->appendField(source, insert);
+    if (!result.ok()) {
+        QMessageBox::warning(this, tr("创建表单域"), result.error);
         return;
     }
-    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
-    if (!reopened.document.isValid()) {
+    QString reloadError;
+    if (!document_.reloadFromBytes(result.bytes, &reloadError)) {
         QMessageBox::warning(this, tr("创建表单域"),
-                             tr("字段写入后校验失败：%1").arg(reopened.errorMessage));
+                             tr("字段写入后校验失败：%1").arg(reloadError));
         return;
     }
-    document_ = std::move(reopened.document);
     cache_.clear();
     if (canvas_ != nullptr) canvas_->viewport()->update();
     modified_ = true;
@@ -3334,25 +3340,24 @@ bool PdfView::editFormFieldProperties(int pageIndex, const QString& name) {
             return false;
         }
     }
-    if (!document_.setFormFieldProperties(pageIndex, name, newName,
-                                           tooltipEdit->text().trimmed(),
-                                           readOnly->isChecked(), required->isChecked(),
-                                           multiline->isChecked())) return false;
     QString error;
-    QByteArray bytes = document_.serialize(&error);
-    if (bytes.isEmpty()) return false;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) return false;
+    std::optional<QStringList> options;
     if (optionsEdit != nullptr) {
-        const QStringList options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
-        const pdf::FormFieldWriteResult updated = pdf::updateFormFieldOptions(bytes, name, options);
-        if (!updated.ok) {
-            QMessageBox::warning(this, tr("字段属性"), updated.error);
-            return false;
-        }
-        bytes = updated.bytes;
+        options = optionsEdit->toPlainText().split('\n', Qt::SkipEmptyParts);
     }
-    auto reopened = pdf::openDocumentFromBytes(bytes, document_.filePath());
-    if (!reopened.document.isValid()) return false;
-    document_ = std::move(reopened.document);
+    if (!formDocumentController_) {
+        formDocumentController_ = std::make_unique<FormDocumentController>();
+    }
+    const FormDocumentController::Result result = formDocumentController_->updateFieldProperties(
+        source, pageIndex, name, newName, tooltipEdit->text().trimmed(),
+        readOnly->isChecked(), required->isChecked(), multiline->isChecked(), options);
+    if (!result.ok()) {
+        QMessageBox::warning(this, tr("字段属性"), result.error);
+        return false;
+    }
+    if (!document_.reloadFromBytes(result.bytes, &error)) return false;
     cache_.clear();
     if (canvas_ != nullptr) canvas_->viewport()->update();
     modified_ = true;
@@ -3376,20 +3381,20 @@ bool PdfView::createFormFieldWith(const pdf::FormFieldInsert& insert, QString* r
             *reason = tr("无法序列化文档：%1").arg(serializeError);
         return false;
     }
-    const pdf::FormFieldWriteResult written = pdf::appendFormField(source, insert);
-    if (!written.ok) {
-        if (reason != nullptr) *reason = written.error;
+    if (!formDocumentController_) {
+        formDocumentController_ = std::make_unique<FormDocumentController>();
+    }
+    const FormDocumentController::Result result =
+        formDocumentController_->appendField(source, insert);
+    if (!result.ok()) {
+        if (reason != nullptr) *reason = result.error;
         return false;
     }
-    // 写完必须重新打开校验：字段字典写坏了的话，PDFium 可能照样能渲染，
-    // 但别的阅读器会认为这份文件是坏的。
-    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
-    if (!reopened.document.isValid()) {
-        if (reason != nullptr)
-            *reason = tr("字段写入后校验失败：%1").arg(reopened.errorMessage);
+    QString reloadError;
+    if (!document_.reloadFromBytes(result.bytes, &reloadError)) {
+        if (reason != nullptr) *reason = tr("字段写入后校验失败：%1").arg(reloadError);
         return false;
     }
-    document_ = std::move(reopened.document);
     cache_.clear();
     if (canvas_ != nullptr) canvas_->viewport()->update();
     modified_ = true;
