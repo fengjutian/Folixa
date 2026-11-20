@@ -271,6 +271,53 @@ QListWidget#bookmarkList::item:hover { background: #F1F4FF; color: #3159B8; }
 QListWidget#bookmarkList::item:selected {
     background: #E9F0FB; color: #24499D; font-weight: 600;
 }
+
+/* 搜索面板：控制项收进一张卡片，结果区保持安静，避免原生控件散落成表单墙。 */
+QWidget#searchPanel { background: #F7F8FB; }
+QFrame#searchControlsCard {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px;
+}
+QLineEdit#searchQueryInput {
+    min-height: 38px; padding: 0 12px; border: 1px solid #CBD2DE;
+    border-radius: 8px; background: #FFFFFF; color: #202A3A;
+}
+QLineEdit#searchQueryInput:hover { border-color: #9FB4EF; }
+QLineEdit#searchQueryInput:focus { border-color: #5277E8; background: #FFFFFF; }
+QWidget#searchPanel QCheckBox { spacing: 7px; color: #465267; font-size: 12px; }
+QWidget#searchPanel QCheckBox::indicator {
+    width: 16px; height: 16px; border: 1px solid #CBD2DE;
+    border-radius: 5px; background: #FFFFFF;
+}
+QWidget#searchPanel QCheckBox::indicator:hover { border-color: #5277E8; background: #F2F6FD; }
+QWidget#searchPanel QCheckBox::indicator:checked {
+    image: url(:/icons/checkbox-field.svg); background: #EEF3FC; border-color: #5277E8;
+}
+QWidget#searchPanel QSpinBox {
+    min-height: 28px; padding: 0 6px; border: 1px solid #E3E7EE;
+    border-radius: 7px; background: #F8F9FB;
+}
+QWidget#searchPanel QPushButton {
+    min-height: 32px; padding: 0 10px; border-radius: 7px;
+    background: #F8F9FB; border-color: #E0E5ED; color: #465267;
+}
+QWidget#searchPanel QPushButton:hover { background: #EEF3FC; color: #3159B8; border-color: #C4D3EA; }
+QWidget#searchPanel QPushButton[iconOnly="true"] {
+    min-width: 32px; max-width: 32px; padding: 0;
+}
+QWidget#searchPanel QPushButton:disabled { background: #FAFBFD; color: #B4BDCB; border-color: #EEF1F6; }
+QLabel#searchResultsTitle {
+    color: #202A3A; font-size: 12px; font-weight: 650; padding: 2px 4px 0 4px;
+}
+QLabel#searchStatus { color: #8792A3; font-size: 11px; padding: 0 4px 2px 4px; }
+QListWidget#searchResults {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 9px;
+    padding: 4px; outline: 0;
+}
+QListWidget#searchResults::item {
+    min-height: 38px; padding: 4px 8px; border-radius: 6px; color: #465267;
+}
+QListWidget#searchResults::item:hover { background: #F1F4FF; color: #3159B8; }
+QListWidget#searchResults::item:selected { background: #E9F0FB; color: #24499D; }
 /* 导航轨按钮：扁平图标，选中只换图标颜色（QIcon::On 的那份重染色），
    不再画整块浅蓝底 + 左侧竖条——那套边框在圆角下会弯成一只「括号」，
    看着像残缺的控件。 */

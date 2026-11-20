@@ -947,7 +947,7 @@ void MainWindow::buildUi() {
     ribbonBar_ = new RibbonBar(this);
     // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
     // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
-    ribbonBar_->setFixedHeight(100);
+    ribbonBar_->setFixedHeight(104);
     ribbonDock_ = new QDockWidget(QString(), this);
     ribbonDock_->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);

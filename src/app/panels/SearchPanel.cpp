@@ -6,6 +6,7 @@
 #include "i18n/Translate.h"
 
 #include <QCheckBox>
+#include <QFrame>
 #include <QGridLayout>
 #include <QSpinBox>
 #include <QHBoxLayout>
@@ -54,8 +55,14 @@ void SearchPanel::buildUi() {
     setObjectName(QStringLiteral("searchPanel"));
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(8);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    auto* controlsCard = new QFrame(this);
+    controlsCard->setObjectName(QStringLiteral("searchControlsCard"));
+    auto* controlsLayout = new QVBoxLayout(controlsCard);
+    controlsLayout->setContentsMargins(12, 12, 12, 12);
+    controlsLayout->setSpacing(10);
 
     queryEdit_ = new QLineEdit(this);
     queryEdit_->setObjectName(QStringLiteral("searchQueryInput"));
@@ -64,7 +71,7 @@ void SearchPanel::buildUi() {
         queryEdit_->setAccessibleName(tr("搜索关键词"));
     });
     queryEdit_->setClearButtonEnabled(true);
-    layout->addWidget(queryEdit_);
+    controlsLayout->addWidget(queryEdit_);
 
     // 检索选项：改了立刻重搜。勾选项本身就是查询的一部分，
     // 让用户改完还得再敲一次回车，等于把"选项"变成了"提示"。
@@ -87,7 +94,7 @@ void SearchPanel::buildUi() {
     optionsGrid->addWidget(regexBox_, 1, 0);
     optionsGrid->setColumnStretch(0, 1);
     optionsGrid->setColumnStretch(1, 1);
-    layout->addLayout(optionsGrid);
+    controlsLayout->addLayout(optionsGrid);
 
     // 页码范围：0 表示"不限"，用户改完立刻重搜。
     auto* rangeRow = new QHBoxLayout();
@@ -116,7 +123,7 @@ void SearchPanel::buildUi() {
         toPageSpin_->setSpecialValueText(tr("不限"));
     });
     rangeRow->addStretch(1);
-    layout->addLayout(rangeRow);
+    controlsLayout->addLayout(rangeRow);
 
     auto restartSearch = [this]() {
         if (controller_ == nullptr || queryEdit_->text().trimmed().isEmpty()) {
@@ -162,14 +169,19 @@ void SearchPanel::buildUi() {
     buttons->addWidget(clearButton_);
     buttons->addWidget(stopButton_);
     buttons->addStretch(1);
-    layout->addLayout(buttons);
+    controlsLayout->addLayout(buttons);
+    layout->addWidget(controlsCard);
+
+    auto* resultsTitle = new QLabel(tr("搜索结果"), this);
+    resultsTitle->setObjectName(QStringLiteral("searchResultsTitle"));
+    layout->addWidget(resultsTitle);
 
     // 状态行是随搜索状态变化的动态文案：这里先给初始提示，之后由 updateStatus() 重算。
     statusLabel_ = new QLabel(tr("输入关键词开始搜索"), this);
     // objectName 沿用 secondaryText：主题里用它定义次要文字的颜色。
     // 不设 accessibleName：设了之后 UI Automation 的 Name 就是它，
     // 真正的状态文本只能走 TextPattern 读，验收脚本取不到。
-    statusLabel_->setObjectName(QStringLiteral("secondaryText"));
+    statusLabel_->setObjectName(QStringLiteral("searchStatus"));
     layout->addWidget(statusLabel_);
 
     results_ = new QListWidget(this);

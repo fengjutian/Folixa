@@ -340,7 +340,7 @@ void RibbonBar::setCompactMode(bool compact) {
     }
     compactMode_ = compact;
     pages_->setVisible(!compact);
-    setFixedHeight(compact ? tabs_->height() : 100);
+    setFixedHeight(compact ? tabs_->height() : 104);
     updateGeometry();
 }
 
