@@ -3,6 +3,7 @@
 #include "app/recording/MotionJpegAviWriter.h"
 
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -22,12 +23,23 @@ namespace {
 // 不设上限就会一直录一个 0 帧的空文件，用户还以为录了十分钟。
 constexpr int kMaxConsecutiveFailures = 30;
 
+// 安全地拿到「当前的 GUI 应用」。
+//
+// 为什么要有这个检查：QGuiApplication::screens() / primaryScreen() 读的是
+// QGuiApplication 的私有数据。只建了 QCoreApplication 的进程（比如没有界面的
+// 单元测试）里那部分数据根本不存在，硬问会读到野指针。
+QGuiApplication* guiApplication() {
+    return qobject_cast<QGuiApplication*>(QCoreApplication::instance());
+}
+
 // 选区落在哪块屏上？
 //
 // 规则：先看选区中心点在哪块屏上；选区横跨多屏时（中心点不在任何一块屏里，
 // 或者用户就是框了一个跨屏的大区域），取与选区交集面积最大的那块。
 QScreen* screenForRegion(const QRect& region) {
-    const QList<QScreen*> screens = QGuiApplication::screens();
+    QGuiApplication* app = guiApplication();
+    if (app == nullptr) return nullptr;
+    const QList<QScreen*> screens = app->screens();
     if (screens.isEmpty()) return nullptr;
 
     const QPoint center = region.center();
@@ -66,7 +78,11 @@ void ScreenRecorder::setFrameProvider(FrameProvider provider) {
 QImage ScreenRecorder::grabFrame() const {
     if (provider_) return provider_();
     // 录哪块屏就用哪块屏：多屏时窗口可能在副屏上，抓主屏会录到别的东西。
-    QScreen* screen = screen_ != nullptr ? screen_ : QGuiApplication::primaryScreen();
+    QScreen* screen = screen_;
+    if (screen == nullptr) {
+        QGuiApplication* app = guiApplication();
+        if (app != nullptr) screen = app->primaryScreen();
+    }
     if (screen == nullptr) return QImage();
     const QPixmap pixmap = screen->grabWindow(0);
     if (pixmap.isNull()) return QImage();
@@ -79,12 +95,14 @@ QImage ScreenRecorder::grabFrame() const {
 QRect ScreenRecorder::sourceRectFor(const QImage& image) const {
     // 注入帧源（单元测试）时没有屏幕信息，就把图像当成从 (0,0) 开始的一整块。
     if (provider_) return QRect(QPoint(0, 0), image.size());
-    const QScreen* screen = screen_ != nullptr ? screen_ : QGuiApplication::primaryScreen();
+    QGuiApplication* app = guiApplication();
+    if (app == nullptr) return QRect(QPoint(0, 0), image.size());
+    const QScreen* screen = screen_ != nullptr ? screen_ : app->primaryScreen();
     if (screen == nullptr) return QRect(QPoint(0, 0), image.size());
     const qreal dpr = image.devicePixelRatio() > 0 ? image.devicePixelRatio() : 1.0;
     // Qt 在多屏下 grabWindow(0) 可能只返回这一块屏，也可能返回整个虚拟桌面。
     // 用图像尺寸反推这张图对应的是哪一块，别写死一种行为。
-    const QRect virtualRect = QGuiApplication::primaryScreen()->virtualGeometry();
+    const QRect virtualRect = app->primaryScreen()->virtualGeometry();
     if (qRound(virtualRect.width() * dpr) == image.width() &&
         qRound(virtualRect.height() * dpr) == image.height()) {
         return virtualRect;
@@ -153,8 +171,14 @@ bool ScreenRecorder::start(const Options& options, const QString& outputPath, QS
     screen_ = nullptr;
     if (options_.region.isValid() && !options_.region.isEmpty()) {
         cropRect_ = options_.region;
-        screen_ = screenForRegion(cropRect_);
-        if (screen_ == nullptr) screen_ = QGuiApplication::primaryScreen();
+        // 注入帧源时（单元测试）没有屏幕概念：帧源给什么画面就录什么画面。
+        if (!provider_) {
+            screen_ = screenForRegion(cropRect_);
+            if (screen_ == nullptr) {
+                QGuiApplication* app = guiApplication();
+                if (app != nullptr) screen_ = app->primaryScreen();
+            }
+        }
     }
 
     QDir().mkpath(QFileInfo(outputPath).absolutePath());

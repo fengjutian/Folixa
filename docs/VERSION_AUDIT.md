@@ -819,6 +819,8 @@ Windows 证书存储 / 外部 veraPDF）；确实没有现成组件可用的（X
 - **自己抓帧、自己编码、自己写文件**：`app::ScreenRecorder`（可注入帧源）定时抓帧 →
   JPEG → 自研 MJPEG/AVI 封装 `app::MotionJpegAviWriter` → 落盘成视频文件。
   不再委托 Windows 游戏栏（委托的结果本程序拿不到路径，管不了也列不出来）。
+- **录哪块屏由选区决定**：按选区落在哪块屏上挑屏（多屏时不再一律抓主屏），
+  选区按设备像素比换算后再裁剪，裁出来的那一块就是用户框的那一块。
 - **PDF 演示录制**：先放映，`PdfView::presentationClosed` 信号一到就收尾。
 - **声音录制**：`app::AudioRecorder`（Win32 waveIn）录一段麦克风 → 完整 WAV 字节 → 落盘。
 - **录制中心**：`app::RecordingCenterDialog` 列出全部产物，可打开 / 在文件夹中显示 / 删除；
@@ -829,9 +831,11 @@ Motion-JPEG AVI，体积比 MP4 大）、**只录画面没有声音**、录的�
 挡住就录不到）。这两条「不支持」按 `check-feature-claims.py` 的规矩登记了豁免，
 写清「为什么仍然算对齐」——能力达成与否和容器格式是两回事。
 
-证据：`RecordingTests` 14 条（AVI 头部 / 帧块 / 索引三处互相自洽、非 JPEG 帧被拒、
-清单存取、录制会话收尾与取消），外加**另写一份的独立校验** `scripts/verify-recordings.py`
+证据：`RecordingTests` 17 条（AVI 头部 / 帧块 / 索引三处互相自洽、非 JPEG 帧被拒、
+清单存取、录制会话收尾与取消、**框选裁到的那一块确实是那一块**（把帧解出来看颜色）、
+选区越界明确失败），外加**另写一份的独立校验** `scripts/verify-recordings.py`
 （Python 解析 RIFF + PIL 真解码每一帧 + 负例对照：抽掉索引、破坏一帧都要当场报错）。
+声音录制另有 `AudioRecorderTests` 2 条（没有录音设备时验的是优雅失败）。
 
 对标口径同步重算第二十次：变的是**命令矩阵 4 行的状态**（partial → aligned）。
 **第二十次（本轮）增至 65 / 102 与 79%（219 / 276）**。

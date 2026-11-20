@@ -34,6 +34,9 @@ class ScreenRecorder : public QObject {
 public:
     struct Options {
         // 要录的区域（**全局屏幕坐标**）。空矩形表示整块目标屏。
+        //
+        // 注入帧源时（单元测试）没有屏幕坐标，区域按「图像自身的坐标」解释，
+        // 也就是从图片左上角算起。
         QRect region;
         // 帧率。屏幕内容变化慢，默认 10 帧足够，帧率越高文件越大。
         int framesPerSecond = 10;

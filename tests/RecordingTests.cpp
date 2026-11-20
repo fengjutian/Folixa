@@ -21,6 +21,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QPainter>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -139,6 +140,17 @@ QByteArray fakeJpeg(int size = 64) {
     return data;
 }
 
+// 从 AVI 字节里取出第一帧的画面数据。
+//
+// 为什么单独写一个：光看文件头里的宽高只能证明「尺寸对」，
+// 证明不了「裁的是那一块」——得把帧解出来看颜色才对得上。
+QByteArray firstFramePayload(const QByteArray& data) {
+    const int position = data.indexOf("00dc");
+    if (position < 0) return QByteArray();
+    const int size = static_cast<int>(readU32(data, position + 4));
+    return data.mid(position + 8, size);
+}
+
 }  // namespace
 
 class RecordingTests : public QObject {
@@ -156,6 +168,8 @@ private slots:
     void libraryRemovesEntryAndFile();
     void libraryReportsBrokenIndex();
     void recorderWritesAviFromInjectedFrames();
+    void recorderCropsToSelectedRegion();
+    void recorderFailsWhenRegionIsOutsideTheFrame();
     void recorderCancelRemovesPartialFile();
     void recorderStartFailsWithoutAnyFrame();
     void recorderStopsCleanlyAndReportsFrameCount();
@@ -397,6 +411,70 @@ void RecordingTests::recorderWritesAviFromInjectedFrames() {
     QCOMPARE(facts.height, 48);
     QCOMPARE(facts.brokenJpegChunks, 0);
     QCOMPARE(facts.indexEntries, 3);
+}
+
+// 区域框选：录到的必须就是框里的那一块，不是整张画面。
+//
+// 为什么要验像素而不只是尺寸：尺寸对了也可能是「另一块同样大小的区域」，
+// 把颜色也解出来看，才算真的裁对了。
+void RecordingTests::recorderCropsToSelectedRegion() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString output = dir.filePath(QStringLiteral("crop.avi"));
+
+    ScreenRecorder recorder;
+    recorder.setFrameProvider([]() {
+        QImage image(200, 100, QImage::Format_RGB32);
+        image.fill(QColor(255, 0, 0)); // 框外是红
+        QPainter painter(&image);
+        painter.fillRect(QRect(20, 10, 60, 30), QColor(0, 255, 0)); // 框内是绿
+        return image;
+    });
+
+    ScreenRecorder::Options options;
+    options.region = QRect(20, 10, 60, 30);
+    QString error;
+    QVERIFY2(recorder.start(options, output, &error), qPrintable(error));
+    QVERIFY2(recorder.stop(&error), qPrintable(error));
+
+    QFile file(output);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray data = file.readAll();
+    file.close();
+
+    const AviFacts facts = parseAvi(data);
+    QCOMPARE(facts.width, 60);
+    QCOMPARE(facts.height, 30);
+
+    const QImage frame = QImage::fromData(firstFramePayload(data), "JPG");
+    QVERIFY(!frame.isNull());
+    QCOMPARE(frame.width(), 60);
+    QCOMPARE(frame.height(), 30);
+    const QColor pixel = frame.pixelColor(30, 15);
+    QVERIFY2(pixel.green() > pixel.red(),
+              qPrintable(QStringLiteral("框内像素不是绿色：r=%1 g=%2 b=%3")
+                             .arg(pixel.red()).arg(pixel.green()).arg(pixel.blue())));
+}
+
+// 选区完全在画面之外：没有画面可录就明确失败，不能悄悄录一片黑。
+void RecordingTests::recorderFailsWhenRegionIsOutsideTheFrame() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString output = dir.filePath(QStringLiteral("outside.avi"));
+
+    ScreenRecorder recorder;
+    recorder.setFrameProvider([]() {
+        QImage image(64, 48, QImage::Format_RGB32);
+        image.fill(Qt::black);
+        return image;
+    });
+
+    ScreenRecorder::Options options;
+    options.region = QRect(500, 500, 40, 30);
+    QString error;
+    QVERIFY(!recorder.start(options, output, &error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!QFileInfo::exists(output));
 }
 
 // 放弃录制不能留下半成品文件。
