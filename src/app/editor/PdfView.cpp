@@ -3037,6 +3037,42 @@ bool PdfView::validateFormKeystroke(int pageIndex, const QString& name, const QS
     return true;
 }
 
+bool PdfView::applyFormFieldRichValue(int pageIndex, const QString& name,
+                                      const QVector<pdf::FormTextRun>& runs, QString* reason) {
+    if (!requirePermission(effectivePermissions().allowFormFilling, tr("填写表单"))) {
+        if (reason != nullptr) *reason = tr("这份文档不允许填写表单。");
+        return false;
+    }
+    QString error;
+    const QByteArray source = document_.serialize(&error);
+    if (source.isEmpty()) {
+        if (reason != nullptr) *reason = tr("无法序列化文档：%1").arg(error);
+        return false;
+    }
+    pdf::FormValueUpdate update;
+    update.fieldName = name;
+    for (const pdf::FormTextRun& run : runs) update.value += run.text;
+    update.runs = runs;
+    const pdf::FormAppearanceResult written = pdf::writeFormValues(source, {update});
+    if (!written.ok()) {
+        if (reason != nullptr) *reason = written.report.error;
+        return false;
+    }
+    const pdf::PdfDocument before = document_.backupPage(pageIndex);
+    if (!document_.reloadFromBytes(written.bytes, &error)) {
+        if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
+        return false;
+    }
+    QString serializeError;
+    const QByteArray refreshed = document_.serialize(&serializeError);
+    if (!refreshed.isEmpty()) document_.syncBytes(refreshed);
+    cache_.clear();
+    if (canvas_ != nullptr) canvas_->viewport()->update();
+    if (before.isValid()) recordContentEdit(pageIndex, before, tr("填写表单"));
+    setModified(true);
+    emit formFieldsChanged();
+    return true;
+}
 bool PdfView::flattenFormsOnPage(int pageIndex) {
     if (!requirePermission(effectivePermissions().allowModifying, tr("扁平化表单"))) return false;
     if (!document_.flattenPage(pageIndex)) {

@@ -205,6 +205,10 @@ public slots:
     // 只校验「在现有值后面追加」的情况；删除/整段粘贴交给提交时的校验。
     bool validateFormKeystroke(int pageIndex, const QString& name, const QString& candidate,
                               QString* reason = nullptr);
+    // 富文本写回（/RV + 按段 /AP）。这条路径不跑字段脚本，只做值与外观。
+    bool applyFormFieldRichValue(int pageIndex, const QString& name,
+                                 const QVector<pdf::FormTextRun>& runs,
+                                 QString* reason = nullptr);
     bool flattenFormsOnPage(int pageIndex);
     // 在当前页创建真正的 AcroForm Widget。kind 为 text/checkbox/radio/combo/list/button/barcode。
     void createFormFieldDialog(const QString& kind);

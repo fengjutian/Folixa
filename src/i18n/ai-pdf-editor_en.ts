@@ -1700,6 +1700,26 @@
             <translation>This input was rejected by the field script: %1</translation>
         </message>
         <message>
+            <source>整段加粗</source>
+            <translation>Bold the whole value</translation>
+        </message>
+        <message>
+            <source>整段斜体</source>
+            <translation>Italicize the whole value</translation>
+        </message>
+        <message>
+            <source>设置整段文字颜色</source>
+            <translation>Set the text color for the whole value</translation>
+        </message>
+        <message>
+            <source>颜色</source>
+            <translation>Color</translation>
+        </message>
+        <message>
+            <source>文字颜色</source>
+            <translation>Text color</translation>
+        </message>
+        <message>
             <source>导入批注（XFDF）…</source>
             <translation>Import annotations (XFDF)…</translation>
         </message>

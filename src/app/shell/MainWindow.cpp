@@ -3498,6 +3498,44 @@ QWidget* MainWindow::createFormTab() {
     formValueEdit_->setObjectName(QStringLiteral("formValueInput"));
     formValueEdit_->setPlaceholderText(tr("输入要写入的值"));
     editorLayout->addWidget(formValueEdit_);
+    // 富文本：整段加粗 / 斜体 / 颜色。作用范围是输入框里的整段值，
+    // 不做字符级选择（PDF 的 /RV 能表达更细，但界面先做到这一步）。
+    auto* styleRow = new QHBoxLayout();
+    styleRow->setContentsMargins(0, 0, 0, 0);
+    styleRow->setSpacing(6);
+    formBoldButton_ = new QToolButton(editor);
+    formBoldButton_->setObjectName(QStringLiteral("formBold"));
+    formBoldButton_->setText(QStringLiteral("B"));
+    formBoldButton_->setCheckable(true);
+    formBoldButton_->setToolTip(tr("整段加粗"));
+    {
+        QFont boldFont = formBoldButton_->font();
+        boldFont.setBold(true);
+        formBoldButton_->setFont(boldFont);
+    }
+    formItalicButton_ = new QToolButton(editor);
+    formItalicButton_->setObjectName(QStringLiteral("formItalic"));
+    formItalicButton_->setText(QStringLiteral("I"));
+    formItalicButton_->setCheckable(true);
+    formItalicButton_->setToolTip(tr("整段斜体"));
+    {
+        QFont italicFont = formItalicButton_->font();
+        italicFont.setItalic(true);
+        formItalicButton_->setFont(italicFont);
+    }
+    formColorButton_ = new QToolButton(editor);
+    formColorButton_->setObjectName(QStringLiteral("formColor"));
+    formColorButton_->setText(tr("颜色"));
+    formColorButton_->setToolTip(tr("设置整段文字颜色"));
+    connect(formColorButton_, &QToolButton::clicked, this, [this]() {
+        const QColor chosen = QColorDialog::getColor(formValueColor_, this, tr("文字颜色"));
+        if (chosen.isValid()) formValueColor_ = chosen;
+    });
+    styleRow->addWidget(formBoldButton_);
+    styleRow->addWidget(formItalicButton_);
+    styleRow->addWidget(formColorButton_);
+    styleRow->addStretch(1);
+    editorLayout->addLayout(styleRow);
     auto* buttons = new QGridLayout();
     buttons->setContentsMargins(0, 0, 0, 0);
     buttons->setHorizontalSpacing(6);
@@ -3572,6 +3610,9 @@ QWidget* MainWindow::createFormTab() {
         if (auto* valueItem = formTable_->item(row, 3)) {
             formValueEdit_->setText(valueItem->text());
             formValueText_ = valueItem->text();
+            if (formBoldButton_ != nullptr) formBoldButton_->setChecked(false);
+            if (formItalicButton_ != nullptr) formItalicButton_->setChecked(false);
+            formValueColor_ = QColor();
         }
     });
     connect(formValueEdit_, &QLineEdit::textEdited, this, [this](const QString& text) {
@@ -3660,7 +3701,22 @@ void MainWindow::applyFormValue() {
         return;
     }
     QString reason;
-    if (view->setFormFieldValueWithScripts(pageIndex, name, formValueEdit_->text(), &reason)) {
+    const bool rich = formBoldButton_ != nullptr &&
+                      (formBoldButton_->isChecked() || formItalicButton_->isChecked() ||
+                       formValueColor_.isValid());
+    bool applied = false;
+    if (rich) {
+        pdf::FormTextRun run;
+        run.text = formValueEdit_->text();
+        run.bold = formBoldButton_->isChecked();
+        run.italic = formItalicButton_->isChecked();
+        run.color = formValueColor_;
+        applied = view->applyFormFieldRichValue(pageIndex, name, {run}, &reason);
+    } else {
+        applied = view->setFormFieldValueWithScripts(pageIndex, name, formValueEdit_->text(),
+                                                     &reason);
+    }
+    if (applied) {
         formValueText_ = formValueEdit_->text();
         statusBar()->showMessage(tr("已写入 %1").arg(name), 3000);
         refreshForms(view);

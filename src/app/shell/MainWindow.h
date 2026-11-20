@@ -20,6 +20,7 @@ class QSlider;
 class QTableWidget;
 class QLineEdit;
 #include <QColor>
+#include <QToolButton>
 class QTabWidget;
 class QTimer;
 class QTextBrowser;
@@ -329,6 +330,10 @@ private:
     QStackedWidget* formStack_ = nullptr;
     QTableWidget* formTable_ = nullptr;
     QLineEdit* formValueEdit_ = nullptr;
+    QToolButton* formBoldButton_ = nullptr;
+    QToolButton* formItalicButton_ = nullptr;
+    QToolButton* formColorButton_ = nullptr;
+    QColor formValueColor_;
     // 输入框里「上一次被接受的值」：击键被字段脚本拒绝时回退到它。
     QString formValueText_;
     QPushButton* formApplyButton_ = nullptr;
