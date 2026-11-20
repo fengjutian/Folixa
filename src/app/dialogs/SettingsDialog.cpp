@@ -1,7 +1,7 @@
 #include "app/dialogs/SettingsDialog.h"
+#include "app/dialogs/AiSettingsDialog.h"
 
 #include "ai/settings/ProviderConfig.h"
-#include "ai/settings/ProviderPreset.h"
 #include "app/ui/Language.h"
 #include "app/ui/Theme.h"
 #include "i18n/Translate.h"
@@ -17,6 +17,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -51,17 +52,6 @@ QFrame* makeCard(QWidget* parent) {
     return card;
 }
 
-QString dataModeLabel(ai::DataMode mode) {
-    switch (mode) {
-        case ai::DataMode::LocalOnly:
-            return i18n::tr("aipdf::app::SettingsDialog", "仅本地处理");
-        case ai::DataMode::SelectedChunks:
-            return i18n::tr("aipdf::app::SettingsDialog", "仅发送检索片段");
-        case ai::DataMode::SelectedPages:
-            return i18n::tr("aipdf::app::SettingsDialog", "发送选定页面");
-    }
-    return i18n::tr("aipdf::app::SettingsDialog", "未知");
-}
 }  // namespace
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
@@ -158,29 +148,14 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     appearance->addWidget(appearanceCard);
     appearance->addStretch();
 
-    auto* aiPage = makePage(tr("AI 设置"), tr("查看当前 AI 服务状态并进入详细配置。"), pages);
-    auto* aiCard = makeCard(this);
-    auto* aiForm = new QFormLayout(aiCard);
-    aiForm->setContentsMargins(18, 16, 18, 16);
-    aiForm->setSpacing(12);
-    aiProviderValue_ = new QLabel(aiCard);
-    aiModelValue_ = new QLabel(aiCard);
-    aiDataModeValue_ = new QLabel(aiCard);
-    aiCredentialValue_ = new QLabel(aiCard);
-    aiForm->addRow(tr("服务商"), aiProviderValue_);
-    aiForm->addRow(tr("模型"), aiModelValue_);
-    aiForm->addRow(tr("数据模式"), aiDataModeValue_);
-    aiForm->addRow(tr("API 密钥"), aiCredentialValue_);
-    aiPage->addWidget(aiCard);
-    auto* aiButton = new QPushButton(tr("配置 AI 服务…"), this);
-    aiButton->setObjectName(QStringLiteral("openAiSettingsButton"));
-    aiPage->addWidget(aiButton, 0, Qt::AlignLeft);
-    aiPage->addStretch();
-    connect(aiButton, &QPushButton::clicked, this, [this] {
-        emit aiSettingsRequested();
-        refreshAiSummary();
-    });
-    refreshAiSummary();
+    auto* aiPage = makePage(tr("AI 设置"), tr("配置全局 AI 服务、模型、数据范围和安全凭据。"), pages);
+    aiEditor_ = new AiSettingsDialog(pages, true);
+    const ai::ProviderConfig aiConfig = ai::ProviderConfig::load();
+    aiEditor_->applyConfig(aiConfig.providerId, aiConfig.baseUrl, aiConfig.model,
+                           aiConfig.hasCredential(), aiConfig.inputPricePerMillion,
+                           aiConfig.outputPricePerMillion, aiConfig.timeoutMs,
+                           aiConfig.dataMode);
+    aiPage->addWidget(aiEditor_, 1);
 
     auto* privacy = makePage(tr("隐私与数据"), tr("了解文档内容如何在本地与 AI 服务之间流转。"), pages);
     auto* privacyCard = makeCard(this);
@@ -226,7 +201,14 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
     buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
-    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::accepted, this, [this] {
+        QString error;
+        if (aiEditor_ != nullptr && !aiEditor_->saveConfig(&error)) {
+            QMessageBox::warning(this, tr("AI 设置保存失败"), error);
+            return;
+        }
+        accept();
+    });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     root->addWidget(buttons, 0, Qt::AlignRight);
 }
@@ -260,24 +242,6 @@ void SettingsDialog::installLanguagePack() {
     const int index = language_->findData(code);
     if (index >= 0) {
         language_->setCurrentIndex(index);
-    }
-}
-
-void SettingsDialog::refreshAiSummary() {
-    const ai::ProviderConfig config = ai::ProviderConfig::load();
-    aiProviderValue_->setText(ai::providerDisplayName(config.providerId));
-    aiModelValue_->setText(config.model.isEmpty() ? tr("未设置") : config.model);
-    aiDataModeValue_->setText(dataModeLabel(config.effectiveDataMode()));
-    // 本机模型没有密钥这回事：显示「不需要」比显示「未设置」准确，
-    // 「未设置」会让人以为漏配了。
-    const bool needsKey =
-        ai::providerRequiresApiKey(config.providerId, config.baseUrl);
-    if (!needsKey) {
-        aiCredentialValue_->setText(config.providerId == QLatin1String("demo")
-                                        ? tr("不需要")
-                                        : tr("不需要（本机模型）"));
-    } else {
-        aiCredentialValue_->setText(config.hasCredential() ? tr("已安全保存") : tr("未设置"));
     }
 }
 

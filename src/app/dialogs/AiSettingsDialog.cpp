@@ -3,6 +3,7 @@
 #include "app/ui/Language.h"
 #include "ai/settings/ProviderConfig.h"
 #include "ai/settings/ProviderPreset.h"
+#include "ai/settings/CredentialStore.h"
 #include "i18n/Translate.h"
 
 #include <QCheckBox>
@@ -27,7 +28,10 @@ constexpr auto kProviderDemo = "demo";
 
 }  // namespace
 
-AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
+AiSettingsDialog::AiSettingsDialog(QWidget* parent, bool embedded) : QDialog(parent) {
+    if (embedded) {
+        setWindowFlags(Qt::Widget);
+    }
     texts_.bind([this] { setWindowTitle(tr("AI 服务设置")); });
     setObjectName(QStringLiteral("aiSettingsDialog"));
     setMinimumWidth(520);
@@ -145,18 +149,22 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
                  outputPrice_);
     addFormLabel(QT_TRANSLATE_NOOP("aipdf::app::AiSettingsDialog", "超时"), timeout_);
 
-    auto* buttons = new QDialogButtonBox(
-        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-    texts_.bind([this, buttons] {
-        buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
-        buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
-    });
+    QDialogButtonBox* buttons = nullptr;
+    if (!embedded) {
+        buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        texts_.bind([this, buttons] {
+            buttons->button(QDialogButtonBox::Ok)->setText(tr("保存"));
+            buttons->button(QDialogButtonBox::Cancel)->setText(tr("取消"));
+        });
+    }
 
     layout->addWidget(intro);
     layout->addLayout(form);
-    layout->addWidget(buttons);
+    if (buttons != nullptr) {
+        layout->addWidget(buttons);
+    }
 
-    connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
+    if (buttons != nullptr) connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
         // 保存前先验一次：地址写错要当场说清楚，别等到发请求才失败。
         ai::ProviderConfig probe;
         probe.providerId = providerId();
@@ -172,7 +180,9 @@ AiSettingsDialog::AiSettingsDialog(QWidget* parent) : QDialog(parent) {
         }
         accept();
     });
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    if (buttons != nullptr) {
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    }
     connect(providerCombo_, &QComboBox::currentIndexChanged, this, [this](int) {
         applyProviderPreset();
         updateEnabledState();
@@ -343,6 +353,39 @@ double AiSettingsDialog::outputPricePerMillion() const {
 
 int AiSettingsDialog::timeoutMs() const {
     return timeout_->value() * 1000;
+}
+
+bool AiSettingsDialog::saveConfig(QString* error) const {
+    ai::ProviderConfig updated = ai::ProviderConfig::load();
+    updated.providerId = providerId();
+    updated.baseUrl = baseUrl();
+    updated.model = model();
+    updated.inputPricePerMillion = inputPricePerMillion();
+    updated.outputPricePerMillion = outputPricePerMillion();
+    updated.timeoutMs = timeoutMs();
+    updated.dataMode = ai::dataModeId(ai::dataModeFromId(dataMode()));
+    const QString validation = ai::ProviderConfig::validationError(updated);
+    if (!validation.isEmpty()) {
+        if (error) *error = validation;
+        return false;
+    }
+    const QString target = ai::CredentialStore::targetNameFor(updated.providerId);
+    QString credentialError;
+    if (clearCredential() && !ai::CredentialStore::remove(target, &credentialError)) {
+        if (error) *error = credentialError;
+        return false;
+    }
+    const QString key = apiKey();
+    if (!key.isEmpty() && !ai::CredentialStore::store(target, key, &credentialError)) {
+        if (error) *error = credentialError;
+        return false;
+    }
+    if (!updated.save()) {
+        if (error) *error = tr("配置文件写不进去，检查 %1 是否可写。")
+                                .arg(ai::ProviderConfig::configFilePath());
+        return false;
+    }
+    return true;
 }
 
 }  // namespace aipdf::app

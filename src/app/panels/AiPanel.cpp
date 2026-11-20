@@ -1099,6 +1099,12 @@ void AiPanel::openSettings() {
                       .arg(ai::providerDisplayName(updated.providerId).toHtmlEscaped()));
 }
 
+void AiPanel::reloadProviderSettings() {
+    providerStatusKnown_ = false;
+    refreshStatusLabel();
+    refreshProviderStatus();
+}
+
 void AiPanel::finishDocumentQa() {
     documentQaActive_ = false;
     if (qaController_ == nullptr) {

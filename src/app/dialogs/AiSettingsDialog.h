@@ -24,7 +24,7 @@ class AiSettingsDialog final : public QDialog {
     Q_OBJECT
 
 public:
-    explicit AiSettingsDialog(QWidget* parent = nullptr);
+    explicit AiSettingsDialog(QWidget* parent = nullptr, bool embedded = false);
 
     // 用现有配置填表。
     // hasKey：凭据管理器里已经存了这个服务商的密钥。
@@ -49,6 +49,8 @@ public:
     double inputPricePerMillion() const;
     double outputPricePerMillion() const;
     int timeoutMs() const;
+    // 校验并保存当前表单。配置写共享文件，密钥只写系统凭据管理器。
+    bool saveConfig(QString* error = nullptr) const;
 
 private:
     // 切换语言后就地重译。

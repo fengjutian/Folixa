@@ -100,6 +100,8 @@ public:
 
     // 打开「AI 服务设置」：选服务商、填地址与模型、存 API 密钥。
     void openSettings();
+    // 全局设置页保存后重新读取服务商状态。
+    void reloadProviderSettings();
 
     // 把焦点放到输入框（欢迎页的「开始聊天」按钮用）。
     void focusPrompt();

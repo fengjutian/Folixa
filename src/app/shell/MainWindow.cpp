@@ -2988,14 +2988,12 @@ void MainWindow::buildUi() {
     });
     connect(statusSettingsButton_, &QToolButton::clicked, this, [this] {
         SettingsDialog dialog(this);
-        connect(&dialog, &SettingsDialog::aiSettingsRequested, this, [this] {
-            if (aiPanel_ != nullptr) {
-                aiPanel_->openSettings();
-            }
-        });
         // 带蒙层显示：弹窗之外的内容压暗，注意力才落在设置上。
         if (aipdf::app::execWithScrim(dialog, this) != QDialog::Accepted) {
             return;
+        }
+        if (aiPanel_ != nullptr) {
+            aiPanel_->reloadProviderSettings();
         }
         const QFont selected = dialog.selectedFont();
         qApp->setFont(selected);

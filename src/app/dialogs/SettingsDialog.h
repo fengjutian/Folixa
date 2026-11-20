@@ -11,6 +11,8 @@ class QSpinBox;
 
 namespace aipdf::app {
 
+class AiSettingsDialog;
+
 class SettingsDialog final : public QDialog {
     Q_OBJECT
 
@@ -23,11 +25,7 @@ public:
     // 主题（light / dark / system）。
     QString selectedTheme() const;
 
-signals:
-    void aiSettingsRequested();
-
 private:
-    void refreshAiSummary();
     // 重建语言下拉框：列出**现在能选**的语言（内置的 + 用户装了语言包的）。
     //
     // 为什么每次都重建而不是构造时填一次：用户可能刚在「安装语言包…」里
@@ -43,10 +41,7 @@ private:
     QFontComboBox* fontFamily_ = nullptr;
     QSpinBox* fontSize_ = nullptr;
     QLabel* fontPreview_ = nullptr;
-    QLabel* aiProviderValue_ = nullptr;
-    QLabel* aiModelValue_ = nullptr;
-    QLabel* aiDataModeValue_ = nullptr;
-    QLabel* aiCredentialValue_ = nullptr;
+    AiSettingsDialog* aiEditor_ = nullptr;
 };
 
 }  // namespace aipdf::app
