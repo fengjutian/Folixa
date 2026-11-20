@@ -619,7 +619,7 @@ private:
     QVector<ContentEditRecord> contentUndo_;
     QVector<ContentEditRecord> contentRedo_;
     // 表单逐字符输入的会话与脚本回滚由独立控制器维护。
-    std::unique_ptr<FormInteractionController> formInteractionController_;
+    mutable std::unique_ptr<FormInteractionController> formInteractionController_;
     enum class EditHistoryKind { Content, Annotation };
     QVector<EditHistoryKind> editUndoTimeline_;
     QVector<EditHistoryKind> editRedoTimeline_;

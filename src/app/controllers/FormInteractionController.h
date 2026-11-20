@@ -1,6 +1,8 @@
 #pragma once
 
 #include "pdf/forms/FormRuntime.h"
+#include "pdf/forms/FormAppearance.h"
+#include "pdf/forms/FormScriptStore.h"
 
 #include <QByteArray>
 #include <QPair>
@@ -39,6 +41,16 @@ public:
     MutationResult applyValues(
         const QByteArray& documentBytes,
         const QVector<QPair<QString, QString>>& values) const;
+    MutationResult writeRichValue(const QByteArray& documentBytes,
+                                  const QString& fieldName,
+                                  const QVector<pdf::FormTextRun>& runs) const;
+    MutationResult writeScripts(const QByteArray& documentBytes,
+                                const QVector<pdf::FormFieldScript>& scripts,
+                                const QStringList& order) const;
+    QVector<pdf::FormFieldScript> scripts(const QByteArray& documentBytes) const;
+    QStringList calculationOrder(const QByteArray& documentBytes) const;
+    QVector<QPair<QString, QString>> resetUpdates(
+        const QByteArray& documentBytes) const;
     void reset();
 
 private:

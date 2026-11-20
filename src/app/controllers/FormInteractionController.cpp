@@ -1,5 +1,7 @@
 #include "app/controllers/FormInteractionController.h"
 
+#include <QHash>
+
 namespace aipdf::app {
 
 bool FormInteractionController::validateKeystroke(const QByteArray& documentBytes,
@@ -101,6 +103,66 @@ FormInteractionController::MutationResult FormInteractionController::applyValues
     }
     mutation.bytes = written.bytes;
     return mutation;
+}
+
+FormInteractionController::MutationResult FormInteractionController::writeRichValue(
+    const QByteArray& documentBytes, const QString& fieldName,
+    const QVector<pdf::FormTextRun>& runs) const {
+    MutationResult mutation;
+    pdf::FormValueUpdate update;
+    update.fieldName = fieldName;
+    for (const pdf::FormTextRun& run : runs) update.value += run.text;
+    update.runs = runs;
+    const pdf::FormAppearanceResult written = pdf::writeFormValues(documentBytes, {update});
+    if (!written.ok()) {
+        mutation.error = written.report.error;
+        return mutation;
+    }
+    mutation.bytes = written.bytes;
+    mutation.applied = 1;
+    return mutation;
+}
+
+FormInteractionController::MutationResult FormInteractionController::writeScripts(
+    const QByteArray& documentBytes, const QVector<pdf::FormFieldScript>& scripts,
+    const QStringList& order) const {
+    MutationResult mutation;
+    const pdf::FormScriptWriteResult written =
+        pdf::writeFormScripts(documentBytes, scripts, order);
+    if (!written.ok) {
+        mutation.error = written.error;
+        return mutation;
+    }
+    mutation.bytes = written.bytes;
+    mutation.applied = scripts.size();
+    return mutation;
+}
+
+QVector<pdf::FormFieldScript> FormInteractionController::scripts(
+    const QByteArray& documentBytes) const {
+    return documentBytes.isEmpty() ? QVector<pdf::FormFieldScript>()
+                                   : pdf::readFormFieldScripts(documentBytes);
+}
+
+QStringList FormInteractionController::calculationOrder(
+    const QByteArray& documentBytes) const {
+    return documentBytes.isEmpty() ? QStringList() : pdf::readCalculationOrder(documentBytes);
+}
+
+QVector<QPair<QString, QString>> FormInteractionController::resetUpdates(
+    const QByteArray& documentBytes) const {
+    QHash<QString, QString> defaults;
+    for (const pdf::FormFieldScript& script : scripts(documentBytes)) {
+        defaults.insert(script.fieldName, script.defaultValue);
+    }
+    QVector<QPair<QString, QString>> updates;
+    QString error;
+    const pdf::FormRuntime runtime = pdf::FormRuntime::load(documentBytes, &error);
+    if (!runtime.isValid()) return updates;
+    for (const pdf::FormFieldState& field : runtime.fields()) {
+        if (!field.readOnly) updates.append({field.name, defaults.value(field.name)});
+    }
+    return updates;
 }
 
 void FormInteractionController::reset() {

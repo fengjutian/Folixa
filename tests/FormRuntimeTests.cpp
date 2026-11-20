@@ -12,6 +12,7 @@
 #include <qpdf/QPDFWriter.hh>
 
 #include <memory>
+#include <algorithm>
 
 using aipdf::pdf::FormEventType;
 using aipdf::pdf::FormFieldType;
@@ -31,6 +32,7 @@ struct FieldSpec {
     QString format;
     QString keystroke;
     QStringList options;
+    QString defaultValue;
 };
 
 QByteArray toPdfBytes(QPDF& pdf) {
@@ -83,6 +85,10 @@ QByteArray buildFormPdf(const QVector<FieldSpec>& specs, const QStringList& calc
         if (spec.flags != 0) field.replaceKey("/Ff", QPDFObjectHandle::newInteger(spec.flags));
         if (!spec.value.isEmpty()) {
             field.replaceKey("/V", QPDFObjectHandle::newString(spec.value.toStdString()));
+        }
+        if (!spec.defaultValue.isEmpty()) {
+            field.replaceKey("/DV",
+                             QPDFObjectHandle::newString(spec.defaultValue.toStdString()));
         }
         if (!spec.options.isEmpty()) {
             QPDFObjectHandle options = QPDFObjectHandle::newArray();
@@ -185,6 +191,8 @@ private slots:
     void interactionControllerKeepsAcceptedTypingOnly();
     void interactionControllerWritesOneValue();
     void interactionControllerReportsPartialBatch();
+    void interactionControllerWritesRichValue();
+    void interactionControllerManagesScriptsAndReset();
 };
 
 void FormRuntimeTests::loadsFieldTree() {
@@ -463,6 +471,50 @@ void FormRuntimeTests::interactionControllerReportsPartialBatch() {
              FormInteractionController::Failure::Kind::MissingField);
     QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("A")), QStringLiteral("3"));
     QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("B")), QStringLiteral("2"));
+}
+
+void FormRuntimeTests::interactionControllerWritesRichValue() {
+    const QByteArray pdf = buildFormPdf(
+        {{QStringLiteral("A"), QStringLiteral("old")}}, {});
+    FormInteractionController controller;
+    aipdf::pdf::FormTextRun first;
+    first.text = QStringLiteral("Hello ");
+    first.bold = true;
+    aipdf::pdf::FormTextRun second;
+    second.text = QStringLiteral("world");
+    second.italic = true;
+
+    const auto result = controller.writeRichValue(pdf, QStringLiteral("A"), {first, second});
+    QVERIFY2(result.ok(), qPrintable(result.error));
+    QCOMPARE(pdfFieldValue(result.bytes, QStringLiteral("A")), QStringLiteral("Hello world"));
+}
+
+void FormRuntimeTests::interactionControllerManagesScriptsAndReset() {
+    FieldSpec writable{QStringLiteral("A"), QStringLiteral("changed")};
+    writable.defaultValue = QStringLiteral("default");
+    FieldSpec readOnly{QStringLiteral("B"), QStringLiteral("keep")};
+    readOnly.flags = 1;
+    const QByteArray pdf = buildFormPdf({writable, readOnly}, {});
+    FormInteractionController controller;
+    aipdf::pdf::FormFieldScript script;
+    script.fieldName = QStringLiteral("A");
+    script.validate = QStringLiteral("event.rc = event.value != \"bad\"");
+
+    const auto written = controller.writeScripts(pdf, {script}, {QStringLiteral("A")});
+    QVERIFY2(written.ok(), qPrintable(written.error));
+    const auto scripts = controller.scripts(written.bytes);
+    QCOMPARE(scripts.size(), 1);
+    const auto found = std::find_if(scripts.cbegin(), scripts.cend(), [](const auto& item) {
+        return item.fieldName == QStringLiteral("A");
+    });
+    QVERIFY(found != scripts.cend());
+    QCOMPARE(found->defaultValue, QStringLiteral("default"));
+    QCOMPARE(controller.calculationOrder(written.bytes), QStringList{QStringLiteral("A")});
+
+    const auto updates = controller.resetUpdates(written.bytes);
+    const QVector<QPair<QString, QString>> expected = {
+        {QStringLiteral("A"), QStringLiteral("default")}};
+    QCOMPARE(updates, expected);
 }
 
 QTEST_MAIN(FormRuntimeTests)

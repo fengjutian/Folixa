@@ -19,6 +19,7 @@ qt_add_executable(FormRuntimeTests
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/content/TrueTypeSubset.h
     ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/forms/FormScriptStore.cpp
 )
 
 target_link_libraries(FormRuntimeTests PRIVATE

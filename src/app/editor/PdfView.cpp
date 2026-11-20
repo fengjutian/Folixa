@@ -3116,17 +3116,17 @@ bool PdfView::applyFormFieldRichValue(int pageIndex, const QString& name,
         if (reason != nullptr) *reason = tr("无法序列化文档：%1").arg(error);
         return false;
     }
-    pdf::FormValueUpdate update;
-    update.fieldName = name;
-    for (const pdf::FormTextRun& run : runs) update.value += run.text;
-    update.runs = runs;
-    const pdf::FormAppearanceResult written = pdf::writeFormValues(source, {update});
-    if (!written.ok()) {
-        if (reason != nullptr) *reason = written.report.error;
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    const FormInteractionController::MutationResult mutation =
+        formInteractionController_->writeRichValue(source, name, runs);
+    if (!mutation.ok()) {
+        if (reason != nullptr) *reason = mutation.error;
         return false;
     }
     const pdf::PdfDocument before = document_.backupPage(pageIndex);
-    if (!document_.reloadFromBytes(written.bytes, &error)) {
+    if (!document_.reloadFromBytes(mutation.bytes, &error)) {
         if (reason != nullptr) *reason = tr("写回后重新打开失败：%1").arg(error);
         return false;
     }
@@ -3402,7 +3402,10 @@ QVector<pdf::FormFieldScript> PdfView::formFieldScripts() const {
     QString error;
     const QByteArray bytes = document_.serialize(&error);
     if (bytes.isEmpty()) return {};
-    return pdf::readFormFieldScripts(bytes);
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    return formInteractionController_->scripts(bytes);
 }
 
 QStringList PdfView::formCalculationOrder() const {
@@ -3410,7 +3413,10 @@ QStringList PdfView::formCalculationOrder() const {
     QString error;
     const QByteArray bytes = document_.serialize(&error);
     if (bytes.isEmpty()) return {};
-    return pdf::readCalculationOrder(bytes);
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    return formInteractionController_->calculationOrder(bytes);
 }
 
 bool PdfView::saveFormScripts(const QVector<pdf::FormFieldScript>& scripts,
@@ -3426,12 +3432,16 @@ bool PdfView::saveFormScripts(const QVector<pdf::FormFieldScript>& scripts,
             *reason = tr("无法序列化文档：%1").arg(serializeError);
         return false;
     }
-    const pdf::FormScriptWriteResult written = pdf::writeFormScripts(source, scripts, order);
-    if (!written.ok) {
-        if (reason != nullptr) *reason = written.error;
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
+    }
+    const FormInteractionController::MutationResult mutation =
+        formInteractionController_->writeScripts(source, scripts, order);
+    if (!mutation.ok()) {
+        if (reason != nullptr) *reason = mutation.error;
         return false;
     }
-    auto reopened = pdf::openDocumentFromBytes(written.bytes, document_.filePath());
+    auto reopened = pdf::openDocumentFromBytes(mutation.bytes, document_.filePath());
     if (!reopened.document.isValid()) {
         if (reason != nullptr)
             *reason = tr("写入后校验失败：%1").arg(reopened.errorMessage);
@@ -3446,17 +3456,14 @@ bool PdfView::saveFormScripts(const QVector<pdf::FormFieldScript>& scripts,
 }
 
 int PdfView::resetFormFields() {
-    // 有默认值的恢复默认值，没有的清空——这才是"重置"，而不是"抹掉"。
-    QHash<QString, QString> defaults;
-    for (const pdf::FormFieldScript& script : formFieldScripts())
-        defaults.insert(script.fieldName, script.defaultValue);
-    QVector<QPair<QString, QString>> updates;
-    for (const pdf::FormField& field : document_.formFields()) {
-        if (field.readOnly) continue;
-        updates.append({field.name, defaults.value(field.name)});
+    QString error;
+    const QByteArray bytes = document_.serialize(&error);
+    if (bytes.isEmpty()) return 0;
+    if (!formInteractionController_) {
+        formInteractionController_ = std::make_unique<FormInteractionController>();
     }
     // 一次载入、一次计算、一次写回：重置 50 个字段不会把文档重写 50 遍。
-    return applyFormFieldValues(updates);
+    return applyFormFieldValues(formInteractionController_->resetUpdates(bytes));
 }
 
 
