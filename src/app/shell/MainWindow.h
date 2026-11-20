@@ -50,6 +50,7 @@ namespace aipdf::app {
 class PdfView;
 class SearchPanel;
 class IndexPanel;
+class AttachmentPanel;
 class AiPanel;
 class RibbonBar;
 class NavigationController;
@@ -143,6 +144,13 @@ private:
     void refreshAnnotations(PdfView* view);
     // 把索引面板绑到当前文档的索引控制器上。
     void bindIndex(PdfView* view);
+    // 把附件面板绑到当前文档上，并刷新附件列表。
+    void bindAttachments(PdfView* view);
+    // 附件面板的四个动作：添加、打开、保存副本、删除。
+    void addDocumentAttachment();
+    void openDocumentAttachment(const QString& name);
+    void saveDocumentAttachment(const QString& name);
+    void removeDocumentAttachment(const QString& name);
     // 删除批注面板里选中的批注（多选时一次删一批）。
     void removeSelectedAnnotation();
     // 保持工具选择：把当前选中的批注工具标记为「放完保持激活」。
@@ -406,6 +414,10 @@ private:
     SearchPanel* searchPanel_ = nullptr;
     // 索引页：本地索引状态、检索与结果（v0.9.0）。
     IndexPanel* indexPanel_ = nullptr;
+    // 附件页：文档级嵌入文件（/Names → /EmbeddedFiles）。
+    AttachmentPanel* attachmentPanel_ = nullptr;
+    // 当前绑定的附件变更连接；换文档时要把上一个的断掉。
+    QMetaObject::Connection attachmentsConnection_;
     // OCR 编排：判定 → 渲染 → 识别 → 入索引（v0.13.0）。
     OcrController* ocrController_ = nullptr;
     QFrame* aiQuickCard_ = nullptr;

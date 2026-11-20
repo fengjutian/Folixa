@@ -1,4 +1,4 @@
-# 1.x 版本审计：计划与代码的对照
+﻿# 1.x 版本审计：计划与代码的对照
 
 **审计日期：** 2026-11-15
 **基线：** `v0.15.0` 标签之后 46 个提交（HEAD `7409507`）
@@ -831,7 +831,7 @@ Motion-JPEG AVI，体积比 MP4 大）、**只录画面没有声音**、录的�
 挡住就录不到）。这两条「不支持」按 `check-feature-claims.py` 的规矩登记了豁免，
 写清「为什么仍然算对齐」——能力达成与否和容器格式是两回事。
 
-证据：`RecordingTests` 17 条（AVI 头部 / 帧块 / 索引三处互相自洽、非 JPEG 帧被拒、
+证据：`RecordingTests` 18 条（AVI 头部 / 帧块 / 索引三处互相自洽、非 JPEG 帧被拒、
 清单存取、录制会话收尾与取消、**框选裁到的那一块确实是那一块**（把帧解出来看颜色）、
 选区越界明确失败），外加**另写一份的独立校验** `scripts/verify-recordings.py`
 （Python 解析 RIFF + PIL 真解码每一帧 + 负例对照：抽掉索引、破坏一帧都要当场报错）。
@@ -908,7 +908,7 @@ Adobe 就不支持，要主流阅读器能播得走 H.264/AAC 的 MP4 + Rich Med
 
 - `src/CMakeLists.txt` 明写着「qpdf 是必需依赖……**不再有『没有 qpdf 的构建』**」，
   所有 `#ifdef AIPDF_WITH_QPDF` 的降级分支在主程序里已经不可达；
-- `PdfSecurityTests` 12 条 + `BatchEncryptTests` 13 条**实测 0 skipped** ——
+- `PdfSecurityTests` 10 条 + `BatchEncryptTests` 11 条**实测 0 skipped** ——
   加密是真跑的，不是「本机构建没 qpdf 所以测不了」；
 - `EncryptionDialog` 里是**七个权限位勾选框**（打印 / 高质量打印 / 复制 / 批注 /
   表单 / 页面组装 / 其它修改），无障碍提取按 PDF 2.0 规范恒允许并有界面说明；
@@ -965,6 +965,60 @@ Adobe 就不支持，要主流阅读器能播得走 H.264/AAC 的 MP4 + Rich Med
 
 **门禁自身的局限（写明以免被当成万能）**：R2 只查评分卡状态为「**对齐**」的能力编号，
 评分卡判「**已具备**」的（如页面逆序那条旧账）**R2 抓不到**，这类只能靠 R1 兜住。
+
+### 1.8.4 2026-11-20 第二十四次盘点（不改数字：把文档级附件面板接回来）
+
+上一轮盘点时发现一条**更硬的旧账**：「编辑 / 附件 / 文件附件」这条 partial 的说明列写着
+「**文档级附件面板是空壳，未参与构建**」。查下去发现面板的完整实现**早就写好了**，
+2026-11-15 因为当时有并发会话在改同一批文件，被整个挪进 `.tmp/attachments-stash/` 暂存，
+README 里写着「等并行会话结束后恢复」——那个会话早就结束了，暂存区却一直没人碰。
+这一轮把它接回来。
+
+**接回来的东西**：
+
+| 层 | 文件 | 内容 |
+|---|---|---|
+| 领域层 | `src/pdf/kernel/PdfiumAdapter.{h,cpp}` | `DocumentAttachment` 结构 + `attachments()` / `attachmentData()` / `addAttachment()` / `removeAttachment()`，走 PDFium 的嵌入文件接口（`fpdf_attachment.h`） |
+| 界面层 | `src/app/panels/AttachmentPanel.{h,cpp}` | 三列表格（名称 / 说明 / 大小）+ 添加 / 打开 / 保存副本 / 删除 + 空状态 |
+| 薄封装 | `src/app/editor/PdfView.{h,cpp}` | `attachments()` / `attachmentData(name)` / `addAttachment()` / `removeAttachment()` + `attachmentsChanged()` 信号 |
+| 接线 | `src/app/shell/MainWindow.{h,cpp}` | 导航栏新增「附件」页（批注与表单之间），四个动作接到当前文档 |
+
+**实测出来的三件事**（都是写代码时量出来的，不是推断）：
+
+1. **PDFium 真的会把附件写进文件**：加 → 序列化 → 重开，附件还在，内容**逐字节原样**。
+   这条走的是应用**真正的保存链路**（`pdf::DocumentWriter::save`，含外观流补写、
+   qpdf 结构校验、重开校验），不是只测适配层的 `serialize()`。
+2. **删除是真删**：删掉附件再存，文件体积**实测变小 262 554 字节**
+   （载荷特意用固定种子的随机字节——全是 `'A'` 的载荷会被 Flate 压成几百字节，
+   拿它比体积根本测不出「数据还在不在」，搜明文标记同样测不出来）。
+   所以 PDFium 那个「删除只是从名字树上摘掉」的文档说法，在**本仓库的保存链路上不成立**。
+3. **文档级附件带不了 MIME 类型**：PDFium 的嵌入文件接口只能把键写进 `/Params`
+   （写出来是 `/Params<</#2FSubtype(text/plain)…>>` 这种非标准位置），
+   够不到嵌入文件流的 `/Subtype`，它自己的 `FPDFAttachment_GetSubtype` 也读不回来。
+   试过写 `/Subtype` 与 `Subtype` 两种键，都是同一个下场。
+   → 结论：**别的阅读器只能靠文件名后缀判断这个附件的类型**。
+   页面上的附件批注（`/FileAttachment`）另有一条路径——嵌入文件流由本程序自己写，
+   那条**带正确的 `/Subtype`**。两条路径不是一回事，矩阵说明列分开写。
+
+**矩阵那一行仍是 partial**（降级边界从「面板是空壳」换成「不带 MIME 类型」），
+说明列按实情重写，评分卡 C8 的验收列同步。**数字不变**：仍是 223 / 276（81%）、
+partial 24 条。
+
+**测试与负例对照**：
+
+- 新增专项单测目标 `AttachmentPanelTests` 9 条（适配层 6 条 + 面板 3 条），
+  含「加 → 序列化 → 重开 → 读回 → 删」的完整往返；
+- `DocumentWriterTests` 19 条（其中新增 2 条）：
+  `documentLevelAttachmentSurvivesSaveToDisk`（走应用真正的保存链路）与
+  `removingDocumentAttachmentKeepsFileConsistent`（删除后文件仍是好文件 + 体积真的变小）；
+- **负例对照**（`build/negative-check-attachment.py`，改坏 → 重编 → 跑测试 → 还原 → 复检）：
+  弄坏「添加附件」（假装加成功、实际什么都没加）→ **当场变红 6 条**（面板侧 4 条、保存链路 2 条）；
+  弄坏「删除附件」（告诉界面删掉了、实际没删）→ 删附件那条用例当场变红；
+  两次还原后复检全绿。
+
+**一处顺手修掉的真问题**：`PdfiumAdapter.cpp` 里的 `toWideString` / `readWideString`
+原先各躺在一个匿名 `namespace` 里，文件后半段够不着它们（附件实现就在后半段）。
+已把两个函数挪进 `namespace detail`，调用点补 `detail::` 限定名（9 处）。
 
 ## 1. 结论
 

@@ -226,6 +226,22 @@ public slots:
     // 重置表单：有默认值的恢复默认值，没有默认值的清空。返回被重置的字段数。
     int resetFormFields();
 
+    // ---------------------------------------------- 文档级附件（嵌入文件）----
+    //
+    // 附件挂在文档上（/Names → /EmbeddedFiles 名字树），不依附于某一页；
+    // 与「页面上的附件批注」是两回事。
+    //
+    // 这里只做薄封装：判定与边界一律交给适配层（pdf::PdfDocument），
+    // 面板与主窗口都不直接碰 PDFium。
+    QVector<pdf::DocumentAttachment> attachments() const;
+    // 按名字取附件内容；名字对不上时返回空数组并写 error。
+    QByteArray attachmentData(const QString& name, QString* error = nullptr) const;
+    // 添加附件。成功后置「已修改」并发 attachmentsChanged()。
+    bool addAttachment(const QString& name, const QByteArray& data,
+                       const QString& description, QString* error = nullptr);
+    // 按名字删除附件。成功后置「已修改」并发 attachmentsChanged()。
+    bool removeAttachment(const QString& name, QString* error = nullptr);
+
     // 文档编辑（v1.11.0）：合并、抽取、图片替换、文字替换。
     void mergeDocumentDialog();
     // 页码标签：把页码显示规则写进 PDF 的 /PageLabels。
@@ -513,6 +529,8 @@ signals:
     void historyChanged(bool canGoBack, bool canGoForward);
     // 表单字段值或扁平化状态变了。
     void formFieldsChanged();
+    // 文档级附件列表变了（加了一个或删了一个）。
+    void attachmentsChanged();
     // 选中的文字已复制（字符数）。
     void textCopied(int characters);
     // 链接被激活：内部跳转给出目标页（从 0 开始），外部链接给出地址。

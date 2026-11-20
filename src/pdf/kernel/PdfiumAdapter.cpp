@@ -14,6 +14,7 @@
 #include <fpdf_formfill.h>
 
 #include <fpdf_annot.h>
+#include <fpdf_attachment.h>
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
 #include <fpdf_ppo.h>
@@ -137,6 +138,39 @@ struct PageImpl {
         }
     }
 };
+
+// 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
+inline std::vector<unsigned short> toWideString(const QString& text) {
+    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
+    const int count = text.size();
+    std::vector<unsigned short> wide;
+    wide.reserve(static_cast<size_t>(count) + 1);
+    for (int i = 0; i < count; ++i) {
+        wide.push_back(chars[i].unicode());
+    }
+    wide.push_back(0);
+    return wide;
+}
+
+// 读 PDFium 的宽字符串。
+//
+// 不能先用 (nullptr, 0) 探长度：GetFormFieldName 这一类接口在空缓冲上会直接
+// 解引用，实测会以 0xC0000409 崩掉。这里先给一块足够大的缓冲，返回长度超出
+// 再按实际大小重读一次。
+inline QString readWideString(const std::function<unsigned long(void*, unsigned long)>& read) {
+    // 留足余量：PDFium 会把结尾 NUL 也算进长度，贴着边界分配容易被写坏。
+    std::vector<unsigned short> buffer(4096, 0);
+    unsigned long length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
+    if (length > (buffer.size() - 2) * 2) {
+        buffer.assign(length / 2 + 4, 0);
+        length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
+    }
+    if (length <= 2) {
+        return {};
+    }
+    const int characters = static_cast<int>(qMin<unsigned long>(length / 2 - 1, buffer.size() - 1));
+    return QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), characters);
+}
 
 }  // namespace detail
 
@@ -472,19 +506,6 @@ quint64 annotationIdFromName(FPDF_ANNOTATION annot) {
     return ok ? id : 0;
 }
 
-// 把 QString 转成 PDFium 要的 UTF-16LE 字符串（带终止符）。
-std::vector<unsigned short> toWideString(const QString& text) {
-    const QChar* chars = reinterpret_cast<const QChar*>(text.utf16());
-    const int count = text.size();
-    std::vector<unsigned short> wide;
-    wide.reserve(static_cast<size_t>(count) + 1);
-    for (int i = 0; i < count; ++i) {
-        wide.push_back(chars[i].unicode());
-    }
-    wide.push_back(0);
-    return wide;
-}
-
 // PDFium 的 FS_RECTF 的 top 是**较高**的 y、bottom 是较低的 y；
 // 我们的 QRectF 存的是原样的用户空间坐标，取 min/max 即可对上。
 FS_RECTF toFsRect(const QRectF& rect) {
@@ -526,18 +547,18 @@ bool createAnnotation(FPDF_PAGE page, const Annotation& annotation) {
 
     // 便签正文与作者。PDFium 要 UTF-16LE。
     if (!annotation.contents.isEmpty()) {
-        const std::vector<unsigned short> contents = toWideString(annotation.contents);
+        const std::vector<unsigned short> contents = detail::toWideString(annotation.contents);
         FPDFAnnot_SetStringValue(annot, "Contents",
                                   reinterpret_cast<const FPDF_WIDESTRING>(contents.data()));
     }
     if (!annotation.author.isEmpty()) {
-        const std::vector<unsigned short> author = toWideString(annotation.author);
+        const std::vector<unsigned short> author = detail::toWideString(annotation.author);
         FPDFAnnot_SetStringValue(annot, "T", reinterpret_cast<const FPDF_WIDESTRING>(author.data()));
     }
 
     // 打标记：认批注靠它，不靠它在页面上的位置。
     {
-        const std::vector<unsigned short> name = toWideString(
+        const std::vector<unsigned short> name = detail::toWideString(
             QString::fromLatin1(kAnnotationNamePrefix) + QString::number(annotation.id));
         FPDFAnnot_SetStringValue(annot, "NM", reinterpret_cast<const FPDF_WIDESTRING>(name.data()));
     }
@@ -1339,29 +1360,7 @@ std::optional<PdfPage> PdfDocument::page(int index) const {
 
 // ---------------------------------------------------------------- 表单 ----
 
-namespace {
-
-// 读 PDFium 的宽字符串。
-//
-// 不能先用 (nullptr, 0) 探长度：GetFormFieldName 这一类接口在空缓冲上会直接
-// 解引用，实测会以 0xC0000409 崩掉。这里先给一块足够大的缓冲，返回长度超出
-// 再按实际大小重读一次。
-QString readWideString(const std::function<unsigned long(void*, unsigned long)>& read) {
-    // 留足余量：PDFium 会把结尾 NUL 也算进长度，贴着边界分配容易被写坏。
-    std::vector<unsigned short> buffer(4096, 0);
-    unsigned long length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
-    if (length > (buffer.size() - 2) * 2) {
-        buffer.assign(length / 2 + 4, 0);
-        length = read(buffer.data(), static_cast<unsigned long>((buffer.size() - 2) * 2));
-    }
-    if (length <= 2) {
-        return {};
-    }
-    const int characters = static_cast<int>(qMin<unsigned long>(length / 2 - 1, buffer.size() - 1));
-    return QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), characters);
-}
-
-}  // namespace
+namespace {}  // namespace
 
 QVector<FormField> PdfDocument::formFields() const {
     QVector<FormField> fields;
@@ -1394,11 +1393,11 @@ QVector<FormField> PdfDocument::formFields() const {
             FormField field;
             field.pageIndex = pageIndex;
             field.type = type;
-            field.name = readWideString([&](void* buffer, unsigned long size) {
+            field.name = detail::readWideString([&](void* buffer, unsigned long size) {
                 return FPDFAnnot_GetFormFieldName(
                     form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
             });
-            field.value = readWideString([&](void* buffer, unsigned long size) {
+            field.value = detail::readWideString([&](void* buffer, unsigned long size) {
                 return FPDFAnnot_GetFormFieldValue(
                     form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
             });
@@ -1410,12 +1409,12 @@ QVector<FormField> PdfDocument::formFields() const {
             field.readOnly = (flags & FPDF_FORMFLAG_READONLY) != 0;
             field.required = (flags & FPDF_FORMFLAG_REQUIRED) != 0;
             field.multiline = (flags & FPDF_FORMFLAG_TEXT_MULTILINE) != 0;
-            field.toolTip = readWideString([&](void* buffer, unsigned long size) {
+            field.toolTip = detail::readWideString([&](void* buffer, unsigned long size) {
                 return FPDFAnnot_GetStringValue(annot, "TU", static_cast<FPDF_WCHAR*>(buffer), size);
             });
             const int optionCount = FPDFAnnot_GetOptionCount(form, annot);
             for (int option = 0; option < optionCount; ++option) {
-                field.options.append(readWideString([&](void* buffer, unsigned long size) {
+                field.options.append(detail::readWideString([&](void* buffer, unsigned long size) {
                     return FPDFAnnot_GetOptionLabel(form, annot, option,
                                                     static_cast<FPDF_WCHAR*>(buffer), size);
                 }));
@@ -1449,7 +1448,7 @@ bool PdfDocument::setFormFieldValue(int pageIndex, const QString& name, const QS
         if (annot == nullptr) {
             continue;
         }
-        const QString fieldName = readWideString([&](void* buffer, unsigned long size) {
+        const QString fieldName = detail::readWideString([&](void* buffer, unsigned long size) {
             return FPDFAnnot_GetFormFieldName(form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
         });
         if (fieldName != name) {
@@ -1485,7 +1484,7 @@ bool PdfDocument::setFormFieldProperties(int pageIndex, const QString& oldName,
     for (int i = 0; i < annots && !changed; ++i) {
         FPDF_ANNOTATION annot = FPDFPage_GetAnnot(page, i);
         if (annot == nullptr) continue;
-        const QString fieldName = readWideString([&](void* buffer, unsigned long size) {
+        const QString fieldName = detail::readWideString([&](void* buffer, unsigned long size) {
             return FPDFAnnot_GetFormFieldName(form, annot, static_cast<FPDF_WCHAR*>(buffer), size);
         });
         if (fieldName != oldName) {
@@ -1593,6 +1592,166 @@ bool PdfDocument::flattenPage(int pageIndex) {
     FPDF_ClosePage(page);
     return result == FLATTEN_SUCCESS;
 }
+
+// ---------------------------------------------------------------- 附件 ----
+
+namespace {
+
+// 附件操作失败时统一给一句可读原因；error 可以为空。
+void setAttachmentError(QString* error, const QString& message) {
+    if (error != nullptr) {
+        *error = message;
+    }
+}
+
+}  // namespace
+
+QVector<DocumentAttachment> PdfDocument::attachments() const {
+    QVector<DocumentAttachment> result;
+    if (!impl_ || impl_->handle == nullptr) {
+        return result;
+    }
+    const detail::PdfiumGuard guard;
+    const int count = FPDFDoc_GetAttachmentCount(impl_->handle);
+    for (int index = 0; index < count; ++index) {
+        FPDF_ATTACHMENT attachment = FPDFDoc_GetAttachment(impl_->handle, index);
+        if (attachment == nullptr) {
+            continue;
+        }
+        DocumentAttachment entry;
+        entry.name = detail::readWideString([&](void* buffer, unsigned long size) {
+            return FPDFAttachment_GetName(attachment,
+                                          static_cast<FPDF_WCHAR*>(buffer), size);
+        });
+        if (entry.name.isEmpty()) {
+            // 名字读不出来的条目在界面上没有任何可操作的内容，跳过。
+            continue;
+        }
+        entry.description = detail::readWideString([&](void* buffer, unsigned long size) {
+            return FPDFAttachment_GetDescription(attachment,
+                                                static_cast<FPDF_WCHAR*>(buffer), size);
+        });
+        entry.mimeType = detail::readWideString([&](void* buffer, unsigned long size) {
+            return FPDFAttachment_GetSubtype(attachment,
+                                            static_cast<FPDF_WCHAR*>(buffer), size);
+        });
+        unsigned long fileSize = 0;
+        // 空缓冲只问长度：PDFium 文档说这时不会写 buffer。
+        if (FPDFAttachment_GetFile(attachment, nullptr, 0, &fileSize)) {
+            entry.size = static_cast<qint64>(fileSize);
+        }
+        result.append(entry);
+    }
+    return result;
+}
+
+QByteArray PdfDocument::attachmentData(int index, QString* error) const {
+    if (!impl_ || impl_->handle == nullptr) {
+        setAttachmentError(error, i18n::tr("aipdf::pdf::PdfiumAdapter", "文档无效"));
+        return {};
+    }
+    const detail::PdfiumGuard guard;
+    FPDF_ATTACHMENT attachment = FPDFDoc_GetAttachment(impl_->handle, index);
+    if (attachment == nullptr) {
+        setAttachmentError(error, i18n::tr("aipdf::pdf::PdfiumAdapter", "附件不存在"));
+        return {};
+    }
+    unsigned long size = 0;
+    if (!FPDFAttachment_GetFile(attachment, nullptr, 0, &size)) {
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件内容读不出来"));
+        return {};
+    }
+    if (size == 0) {
+        return {};
+    }
+    QByteArray data(static_cast<int>(size), Qt::Uninitialized);
+    unsigned long written = size;
+    if (!FPDFAttachment_GetFile(attachment, data.data(), size, &written) || written > size) {
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件内容读不出来"));
+        return {};
+    }
+    data.truncate(static_cast<int>(written));
+    return data;
+}
+
+bool PdfDocument::addAttachment(const QString& name,
+                                const QByteArray& data,
+                                const QString& description,
+                                QString* error) {
+    if (!impl_ || impl_->handle == nullptr) {
+        setAttachmentError(error, i18n::tr("aipdf::pdf::PdfiumAdapter", "文档无效"));
+        return false;
+    }
+    if (name.trimmed().isEmpty()) {
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件名称不能为空"));
+        return false;
+    }
+    if (data.isEmpty()) {
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件内容为空"));
+        return false;
+    }
+
+    const detail::PdfiumGuard guard;
+    const std::vector<unsigned short> wideName = detail::toWideString(name);
+    FPDF_ATTACHMENT attachment = FPDFDoc_AddAttachment(
+        impl_->handle, reinterpret_cast<FPDF_WIDESTRING>(wideName.data()));
+    if (attachment == nullptr) {
+        // PDFium 只在这几种情况下失败：名字为空、重名，或名字树已经太深。
+        setAttachmentError(
+            error, i18n::tr("aipdf::pdf::PdfiumAdapter",
+                            "加不进去：同名附件已存在，或附件数量已达上限"));
+        return false;
+    }
+    if (!FPDFAttachment_SetFile(attachment, impl_->handle, data.constData(),
+                                static_cast<unsigned long>(data.size()))) {
+        // 半成品条目（有名字、没有内容）留着比没有更糟：删掉它再报错。
+        for (int index = FPDFDoc_GetAttachmentCount(impl_->handle) - 1; index >= 0; --index) {
+            if (FPDFDoc_GetAttachment(impl_->handle, index) == attachment) {
+                FPDFDoc_DeleteAttachment(impl_->handle, index);
+                break;
+            }
+        }
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件内容写入失败"));
+        return false;
+    }
+    // SetFile 会清掉除文件流以外的字典项，所以说明必须写在它后面。
+    if (!description.isEmpty()) {
+        const std::vector<unsigned short> wideDescription = detail::toWideString(description);
+        FPDFAttachment_SetDescription(
+            attachment, reinterpret_cast<FPDF_WIDESTRING>(wideDescription.data()));
+    }
+    // 这里**不写 MIME 类型**（/Subtype），是实测出来的限制，不是漏写：
+    // PDFium 的嵌入文件接口只能把键写进 /Params（写出来的还是
+    // /Params<</#2FSubtype(text/plain)…>> 这种非标准位置），够不到
+    // 嵌入文件流字典；而 PDFium 自己的 FPDFAttachment_GetSubtype 也读不回来。
+    // 写一个谁都读不到的位置只会让文件里多一个假键，不如不写。
+    // 别的阅读器因此只能靠**文件名后缀**判断这个附件的类型。
+    return true;
+}
+
+bool PdfDocument::removeAttachment(int index, QString* error) {
+    if (!impl_ || impl_->handle == nullptr) {
+        setAttachmentError(error, i18n::tr("aipdf::pdf::PdfiumAdapter", "文档无效"));
+        return false;
+    }
+    const detail::PdfiumGuard guard;
+    if (index < 0 || index >= FPDFDoc_GetAttachmentCount(impl_->handle)) {
+        setAttachmentError(error, i18n::tr("aipdf::pdf::PdfiumAdapter", "附件不存在"));
+        return false;
+    }
+    if (!FPDFDoc_DeleteAttachment(impl_->handle, index)) {
+        setAttachmentError(error,
+                           i18n::tr("aipdf::pdf::PdfiumAdapter", "附件删除失败"));
+        return false;
+    }
+    return true;
+}
+
 bool PdfPage::removeImagesInRect(const QRectF& rectPoints) {
     if (!impl_ || impl_->page == nullptr || rectPoints.isEmpty()) {
         return false;

@@ -44,6 +44,10 @@ QByteArray annotationTextString(const QString& text);
 //
 // 认不出来时返回 application/octet-stream —— 这是 PDF 规范里的默认值，
 // 也是一个诚实的答案：不知道就说不知道，别编一个具体类型。
+//
+// 注意这条只管**页面上的附件批注**（/FileAttachment，嵌入文件流由本程序自己写）。
+// 文档级附件（/Names → /EmbeddedFiles）走 PDFium 的嵌入文件接口，
+// 那边写不进 /Subtype —— 那是实测出来的限制，不是漏写。
 QByteArray mimeTypeForFileName(const QString& fileName);
 
 }  // namespace aipdf::pdf

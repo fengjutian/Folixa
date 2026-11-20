@@ -2869,6 +2869,66 @@ QVector<pdf::FormField> PdfView::formFields() const {
     return document_.formFields();
 }
 
+// ---------------------------------------------------------- 文档级附件 ----
+
+QVector<pdf::DocumentAttachment> PdfView::attachments() const {
+    return document_.attachments();
+}
+
+QByteArray PdfView::attachmentData(const QString& name, QString* error) const {
+    const QVector<pdf::DocumentAttachment> entries = document_.attachments();
+    for (int index = 0; index < entries.size(); ++index) {
+        if (entries.at(index).name == name) {
+            return document_.attachmentData(index, error);
+        }
+    }
+    if (error != nullptr) {
+        *error = tr("这份文档里没有叫「%1」的附件。").arg(name);
+    }
+    return {};
+}
+
+bool PdfView::addAttachment(const QString& name, const QByteArray& data,
+                            const QString& description, QString* error) {
+    if (!requirePermission(effectivePermissions().allowModifying, tr("添加附件"))) {
+        if (error != nullptr) {
+            *error = tr("这份文档不允许修改。");
+        }
+        return false;
+    }
+    if (!document_.addAttachment(name, data, description, error)) {
+        return false;
+    }
+    setModified(true);
+    emit attachmentsChanged();
+    return true;
+}
+
+bool PdfView::removeAttachment(const QString& name, QString* error) {
+    if (!requirePermission(effectivePermissions().allowModifying, tr("删除附件"))) {
+        if (error != nullptr) {
+            *error = tr("这份文档不允许修改。");
+        }
+        return false;
+    }
+    const QVector<pdf::DocumentAttachment> entries = document_.attachments();
+    for (int index = 0; index < entries.size(); ++index) {
+        if (entries.at(index).name != name) {
+            continue;
+        }
+        if (!document_.removeAttachment(index, error)) {
+            return false;
+        }
+        setModified(true);
+        emit attachmentsChanged();
+        return true;
+    }
+    if (error != nullptr) {
+        *error = tr("这份文档里没有叫「%1」的附件。").arg(name);
+    }
+    return false;
+}
+
 bool PdfView::setFormFieldValue(int pageIndex, const QString& name, const QString& value) {
     if (!requirePermission(effectivePermissions().allowFormFilling, tr("填写表单"))) return false;
     if (!document_.setFormFieldValue(pageIndex, name, value)) {

@@ -272,6 +272,17 @@ struct FormField {
     QVector<QString> options;
 };
 
+// 文档级嵌入文件（PDF 的 /Names → /EmbeddedFiles 名字树）。
+//
+// 与「文件附件批注」不是一回事：附件挂在**文档**上，在阅读器的附件面板里
+// 统一列出（名称 / 说明 / 大小），不依附于某一页。
+struct DocumentAttachment {
+    QString name;
+    QString description;
+    QString mimeType;
+    qint64 size = 0;
+};
+
 struct DocumentPermissions {
     bool encrypted = false;
     int securityRevision = -1;
@@ -330,6 +341,23 @@ public:
                                 bool readOnly, bool required, bool multiline);
     // 扁平化：把字段外观烧进页面内容，之后就是普通图形，不能再编辑。
     bool flattenPage(int pageIndex);
+
+    // ------------------------------------------------------------ 附件 ----
+    // 列出文档里的全部嵌入文件（按名字树的顺序）。
+    QVector<DocumentAttachment> attachments() const;
+    // 读取第 index 个附件的完整内容。读不出来时返回空数组并写 error。
+    QByteArray attachmentData(int index, QString* error = nullptr) const;
+    // 添加一个嵌入文件。名称重复、为空或文档不允许时返回 false。
+    // description 写进 /Desc，留空表示不写。
+    bool addAttachment(const QString& name,
+                       const QByteArray& data,
+                       const QString& description,
+                       QString* error = nullptr);
+    // 删除第 index 个附件。只改名字树，不改页面内容。
+    //
+    // 注意：PDFium 的删除**不会**把附件数据从文件里抹掉，只是把它从名字树里
+    // 摘掉，于是数据变成不可达对象（仍占体积，隐藏数据清理才会真的删它）。
+    bool removeAttachment(int index, QString* error = nullptr);
 
     // 是否是 XFA 动态表单。PDFium 没有 XFA 引擎，这类文档只能显式告知用户，
     // 不能静默显示成空白页（F6 的要求）。

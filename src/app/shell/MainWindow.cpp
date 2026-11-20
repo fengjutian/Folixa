@@ -21,6 +21,7 @@
 #include "app/controllers/DocumentConverter.h"
 #include "app/controllers/DigitalSignatureBackend.h"
 #include "app/panels/IndexPanel.h"
+#include "app/panels/AttachmentPanel.h"
 #include "app/controllers/IndexController.h"
 #include "app/controllers/NavigationController.h"
 #include "app/controllers/AnnotationController.h"
@@ -2445,6 +2446,11 @@ void MainWindow::buildUi() {
     railEntries.append({QStringLiteral(":/icons/annotation.svg"),
                          QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "批注"),
                          QStringLiteral("railButton.annotations"), createAnnotationTab()});
+    // 附件页：文档级嵌入文件（/Names → /EmbeddedFiles）。
+    attachmentPanel_ = new AttachmentPanel(navigationPages);
+    railEntries.append({QStringLiteral(":/icons/attachment.svg"),
+                         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "附件"),
+                         QStringLiteral("railButton.attachments"), attachmentPanel_});
     // 索引页：本地索引与检索（v0.9.0）。放在最后，页签下标不变。
     indexPanel_ = new IndexPanel(navigationPages);
     // 表单页：AcroForm 字段列表与填写（v1.5.0）。
@@ -2514,6 +2520,15 @@ void MainWindow::buildUi() {
                     view->showIndexedChunk(pageIndex, chunkId);
                 }
             });
+    // 附件面板的四个动作：添加、打开、保存副本、删除。
+    connect(attachmentPanel_, &AttachmentPanel::addRequested, this,
+            &MainWindow::addDocumentAttachment);
+    connect(attachmentPanel_, &AttachmentPanel::openRequested, this,
+            &MainWindow::openDocumentAttachment);
+    connect(attachmentPanel_, &AttachmentPanel::saveRequested, this,
+            &MainWindow::saveDocumentAttachment);
+    connect(attachmentPanel_, &AttachmentPanel::removeRequested, this,
+            &MainWindow::removeDocumentAttachment);
     connect(outlineTree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
         if (item == nullptr) {
             return;
@@ -2874,6 +2889,8 @@ void MainWindow::buildUi() {
         }
         // 索引面板也跟着当前文档走。
         bindIndex(view);
+        // 附件面板同样跟着当前文档走。
+        bindAttachments(view);
         // AI 面板也要跟着当前文档走：它要拿当前页的文本与选区。
         if (aiPanel_ != nullptr) {
             aiPanel_->setTextSource(view != nullptr ? view->textController() : nullptr);
@@ -4358,6 +4375,155 @@ void MainWindow::bindIndex(PdfView* view) {
         return;
     }
     indexPanel_->setController(view != nullptr ? view->indexController() : nullptr);
+}
+
+// 附件面板跟着当前文档走。
+//
+// 换文档时要把上一个文档的 attachmentsChanged 连接断掉——否则旧文档改了附件，
+// 面板会刷成旧文档的列表（连接没断，但 view 已经换了）。
+void MainWindow::bindAttachments(PdfView* view) {
+    if (attachmentPanel_ == nullptr) {
+        return;
+    }
+    QObject::disconnect(attachmentsConnection_);
+    attachmentPanel_->setAttachments(view != nullptr
+                                        ? view->attachments()
+                                        : QVector<pdf::DocumentAttachment>());
+    if (view != nullptr) {
+        attachmentsConnection_ = connect(view, &PdfView::attachmentsChanged, this,
+                                         [this, view] {
+                                             if (attachmentPanel_ != nullptr) {
+                                                 attachmentPanel_->setAttachments(view->attachments());
+                                             }
+                                         });
+    }
+}
+
+// 添加附件：选一个文件，嵌进当前文档。
+void MainWindow::addDocumentAttachment() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        QMessageBox::information(this, tr("添加附件"), tr("先打开一份 PDF。"));
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(this, tr("选择要嵌入的文件"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("添加附件"), tr("读不了这个文件：\n%1")
+                                                         .arg(QDir::toNativeSeparators(path)));
+        return;
+    }
+    const QByteArray data = file.readAll();
+    file.close();
+    const QString name = QFileInfo(path).fileName();
+    QString reason;
+    if (!view->addAttachment(name, data, QString(), &reason)) {
+        QMessageBox::warning(this, tr("添加附件"),
+                             reason.isEmpty() ? tr("加不进去这个附件。") : reason);
+        return;
+    }
+    statusBar()->showMessage(tr("已添加附件：%1").arg(name), 4000);
+    trace(QStringLiteral("attachment add name=%1").arg(name));
+}
+
+// 打开附件：把内容落到临时文件，交给系统上注册的程序。
+void MainWindow::openDocumentAttachment(const QString& name) {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    QString reason;
+    const QByteArray data = view->attachmentData(name, &reason);
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("打开附件"),
+                             reason.isEmpty() ? tr("读不出这个附件的内容。") : reason);
+        return;
+    }
+    // 临时文件不能在 openUrl 之后立刻删：外部程序还没读完。
+    // 用 QTemporaryFile 兜着，进程退出时自动清掉。
+    auto* temp = new QTemporaryFile(
+        QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+            .filePath(QStringLiteral("aipdf-attachment-XXXXXX.")
+                      + QFileInfo(name).suffix()));
+    temp->setAutoRemove(false);
+    if (!temp->open()) {
+        delete temp;
+        QMessageBox::warning(this, tr("打开附件"), tr("临时文件建不出来。"));
+        return;
+    }
+    if (temp->write(data) != data.size()) {
+        temp->close();
+        delete temp;
+        QMessageBox::warning(this, tr("打开附件"), tr("临时文件写不进去。"));
+        return;
+    }
+    temp->flush();
+    const QString path = temp->fileName();
+    temp->close();
+    delete temp;
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+        QMessageBox::warning(this, tr("打开附件"), tr("系统打不开这个附件：\n%1")
+                                                         .arg(QDir::toNativeSeparators(path)));
+        return;
+    }
+    trace(QStringLiteral("attachment open name=%1").arg(name));
+}
+
+// 保存副本：把附件内容写到一个用户选的位置。
+void MainWindow::saveDocumentAttachment(const QString& name) {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    QString reason;
+    const QByteArray data = view->attachmentData(name, &reason);
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("保存附件"),
+                             reason.isEmpty() ? tr("读不出这个附件的内容。") : reason);
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(this, tr("保存附件副本"), name);
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QMessageBox::warning(this, tr("保存附件"), tr("写不了这个文件：\n%1")
+                                                         .arg(QDir::toNativeSeparators(path)));
+        return;
+    }
+    file.write(data);
+    file.close();
+    statusBar()->showMessage(tr("附件副本已保存：%1")
+                                 .arg(QDir::toNativeSeparators(path)),
+                             4000);
+    trace(QStringLiteral("attachment save name=%1").arg(name));
+}
+
+// 删除附件：先确认，再删。
+void MainWindow::removeDocumentAttachment(const QString& name) {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        return;
+    }
+    const QMessageBox::StandardButton answer =
+        QMessageBox::question(this, tr("删除附件"),
+                               tr("确定要从这份文档里删掉附件「%1」吗？").arg(name),
+                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+    QString reason;
+    if (!view->removeAttachment(name, &reason)) {
+        QMessageBox::warning(this, tr("删除附件"),
+                             reason.isEmpty() ? tr("删不掉这个附件。") : reason);
+        return;
+    }
+    statusBar()->showMessage(tr("已删除附件：%1").arg(name), 4000);
+    trace(QStringLiteral("attachment remove name=%1").arg(name));
 }
 
 void MainWindow::refreshAnnotations(PdfView* view) {
@@ -6399,11 +6565,15 @@ void MainWindow::traceNavigationPanel(int index) {
             break;
         case 5:
             // 导航页顺序：0 页面 / 1 目录 / 2 书签 / 3 搜索 / 4 批注 /
-            // 5 表单 / 6 索引。以前这里把 5 当成索引，轨迹里记的是表单页的条目数。
+            // 5 附件 / 6 表单 / 7 索引。
+            trace(QStringLiteral("panel attachments items=%1")
+                      .arg(attachmentPanel_ != nullptr ? attachmentPanel_->count() : 0));
+            break;
+        case 6:
             trace(QStringLiteral("panel forms items=%1")
                       .arg(formTable_ != nullptr ? formTable_->rowCount() : 0));
             break;
-        case 6:
+        case 7:
             trace(QStringLiteral("panel index items=%1")
                       .arg(indexPanel_ != nullptr ? indexPanel_->resultCount() : 0));
             break;
@@ -6800,6 +6970,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
         bindNavigation(view);
         // 索引控制器也换了：索引面板要重新指过去。
         bindIndex(view);
+        // 附件面板同样跟着当前文档走。
+        bindAttachments(view);
         // 问答控制器同样换了：AI 面板要重新指过去，
         // 否则它握着的是上一个已经销毁的控制器。
         if (aiPanel_ != nullptr) {
@@ -6824,6 +6996,8 @@ void MainWindow::openPdfFile(const QString& filePath) {
         searchPanel_->setController(view->textController());
     }
     bindIndex(view);
+    // 附件面板同样跟着当前文档走。
+    bindAttachments(view);
     // AI 面板的整篇问答也要指到这个文档的问答控制器。
     //
     // 换标签页时也会指一次（currentChanged），但启动时直接打开文档走的是这条路径，
@@ -6879,8 +7053,9 @@ void MainWindow::updateNavigationHeader(int index) {
         case 2: navigationHeader_->setText(tr("书签")); break;
         case 3: navigationHeader_->setText(tr("搜索")); break;
         case 4: navigationHeader_->setText(tr("批注")); break;
-        case 5: navigationHeader_->setText(tr("表单")); break;
-        case 6: navigationHeader_->setText(tr("索引")); break;
+        case 5: navigationHeader_->setText(tr("附件")); break;
+        case 6: navigationHeader_->setText(tr("表单")); break;
+        case 7: navigationHeader_->setText(tr("索引")); break;
         default: navigationHeader_->setText(tr("导航")); break;
     }
 }

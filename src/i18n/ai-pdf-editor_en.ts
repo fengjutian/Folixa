@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="zh_CN">
     <context>
@@ -885,6 +885,54 @@
         <message>
             <source>添加附件</source>
             <translation>Add attachment</translation>
+        </message>
+        <message>
+            <source>文档里还没有附件</source>
+            <translation>No attachments in this document yet</translation>
+        </message>
+        <message>
+            <source>用「添加附件…」把文件嵌进 PDF，附件会随文档一起保存。</source>
+            <translation>Use “Add attachment…” to embed a file into the PDF; the attachment is saved with the document.</translation>
+        </message>
+        <message>
+            <source>说明</source>
+            <translation>Description</translation>
+        </message>
+        <message>
+            <source>大小</source>
+            <translation>Size</translation>
+        </message>
+        <message>
+            <source>文档附件列表</source>
+            <translation>Document attachment list</translation>
+        </message>
+        <message>
+            <source>添加附件…</source>
+            <translation>Add attachment…</translation>
+        </message>
+        <message>
+            <source>打开</source>
+            <translation>Open</translation>
+        </message>
+        <message>
+            <source>打开所选附件</source>
+            <translation>Open the selected attachment</translation>
+        </message>
+        <message>
+            <source>保存副本…</source>
+            <translation>Save a copy…</translation>
+        </message>
+        <message>
+            <source>保存所选附件的副本</source>
+            <translation>Save a copy of the selected attachment</translation>
+        </message>
+        <message>
+            <source>删除所选附件</source>
+            <translation>Delete the selected attachment</translation>
+        </message>
+        <message>
+            <source>%1 字节</source>
+            <translation>%1 bytes</translation>
         </message>
     </context>
     <context>
@@ -3365,6 +3413,92 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
             <source>音视频 (*.avi *.mp4 *.mov *.webm *.mkv *.wav *.mp3 *.m4a *.wma *.ogg *.flac)</source>
             <translation>Audio and video (*.avi *.mp4 *.mov *.webm *.mkv *.wav *.mp3 *.m4a *.wma *.ogg *.flac)</translation>
         </message>
+        <message>
+            <source>附件</source>
+            <translation>Attachments</translation>
+        </message>
+        <message>
+            <source>添加附件</source>
+            <translation>Add attachment</translation>
+        </message>
+        <message>
+            <source>选择要嵌入的文件</source>
+            <translation>Choose a file to embed</translation>
+        </message>
+        <message>
+            <source>读不了这个文件：
+%1</source>
+            <translation>Cannot read this file:
+%1</translation>
+        </message>
+        <message>
+            <source>加不进去这个附件。</source>
+            <translation>Cannot add this attachment.</translation>
+        </message>
+        <message>
+            <source>已添加附件：%1</source>
+            <translation>Attachment added: %1</translation>
+        </message>
+        <message>
+            <source>打开附件</source>
+            <translation>Open attachment</translation>
+        </message>
+        <message>
+            <source>读不出这个附件的内容。</source>
+            <translation>Cannot read the attachment content.</translation>
+        </message>
+        <message>
+            <source>临时文件建不出来。</source>
+            <translation>Cannot create the temporary file.</translation>
+        </message>
+        <message>
+            <source>临时文件写不进去。</source>
+            <translation>Cannot write the temporary file.</translation>
+        </message>
+        <message>
+            <source>系统打不开这个附件：
+%1</source>
+            <translation>The system cannot open this attachment:
+%1</translation>
+        </message>
+        <message>
+            <source>保存附件</source>
+            <translation>Save attachment</translation>
+        </message>
+        <message>
+            <source>保存附件副本</source>
+            <translation>Save attachment copy</translation>
+        </message>
+        <message>
+            <source>写不了这个文件：
+%1</source>
+            <translation>Cannot write this file:
+%1</translation>
+        </message>
+        <message>
+            <source>附件副本已保存：%1</source>
+            <translation>Attachment copy saved: %1</translation>
+        </message>
+        <message>
+            <source>删除附件</source>
+            <translation>Delete attachment</translation>
+        </message>
+        <message>
+            <source>确定要从这份文档里删掉附件「%1」吗？</source>
+            <translation>Remove the attachment “%1” from this document?</translation>
+        </message>
+        <message>
+            <source>删不掉这个附件。</source>
+            <translation>Cannot remove this attachment.</translation>
+        </message>
+        <message>
+            <source>已删除附件：%1</source>
+            <translation>Attachment removed: %1</translation>
+        </message>
+        <message>
+            <source>先打开一份 PDF。</source>
+            <translation>Open a PDF first.</translation>
+        </message>
 </context>
         <context>
         <name>aipdf::app::MediaPreview</name>
@@ -5541,6 +5675,14 @@ Write them into the document?</translation>
             <source>附件已放置；保存文档后写入 PDF。</source>
             <translation>Attachment placed; it is written into the PDF when the document is saved.</translation>
         </message>
+        <message>
+            <source>这份文档里没有叫「%1」的附件。</source>
+            <translation>This document has no attachment named “%1”.</translation>
+        </message>
+        <message>
+            <source>删除附件</source>
+            <translation>Delete attachment</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -6681,6 +6823,34 @@ Write them into the document?</translation>
         <message>
             <source>页码越界</source>
             <translation>Page number out of range</translation>
+        </message>
+        <message>
+            <source>附件不存在</source>
+            <translation>The attachment does not exist</translation>
+        </message>
+        <message>
+            <source>附件内容读不出来</source>
+            <translation>Cannot read the attachment content</translation>
+        </message>
+        <message>
+            <source>附件名称不能为空</source>
+            <translation>The attachment name cannot be empty</translation>
+        </message>
+        <message>
+            <source>附件内容为空</source>
+            <translation>The attachment content is empty</translation>
+        </message>
+        <message>
+            <source>加不进去：同名附件已存在，或附件数量已达上限</source>
+            <translation>Cannot add: an attachment with the same name already exists, or the attachment limit has been reached</translation>
+        </message>
+        <message>
+            <source>附件内容写入失败</source>
+            <translation>Cannot write the attachment content</translation>
+        </message>
+        <message>
+            <source>附件删除失败</source>
+            <translation>Cannot delete the attachment</translation>
         </message>
     </context>
     <context>

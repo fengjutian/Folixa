@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QRandomGenerator>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -84,6 +85,8 @@ private slots:
     void saveEncryptsWrittenFile();
     void savingEncryptedDocumentKeepsItsPassword();
     void reencryptingAnEncryptedDocumentUsesTheNewSettings();
+    void documentLevelAttachmentSurvivesSaveToDisk();
+    void removingDocumentAttachmentKeepsFileConsistent();
 };
 
 void DocumentWriterTests::everyAnnotationGetsAnAppearance() {
@@ -644,6 +647,104 @@ void DocumentWriterTests::nativeSoundAnnotationIsInjected() {    const auto open
         }
     }
     QVERIFY2(foundSound, "声音注释没有被写进页面");
+}
+
+// 文档级附件（/Names → /EmbeddedFiles）要跟着「保存」走到磁盘上。
+//
+// 这一条盯的是**应用真正的保存路径**（DocumentWriter::save），不是
+// 适配层的 serialize()：保存链路里还有外观流补写、qpdf 结构校验、
+// 重开校验，任何一环把 /Names 树弄丢了，附件就会「界面上有、文件里没有」。
+void DocumentWriterTests::documentLevelAttachmentSurvivesSaveToDisk() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("with-attachment.pdf"));
+
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    QString error;
+    QVERIFY2(opened.document.addAttachment(QStringLiteral("notes.txt"),
+                                            QByteArray("attachment payload"),
+                                            QStringLiteral("随文档走的附件"), &error),
+             qPrintable(error));
+
+    const SaveOutcome outcome = DocumentWriter::save(opened.document, path, false);
+    QVERIFY2(outcome.ok, qPrintable(outcome.error));
+
+    // 重开磁盘上的文件：附件必须还在，而且内容一个字节不差。
+    const auto reopened = openDocument(path);
+    QVERIFY2(reopened.document.isValid(), qPrintable(reopened.errorMessage));
+    const auto entries = reopened.document.attachments();
+    QCOMPARE(entries.size(), 1);
+    QCOMPARE(entries.first().name, QStringLiteral("notes.txt"));
+    QCOMPARE(entries.first().description, QStringLiteral("随文档走的附件"));
+
+    QString readError;
+    const QByteArray data = reopened.document.attachmentData(0, &readError);
+    QVERIFY2(!data.isEmpty(), qPrintable(readError));
+    QCOMPARE(data, QByteArray("attachment payload"));
+
+    // MIME 类型的边界（实测出来的限制，不是漏写）：
+    // PDFium 的嵌入文件接口只能把键写进 /Params，够不到嵌入文件流的 /Subtype，
+    // 它自己的 GetSubtype 也读不回来 —— 所以文档级附件**不带 MIME 类型**，
+    // 别的阅读器只能靠文件名后缀判断类型。
+    // 这一条是「边界观察哨」：哪天这里有值了，说明 PDFium 变了，
+    // 矩阵里的边界说明要跟着改（别让说明悄悄过期）。
+    QVERIFY2(entries.first().mimeType.isEmpty(),
+             "PDFium 现在能写 MIME 类型了：矩阵里的降级边界说明要跟着改");
+}
+
+// 删掉附件之后，文件本身必须还是一份好文件，而且附件列表里真的没有它了。
+//
+// 这一条把「删除」的真实语义钉住：PDFium 的删除只是把条目从名字树上摘掉，
+// 附件数据本身是否还留在文件里，由本用例**按体积实测**（而不是靠明文标记去搜——
+// 嵌入文件流可能被压缩，明文根本搜不到，搜不到不能当成「已经删干净」），
+// 写矩阵的边界说明要用这个实测结果。
+void DocumentWriterTests::removingDocumentAttachmentKeepsFileConsistent() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("removed.pdf"));
+    const QString path2 = dir.filePath(QStringLiteral("removed-2.pdf"));
+
+    // 载荷要够大、而且**不可压缩**：嵌入文件流会被 Flate 压缩，
+    // 全是 'A' 的载荷能压成几百字节，用它比体积根本测不出「数据还在不在」。
+    // 这里用固定种子的随机字节，保证可复现且压不动。
+    QRandomGenerator generator(20261120);
+    QByteArray payload(256 * 1024, Qt::Uninitialized);
+    for (int index = 0; index < payload.size(); ++index) {
+        payload[index] = static_cast<char>(generator.bounded(256));
+    }
+
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(opened.document.isValid());
+    QString error;
+    QVERIFY2(opened.document.addAttachment(QStringLiteral("gone.bin"), payload, QString(), &error),
+             qPrintable(error));
+    QVERIFY2(DocumentWriter::save(opened.document, path, false).ok, "第一次保存失败");
+    const qint64 sizeWithAttachment = QFileInfo(path).size();
+
+    // 重开 → 删掉 → 再存。
+    // 第二次存到别的路径：PDFium 还开着第一个文件，Windows 上不能原地替换。
+    auto reopened = openDocument(path);
+    QVERIFY(reopened.document.isValid());
+    QCOMPARE(reopened.document.attachments().size(), 1);
+    QVERIFY2(reopened.document.removeAttachment(0, &error), qPrintable(error));
+    QCOMPARE(reopened.document.attachments().size(), 0);
+
+    const SaveOutcome outcome = DocumentWriter::save(reopened.document, path2, false);
+    QVERIFY2(outcome.ok, qPrintable(outcome.error));
+
+    // 存完的文件还得是能打开的 PDF，附件列表也确实是空的。
+    const auto finalDoc = openDocument(path2);
+    QVERIFY2(finalDoc.document.isValid(), qPrintable(finalDoc.errorMessage));
+    QCOMPARE(finalDoc.document.attachments().size(), 0);
+
+    // 实测：附件数据是不是真的从文件里消失了。
+    const qint64 sizeAfterRemoval = QFileInfo(path2).size();
+    qInfo() << "attachment payload still in file bytes:"
+            << (sizeWithAttachment - sizeAfterRemoval);
+    QVERIFY2(sizeAfterRemoval < sizeWithAttachment,
+             "删掉附件后文件体积没变小：附件数据还留在文件里");
 }
 
 QTEST_MAIN(DocumentWriterTests)

@@ -138,6 +138,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/IndexController.cpp
     app/panels/IndexPanel.h
     app/panels/IndexPanel.cpp
+    app/panels/AttachmentPanel.h
+    app/panels/AttachmentPanel.cpp
     app/controllers/DocumentQaController.h
     app/controllers/DocumentQaController.cpp
     app/controllers/DocumentOutput.h
