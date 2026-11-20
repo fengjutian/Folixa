@@ -1,4 +1,5 @@
 #include "pdf/ops/StreamingEdit.h"
+#include "pdf/ops/AnchorMover.h"
 #include "pdf/ops/AnchorPlanner.h"
 
 #include "pdf/compliance/StructTreeReader.h"
@@ -1395,7 +1396,8 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         return result;
     }
 
-    // 锚点规划（第一层：只判定「能不能搬」，不写回）。
+    // 锚点搬迁：先规划；有冲突就拒绝整页，不硬搬。
+    QVector<AnchorImageMove> imageMoves;
     {
         QString modelError;
         const DocumentObjectModel model =
@@ -1407,8 +1409,6 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
                     .arg(modelError));
         } else {
             int total = 0;
-            int movable = 0;
-            QStringList conflicts;
             for (int page = 0; page < pageBoxes.size(); ++page) {
                 QVector<AnchorBody> bodies;
                 for (const PageObject& object : model.objects) {
@@ -1442,23 +1442,28 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
                 }
                 const AnchorPlan plan =
                     planAnchorMoves(bodies, shifts, pageBoxes.at(page), avoid);
+                if (!plan.ok()) {
+                    result.report.error =
+                        i18n::tr("aipdf::pdf::StreamingEdit",
+                                 "第 %1 页锚点冲突，已拒绝整页重排：%2")
+                            .arg(page + 1)
+                            .arg(plan.conflicts.mid(0, 3).join(QStringLiteral("；")));
+                    return result;
+                }
                 total += plan.decisions.size();
-                movable += plan.movedCount;
-                conflicts += plan.conflicts;
+                for (const AnchorDecision& decision : plan.decisions) {
+                    if (decision.kind == QStringLiteral("图片")) {
+                        imageMoves.append(
+                            AnchorImageMove{page, decision.from, decision.deltaY});
+                    }
+                }
             }
             if (total > 0) {
                 result.report.notes.append(
                     i18n::tr("aipdf::pdf::StreamingEdit",
-                             "锚点规划：%1 个对象需要跟随段落移动，其中 %2 个可安全移动、"
-                             "%3 个有冲突；本版本只报告、不自动搬")
+                             "锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片会改写内容流")
                         .arg(total)
-                        .arg(movable)
-                        .arg(conflicts.size()));
-                for (int i = 0; i < qMin(3, conflicts.size()); ++i) {
-                    result.report.notes.append(
-                        i18n::tr("aipdf::pdf::StreamingEdit", "锚点冲突：%1")
-                            .arg(conflicts.at(i)));
-                }
+                        .arg(imageMoves.size()));
             }
         }
     }
@@ -1474,12 +1479,25 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         return result;
     }
 
-    const QByteArray written = applyBlockRewrites(pdfBytes, rewrites, &error);
+    QByteArray written = applyBlockRewrites(pdfBytes, rewrites, &error);
     if (written.isEmpty()) {
         result.report.error = error;
         return result;
     }
 
+    if (!imageMoves.isEmpty()) {
+        const AnchorMoveResult moved = moveAnchoredImages(written, imageMoves);
+        if (!moved.ok()) {
+            result.report.error =
+                i18n::tr("aipdf::pdf::StreamingEdit", "锚点搬迁失败，已拒绝写回：%1")
+                    .arg(moved.errors.join(QStringLiteral("；")));
+            return result;
+        }
+        written = moved.bytes;
+        result.report.notes.append(
+            i18n::tr("aipdf::pdf::StreamingEdit", "已改写内容流，搬动 %1 张图片")
+                .arg(moved.moved));
+    }
     const QVector<PageObjectInventory> afterInventory =
         pageObjectInventory(written, &inventoryError);
     if (!inventoryError.isEmpty()) {

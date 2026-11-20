@@ -243,6 +243,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ops/OutlineEditor.h
     pdf/ops/CrossReference.cpp
     pdf/ops/CrossReference.h
+    pdf/ops/AnchorMover.cpp
+    pdf/ops/AnchorMover.h
     pdf/ops/AnchorPlanner.cpp
     pdf/ops/AnchorPlanner.h
     pdf/ops/StreamingEdit.cpp

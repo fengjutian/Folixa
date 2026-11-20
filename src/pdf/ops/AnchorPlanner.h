@@ -22,6 +22,8 @@ struct AnchorShift {
 
 // 一个锚点对象的结果。
 struct AnchorDecision {
+    int bodyIndex = -1;
+    QString kind;
     QRectF from;
     QRectF to;
     double deltaY = 0.0;

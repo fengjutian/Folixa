@@ -3325,6 +3325,46 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
             <source>没有录到音频。</source>
             <translation>No audio was recorded.</translation>
         </message>
+        <message>
+            <source>音频和视频</source>
+            <translation>Audio and video</translation>
+        </message>
+        <message>
+            <source>从哪里取:</source>
+            <translation>Take it from:</translation>
+        </message>
+        <message>
+            <source>录制中心的音视频</source>
+            <translation>Audio or video in the recording center</translation>
+        </message>
+        <message>
+            <source>本机音视频文件</source>
+            <translation>Audio or video file on this computer</translation>
+        </message>
+        <message>
+            <source>录制中心里还没有音视频。先到「录制」页录一段。</source>
+            <translation>There is no audio or video in the recording center yet. Record one on the Record tab first.</translation>
+        </message>
+        <message>
+            <source>选一段:</source>
+            <translation>Choose one:</translation>
+        </message>
+        <message>
+            <source>这个文件是空的。</source>
+            <translation>This file is empty.</translation>
+        </message>
+        <message>
+            <source>把录制中心或本机的音视频挂到页面上（用外部播放器打开）</source>
+            <translation>Attach audio or video from the recording center or this computer to the page (it opens in an external player)</translation>
+        </message>
+        <message>
+            <source>选择音视频文件</source>
+            <translation>Choose an audio or video file</translation>
+        </message>
+        <message>
+            <source>音视频 (*.avi *.mp4 *.mov *.webm *.mkv *.wav *.mp3 *.m4a *.wma *.ogg *.flac)</source>
+            <translation>Audio and video (*.avi *.mp4 *.mov *.webm *.mkv *.wav *.mp3 *.m4a *.wma *.ogg *.flac)</translation>
+        </message>
 </context>
         <context>
         <name>aipdf::app::MediaPreview</name>
@@ -5492,6 +5532,14 @@ Write them into the document?</translation>
         <message>
             <source>阅读选项</source>
             <translation>Reading options</translation>
+        </message>
+        <message>
+            <source>请在页面上单击放置附件的位置；按其他工具可取消。</source>
+            <translation>Click the page to place the attachment; pick another tool to cancel.</translation>
+        </message>
+        <message>
+            <source>附件已放置；保存文档后写入 PDF。</source>
+            <translation>Attachment placed; it is written into the PDF when the document is saved.</translation>
         </message>
 </context>
     <context>
@@ -9548,6 +9596,10 @@ If you need to keep the signatures, do not modify and save this file again after
     <message><source>锚点冲突：%1</source><translation>Anchor conflict: %1</translation></message>
     <message><source>锚点规划跳过：读不出页面对象模型：%1</source><translation>Anchor planning skipped: cannot read the page object model: %1</translation></message>
     <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 个可安全移动、%3 个有冲突；本版本只报告、不自动搬</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 can move safely and %3 conflict; this version only reports and does not move them</translation></message>
+    <message><source>已改写内容流，搬动 %1 张图片</source><translation>Content streams rewritten; moved %1 images</translation></message>
+    <message><source>第 %1 页锚点冲突，已拒绝整页重排：%2</source><translation>Anchor conflict on page %1; the page was not reflowed: %2</translation></message>
+    <message><source>锚点搬迁失败，已拒绝写回：%1</source><translation>Anchor move failed; write-back refused: %1</translation></message>
+    <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片会改写内容流</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 images will rewrite the content stream</translation></message>
     <message><source>目标页宽必须大于 0</source><translation>The target page width must be greater than 0</translation></message>
     <message><source>左右边距把可用宽度吃光了，没有可排版的栏宽</source><translation>The left and right margins leave no usable column width</translation></message>
     <message><source>这份文档没有结构标签，没有可靠的段落边界，整篇流式重排已拒绝；只能逐段处理</source><translation>This document has no structure tags, so it has no reliable paragraph boundaries; whole-document streaming reflow was refused and only per-paragraph handling is possible</translation></message>

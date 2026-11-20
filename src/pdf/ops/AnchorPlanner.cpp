@@ -33,6 +33,8 @@ AnchorPlan planAnchorMoves(const QVector<AnchorBody>& bodies,
         if (owner == nullptr) continue;
 
         AnchorDecision decision;
+        decision.bodyIndex = i;
+        decision.kind = body.kind;
         decision.from = body.bounds;
         decision.deltaY = owner->deltaY;
         decision.to = body.bounds.translated(0.0, -owner->deltaY);
