@@ -4,6 +4,7 @@
 
 #include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QHeaderView>
@@ -256,8 +257,9 @@ void RecordingCenterDialog::openSelected() {
     if (!entry.has_value()) return;
     if (!QFileInfo::exists(entry->path)) {
         QMessageBox::warning(this, tr("录制列表"),
-                             tr("这个录制文件已经不在了：\n%1")
-                                 .arg(QDir::toNativeSeparators(entry->path)));
+                             tr("这个录制文件已经不在了：")
+                                 + QStringLiteral("\n")
+                                 + QDir::toNativeSeparators(entry->path));
         refreshList();
         return;
     }
@@ -270,15 +272,17 @@ void RecordingCenterDialog::revealSelected() {
     const QFileInfo info(entry->path);
     if (!info.exists()) {
         QMessageBox::warning(this, tr("录制列表"),
-                             tr("这个录制文件已经不在了：\n%1")
-                                 .arg(QDir::toNativeSeparators(entry->path)));
+                             tr("这个录制文件已经不在了：")
+                                 + QStringLiteral("\n")
+                                 + QDir::toNativeSeparators(entry->path));
         refreshList();
         return;
     }
     // Windows 上用 Explorer 的 /select 参数定位到文件；其它平台退回到打开所在目录。
 #ifdef Q_OS_WIN
     QProcess::startDetached(QStringLiteral("explorer.exe"),
-                            {QStringLiteral("/select,") + QDir::toNativeSeparators(info.absoluteFilePath())});
+                            QStringList{QStringLiteral("/select,")
+                                        + QDir::toNativeSeparators(info.absoluteFilePath())});
 #else
     QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
 #endif
