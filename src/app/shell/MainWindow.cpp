@@ -3155,16 +3155,19 @@ void MainWindow::syncTabBar() {
         // 展开态也要一起收回「图标轨」：只 hide 不收起的话，dock 下次露面
         // 会把整页面板（含空缩略图与页面按钮）带回来。
         setNavigationExpanded(false);
-    } else if (navHiddenForWelcome_) {
+    } else {
+        const bool returningFromWorkspace = navHiddenForWelcome_;
         navHiddenForWelcome_ = false;
-        // 文档页至少要保留 52px 的导航图标轨。旧版本可能在切换工作台或退出时
-        // 把 navigationVisible 错写成 false；若继续按这个陈旧值恢复，整条导航会消失，
-        // 用户连重新展开书签/目录的入口都找不到。
+        // 文档页必须保留 52px 的导航图标轨，不再依赖旧设置或某一次工作台切换标记。
+        // 否则「重复打开当前文档」「在文档标签间切换」都会绕过旧的恢复分支，
+        // 整条导航消失后用户连重新展开书签/目录的入口都找不到。
         navigationUserVisible_ = true;
         navigationDock_->show();
         QSettings().setValue(QStringLiteral("workspace/navigationVisible"), true);
-        // 重新露面时回到「图标轨」形态：只 show 不设宽度，dock 会摊成一条空面板。
-        setNavigationExpanded(false);
+        // 只有刚从工作台返回时才收成图标轨；普通文档切换不能把用户正在看的面板折掉。
+        if (returningFromWorkspace) {
+            setNavigationExpanded(false);
+        }
     }
 }
 
@@ -3245,6 +3248,7 @@ QWidget* MainWindow::createNavigationEmptyState(const char* titleSource,
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(18, 28, 18, 28);
     auto* title = new QLabel(QString(), page);
+    title->setObjectName(QStringLiteral("emptyTitle"));
     title->setAlignment(Qt::AlignCenter);
     title->setWordWrap(true);
     auto* description = new QLabel(QString(), page);
@@ -3405,9 +3409,14 @@ QWidget* MainWindow::createAnnotationTab() {
     //
     // 为什么放在堆叠页**外面**：没有批注时筛选栏也该看得见（灰着就行），
     // 藏进另一个页里用户就找不到它了。
-    auto* filterRow = new QHBoxLayout();
-    filterRow->setSpacing(6);
-    annotationFilterTypeBox_ = new QComboBox(page);
+    auto* filterCard = new QFrame(page);
+    filterCard->setObjectName(QStringLiteral("annotationFilterCard"));
+    auto* filterLayout = new QVBoxLayout(filterCard);
+    filterLayout->setContentsMargins(10, 10, 10, 10);
+    filterLayout->setSpacing(8);
+    auto* filterInputs = new QHBoxLayout();
+    filterInputs->setSpacing(6);
+    annotationFilterTypeBox_ = new QComboBox(filterCard);
     annotationFilterTypeBox_->setObjectName(QStringLiteral("annotationFilter.type"));
     annotationFilterTypeBox_->addItem(tr("全部类型"), -1);
     for (pdf::AnnotationType type : {pdf::AnnotationType::Highlight, pdf::AnnotationType::Underline,
@@ -3422,26 +3431,33 @@ QWidget* MainWindow::createAnnotationTab() {
         annotationFilterTypeBox_->addItem(pdf::annotationTypeName(type),
                                           static_cast<int>(type));
     }
-    filterRow->addWidget(annotationFilterTypeBox_);
-    annotationFilterKeywordEdit_ = new QLineEdit(page);
+    annotationFilterTypeBox_->setMinimumWidth(96);
+    filterInputs->addWidget(annotationFilterTypeBox_);
+    annotationFilterKeywordEdit_ = new QLineEdit(filterCard);
     annotationFilterKeywordEdit_->setObjectName(QStringLiteral("annotationFilter.keyword"));
     annotationFilterKeywordEdit_->setPlaceholderText(tr("正文或作者"));
-    filterRow->addWidget(annotationFilterKeywordEdit_, 1);
-    annotationFilterApplyButton_ = new QPushButton(QString(), page);
+    filterInputs->addWidget(annotationFilterKeywordEdit_, 1);
+    filterLayout->addLayout(filterInputs);
+    auto* filterActions = new QHBoxLayout();
+    filterActions->setSpacing(6);
+    annotationFilterApplyButton_ = new QPushButton(QString(), filterCard);
     texts_.bind([this] { annotationFilterApplyButton_->setText(tr("筛选")); });
     annotationFilterApplyButton_->setObjectName(QStringLiteral("annotationFilter.apply"));
-    filterRow->addWidget(annotationFilterApplyButton_);
-    annotationFilterSelectAllButton_ = new QPushButton(QString(), page);
+    filterActions->addWidget(annotationFilterApplyButton_);
+    annotationFilterSelectAllButton_ = new QPushButton(QString(), filterCard);
     texts_.bind([this] { annotationFilterSelectAllButton_->setText(tr("全选结果")); });
     annotationFilterSelectAllButton_->setObjectName(QStringLiteral("annotationFilter.selectAll"));
-    filterRow->addWidget(annotationFilterSelectAllButton_);
-    outer->addLayout(filterRow);
+    filterActions->addWidget(annotationFilterSelectAllButton_);
+    filterActions->addStretch(1);
+    filterLayout->addLayout(filterActions);
+    outer->addWidget(filterCard);
     outer->addWidget(stack, 1);
 
-    auto* content = new QWidget(page);
+    auto* content = new QFrame(page);
+    content->setObjectName(QStringLiteral("annotationActionsCard"));
     auto* layout = new QVBoxLayout(content);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(7);
     annotationList_->setObjectName(QStringLiteral("annotationList"));
     annotationList_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     // 列表必须留在堆叠页里（空状态 / 列表二选一）。
@@ -3463,15 +3479,19 @@ QWidget* MainWindow::createAnnotationTab() {
     annotationWidthSpin_->setSingleStep(0.5);
     texts_.bind([this] { annotationWidthSpin_->setSpecialValueText(tr("默认")); });
     appearanceRow->addWidget(annotationWidthSpin_);
+    appearanceRow->addStretch(1);
+    layout->addLayout(appearanceRow);
+    auto* opacityRow = new QHBoxLayout();
+    opacityRow->setSpacing(8);
     auto* opacityLabel = new QLabel(QString(), content);
-    texts_.bind([this, opacityLabel] { opacityLabel->setText(tr("透明")); });
-    appearanceRow->addWidget(opacityLabel);
+    texts_.bind([this, opacityLabel] { opacityLabel->setText(tr("透明度")); });
+    opacityRow->addWidget(opacityLabel);
     annotationOpacitySlider_ = new QSlider(Qt::Horizontal, content);
     annotationOpacitySlider_->setObjectName(QStringLiteral("annotationOpacity"));
     annotationOpacitySlider_->setRange(10, 100);
     annotationOpacitySlider_->setValue(100);
-    appearanceRow->addWidget(annotationOpacitySlider_, 1);
-    layout->addLayout(appearanceRow);
+    opacityRow->addWidget(annotationOpacitySlider_, 1);
+    layout->addLayout(opacityRow);
     annotationApplyAppearanceButton_ = new QPushButton(QString(), content);
     texts_.bind([this] {
         annotationApplyAppearanceButton_->setText(tr("应用到所选批注"));
@@ -6917,6 +6937,9 @@ void MainWindow::openPdfFile(const QString& filePath) {
             if (!openIdentity.isEmpty() &&
                 openIdentity.compare(identity, Qt::CaseInsensitive) == 0) {
                 tabs_->setCurrentWidget(open);
+                // setCurrentWidget 指向本来就是当前页时不会发 currentChanged；显式同步，
+                // 确保旧设置或先前操作隐藏的导航图标轨能够恢复。
+                syncTabBar();
                 statusBar()->showMessage(
                     tr("%1 已经打开了").arg(QFileInfo(filePath).fileName()), 4000);
                 return;

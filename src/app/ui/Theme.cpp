@@ -245,6 +245,12 @@ QLabel#navigationHeader {
     min-height: 34px; padding: 4px 14px 2px 14px; font-weight: 650; font-size: 13px;
     color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #E8ECF3;
 }
+QWidget#navigationPageArea QLabel#emptyTitle {
+    color: #465267; font-size: 15px; font-weight: 600;
+}
+QWidget#navigationPageArea QLabel#emptyDescription {
+    color: #8792A3; font-size: 12px;
+}
 QFrame#navigationRail { background: #FAFAFB; border-right: 1px solid #E4E4E7; }
 /* 面板内容区：与画布之间留一道细边，目录树才不会看起来「飘」在页面上。 */
 QWidget#navigationPageArea { background: #FBFBFD; border-right: 1px solid #E4E4E7; }
@@ -293,9 +299,11 @@ QWidget#searchPanel QCheckBox::indicator:checked {
     image: url(:/icons/checkbox-field.svg); background: #EEF3FC; border-color: #5277E8;
 }
 QWidget#searchPanel QSpinBox {
-    min-height: 28px; padding: 0 6px; border: 1px solid #E3E7EE;
-    border-radius: 7px; background: #F8F9FB;
+    min-height: 30px; padding: 0 8px; border: 1px solid #E3E7EE;
+    border-radius: 7px; background: #F8F9FB; color: #465267;
 }
+QWidget#searchPanel QSpinBox:hover { border-color: #C4D3EA; background: #FFFFFF; }
+QWidget#searchPanel QSpinBox:focus { border-color: #5277E8; background: #FFFFFF; }
 QWidget#searchPanel QPushButton {
     min-height: 32px; padding: 0 10px; border-radius: 7px;
     background: #F8F9FB; border-color: #E0E5ED; color: #465267;
@@ -318,6 +326,43 @@ QListWidget#searchResults::item {
 }
 QListWidget#searchResults::item:hover { background: #F1F4FF; color: #3159B8; }
 QListWidget#searchResults::item:selected { background: #E9F0FB; color: #24499D; }
+
+/* 批注面板：筛选与批量操作各自成组，中间内容区保持清晰。 */
+QFrame#annotationFilterCard, QFrame#annotationActionsCard {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px;
+}
+QFrame#annotationFilterCard { margin: 10px 10px 4px 10px; }
+QFrame#annotationActionsCard { margin: 4px 10px 10px 10px; }
+QFrame#annotationFilterCard QLineEdit,
+QFrame#annotationFilterCard QComboBox,
+QFrame#annotationActionsCard QDoubleSpinBox {
+    min-height: 30px; border: 1px solid #E3E7EE; border-radius: 7px;
+    background: #F8F9FB; padding: 0 8px; color: #465267;
+}
+QFrame#annotationFilterCard QLineEdit:focus,
+QFrame#annotationFilterCard QComboBox:focus,
+QFrame#annotationActionsCard QDoubleSpinBox:focus { border-color: #5277E8; background: #FFFFFF; }
+QFrame#annotationFilterCard QPushButton,
+QFrame#annotationActionsCard QPushButton {
+    min-height: 31px; border-radius: 7px; background: #F8F9FB;
+    border: 1px solid #E0E5ED; color: #465267;
+}
+QFrame#annotationFilterCard QPushButton:hover,
+QFrame#annotationActionsCard QPushButton:hover {
+    background: #EEF3FC; border-color: #C4D3EA; color: #3159B8;
+}
+QPushButton#annotationApplyAppearance {
+    background: #EEF3FC; border-color: #C4D3EA; color: #24499D; font-weight: 600;
+}
+QPushButton#annotationRemove { color: #C0562F; background: #FFF3F0; }
+QPushButton#annotationRemove:hover { border-color: #D1434F; background: #FDECEE; }
+QListWidget#annotationList {
+    margin: 4px 10px; padding: 4px; background: #FFFFFF;
+    border: 1px solid #E3E8F0; border-radius: 9px; outline: 0;
+}
+QListWidget#annotationList::item { min-height: 38px; padding: 4px 8px; border-radius: 6px; }
+QListWidget#annotationList::item:hover { background: #F1F4FF; color: #3159B8; }
+QListWidget#annotationList::item:selected { background: #E9F0FB; color: #24499D; }
 /* 导航轨按钮：扁平图标，选中只换图标颜色（QIcon::On 的那份重染色），
    不再画整块浅蓝底 + 左侧竖条——那套边框在圆角下会弯成一只「括号」，
    看着像残缺的控件。 */
