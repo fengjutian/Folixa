@@ -352,6 +352,11 @@ void MainWindow::buildUi() {
 
     auto* tabs = new QTabWidget(this);
     tabs_ = tabs;
+    tabs->setObjectName(QStringLiteral("documentTabs"));
+    tabs->tabBar()->setObjectName(QStringLiteral("documentTabBar"));
+    tabs->tabBar()->setElideMode(Qt::ElideMiddle);
+    tabs->tabBar()->setUsesScrollButtons(true);
+    tabs->tabBar()->setFont(QApplication::font());
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
@@ -942,7 +947,7 @@ void MainWindow::buildUi() {
     ribbonBar_ = new RibbonBar(this);
     // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
     // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
-    ribbonBar_->setFixedHeight(112);
+    ribbonBar_->setFixedHeight(100);
     ribbonDock_ = new QDockWidget(QString(), this);
     ribbonDock_->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -3152,7 +3157,12 @@ void MainWindow::syncTabBar() {
         setNavigationExpanded(false);
     } else if (navHiddenForWelcome_) {
         navHiddenForWelcome_ = false;
-        navigationDock_->setVisible(navigationUserVisible_);
+        // 文档页至少要保留 52px 的导航图标轨。旧版本可能在切换工作台或退出时
+        // 把 navigationVisible 错写成 false；若继续按这个陈旧值恢复，整条导航会消失，
+        // 用户连重新展开书签/目录的入口都找不到。
+        navigationUserVisible_ = true;
+        navigationDock_->show();
+        QSettings().setValue(QStringLiteral("workspace/navigationVisible"), true);
         // 重新露面时回到「图标轨」形态：只 show 不设宽度，dock 会摊成一条空面板。
         setNavigationExpanded(false);
     }
@@ -3365,6 +3375,10 @@ QStackedWidget* MainWindow::createBookmarkTab() {
         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "当前文档没有可显示的书签。")));
     bookmarkList_ = new QListWidget(stack);
     bookmarkList_->setObjectName(QStringLiteral("bookmarkList"));
+    bookmarkList_->setUniformItemSizes(true);
+    bookmarkList_->setTextElideMode(Qt::ElideRight);
+    bookmarkList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    bookmarkList_->setSpacing(1);
     stack->addWidget(bookmarkList_);
     bookmarkStack_ = stack;
     return stack;
@@ -6278,7 +6292,11 @@ void MainWindow::refreshOutline(PdfView* view) {
     const std::vector<pdf::OutlineEntry> entries = controller->flatOutline();
     for (const pdf::OutlineEntry& entry : entries) {
         auto* item = new QListWidgetItem(bookmarkList_);
-        item->setText(QString(entry.depth * 2, QLatin1Char(' ')) + entry.title);
+        const QString indent(entry.depth * 3, QChar(0x00A0));
+        const QString marker = entry.depth == 0 ? QStringLiteral("◆  ") : QStringLiteral("›  ");
+        item->setText(indent + marker + entry.title);
+        item->setData(Qt::UserRole + 2, entry.depth);
+        item->setSizeHint(QSize(0, entry.depth == 0 ? 32 : 29));
         item->setData(Qt::UserRole, entry.pageIndex);
         item->setData(Qt::UserRole + 1, entry.title);
         if (entry.pageIndex < 0) {

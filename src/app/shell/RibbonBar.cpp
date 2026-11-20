@@ -46,12 +46,11 @@ void styleCommand(QToolButton* button) {
                               : button->objectName());
     button->setProperty("ribbonCommand", true);
     button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    // Ribbon 里的图标数量很多，28px 会形成一整面视觉重量相同的“图标墙”。
-    // 24px 仍然易于辨认，同时给文字和分组留出呼吸空间。
-    button->setIconSize(QSize(24, 24));
+    // 稍小的图标把注意力留给文档，同时仍保持清晰的命令辨识度。
+    button->setIconSize(QSize(22, 22));
     button->setAutoRaise(true);
     button->setCursor(Qt::PointingHandCursor);
-    button->setMinimumWidth(52);
+    button->setMinimumWidth(50);
     button->setStyleSheet(QString());
 }
 
@@ -71,7 +70,7 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
     tabs_->setDrawBase(false);
     tabs_->setMovable(false);
     // 固定标签条高度：否则 QVBoxLayout 会把多余高度分给它，命令区被压成一条缝。
-    tabs_->setFixedHeight(36);
+    tabs_->setFixedHeight(32);
     layout->addWidget(tabs_);
 
     pages_ = new QStackedWidget(this);
@@ -92,7 +91,7 @@ RibbonBar::RibbonBar(QWidget* parent) : QWidget(parent) {
 int RibbonBar::appendPage() {
     auto* page = new QWidget;
     auto* pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(10, 3, 10, 3);
+    pageLayout->setContentsMargins(8, 2, 8, 2);
     pageLayout->setSpacing(0);
     // 末尾的弹簧吸收多余宽度，命令组保持自然宽度。
     pageLayout->addStretch(1);
@@ -140,7 +139,7 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     frame->setProperty("ribbonGroup", true);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
-    groupLayout->setContentsMargins(8, 1, 8, 1);
+    groupLayout->setContentsMargins(7, 0, 7, 0);
     groupLayout->setSpacing(0);
 
     auto* content = new QWidget(frame);
@@ -341,7 +340,7 @@ void RibbonBar::setCompactMode(bool compact) {
     }
     compactMode_ = compact;
     pages_->setVisible(!compact);
-    setFixedHeight(compact ? tabs_->height() : 112);
+    setFixedHeight(compact ? tabs_->height() : 100);
     updateGeometry();
 }
 

@@ -134,9 +134,9 @@ QTabBar#ribbonTabs { background: transparent; qproperty-drawBase: 0; }
 /* 必须显式清掉全局 QTabBar::tab 的 min-height/margin：
    它们叠加后标签高 54px，而标签条只有 34px，选中指示条和下半截文字会被裁掉。 */
 QTabBar#ribbonTabs::tab {
-    background: transparent; color: #596579; padding: 0 14px; margin: 0;
-    min-height: 34px; border: 0; border-bottom: 2px solid transparent;
-    font-size: 13px; font-weight: 500;
+    background: transparent; color: #596579; padding: 0 13px; margin: 0;
+    min-height: 30px; border: 0; border-bottom: 2px solid transparent;
+    font-size: 12px; font-weight: 500;
 }
 QTabBar#ribbonTabs::tab:hover:!selected { color: #3159B8; background: #F7F9FC; }
 /* 底部蓝条由 RibbonTabBar 自绘：QSS 的 border-bottom 会被 QTabBar 裁掉。 */
@@ -150,7 +150,7 @@ QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal { background: #D5DCE8
 QFrame#ribbonGroup { border: 0; border-right: 1px solid #E8EBF0; background: transparent; }
 QLabel#ribbonGroupTitle { color: #98A2B3; font-size: 10px; font-weight: 400; padding-top: 2px; }
 QToolButton[ribbonCommand="true"] {
-    min-height: 60px; padding: 3px 5px 2px 5px; border: 1px solid transparent;
+    min-height: 54px; padding: 2px 4px 1px 4px; border: 1px solid transparent;
     border-radius: 6px; background: transparent; color: #465267;
     font-size: 12px; font-weight: 400;
 }
@@ -220,13 +220,30 @@ QTabBar::tab:selected {
 QTabBar::tab:hover:!selected { background: #F7F7F8; color: #365AA8; }
 QTabBar::close-button { image: url(:/icons/close.svg); subcontrol-position: right; margin-left: 4px; padding: 2px; border-radius: 4px; }
 QTabBar::close-button:hover { background: #E4EAF5; }
+/* 主文档标签比通用页签更像一条轻量工作区，不画厚重的“选项卡盒子”。 */
+QTabWidget#documentTabs > QTabBar#documentTabBar {
+    background: #F8F9FB; border-bottom: 1px solid #E4E8EF;
+}
+QTabWidget#documentTabs > QTabBar#documentTabBar::tab {
+    min-height: 34px; max-height: 34px; min-width: 92px; max-width: 280px;
+    margin: 5px 2px 0 2px; padding: 0 14px; border: 1px solid transparent;
+    border-radius: 8px 8px 0 0; background: transparent; color: #67748A;
+    font-family: "Microsoft YaHei UI"; font-size: 12px; font-weight: 400;
+}
+QTabWidget#documentTabs > QTabBar#documentTabBar::tab:selected {
+    color: #202A3A; background: #FFFFFF; border-color: #DCE3EC;
+    border-bottom-color: #FFFFFF; font-weight: 600;
+}
+QTabWidget#documentTabs > QTabBar#documentTabBar::tab:hover:!selected {
+    color: #3159B8; background: #EEF3FC;
+}
 
 /* -------------------------------------------------------------- 面板 -- */
 QDockWidget { color: #202A3A; font-weight: 600; }
 QDockWidget::title { background: #FBFCFE; border-bottom: 1px solid #E3E7EE; padding: 11px 12px; }
 QLabel#navigationHeader {
-    padding: 10px 12px 6px 12px; font-weight: 600; font-size: 13px;
-    color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #EDF0F5;
+    min-height: 34px; padding: 4px 14px 2px 14px; font-weight: 650; font-size: 13px;
+    color: #202A3A; background: #FFFFFF; border-bottom: 1px solid #E8ECF3;
 }
 QFrame#navigationRail { background: #FAFAFB; border-right: 1px solid #E4E4E7; }
 /* 面板内容区：与画布之间留一道细边，目录树才不会看起来「飘」在页面上。 */
@@ -242,6 +259,18 @@ QTreeWidget#outlineTree::item {
 QTreeWidget#outlineTree::item:hover { background: #F1F4FF; color: #365AA8; }
 QTreeWidget#outlineTree::item:selected { background: #EEF3FC; color: #3555B7; }
 QTreeWidget#outlineTree::branch { background: transparent; }
+QListWidget#bookmarkList {
+    background: #FBFBFD; border: 0; outline: 0; padding: 7px 6px;
+    color: #465267; font-size: 12px;
+}
+QListWidget#bookmarkList::item {
+    min-height: 28px; padding: 0 8px; border: 0; border-radius: 6px;
+    background: transparent; color: #465267;
+}
+QListWidget#bookmarkList::item:hover { background: #F1F4FF; color: #3159B8; }
+QListWidget#bookmarkList::item:selected {
+    background: #E9F0FB; color: #24499D; font-weight: 600;
+}
 /* 导航轨按钮：扁平图标，选中只换图标颜色（QIcon::On 的那份重染色），
    不再画整块浅蓝底 + 左侧竖条——那套边框在圆角下会弯成一只「括号」，
    看着像残缺的控件。 */
