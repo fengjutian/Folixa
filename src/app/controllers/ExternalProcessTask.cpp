@@ -76,7 +76,6 @@ void ExternalProcessTask::complete(QProcess::ExitStatus status, int exitCode) {
     result.canceled = canceled_;
     result.timedOut = timedOut_;
     emit finished(result);
-    deleteLater();
 }
 
 }  // namespace aipdf::app

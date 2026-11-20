@@ -69,6 +69,17 @@ set_target_properties(DocumentConverterTests PROPERTIES WIN32_EXECUTABLE FALSE)
 aipdf_deploy_qt_runtime(DocumentConverterTests)
 add_test(NAME DocumentConverterTests COMMAND DocumentConverterTests)
 
+qt_add_executable(ExternalProcessTaskTests
+    ExternalProcessTaskTests.cpp
+)
+target_link_libraries(ExternalProcessTaskTests PRIVATE aipdf_app_tasks Qt6::Core Qt6::Test)
+target_include_directories(ExternalProcessTaskTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(ExternalProcessTaskTests PRIVATE
+    AIPDF_CMAKE_COMMAND="${CMAKE_COMMAND}")
+set_target_properties(ExternalProcessTaskTests PROPERTIES WIN32_EXECUTABLE FALSE)
+aipdf_deploy_qt_runtime(ExternalProcessTaskTests)
+add_test(NAME ExternalProcessTaskTests COMMAND ExternalProcessTaskTests)
+
 qt_add_executable(DigitalSignatureBackendTests
     DigitalSignatureBackendTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/controllers/DigitalSignatureBackend.cpp

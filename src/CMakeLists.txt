@@ -1,3 +1,10 @@
+add_library(aipdf_app_tasks STATIC
+    app/controllers/ExternalProcessTask.cpp
+    app/controllers/ExternalProcessTask.h
+)
+target_link_libraries(aipdf_app_tasks PUBLIC Qt6::Core)
+target_include_directories(aipdf_app_tasks PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 qt_add_executable(AiPdfEditor WIN32
     app/shell/main.cpp
     app/shell/MainWindow.cpp
@@ -147,8 +154,6 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/DocumentOutput.h
     app/controllers/DocumentConverter.cpp
     app/controllers/DocumentConverter.h
-    app/controllers/ExternalProcessTask.cpp
-    app/controllers/ExternalProcessTask.h
     app/controllers/DigitalSignatureBackend.cpp
     app/controllers/DigitalSignatureBackend.h
     app/util/SearchMatcher.h
@@ -530,6 +535,7 @@ qt_add_resources(AiPdfEditor "app_i18n"
 )
 
 target_link_libraries(AiPdfEditor PRIVATE
+    aipdf_app_tasks
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets

@@ -88,7 +88,6 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QCheckBox>
-#include <QElapsedTimer>
 #include <QFrame>
 #include <QFormLayout>
 #include <QGraphicsDropShadowEffect>
@@ -114,7 +113,6 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
-#include <QProcess>
 #include <QProgressDialog>
 #include <QSettings>
 #include <QPushButton>
@@ -144,6 +142,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 
 namespace aipdf::app {
@@ -176,14 +175,6 @@ void trace(const QString& message) {
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         file.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs) + " " + message + "\n").toUtf8());
     }
-}
-
-// The OFD batch converter still runs a sequence of processes. Keep draining its
-// pipe while that queue is migrated to ExternalProcessTask as a separate change.
-void drainProcessOutput(QProcess& process, QByteArray* sink, int maxBytes = 256 * 1024) {
-    if (sink == nullptr) return;
-    sink->append(process.readAll());
-    if (sink->size() > maxBytes) sink->remove(0, sink->size() - maxBytes);
 }
 
 // 命令栏与页面页统一的图标：SVG 资源，18px（20px 画布按 0.9 缩）。
@@ -5851,6 +5842,7 @@ void MainWindow::digitallySignDocument() {
 
     auto* task = new ExternalProcessTask(this);
     connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, task, &QObject::deleteLater);
     connect(task, &ExternalProcessTask::finished, this,
             [this, progress, output, passFile](const ExternalProcessTask::Result& result) {
                 progress->close();
@@ -5896,6 +5888,7 @@ void MainWindow::verifyDigitalSignatures() {
 
     auto* task = new ExternalProcessTask(this);
     connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, task, &QObject::deleteLater);
     connect(task, &ExternalProcessTask::finished, this,
             [this, progress](const ExternalProcessTask::Result& result) {
                 progress->close();
@@ -5978,6 +5971,7 @@ void MainWindow::convertDocument(ConversionKind kind) {
 
     auto* task = new ExternalProcessTask(this);
     connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, task, &QObject::deleteLater);
     connect(task, &ExternalProcessTask::finished, this,
             [this, progress, output, plan, temporary](const ExternalProcessTask::Result& result) {
                 progress->close();
@@ -6030,57 +6024,69 @@ void MainWindow::batchConvertOfd() {
     }
     const QStringList files = QFileDialog::getOpenFileNames(this, tr("选择 OFD 文件"), QString(), tr("OFD 文件 (*.ofd *.OFD)"));
     if (files.isEmpty()) return;
-    int converted = 0;
-    QStringList failures;
-    QProgressDialog progress(tr("正在转换 OFD 文件…"), tr("取消"), 0, files.size(), this);
-    progress.setWindowTitle(tr("OFD 批量转换"));
-    progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
-    for (int index = 0; index < files.size() && !progress.wasCanceled(); ++index) {
-        const QString& input = files.at(index);
-        progress.setValue(index);
-        progress.setLabelText(tr("正在转换：%1").arg(QFileInfo(input).fileName()));
-        QApplication::processEvents();
+    auto* progress = new QProgressDialog(
+        tr("正在转换 OFD 文件…"), tr("取消"), 0, files.size(), this);
+    progress->setAttribute(Qt::WA_DeleteOnClose);
+    progress->setWindowTitle(tr("OFD 批量转换"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->show();
+
+    auto index = std::make_shared<int>(0);
+    auto converted = std::make_shared<int>(0);
+    auto failures = std::make_shared<QStringList>();
+    auto runNext = std::make_shared<std::function<void()>>();
+    *runNext = [this, converter, files, progress, index, converted, failures, runNext] {
+        if (progress->wasCanceled() || *index >= files.size()) {
+            const bool canceled = progress->wasCanceled();
+            progress->setValue(files.size());
+            progress->close();
+            if (canceled) {
+                statusBar()->showMessage(
+                    tr("OFD 转换已取消；已完成 %1 个文件。").arg(*converted), 5000);
+            } else if (!failures->isEmpty()) {
+                QMessageBox::warning(
+                    this, tr("OFD 批量转换"),
+                    tr("已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。\n失败：%3")
+                        .arg(*converted)
+                        .arg(failures->size())
+                        .arg(failures->join(QStringLiteral("、"))));
+            } else {
+                statusBar()->showMessage(tr("已转换 %1 个 OFD 文件。 ").arg(*converted), 5000);
+            }
+            QTimer::singleShot(0, this, [runNext] { *runNext = {}; });
+            return;
+        }
+
+        const QString input = files.at(*index);
         const QFileInfo inputInfo(input);
-        QString output = inputInfo.dir().filePath(inputInfo.completeBaseName() + QStringLiteral(".pdf"));
+        QString output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
+                                                  QStringLiteral(".pdf"));
         if (QFileInfo::exists(output)) {
-            output = inputInfo.dir().filePath(inputInfo.completeBaseName() + QStringLiteral("-converted.pdf"));
+            output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
+                                              QStringLiteral("-converted.pdf"));
         }
-        QProcess process;
-        process.start(converter, {input, output});
-        QElapsedTimer elapsed;
-        elapsed.start();
-        QByteArray outputBuffer;
-        while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 120000 &&
-               !progress.wasCanceled()) {
-            process.waitForFinished(100);
-            drainProcessOutput(process, &outputBuffer);
-            QApplication::processEvents();
-        }
-        if (process.state() != QProcess::NotRunning) {
-            process.kill();
-            process.waitForFinished(3000);
-        }
-        drainProcessOutput(process, &outputBuffer);
-        if (!progress.wasCanceled() && process.exitStatus() == QProcess::NormalExit &&
-            process.exitCode() == 0 && QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
-            ++converted;
-        } else {
-            failures.append(QFileInfo(input).fileName());
-        }
-    }
-    progress.setValue(files.size());
-    if (progress.wasCanceled()) {
-        statusBar()->showMessage(tr("OFD 转换已取消；已完成 %1 个文件。").arg(converted), 5000);
-        return;
-    }
-    if (!failures.isEmpty()) {
-        QMessageBox::warning(this, tr("OFD 批量转换"),
-                             tr("已转换 %1 个，失败 %2 个。转换器应接受“输入文件 输出文件”参数。\n失败：%3")
-                                 .arg(converted).arg(failures.size()).arg(failures.join(QStringLiteral("、"))));
-    } else {
-        statusBar()->showMessage(tr("已转换 %1 个 OFD 文件。 ").arg(converted), 5000);
-    }
+        progress->setValue(*index);
+        progress->setLabelText(tr("正在转换：%1").arg(inputInfo.fileName()));
+
+        auto* task = new ExternalProcessTask(this);
+        connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+        connect(task, &ExternalProcessTask::finished, task, &QObject::deleteLater);
+        connect(task, &ExternalProcessTask::finished, this,
+                [input, output, index, converted, failures, runNext](
+                    const ExternalProcessTask::Result& result) {
+                    if (!result.canceled && result.succeeded() &&
+                        QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
+                        ++*converted;
+                    } else if (!result.canceled) {
+                        failures->append(QFileInfo(input).fileName());
+                    }
+                    ++*index;
+                    (*runNext)();
+                });
+        task->start(converter, {input, output}, 120000);
+    };
+    (*runNext)();
 }
 
 PdfView* MainWindow::savedShareDocument() {
