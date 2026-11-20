@@ -215,13 +215,18 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
     // 这里用 qpdf 补上。**必须在加密之前做**——补完再加密，加密才盖得住它；
     // 反过来的话，加密后的字节 qpdf 读不了，类型就永远补不上。
     //
+    // 加密文档**也能补**：实测 PDF 的加密只作用在流数据与字符串上，流字典是明文，
+    // 带着打开口令解析开之后照常能补 /Type /EmbeddedFile + /Subtype；
+    // 写回时用 setPreserveEncryption + copyEncryptionParameters **原样保留原加密**
+    // （原打开口令、原所有者口令、原 /P 与 /Perms 权限位逐位不变）。
+    //
     // 补不上不是保存失败：这是「锦上添花」，不能因为补个类型就拦住用户存盘。
-    // 原来加密、且用户没改加密设置的那条路这里跳过——那种情况下字节仍是加密的，
-    // 读它要密码，写回还要保住原加密设置（本仓库拿不到原所有者口令）。
-    if (!requiresPasswordToOpen(bytes, nullptr)) {
+    // 但**不能静默**——给了口令却仍然失败，要如实写进 outcome.warning。
+    {
         EmbeddedFileMimeReport mimeReport;
         QString mimeError;
-        const QByteArray withMime = applyEmbeddedFileMimeTypes(bytes, &mimeReport, &mimeError);
+        const QByteArray withMime =
+            applyEmbeddedFileMimeTypes(bytes, documentPassword, &mimeReport, &mimeError);
         if (!withMime.isEmpty()) {
             bytes = withMime;
         }
@@ -234,6 +239,10 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
                                         i18n::tr("aipdf::pdf::DocumentWriter",
                                                  "已给 %1 个文档级附件补上 MIME 类型")
                                              .arg(mimeReport.patched);
+        } else if (!mimeError.isEmpty()) {
+            outcome.warning = outcome.warning.isEmpty()
+                                  ? mimeError
+                                  : outcome.warning + QStringLiteral("；") + mimeError;
         }
     }
 

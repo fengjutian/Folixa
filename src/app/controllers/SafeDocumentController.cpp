@@ -77,12 +77,36 @@ bool SafeDocumentController::open(const QString& path,
 
     pageCount_ = result.value(QStringLiteral("pageCount")).toInt();
     pages_ = result.value(QStringLiteral("pages")).toArray();
+    fields_ = result.value(QStringLiteral("fields")).toArray();
+    path_ = path;
+    openedWithPassword_ = !password.isEmpty();
     open_ = true;
     return true;
 }
 
 int SafeDocumentController::pageCount() const {
     return pageCount_;
+}
+
+QString SafeDocumentController::path() const {
+    return path_;
+}
+
+bool SafeDocumentController::openedWithPassword() const {
+    return openedWithPassword_;
+}
+
+QJsonArray SafeDocumentController::formFields() const {
+    return fields_;
+}
+
+QSizeF SafeDocumentController::pageSizePt(int pageIndex) const {
+    if (pageIndex < 0 || pageIndex >= pages_.size()) {
+        return {};
+    }
+    const QJsonObject page = pages_.at(pageIndex).toObject();
+    return QSizeF(page.value(QStringLiteral("widthPt")).toDouble(),
+                  page.value(QStringLiteral("heightPt")).toDouble());
 }
 
 QString SafeDocumentController::renderPage(int pageIndex, double scale, QString* error) {
@@ -107,6 +131,101 @@ QString SafeDocumentController::renderPage(int pageIndex, double scale, QString*
         return {};
     }
     return result.value(QStringLiteral("imagePath")).toString();
+}
+
+bool SafeDocumentController::edit(const QJsonObject& instruction, QString* error) {
+    return edit(QJsonArray{instruction}, error);
+}
+
+bool SafeDocumentController::edit(const QJsonArray& instructions, QString* error) {
+    if (!open_) {
+        setError(error, QStringLiteral("文档还没有打开，无法编辑。"));
+        return false;
+    }
+    if (instructions.isEmpty()) {
+        setError(error, QStringLiteral("没有要执行的编辑指令。"));
+        return false;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("instructions"), instructions);
+
+    QJsonObject result;
+    if (!callSync(QStringLiteral("pdf.edit"), payload, &result, error)) {
+        return false;
+    }
+    // 解析进程回一份最新的字段清单：界面按它刷新。
+    if (result.contains(QStringLiteral("fields"))) {
+        fields_ = result.value(QStringLiteral("fields")).toArray();
+    }
+    return true;
+}
+
+bool SafeDocumentController::setFormFieldValue(const QString& fieldName,
+                                                const QString& value,
+                                                QString* error) {
+    QJsonObject instruction;
+    instruction.insert(QStringLiteral("type"), QStringLiteral("setFormFieldValue"));
+    instruction.insert(QStringLiteral("field"), fieldName);
+    instruction.insert(QStringLiteral("value"), value);
+    return edit(instruction, error);
+}
+
+bool SafeDocumentController::addAnnotation(int pageIndex,
+                                           const QString& subtype,
+                                           const QRectF& rect,
+                                           const QString& text,
+                                           QString* error) {
+    QJsonObject instruction;
+    instruction.insert(QStringLiteral("type"), QStringLiteral("addAnnotation"));
+    instruction.insert(QStringLiteral("pageIndex"), pageIndex);
+    instruction.insert(QStringLiteral("subtype"), subtype);
+    // 矩形用 PDF 用户坐标：left, bottom, right, top。
+    instruction.insert(QStringLiteral("rect"),
+                       QJsonArray{rect.left(), rect.bottom(), rect.right(), rect.top()});
+    instruction.insert(QStringLiteral("text"), text);
+    return edit(instruction, error);
+}
+
+bool SafeDocumentController::save(const QString& targetPath,
+                                  QString* error,
+                                  QStringList* warnings) {
+    if (!open_) {
+        setError(error, QStringLiteral("文档还没有打开，无法保存。"));
+        return false;
+    }
+    if (targetPath.isEmpty()) {
+        setError(error, QStringLiteral("没有指定保存到哪里。"));
+        return false;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("path"), targetPath);
+
+    QJsonObject result;
+    if (!callSync(QStringLiteral("pdf.save"), payload, &result, error)) {
+        return false;
+    }
+
+    if (warnings != nullptr) {
+        warnings->clear();
+        const QJsonArray codes = result.value(QStringLiteral("warnings")).toArray();
+        for (const QJsonValue& code : codes) {
+            warnings->append(code.toString());
+        }
+    }
+    // 覆盖保存时解析进程会重新打开文档：它没打开成功就不能再当「可编辑」用。
+    if (!result.value(QStringLiteral("documentOpen")).toBool(true)) {
+        open_ = false;
+        setError(error, QStringLiteral("文件已经保存，但解析进程没能重新打开它："
+                                       "请重新打开文档才能继续编辑。"));
+        return false;
+    }
+    return true;
+}
+
+bool SafeDocumentController::documentStillOpen() const {
+    return open_;
 }
 
 void SafeDocumentController::close() {
@@ -254,6 +373,9 @@ void SafeDocumentController::shutdownWorker() {
     open_ = false;
     pageCount_ = 0;
     pages_ = QJsonArray();
+    fields_ = QJsonArray();
+    path_.clear();
+    openedWithPassword_ = false;
     pendingFailures_.clear();
 }
 

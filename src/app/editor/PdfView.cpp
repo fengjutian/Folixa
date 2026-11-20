@@ -5,6 +5,7 @@
 #include "app/dialogs/EncryptionDialog.h"
 #include "app/dialogs/PermissionPanelDialog.h"
 #include "app/dialogs/SemanticOrderDialog.h"
+#include "app/dialogs/SemanticOrderSelectionDialog.h"
 #include "app/dialogs/HiddenDataDialog.h"
 #include "app/panels/LastWavePanels.h"
 #include "app/controllers/LastWaveWriter.h"
@@ -37,6 +38,8 @@
 #include "doc/model/OutlineGenerator.h"
 #include "pdf/ops/PageLabels.h"
 #include "pdf/ops/PageSplitPlanner.h"
+#include "pdf/ops/CrossMergePlanner.h"
+#include "doc/edit/CrossMergeCommand.h"
 #include "pdf/security/Redaction.h"
 #include "pdf/security/CertificateChain.h"
 #include "pdf/security/SignatureInspector.h"
@@ -44,6 +47,7 @@
 #include "pdf/ops/SpellChecker.h"
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/compliance/SemanticReadingOrder.h"
+#include "pdf/compliance/SemanticOrderSelection.h"
 #include "pdf/compliance/UaGenerator.h"
 #include "pdf/content/ParagraphFormat.h"
 #include "pdf/compliance/TagTreeWriter.h"
@@ -2876,16 +2880,6 @@ void PdfView::setPageBackgroundDialog() {
 }
 
 
-namespace {
-
-// 把 source 的第 index 页追加到 target 末尾。target 必须已经有一页。
-bool appendPageFrom(pdf::PdfDocument& target, const pdf::PdfDocument& source, int index) {
-    const pdf::PdfDocument backup = source.backupPage(index);
-    return backup.isValid() && target.restorePageFrom(backup, target.pageCount());
-}
-
-}  // namespace
-
 void PdfView::replaceCurrentPageDialog() {
     if (!document_.isValid() || annotationController_ == nullptr) {
         return;
@@ -2928,6 +2922,35 @@ void PdfView::replaceCurrentPageDialog() {
                            .arg(sourcePage)
                            .arg(targetIndex + 1));
 }
+namespace {
+
+// 交叉合并的外部来源：把对方文档的页备份出来交给命令。
+//
+// 为什么要有这一层：命令层不碰 PDFium（见 doc/edit/EditContext.h 的分层说明），
+// 而「对方文档的第 3 页」只有应用层拿得到 —— 这里用 app::PdfPageOperations
+// 把那一页拍成备份，命令再按页序计划把它装进当前文档。
+class CrossMergeSourceProvider final : public doc::CrossMergePageSource {
+public:
+    explicit CrossMergeSourceProvider(std::vector<std::unique_ptr<app::PdfPageOperations>> operations)
+        : operations_(std::move(operations)) {}
+
+    bool backupPage(int sourceId,
+                    int sourcePage,
+                    std::shared_ptr<doc::PageBackup>* backup) override {
+        if (sourceId < 0 || sourceId >= static_cast<int>(operations_.size()) || backup == nullptr) {
+            return false;
+        }
+        return operations_.at(static_cast<size_t>(sourceId))->backupPage(sourcePage, backup);
+    }
+
+private:
+    // 用 std::vector 而不是 QVector：QVector 要求元素可拷贝，
+    // unique_ptr 不可拷贝，一拷贝就编译不过。
+    std::vector<std::unique_ptr<app::PdfPageOperations>> operations_;
+};
+
+}  // namespace
+
 void PdfView::crossMergeDialog() {
     if (!document_.isValid()) {
         return;
@@ -2936,43 +2959,46 @@ void PdfView::crossMergeDialog() {
     if (!requirePermission(effectivePermissions().allowAssembly, tr("交叉合并"))) {
         return;
     }
-    const QString path = QFileDialog::getOpenFileName(this, tr("交叉合并"), QString(),
-                                                      tr("PDF 文件 (*.pdf)"));
-    if (path.isEmpty()) {
+    // 一次可以选多份：福昕能一次与多份交叉，我们原来只能与一份交叉。
+    const QStringList paths = QFileDialog::getOpenFileNames(this, tr("交叉合并"), QString(),
+                                                           tr("PDF 文件 (*.pdf)"));
+    if (paths.isEmpty()) {
         return;
     }
-    const auto opened = pdf::openDocument(path);
-    if (!opened.document.isValid()) {
-        QMessageBox::warning(this, tr("交叉合并"), tr("打不开这份 PDF：%1").arg(opened.errorMessage));
+    // 每份做成一个来源。页数取自 PDFium，页序由纯计算给出。
+    QVector<pdf::CrossMergeSource> sources;
+    std::vector<std::unique_ptr<app::PdfPageOperations>> operations;
+    for (int index = 0; index < paths.size(); ++index) {
+        const auto opened = pdf::openDocument(paths.at(index));
+        if (!opened.document.isValid()) {
+            QMessageBox::warning(this, tr("交叉合并"),
+                                 tr("打不开 %1：%2")
+                                     .arg(QFileInfo(paths.at(index)).fileName(), opened.errorMessage));
+            return;
+        }
+        pdf::CrossMergeSource source;
+        source.id = index;
+        source.pageCount = opened.document.pageCount();
+        source.label = QFileInfo(paths.at(index)).fileName();
+        sources.append(source);
+        operations.push_back(std::make_unique<app::PdfPageOperations>(opened.document));
+    }
+
+    // 页序：以页号为主序、来源为次序；当前文档排在每一轮的第一位。
+    const pdf::CrossMergePlan plan = pdf::planCrossMerge(document_.pageCount(), sources);
+
+    // 一次交叉 = 一条撤销记录。命令走的是**原地**改页（删页 + 从备份装页），
+    // 不再像旧实现那样造一份新文档再 setDocument —— 那条路会重建控制器、
+    // 把撤销历史整个丢掉，而且合并后不刷新布局。
+    auto provider = std::make_shared<CrossMergeSourceProvider>(std::move(operations));
+    auto command = std::make_unique<doc::CrossMergeCommand>(plan, provider);
+    if (!annotationController_->applyCommand(std::move(command))) {
+        QMessageBox::warning(this, tr("交叉合并"), tr("合并失败。"));
         return;
     }
-    const int mine = document_.pageCount();
-    const int theirs = opened.document.pageCount();
-    pdf::PdfDocument result;
-    bool seeded = false;
-    auto appendAny = [&](const pdf::PdfDocument& source, int pageIndex) {
-        if (!seeded) {
-            result = source.backupPage(pageIndex);
-            seeded = result.isValid();
-            return seeded;
-        }
-        return appendPageFrom(result, source, pageIndex);
-    };
-    const int total = std::max(mine, theirs);
-    for (int index = 0; index < total; ++index) {
-        if (index < mine && !appendAny(document_, index)) {
-            QMessageBox::warning(this, tr("交叉合并"), tr("合并失败。"));
-            return;
-        }
-        if (index < theirs && !appendAny(opened.document, index)) {
-            QMessageBox::warning(this, tr("交叉合并"), tr("合并失败。"));
-            return;
-        }
-    }
-    setDocument(std::move(result), filePath_);
     setModified(true);
-    emit statusMessage(tr("已与 %1 交叉合并：共 %2 页")
-                           .arg(QFileInfo(path).fileName())
+    emit statusMessage(tr("已与 %1 份文件交叉合并：共 %2 页")
+                           .arg(paths.size())
                            .arg(pageCount()));
 }
 
@@ -7922,11 +7948,16 @@ void PdfView::showSignatureWorkflowDialog() {
 // 三条命令现在都按**语义树**工作：
 //   - 设置区域阅读顺序：读结构树里已经写好的顺序（标题 / 段落 / 列表 / 表格 / 图 / 表单域）；
 //   - 更改区域顺序：在当前页内调整语义元素的先后，写回结构树；
-//   - 应用区域顺序：整篇按默认（视觉）顺序重建语义标签树。
+//   - 应用区域顺序：**只把选区里**的语义元素按视觉顺序重排，选区外一个都不碰。
 //
 // 为什么不再走行级：行级顺序说不了「先念标题还是先念正文」；更麻烦的是行级树与
 // 语义树写的是**同一个** /StructTreeRoot，两条路互相覆盖——用户调好顺序再跑另一条
 // 命令，前面的功夫就没了。语义级只有一条路。
+//
+// 「应用区域顺序」为什么不再整篇重建：整篇重建与「辅助工具 → 标签 → 自动添加文档标签」
+// 做的是同一件事（同样重新推断角色、重新搭树），手工调过的顺序会被覆盖。
+// 现在它只重排**选区**（选中的页，或选中的文字区域）里的元素，
+// 角色与文字都不动，改的只有先后。
 //
 // 诚实性边界：结构树只表达「顺序与角色」，不等于 PDF/UA 合规（没有 Alt、
 // /Lang 也没有全覆盖）；读屏软件能不能真按这个顺序念，本机没有读屏软件，未做验收。
@@ -7943,8 +7974,8 @@ void PdfView::showRegionReadingOrderDialog() {
         return;
     }
     QString error;
-    const QVector<pdf::SemanticOrderPage> pages = pdf::readSemanticReadingOrder(bytes, &error);
-    if (pages.isEmpty()) {
+    const QVector<pdf::SemanticOrderSlot> orderSlots = pdf::readSemanticReadingOrder(bytes, &error);
+    if (orderSlots.isEmpty()) {
         QMessageBox::information(
             this, tr("区域阅读顺序"),
             error.isEmpty()
@@ -7954,17 +7985,23 @@ void PdfView::showRegionReadingOrderDialog() {
         return;
     }
     QStringList lines;
-    for (const pdf::SemanticOrderPage& page : pages) {
-        if (page.entries.isEmpty()) {
+    for (const pdf::SemanticOrderSlot& slot : orderSlots) {
+        if (slot.entries.isEmpty()) {
             continue;
         }
-        lines.append(tr("第 %1 页：%2 个语义元素").arg(page.pageIndex + 1).arg(page.entries.size()));
-        for (const pdf::SemanticOrderEntry& entry : page.entries) {
+        // 槽位是「阅读位置」，槽位里的元素可能来自别的物理页——
+        // 所以显示时要标出每个元素自己的页，否则用户会以为顺序乱了。
+        lines.append(tr("第 %1 页：%2 个语义元素").arg(slot.pageIndex + 1).arg(slot.entries.size()));
+        for (const pdf::SemanticOrderEntry& entry : slot.entries) {
             QString preview = entry.text.trimmed();
             if (preview.size() > 36) {
                 preview = preview.left(36) + QStringLiteral("…");
             }
-            lines.append(QStringLiteral("  [%1] %2").arg(entry.role, preview));
+            const QString where =
+                entry.pageIndex == slot.pageIndex
+                    ? QString()
+                    : tr("（内容在第 %1 页）").arg(entry.pageIndex + 1);
+            lines.append(QStringLiteral("  [%1] %2%3").arg(entry.role, preview, where));
         }
     }
     QMessageBox::information(
@@ -7973,7 +8010,10 @@ void PdfView::showRegionReadingOrderDialog() {
             tr("\n\n（显示的是结构树里的语义元素顺序；读屏软件按这个顺序念。）"));
 }
 
-// 调整当前页各**语义元素**的先后顺序，然后写进结构树。
+// 调整语义元素的先后顺序，然后写进结构树。
+//
+// 喂给对话框的是**整篇**的槽位，不是当前页——跨页移动必须能看到别的页，
+// 否则「把第 1 页的元素挪到第 2 页」根本没法做。
 void PdfView::changeRegionReadingOrderDialog() {
     if (!document_.isValid()) {
         return;
@@ -7985,8 +8025,8 @@ void PdfView::changeRegionReadingOrderDialog() {
         return;
     }
     QString error;
-    const QVector<pdf::SemanticOrderPage> pages = pdf::readSemanticReadingOrder(bytes, &error);
-    if (pages.isEmpty()) {
+    const QVector<pdf::SemanticOrderSlot> orderSlots = pdf::readSemanticReadingOrder(bytes, &error);
+    if (orderSlots.isEmpty()) {
         QMessageBox::information(
             this, tr("更改区域顺序"),
             error.isEmpty()
@@ -7995,23 +8035,20 @@ void PdfView::changeRegionReadingOrderDialog() {
                 : error);
         return;
     }
-    const int pageIndex = currentPage();
-    QVector<pdf::SemanticOrderPage> current;
-    for (const pdf::SemanticOrderPage& page : pages) {
-        if (page.pageIndex == pageIndex) {
-            current.append(page);
-        }
+    int totalEntries = 0;
+    for (const pdf::SemanticOrderSlot& slot : orderSlots) {
+        totalEntries += slot.entries.size();
     }
-    if (current.isEmpty() || current.first().entries.isEmpty()) {
-        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有语义元素。"));
+    if (totalEntries == 0) {
+        QMessageBox::information(this, tr("更改区域顺序"), tr("这份文档里没有语义元素。"));
         return;
     }
 
-    SemanticOrderDialog dialog(current, this);
+    SemanticOrderDialog dialog(orderSlots, this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
-    const QVector<pdf::SemanticOrderPage> chosen = dialog.order();
+    const QVector<pdf::SemanticOrderSlot> chosen = dialog.order();
     if (chosen.isEmpty()) {
         return;
     }
@@ -8021,13 +8058,8 @@ void PdfView::changeRegionReadingOrderDialog() {
         return;
     }
 
-    // 把新的页内顺序放回整篇的顺序里，再写回。
-    QVector<pdf::SemanticOrderPage> updated;
-    for (const pdf::SemanticOrderPage& page : pages) {
-        updated.append(page.pageIndex == pageIndex ? chosen.first() : page);
-    }
     QString writeError;
-    const QByteArray written = pdf::writeSemanticReadingOrder(bytes, updated, &writeError);
+    const QByteArray written = pdf::writeSemanticReadingOrder(bytes, chosen, &writeError);
     if (written.isEmpty()) {
         QMessageBox::warning(this, tr("更改区域顺序"),
                              writeError.isEmpty() ? tr("写入失败，文档没有修改。") : writeError);
@@ -8041,22 +8073,16 @@ void PdfView::changeRegionReadingOrderDialog() {
     }
     refreshAfterDecoration();
     setModified(true);
-    emit statusMessage(tr("已把第 %1 页的语义阅读顺序写进结构树").arg(pageIndex + 1));
+    emit statusMessage(tr("已把语义阅读顺序写进结构树"));
 }
 
-// 整篇按默认（视觉）顺序重建语义标签树，不做交互。
+// 只重排**选区里**的语义元素：按视觉顺序换位，选区外一个都不碰。
+//
+// 选区由用户在对话框里挑（选中的页，或选中的文字区域）。
+// 与以前那条「整篇重建」的差别：角色与文字都不动，整棵树也不重新推断，
+// 改的只有选区里那些元素之间的先后。
 void PdfView::applyRegionReadingOrder() {
     if (!document_.isValid()) {
-        return;
-    }
-    if (QMessageBox::question(
-            this, tr("应用区域顺序"),
-            tr("会按「从上到下、从左到右」的顺序给整篇文档重建一份**语义**标签树"
-               "（标题 / 段落 / 列表 / 表格 / 图 / 表单域）。页面外观不变，"
-               "读屏软件会按这个顺序念。\n\n"
-               "这一步与「辅助工具 → 标签 → 自动添加文档标签」做的是同一件事："
-               "它按视觉顺序重建整棵语义树，手工调过的顺序会被这次重建覆盖。继续吗？"),
-            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
         return;
     }
     QString serializeError;
@@ -8068,13 +8094,48 @@ void PdfView::applyRegionReadingOrder() {
     if (!requirePermission(effectivePermissions().allowModifying, tr("写入阅读顺序"))) {
         return;
     }
+
+    // 当前页上的文字选区（可空）：有就用它当区域限制。
+    int regionPage = -1;
+    QRectF region;
+    if (textController_ != nullptr) {
+        const int selectionPage = textController_->selectionPage();
+        const QVector<QRectF> displayRects = textController_->selectionRects();
+        if (selectionPage >= 0 && !displayRects.isEmpty()) {
+            QRectF userRect;
+            for (const QRectF& rect : displayRects) {
+                userRect = userRect.united(
+                    QRectF(displayToUser(selectionPage, rect.topLeft()),
+                           displayToUser(selectionPage, rect.bottomRight())).normalized());
+            }
+            if (!userRect.isEmpty()) {
+                region = userRect;
+                regionPage = selectionPage;
+            }
+        }
+    }
+
+    SemanticOrderSelectionDialog dialog(bytes, currentPage(), regionPage, region, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const pdf::SemanticOrderScope scope = dialog.scope();
+    if (scope.isEmpty()) {
+        QMessageBox::information(this, tr("应用区域顺序"), tr("没有选中任何页面，文档没有修改。"));
+        return;
+    }
+
     QApplication::setOverrideCursor(Qt::WaitCursor);
     QString error;
-    const pdf::SemanticWriteResult result = pdf::writeSemanticTagTree(bytes, {}, &error);
+    const pdf::SemanticOrderApplyResult result = pdf::applySemanticOrderScope(bytes, scope, &error);
     QApplication::restoreOverrideCursor();
     if (!result.ok || result.bytes.isEmpty()) {
         QMessageBox::warning(this, tr("应用区域顺序"),
                              error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+        return;
+    }
+    if (!result.changed) {
+        emit statusMessage(tr("选区里的语义元素本来就按视觉顺序排好，文档没有修改。"));
         return;
     }
     QString reloadError;
@@ -8085,7 +8146,7 @@ void PdfView::applyRegionReadingOrder() {
     }
     refreshAfterDecoration();
     setModified(true);
-    emit statusMessage(tr("已按默认顺序写好语义标签树"));
+    emit statusMessage(tr("已把选区里的 %1 个语义元素按视觉顺序重排").arg(result.movedCount));
 }
 
 // ------------------------------------------------- 第二批接线（E/F/G/H）----

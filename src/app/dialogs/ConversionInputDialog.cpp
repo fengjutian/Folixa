@@ -237,15 +237,66 @@ bool systemClipboardHasImage() {
     return mime != nullptr && mime->hasImage();
 }
 
-// 从系统剪贴板取图片的原始字节。
+// 一次最多从剪贴板里读多少张图片文件。
+//
+// 为什么设上限：剪贴板里可能塞了几百个文件，一次全读进内存会拖很久，
+// 而且最后拿到的 PDF 大得没意义。超出的不读（doc 层那边另有 50 张的硬上限）。
+constexpr int kMaxClipboardImageFiles = 50;
+
+// 这个地址是不是一张图片（按后缀认）。
+//
+// 为什么按后缀而不是按内容：这里只决定「要不要读这个文件」；
+// 真正认不认得出来由 pdf 层解码时说了算（认不出会逐张报「格式不支持」）。
+bool looksLikeImageFile(const QUrl& url) {
+    const QString suffix = QFileInfo(url.toLocalFile()).suffix().toLower();
+    return suffix == "png" || suffix == "jpg" || suffix == "jpeg" || suffix == "bmp" ||
+           suffix == "gif" || suffix == "tif" || suffix == "tiff" || suffix == "webp";
+}
+
+// 读剪贴板里的图片文件（多张时按地址顺序）。
+//
+// 为什么读文件而不是用 QImageReader 之类：这一层要的是**原始字节**
+// （PNG / BMP / JPEG 一个字节都不用重编码），理由与 readSystemClipboardImages 一样。
+//
+// 读不到（文件被挪走 / 没权限）就跳过：不因为一张读不到的文件让整次转换失败。
+QVector<QByteArray> readClipboardImageFiles(const QMimeData* mime) {
+    QVector<QByteArray> images;
+    const QList<QUrl> urls = mime->urls();
+    for (const QUrl& url : urls) {
+        if (images.size() >= kMaxClipboardImageFiles) {
+            break;
+        }
+        if (!url.isLocalFile() || !looksLikeImageFile(url)) {
+            continue;
+        }
+        QFile file(url.toLocalFile());
+        if (!file.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QByteArray bytes = file.readAll();
+        file.close();
+        if (!bytes.isEmpty()) {
+            images.append(bytes);
+        }
+    }
+    return images;
+}
+
+// 从系统剪贴板取图片的原始字节（**可能有多张**）。
+//
+// 为什么可能有多张：Windows 的剪贴板里「复制多个图片文件」给的是一串
+// 文件地址（text/uri-list），每张图一个 —— 这才是「多张图」的真正来源。
+// 只有一张图时（截图、从网页复制一张图）剪贴板给的是**原生字节**
+// （PNG / BMP / JPEG），或者一个 QImage（Windows 的 DIB 多数走这一路）。
+//
+// 为什么先看文件地址再看原生字节：文件地址是「用户复制的那几张图」；
+// 原生字节可能只是其中一张的缩略图（资源管理器复制图片文件时会附带缩略图），
+// 两者都收会把同一张图排两遍。
 //
 // 为什么按 PNG / BMP / JPEG 的**原生**格式依次取，而不是直接用 QImageReader：
 // 部署包里的 Qt 图像插件只保证 gif/ico/jpeg/svg（scripts/package.ps1），
 // 用 QImageReader 读 PNG 在用户机上会直接失败 —— 这正是 wave5-A 自研 PNG 解码器
 // 要绕开的那个坑（所以 pdf 层根本不依赖图像插件）。
-//
-// 只有 QImage（Windows 的 DIB 多数走这一路）时自己编一份 JPEG：
-// 部署包保证带 qjpeg 插件，编 JPEG 不会在用户机上翻车。
 QVector<QByteArray> readSystemClipboardImages() {
     if (QGuiApplication::instance() == nullptr) {
         return {};
@@ -258,13 +309,20 @@ QVector<QByteArray> readSystemClipboardImages() {
     if (mime == nullptr) {
         return {};
     }
-    // 原生格式优先：一个字节都不用编。
+    // 1) 剪贴板里的图片文件（多张时按地址顺序）。
+    const QVector<QByteArray> fromFiles = readClipboardImageFiles(mime);
+    if (!fromFiles.isEmpty()) {
+        return fromFiles;
+    }
+    // 2) 原生格式优先：一个字节都不用编。
     for (const char* format : {"image/png", "image/bmp", "image/jpeg"}) {
         const QByteArray data = mime->data(QLatin1String(format));
         if (!data.isEmpty()) {
             return {data};
         }
     }
+    // 3) 只有 QImage（Windows 的 DIB 多数走这一路）时自己编一份 JPEG。
+    // 部署包保证带 qjpeg 插件，编 JPEG 不会在用户机上翻车。
     const QImage image = qvariant_cast<QImage>(mime->imageData());
     if (image.isNull()) {
         return {};
@@ -393,6 +451,67 @@ bool buildClipboardImageOutcome(const QVector<QByteArray>& images, const QString
     outcome->detailLines.append(
         i18n::tr("aipdf::app::ConversionInputs", "这次带了 %1 张图片。")
             .arg(result.clipboardImageOutcome.embedded));
+    if (!result.clipboardImageOutcome.issues.isEmpty()) {
+        outcome->detailLines.append(
+            i18n::tr("aipdf::app::ConversionInputs", "有 %1 张图片没能带进来：")
+                .arg(result.clipboardImageOutcome.issues.size()));
+        for (const doc::ClipboardImageIssue& issue : result.clipboardImageOutcome.issues) {
+            outcome->detailLines.append(
+                i18n::tr("aipdf::app::ConversionInputs", "第 %1 张图片：%2")
+                    .arg(issue.index + 1)
+                    .arg(clipboardImageIssueText(issue)));
+        }
+    }
+    return true;
+}
+
+// 剪贴板里的**文字 + 图片** → **一份** PDF。
+//
+// 页序（产品决定）：第 1..M 页正文（HTML 优先，否则纯文本），
+// 第 M+1..M+N 页图片（一图一页，页序 = 剪贴板里的顺序）。
+//
+// 为什么单独写而不是并进 buildClipboardOutcome：这一路的失败原因、
+// 图片张数、逐张问题、以及「这一份是怎么拼出来的」说明都不一样，
+// 混在一起迟早会说错话。
+bool buildClipboardMixedOutcome(const QString& text, const QString& html,
+                                 const QVector<QByteArray>& images, const QString& fontPath,
+                                 ConversionInputOutcome* outcome) {
+    const bool rich = !html.trimmed().isEmpty();
+    // 要不要嵌中文字体，看的是**排出来的正文**里有没有非拉丁字符：
+    // 富文本的源码里有中文，不代表正文里有。
+    const QString body = rich ? doc::extractHtmlBody(html).text : text;
+    QString usedFont;
+    const doc::UniversalConverterOptions options = buildTextOptions(body, fontPath, &usedFont);
+    const doc::ConversionResult result =
+        doc::clipboardMixedToPdf(text, html, images, QString(), options);
+    if (!result.ok) {
+        outcome->error = clipboardErrorText(result);
+        return false;
+    }
+    outcome->ok = true;
+    outcome->bytes = result.bytes;
+    outcome->warning = result.warning;
+    outcome->pageCount = result.pageCount;
+    outcome->sourceKind = result.sourceKind;
+    outcome->suggestedFileName = i18n::tr("aipdf::app::ConversionInputs", "剪贴板.pdf");
+    // 如实说明这一份是怎么拼的：正文在前，图片在后。
+    const int imagePages = result.clipboardImageOutcome.embedded;
+    const int textPages = result.pageCount - imagePages;
+    outcome->detailLines.append(
+        i18n::tr("aipdf::app::ConversionInputs",
+                 "已合成 %1 页：前 %2 页是正文，后 %3 页是图片（一图一页，共 %4 张图）。")
+            .arg(result.pageCount)
+            .arg(textPages)
+            .arg(imagePages)
+            .arg(imagePages));
+    outcome->detailLines.append(
+        rich ? i18n::tr("aipdf::app::ConversionInputs",
+                        "这次按富文本排版（保留了标题、段落和列表结构）。")
+             : i18n::tr("aipdf::app::ConversionInputs", "这次按纯文本排版。"));
+    if (!usedFont.isEmpty()) {
+        outcome->detailLines.append(
+            i18n::tr("aipdf::app::ConversionInputs", "已嵌入系统字体 %1 来显示中文。").arg(usedFont));
+    }
     if (!result.clipboardImageOutcome.issues.isEmpty()) {
         outcome->detailLines.append(
             i18n::tr("aipdf::app::ConversionInputs", "有 %1 张图片没能带进来：")
@@ -561,7 +680,7 @@ ConversionInputDialog::ConversionInputDialog(QWidget* parent) : QDialog(parent) 
     auto* contentCombo = new QComboBox(clipboardPage);
     contentCombo->setObjectName(QStringLiteral("conversionInput.clipboardContent"));
     contentCombo->setAccessibleName(i18n::tr("aipdf::app::ConversionInputs", "剪贴板内容类型"));
-    contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "自动（有文字用文字，没文字用图片）"),
+    contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "自动（有文字有图就合成一份）"),
                            static_cast<int>(ConversionInputDialog::ClipboardContent::Auto));
     contentCombo->addItem(i18n::tr("aipdf::app::ConversionInputs", "文字（富文本优先）"),
                            static_cast<int>(ConversionInputDialog::ClipboardContent::Text));
@@ -823,9 +942,8 @@ bool ConversionInputDialog::convertClipboard(ConversionInputOutcome* outcome) {
     const bool hasText = !html.trimmed().isEmpty() || !text.trimmed().isEmpty();
 
     // 图片这一路：用户点名要图片，或者（自动模式下）剪贴板里只有图片。
-    const bool useImages = clipboardContent_ == ClipboardContent::Images
-        || (clipboardContent_ == ClipboardContent::Auto && !hasText && !images.isEmpty());
-    if (useImages) {
+    if (clipboardContent_ == ClipboardContent::Images ||
+        (clipboardContent_ == ClipboardContent::Auto && !hasText && !images.isEmpty())) {
         return buildClipboardImageOutcome(images, fontPath(), outcome);
     }
     if (!hasText) {
@@ -833,13 +951,21 @@ bool ConversionInputDialog::convertClipboard(ConversionInputOutcome* outcome) {
         outcome->error = i18n::tr("aipdf::app::ConversionInputs", "剪贴板里没有文本，没法生成 PDF。");
         return false;
     }
-    // 混合内容按文字排：图片没进来要**明说**，不能静默丢掉。
-    if (!images.isEmpty()) {
-        outcome->warning = i18n::tr("aipdf::app::ConversionInputs",
-                                     "剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。")
-                               .arg(images.size());
+    // 自动模式下文字与图片都有 → **合成一份**（正文页在前，图片页在后）。
+    //
+    // 为什么与「一键转换」走同一个函数：两个入口的说法必须一样，
+    // 写两遍的话迟早会漂移。
+    if (clipboardContent_ == ClipboardContent::Auto && !images.isEmpty()) {
+        return buildClipboardMixedOutcome(text, html, images, fontPath(), outcome);
     }
-    return buildClipboardOutcome(text, html, fontPath(), outcome);
+    // 用户明确选了「只排文字」：图不进来，但要**明说**（否则用户以为图也在里面）。
+    const bool ok = buildClipboardOutcome(text, html, fontPath(), outcome);
+    if (ok && !images.isEmpty() && outcome->warning.isEmpty()) {
+        outcome->warning = i18n::tr("aipdf::app::ConversionInputs",
+                                    "剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。")
+                              .arg(images.size());
+    }
+    return ok;
 }
 
 void ConversionInputDialog::setWebBrowserPrinter(WebBrowserPrinter printer) {
@@ -1060,7 +1186,10 @@ ConversionInputOutcome convertClipboardToPdf() {
     const QString body = clipboard != nullptr ? clipboard->text() : QString();
     const QVector<QByteArray> images = readSystemClipboardImages();
     const bool hasText = !html.trimmed().isEmpty() || !body.trimmed().isEmpty();
-    // 只有图片时走图片这一路；文字与图片都有时按文字排（并明说图片没进来）。
+    // 三种情况：
+    //   只有图片 → 图片这一路（一图一页）；
+    //   什么都没有 → 明确报错，不生成空白 PDF；
+    //   文字与图片都有 → **合成一份**（正文页在前，图片页在后）。
     if (!hasText && !images.isEmpty()) {
         buildClipboardImageOutcome(images, QString(), &outcome);
         return outcome;
@@ -1070,9 +1199,8 @@ ConversionInputOutcome convertClipboardToPdf() {
         return outcome;
     }
     if (!images.isEmpty()) {
-        outcome.warning = i18n::tr("aipdf::app::ConversionInputs",
-                                    "剪贴板里还有 %1 张图片，这次按文字排版，图片没有进 PDF。")
-                              .arg(images.size());
+        buildClipboardMixedOutcome(body, html, images, QString(), &outcome);
+        return outcome;
     }
     buildClipboardOutcome(body, html, QString(), &outcome);
     return outcome;

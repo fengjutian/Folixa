@@ -201,7 +201,8 @@ private:
     void openInvoiceManager();
     void createReimbursementList();
     void batchConvertOfd();
-    // 安全文档：在隔离进程里只读打开一份 PDF（主进程不打开它）。
+    // 安全文档：在隔离进程里打开一份 PDF（主进程不打开它、不持有它的字节）。
+    // 文档仍然可编辑：表单填写 / 批注 / 保存都是送进隔离进程执行的指令。
     void openSafeDocument();
     void showRecordingCenter();
     void startScreenRecording(bool presentPdf);

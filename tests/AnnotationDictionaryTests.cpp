@@ -5,6 +5,11 @@
 
 #include "pdf/annot/AnnotationDictionary.h"
 
+// mimeTypeForFileName 原来住在 annot 层，2026-11-20 那次提交把它挪到了
+// kernel/MimeTypes.h（annot 与 document 都要用它，放 kernel 才不反向依赖）。
+// 这个测试没跟着改 include，于是「用 using 声明引入」那一步就编译不过。
+#include "pdf/kernel/MimeTypes.h"
+
 
 #include <QTest>
 

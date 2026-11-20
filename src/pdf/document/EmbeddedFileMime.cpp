@@ -9,6 +9,8 @@
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFWriter.hh>
+
+#include <memory>
 #endif
 
 namespace aipdf::pdf {
@@ -121,11 +123,80 @@ QPDFObjectHandle embeddedStream(const QPDFObjectHandle& filespec) {
     return stream;
 }
 
+// 打开一份可能是加密的 PDF，并说清楚「为什么打不开」。
+//
+// 与 PdfSecurity.cpp 里的 openForInspection() 是同一套判定（那边查隐藏数据，
+// 这边补 MIME）：带口令试一次，再不带口令试一次；两次都失败才报错，并把
+// 「口令不对」与「文件坏了」分开说——两者的处理方式完全不同。
+enum class OpenOutcome {
+    Ok,
+    NeedsPassword,  // 加密了，而且没给口令
+    WrongPassword,  // 加密了，口令不对
+    Damaged,        // 解析失败，与口令无关
+};
+
+OpenOutcome openForPatching(std::shared_ptr<QPDF>& pdf,
+                             const QByteArray& bytes,
+                             const QString& password,
+                             bool* encrypted,
+                             std::string* detail) {
+    const QByteArray utf8 = password.toUtf8();
+    const char* passwordArg = utf8.isEmpty() ? nullptr : utf8.constData();
+
+    const auto attempt = [&bytes, detail](const char* pwd) -> std::shared_ptr<QPDF> {
+        auto candidate = QPDF::create();
+        try {
+            candidate->processMemoryFile("embedded-file-mime.pdf", bytes.constData(),
+                                         static_cast<size_t>(bytes.size()), pwd);
+        } catch (const std::exception& exception) {
+            if (detail != nullptr && detail->empty()) {
+                *detail = exception.what();
+            }
+            return nullptr;
+        }
+        return candidate;
+    };
+
+    // 第一次：带口令试。对明文文档无害（qpdf 会忽略口令）。
+    if (std::shared_ptr<QPDF> candidate = attempt(passwordArg)) {
+        pdf = candidate;
+        *encrypted = candidate->isEncrypted();
+        return OpenOutcome::Ok;
+    }
+    // 第二次：不带口令试（明文文档、用户口令为空的加密文档走这条路）。
+    if (std::shared_ptr<QPDF> candidate = attempt(nullptr)) {
+        pdf = candidate;
+        *encrypted = candidate->isEncrypted();
+        return OpenOutcome::Ok;
+    }
+
+    // 两次都失败：分清「口令不对」与「文件坏了」。
+    // 判据是 qpdf 的错误文本：解密失败时报的是 invalid password。
+    if (detail != nullptr && detail->find("password") != std::string::npos) {
+        return password.isEmpty() ? OpenOutcome::NeedsPassword : OpenOutcome::WrongPassword;
+    }
+    return OpenOutcome::Damaged;
+}
+
+// 打开失败时给用户看的中文原因。
+QString describeOpenFailure(OpenOutcome outcome, const std::string& detail) {
+    switch (outcome) {
+    case OpenOutcome::NeedsPassword:
+        return QStringLiteral("文档已加密，需要打开密码才能补 MIME 类型");
+    case OpenOutcome::WrongPassword:
+        return QStringLiteral("文档已加密，打开密码不正确");
+    case OpenOutcome::Damaged:
+    default:
+        return QStringLiteral("无法解析文档：%1").arg(QString::fromUtf8(detail.c_str()));
+    }
+}
+
 #endif  // AIPDF_WITH_QPDF
 
 }  // namespace
 
 QByteArray applyEmbeddedFileMimeTypes(const QByteArray& bytes,
+                                       const QString& password,
                                        EmbeddedFileMimeReport* report,
                                        QString* error) {
     if (report != nullptr) {
@@ -139,13 +210,23 @@ QByteArray applyEmbeddedFileMimeTypes(const QByteArray& bytes,
     }
 
 #ifdef AIPDF_WITH_QPDF
-    try {
-        QPDF pdf;
-        pdf.processMemoryFile("input.pdf",
-                              bytes.constData(),
-                              static_cast<size_t>(bytes.size()));
+    std::shared_ptr<QPDF> pdf;
+    bool encrypted = false;
+    std::string detail;
+    const OpenOutcome outcome = openForPatching(pdf, bytes, password, &encrypted, &detail);
+    if (outcome != OpenOutcome::Ok) {
+        // 打不开就明确失败：**原样返回输入字节**，绝不产出半改的文件。
+        if (error != nullptr) {
+            *error = describeOpenFailure(outcome, detail);
+        }
+        return bytes;
+    }
+    if (report != nullptr) {
+        report->encrypted = encrypted;
+    }
 
-        const QPDFObjectHandle root = pdf.getRoot();
+    try {
+        const QPDFObjectHandle root = pdf->getRoot();
         const QPDFObjectHandle names = root.getKey("/Names");
         if (!names.isDictionary()) {
             return bytes;  // 文档里没有名字树：没有文档级附件，不用补。
@@ -189,7 +270,20 @@ QByteArray applyEmbeddedFileMimeTypes(const QByteArray& bytes,
             return bytes;
         }
 
-        QPDFWriter writer(pdf);
+        QPDFWriter writer(*pdf);
+        if (encrypted) {
+            // 保留原加密：原所有者口令、原 /Perms 权限位、原打开口令一律不动。
+            //
+            // 为什么显式写出来：qpdf 12.4.2 的 setPreserveEncryption 默认就是 true，
+            // 但那是「默认值」，不是「承诺」——哪天的默认值变了，这里就静默改口径。
+            // copyEncryptionParameters 把加密字典从被写的那个 QPDF 原样搬过来，
+            // 免得依赖「写出去的那份就是来源」这个隐含前提。
+            //
+            // 为什么不能走「解密 -> 用用户口令当所有者口令重新加密」：那会改掉
+            // 用户的权限位与所有者口令，是用户数据损失（实测确认）。
+            writer.setPreserveEncryption(true);
+            writer.copyEncryptionParameters(*pdf);
+        }
         writer.setOutputMemory();
         writer.write();
         std::unique_ptr<Buffer> buffer(writer.getBuffer());
@@ -214,6 +308,16 @@ QByteArray applyEmbeddedFileMimeTypes(const QByteArray& bytes,
     // 没编 qpdf 的构建：补不了 MIME，但**不能因此拦住保存**。
     return bytes;
 #endif
+}
+
+// 不带口令的入口（既有调用方用这个）。
+//
+// 对未加密文档的行为与以前完全一样；加密文档走「需要打开密码」的失败分支，
+// 原因写进 error，不再是一句没人看的 qpdf 原文。
+QByteArray applyEmbeddedFileMimeTypes(const QByteArray& bytes,
+                                       EmbeddedFileMimeReport* report,
+                                       QString* error) {
+    return applyEmbeddedFileMimeTypes(bytes, QString(), report, error);
 }
 
 }  // namespace aipdf::pdf

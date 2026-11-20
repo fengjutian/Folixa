@@ -1243,10 +1243,10 @@ void WiringActions::insertScreenMedia() {
     if (view == nullptr) {
         return;
     }
-    const QString title = i18n::tr("aipdf::app::MainWindow", "页面内播放视频");
+    const QString title = i18n::tr("aipdf::app::MainWindow", "页面内音视频");
     const QString path = QFileDialog::getOpenFileName(
         parentWidget_, title, QString(),
-        i18n::tr("aipdf::app::MainWindow", "MP4 视频 (*.mp4)"));
+        i18n::tr("aipdf::app::MainWindow", "页面内音视频 (*.mp4 *.avi *.wav)"));
     if (path.isEmpty()) {
         return;
     }
@@ -1285,8 +1285,10 @@ void WiringActions::insertScreenMedia() {
     spec.fileName = QFileInfo(path).fileName();
     const QByteArray written = pdf::writeScreenMediaAnnotation(bytes, spec, &error);
     if (written.isEmpty()) {
-        // 这里最常见的原因是格式不对：页面内播放只认 MP4（H.264/AAC），
-        // 仓库录制器产出的 Motion-JPEG AVI 不在其列。
+        // 这里最常见的原因是容器不在白名单里：页面内播放按**文件头**认
+        // MP4 / AVI / WAV 三种容器，其余格式明确失败（错误文案里会列出支持项）。
+        // 注意：结构写对不等于阅读器放得出来 —— Acrobat 不播 AVI，
+        // WAV 在 PDF 里更适合走音频注解。
         QMessageBox::warning(
             parentWidget_, title,
             error.isEmpty()

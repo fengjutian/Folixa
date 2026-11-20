@@ -26,21 +26,88 @@ void setError(QString* error, const QString& message) {
 }
 
 // ============================================================================
-// 媒体格式判定
+// 媒体容器判定
 // ============================================================================
 
-// 这段字节是不是 MP4。
+// 支持的容器白名单。
 //
-// 为什么看文件头而不是看扩展名：扩展名是可以随便改的，「clip.mp4」里
-// 装一段文本照样叫 .mp4；文件头里写着 'ftyp' 的才是真的 MP4。
-// 分片式 MP4（没有 ftyp）也放行：那种文件第一盒是 'moov' 或 'moof'。
-bool looksLikeMp4(const QByteArray& bytes) {
-    if (bytes.size() < 12) return false;
-    const char* type = bytes.constData() + 4;
-    const bool ftyp = type[0] == 'f' && type[1] == 't' && type[2] == 'y' && type[3] == 'p';
-    const bool moov = type[0] == 'm' && type[1] == 'o' && type[2] == 'o' && type[3] == 'v';
-    const bool moof = type[0] == 'm' && type[1] == 'o' && type[2] == 'o' && type[3] == 'f';
-    return ftyp || moov || moof;
+// 为什么按**文件头**判定而不是看扩展名：扩展名是可以随便改的，
+// 「clip.mp4」里装一段文本照样叫 .mp4；文件头里写着标志的才是真的那种格式。
+enum class MediaContainer {
+    Unknown,
+    Mp4,  // ISO BMFF（MP4 / MOV 家族）
+    Avi,  // RIFF AVI
+    Wav,  // RIFF WAVE
+};
+
+// 4 字节标签比较。
+bool tagEquals(const char* data, const char* tag) {
+    return data[0] == tag[0] && data[1] == tag[1] && data[2] == tag[2] && data[3] == tag[3];
+}
+
+// 按文件头认出容器；认不出来就是 Unknown。
+//
+// 越界安全：每读一个标签之前都先确认长度够——
+//   * ISO BMFF 的盒类型在偏移 4..7，所以至少要 8 字节；
+//   * RIFF 的形式类型在偏移 8..11，所以至少要 12 字节。
+// 截断过的文件头（比如只有 'RIFF' 四个字节）一律判失败，绝不越界读。
+MediaContainer detectContainer(const QByteArray& bytes) {
+    const char* data = bytes.constData();
+    const qsizetype size = bytes.size();
+    // ISO BMFF：偏移 0..3 是盒长度，偏移 4..7 是盒类型。
+    // 'ftyp' 是普通 MP4；分片式 MP4 没有 ftyp，第一盒是 'moov' 或 'moof'。
+    if (size >= 8) {
+        const char* type = data + 4;
+        if (tagEquals(type, "ftyp") || tagEquals(type, "moov") || tagEquals(type, "moof")) {
+            return MediaContainer::Mp4;
+        }
+    }
+    // RIFF：'RIFF' + 4 字节长度 + 4 字节形式类型（偏移 8..11）。
+    if (size >= 12 && tagEquals(data, "RIFF")) {
+        const char* form = data + 8;
+        if (tagEquals(form, "AVI ")) return MediaContainer::Avi;
+        if (tagEquals(form, "WAVE")) return MediaContainer::Wav;
+    }
+    return MediaContainer::Unknown;
+}
+
+// 容器 → MIME 类型（"video/mp4" 这种写法，不带前导斜杠）。
+//
+// 为什么 MIME 由容器推出、而不是让调用方传：调用方传的 MIME 可以和文件头
+// 对不上（「clip.mp4」里装着一段 AVI），写出去就成了「结构对、内容错」。
+// 同一个值落在嵌入流的 /Subtype 与 MediaClip 的 /M 上；filespec 上不写 MIME。
+QString mimeForContainer(MediaContainer container) {
+    switch (container) {
+        case MediaContainer::Mp4:
+            return QStringLiteral("video/mp4");
+        case MediaContainer::Avi:
+            return QStringLiteral("video/x-msvideo");
+        case MediaContainer::Wav:
+            return QStringLiteral("audio/wav");
+        case MediaContainer::Unknown:
+            break;
+    }
+    return QString();
+}
+
+// 容器 → 默认文件名后缀（文件名留空时用）。
+QString extensionForContainer(MediaContainer container) {
+    switch (container) {
+        case MediaContainer::Mp4:
+            return QStringLiteral("mp4");
+        case MediaContainer::Avi:
+            return QStringLiteral("avi");
+        case MediaContainer::Wav:
+            return QStringLiteral("wav");
+        case MediaContainer::Unknown:
+            break;
+    }
+    return QString();
+}
+
+// 支持的容器清单（写进错误信息里，让人知道该换成什么）。
+QString supportedContainersText() {
+    return QStringLiteral("MP4（ISO BMFF）、AVI（RIFF AVI）、WAV（RIFF WAVE）");
 }
 
 #ifdef AIPDF_WITH_QPDF
@@ -391,14 +458,17 @@ QByteArray writeScreenMediaAnnotation(const QByteArray& input,
         setError(error, QStringLiteral("页面内播放的矩形宽高必须大于 0"));
         return {};
     }
-    // 只放行 MP4：写出一份「结构好看、实际放不出声」的页面没有意义，
+    // 只放行白名单里的容器：写出一份「结构好看、实际放不出声」的页面没有意义，
     // 不如当场说清楚要换格式还是改用附件。
-    if (!looksLikeMp4(spec.mediaBytes)) {
-        setError(error, QStringLiteral("页面内播放只支持 MP4（H.264/AAC）；「%1」不是 MP4"
-                                       "（文件头里没有 ftyp 盒），请先用外部工具转成 MP4，"
-                                       "或改用「作为附件」方式")
-                       .arg(spec.fileName.trimmed().isEmpty() ? QStringLiteral("这份媒体")
-                                                             : spec.fileName.trimmed()));
+    // 容器由**文件头**判定：扩展名可以随便改，头上的标志改不了。
+    const MediaContainer container = detectContainer(spec.mediaBytes);
+    if (container == MediaContainer::Unknown) {
+        setError(error, QStringLiteral("页面内播放支持 %1；「%2」的文件头不是其中之一"
+                                       "（MP4 看偏移 4 处的 ftyp 盒，AVI / WAV 看 RIFF 头的形式类型），"
+                                       "请先转成这三种格式之一，或改用「作为附件」方式")
+                       .arg(supportedContainersText(),
+                            spec.fileName.trimmed().isEmpty() ? QStringLiteral("这份媒体")
+                                                              : spec.fileName.trimmed()));
         return {};
     }
 #ifndef AIPDF_WITH_QPDF
@@ -427,10 +497,11 @@ QByteArray writeScreenMediaAnnotation(const QByteArray& input,
         }
         QPDFObjectHandle page = pages.at(static_cast<size_t>(spec.pageIndex));
 
-        const QString mime = spec.mimeType.trimmed().isEmpty() ? QStringLiteral("video/mp4")
-                                                                : spec.mimeType.trimmed();
-        const QString fileName = spec.fileName.trimmed().isEmpty() ? QStringLiteral("clip.mp4")
-                                                                    : spec.fileName.trimmed();
+        // MIME 由容器决定：调用方不用传，也不会出现「名字说 mp4、内容是 avi」。
+        const QString mime = mimeForContainer(container);
+        const QString fileName = spec.fileName.trimmed().isEmpty()
+                                     ? QStringLiteral("clip.") + extensionForContainer(container)
+                                     : spec.fileName.trimmed();
 
         // ---- 媒体本体：嵌入文件流 ----
         // 字节原样搬运：一个字节都不改——媒体文件能不能播是它自己的事，
@@ -438,13 +509,13 @@ QByteArray writeScreenMediaAnnotation(const QByteArray& input,
         const std::string mediaData(spec.mediaBytes.constData(),
                                     static_cast<size_t>(spec.mediaBytes.size()));
         QPDFObjectHandle file = QPDFObjectHandle::newStream(&pdf, mediaData);
-        // 媒体流不压缩：MP4 里的 H.264/AAC 本来就是熵编码过的，再套一层
+        // 媒体流不压缩：MP4 / AVI 里的视频轨本来就是熵编码过的，再套一层
         // FlateDecode 压不动却要白花 CPU；而「文件里就是原始字节」对播放
         // 与事后核对都更省事（/Params /Size 与实际字节数也就对得上了）。
         file.setFilterOnWrite(false);
         setStreamKey(file, "/Type", QPDFObjectHandle::newName("/EmbeddedFile"));
         // MIME 类型写成名字对象：'/' 必须转义成 #2f，qpdf 会自己做这件事，
-        // 所以这里传的是**未转义**的 "/video/mp4"。
+        // 所以这里传的是**未转义**的 "/video/mp4" 这类值。
         setStreamKey(file, "/Subtype",
                      QPDFObjectHandle::newName(("/" + mime).toLatin1().constData()));
         QPDFObjectHandle params = QPDFObjectHandle::newDictionary();

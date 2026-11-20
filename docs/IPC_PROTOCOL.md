@@ -4,16 +4,23 @@
 
 The implementation uses a local named pipe through Qt Local IPC. Messages are UTF-8 JSON objects delimited by a single newline. The maximum accepted frame size is 1 MiB.
 
-**Protocol version: 3.** Version 2 added the `event` frame type for streaming output.
+**Protocol version: 4.** Version 2 added the `event` frame type for streaming output.
 Version 3 adds the `context` payload to `ai.chat.stream` and the `qa` task type (whole-document
-question answering with citations). A client that only understands an earlier version cannot
-handle version 3 frames — the main program and the Worker must always ship together.
+question answering with citations). Version 4 adds the two editing operations of the **isolated
+parsing worker** — `pdf.edit` (fill form fields / add annotations) and `pdf.save` (write the
+document back) — so a safe document can be edited without the main process ever holding its bytes.
+A client that only understands an earlier version cannot handle version 4 frames — the main program
+and every Worker must always ship together.
+
+> **Deployment note:** `kProtocolVersion` is shared by the AI Worker and the parsing Worker, so
+> bumping it to 4 means **both** worker binaries must be replaced together. An old
+> `PdfAiWorker.exe` rejects v4 frames with `protocol_version_unsupported`.
 
 ## Request
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "request_id": "uuid",
   "operation": "system.health",
   "payload": {}
@@ -24,7 +31,7 @@ handle version 3 frames — the main program and the Worker must always ship tog
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "request_id": "uuid",
   "type": "result",
   "ok": true,
@@ -43,7 +50,7 @@ many events for one request id, then a final `result` or `error`.
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "request_id": "uuid",
   "type": "event",
   "event": "ai.stream.delta",
@@ -85,6 +92,32 @@ to say whether a local-mode answer comes from a real local model or from the dem
 
 Unknown operations return `operation_not_supported`. Protocol version mismatches return `protocol_version_unsupported`.
 
+## Isolated parsing worker (`PdfParseWorker`)
+
+The parsing worker speaks the same framing and the same protocol version, but serves a different
+operation set. It exists so that opening a "safe document" never puts the PDF's bytes into the main
+process: the main program sends a **path string**, the worker parses and renders the file itself.
+
+| Operation | Purpose |
+|---|---|
+| `pdf.open` | Open the document at `path`; returns page count/size, form fields, per-page annotation counts |
+| `pdf.render` | Render one page to PNG and return the bytes |
+| `pdf.edit` | Apply a batch of structured instructions (fill form fields / add annotations) |
+| `pdf.save` | Write the parsed document back to `path` (temp file first, then atomic replace) |
+
+`pdf.edit` carries no media bytes — each instruction only names a field, a page, a rectangle and
+some text — so a frame stays far below the 1 MiB limit. The worker **validates the whole batch
+before touching anything**: if one instruction is invalid, none are applied. After a failed edit
+the document is marked inconsistent and `pdf.save` refuses to run, so a half-edited file is never
+written.
+
+`pdf.save` rewrites the whole file (PDFium `FPDF_SaveAsCopy`). Measured consequences, reported back
+in the `warnings` array as stable codes (`encryption_dropped` / `encryption_password_changed` /
+`encryption_preserved` / `signatures_invalidated` / `incremental_history_dropped` /
+`structure_rewritten`): encryption and the password are **kept**, digital signatures **stop
+validating**, incremental-update history is **dropped**, and the file structure is **rewritten**.
+The main program surfaces those results to the user instead of silently losing them.
+
 ### `ai.chat.stream`
 
 Payload: `task` (`summary` / `explain` / `translate` / `chat` / `qa`), `messages` (the fully built
@@ -95,7 +128,7 @@ For the `qa` task the payload also carries `context`: the retrieved, numbered co
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "request_id": "uuid",
   "operation": "ai.chat.stream",
   "payload": {

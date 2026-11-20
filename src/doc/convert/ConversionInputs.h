@@ -23,6 +23,11 @@ enum class ConversionSourceKind {
     PlainText,  // 纯文本
     RichText,   // 富文本（HTML）
     Images,     // 图片（剪贴板里的图片，一图一页）
+    // 文字 + 图片**合成一份**（正文页在前，图片页在后）。
+    //
+    // 为什么单列一个：合成出来的产物既不是「只有文字」也不是「只有图片」，
+    // 界面要能跟用户说清「这是一份合成稿」，不能沿用其中一边的话术。
+    Mixed,
 };
 
 // 失败的具体原因（结构化）。
@@ -213,6 +218,10 @@ ConversionResult clipboardHtmlToPdf(
 // 富文本和图片，这两样排出来的 PDF 完全不一样（一边有文字层，一边是图），
 // 该用哪一边是**产品决定**（界面层定），领域层不猜，只把两条路都备好。
 //
+// **产品决定已落定**（见 clipboardMixedToPdf）：剪贴板里同时有文字和图片时
+// 合成**一份**（正文页在前、图片页在后），不再二选一。单独这两个入口仍然
+// 保留：纯文字与纯图片时走它们，产物与从前完全一致。
+//
 // 图片格式只支持 JPEG / BMP / PNG：这三样仓库里已经有解码器（含自研的 PNG
 // 解码器），TIFF / GIF / WebP 没有 —— 明确报「格式不支持」并点名格式，
 // **不静默忽略**。
@@ -220,6 +229,32 @@ ConversionResult clipboardHtmlToPdf(
 // 一张都没排进去时**直接失败**（errorKind 给出原因），不生成空白 PDF；
 // 排进去一部分则算成功，没排进去的逐张记进 result.clipboardImageOutcome.issues。
 ConversionResult clipboardImageToPdf(
+    const QVector<QByteArray>& imageBytes,
+    const QString& title = QString(),
+    const UniversalConverterOptions& options = UniversalConverterOptions());
+
+// 把剪贴板里的**文字 + 图片合成一份** PDF。
+//
+// 页序规则（**产品决定**，界面层与领域层都按这一条）：
+//   第 1..M 页 = 正文（HTML 优先，否则纯文本）；
+//   第 M+1..M+N 页 = 剪贴板里的图片，一图一页，页序 = 传入顺序。
+//
+// 为什么图片**不**插在正文里它出现的位置上（网页那套是插的）：
+// 剪贴板里的 HTML 的 <img src> 常常是已经失效的 file:/// 临时路径或者
+// data: URI（scanHtmlBody 只取 src、不解 data:），位置信息不可靠；
+// 「正文在前、图在后」是可预期的顺序，用户一眼就知道图是哪几张。
+//
+// HTML 里内联的图仍然**不**嵌入（与 clipboardHtmlToPdf 一致）：那一路只排正文。
+// 剪贴板里的图片是**另一份字节**（从剪贴板直接拿到的），走图片页。
+//
+// 纯文字、纯图片两种输入也能走这个函数，产物与 clipboardTextToPdf /
+// clipboardImageToPdf **等价**：纯图片时页数 = 图片张数，不多出空白页。
+//
+// 一张图都没排进去时不算失败：正文那一半仍然出 PDF，图片逐张记进
+// result.clipboardImageOutcome.issues（不静默丢弃）。
+ConversionResult clipboardMixedToPdf(
+    const QString& text,
+    const QString& html,
     const QVector<QByteArray>& imageBytes,
     const QString& title = QString(),
     const UniversalConverterOptions& options = UniversalConverterOptions());

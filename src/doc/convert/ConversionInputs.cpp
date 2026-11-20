@@ -1284,6 +1284,78 @@ ConversionErrorKind clipboardImageFailureKind(const QVector<ClipboardImageIssue>
     return ConversionErrorKind::LayoutFailed;
 }
 
+// 把剪贴板图片字节排成图片页素材（一图一页，页序 = 传入顺序）。
+//
+// 为什么单独抽出来：「只有图」那一路与「文字 + 图」那一路用的是**同一套**
+// 解码与排页逻辑（同一份纸张、同一个折算比例）；写两遍的话迟早会漂移。
+//
+// 取不到 / 解不开 / 一页放不下都**不中断**整次转换：
+// 原因逐条写进 outcome.issues（不静默丢弃）。
+QVector<DocumentPiece> buildClipboardImagePieces(const QVector<QByteArray>& imageBytes,
+                                                 const QSizeF& pageSize, double marginPt,
+                                                 ClipboardImageOutcome* outcome) {
+    QVector<DocumentPiece> pieces;
+    outcome->found = imageBytes.size();
+    for (int index = 0; index < imageBytes.size(); ++index) {
+        if (pieces.size() >= kMaxClipboardImages) {
+            // 图太多：后面的不排了，但逐条记下来（不静默丢弃）。
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::LimitReached;
+            issue.detail = QStringLiteral("too many images in one conversion");
+            outcome->issues.append(issue);
+            continue;
+        }
+        const QByteArray& bytes = imageBytes.at(index);
+        if (bytes.isEmpty()) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::EmptyData;
+            issue.detail = QStringLiteral("image bytes are empty");
+            outcome->issues.append(issue);
+            continue;
+        }
+        // 格式先自己认一遍：认不出来是「格式不支持」，认出来了但解不开才是
+        // 「数据坏了」——这两种要分开报，前者多半是来源设置的问题。
+        if (pdf::detectImageFormat(bytes) == pdf::ImageFormat::Unknown) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::UnsupportedFormat;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = QStringLiteral("unsupported image format: %1").arg(issue.format);
+            outcome->issues.append(issue);
+            continue;
+        }
+        pdf::DecodedImage decoded;
+        QString detail;
+        if (!pdf::decodeImage(bytes, &decoded, &detail)) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::DecodeFailed;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = detail;
+            outcome->issues.append(issue);
+            continue;
+        }
+        ImagePageData page;
+        if (!buildImagePage(decoded, pageSize, marginPt, &page, &detail)) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::TooLarge;
+            issue.format = pdf::describeImageFormat(bytes);
+            issue.detail = detail;
+            outcome->issues.append(issue);
+            continue;
+        }
+        DocumentPiece piece;
+        piece.isImage = true;
+        piece.image = page;
+        pieces.append(piece);
+        ++outcome->embedded;
+    }
+    return pieces;
+}
+
 }  // namespace
 
 // 把剪贴板里的图片排成一份 PDF（一图一页，页序 = 传入顺序）。
@@ -1314,64 +1386,10 @@ ConversionResult clipboardImageToPdf(const QVector<QByteArray>& imageBytes, cons
     const QByteArray mediaBox = "[0 0 " + formatPoints(pageSize.width()) + " " +
                                 formatPoints(pageSize.height()) + "]";
 
-    QVector<DocumentPiece> pieces;
-    for (int index = 0; index < imageBytes.size(); ++index) {
-        if (pieces.size() >= kMaxClipboardImages) {
-            // 图太多：后面的不排了，但逐条记下来（不静默丢弃）。
-            ClipboardImageIssue issue;
-            issue.index = index;
-            issue.kind = ClipboardImageIssueKind::LimitReached;
-            issue.detail = QStringLiteral("too many images in one conversion");
-            result.clipboardImageOutcome.issues.append(issue);
-            continue;
-        }
-        const QByteArray& bytes = imageBytes.at(index);
-        if (bytes.isEmpty()) {
-            ClipboardImageIssue issue;
-            issue.index = index;
-            issue.kind = ClipboardImageIssueKind::EmptyData;
-            issue.detail = QStringLiteral("image bytes are empty");
-            result.clipboardImageOutcome.issues.append(issue);
-            continue;
-        }
-        // 格式先自己认一遍：认不出来是「格式不支持」，认出来了但解不开才是
-        // 「数据坏了」——这两种要分开报，前者多半是来源设置的问题。
-        if (pdf::detectImageFormat(bytes) == pdf::ImageFormat::Unknown) {
-            ClipboardImageIssue issue;
-            issue.index = index;
-            issue.kind = ClipboardImageIssueKind::UnsupportedFormat;
-            issue.format = pdf::describeImageFormat(bytes);
-            issue.detail = QStringLiteral("unsupported image format: %1").arg(issue.format);
-            result.clipboardImageOutcome.issues.append(issue);
-            continue;
-        }
-        pdf::DecodedImage decoded;
-        QString detail;
-        if (!pdf::decodeImage(bytes, &decoded, &detail)) {
-            ClipboardImageIssue issue;
-            issue.index = index;
-            issue.kind = ClipboardImageIssueKind::DecodeFailed;
-            issue.format = pdf::describeImageFormat(bytes);
-            issue.detail = detail;
-            result.clipboardImageOutcome.issues.append(issue);
-            continue;
-        }
-        ImagePageData page;
-        if (!buildImagePage(decoded, pageSize, options.marginPt, &page, &detail)) {
-            ClipboardImageIssue issue;
-            issue.index = index;
-            issue.kind = ClipboardImageIssueKind::TooLarge;
-            issue.format = pdf::describeImageFormat(bytes);
-            issue.detail = detail;
-            result.clipboardImageOutcome.issues.append(issue);
-            continue;
-        }
-        DocumentPiece piece;
-        piece.isImage = true;
-        piece.image = page;
-        pieces.append(piece);
-        ++result.clipboardImageOutcome.embedded;
-    }
+    // 逐张解码与排页：与「文字 + 图」那一路共用同一套（buildClipboardImagePieces）。
+    const QVector<DocumentPiece> pieces =
+        buildClipboardImagePieces(imageBytes, pageSize, options.marginPt,
+                                  &result.clipboardImageOutcome);
 
     if (pieces.isEmpty()) {
         // 一张都没成：整次转换失败。逐张原因仍然留在 issues 里，
@@ -1398,6 +1416,115 @@ ConversionResult clipboardImageToPdf(const QVector<QByteArray>& imageBytes, cons
             result.clipboardImageOutcome.issues.append(issue);
         }
         return result;
+    }
+
+    result.ok = true;
+    result.bytes = composed;
+    result.pageCount = composedPages;
+    return result;
+}
+
+// 把剪贴板里的**文字 + 图片合成一份** PDF。
+//
+// 页序规则（**产品决定**，界面层与领域层都按这一条）：
+//   第 1..M 页 = 正文（HTML 优先，否则纯文本）；
+//   第 M+1..M+N 页 = 剪贴板里的图片，一图一页，页序 = 传入顺序。
+//
+// 为什么图片**不**插在正文里它出现的位置上（网页那套是插的）：
+// 剪贴板里的 HTML 的 <img src> 常常是已经失效的 file:/// 临时路径或者
+// data: URI（scanHtmlBody 只取 src、不解 data:），位置信息不可靠；
+// 「正文在前、图在后」是可预期的顺序，用户一眼就知道图是哪几张。
+//
+// 拼法与网页带图那条路一样（htmlBodyToPdf）：正文排成一份源 PDF，
+// 每张图排成一张图片页，再由 composeDocument 按顺序合进一份文件。
+ConversionResult clipboardMixedToPdf(const QString& text, const QString& html,
+                                     const QVector<QByteArray>& imageBytes, const QString& title,
+                                     const UniversalConverterOptions& options) {
+    // ---- 1. 文字那一路：HTML 优先，否则纯文本。----
+    const bool rich = !html.trimmed().isEmpty();
+    if (rich) {
+        const HtmlBody body = extractHtmlBody(html);
+        if (body.text.trimmed().isEmpty()) {
+            // 与 clipboardHtmlToPdf 一样：富文本没有正文就是没有正文，
+            // 不用纯文本兜底（那会让「这次按富文本排」这句话变成假的）。
+            ConversionResult result;
+            result.errorKind = ConversionErrorKind::NoHtmlBody;
+            result.error = QStringLiteral("clipboard html has no body text");
+            return result;
+        }
+    } else if (text.trimmed().isEmpty()) {
+        // ---- 2. 没有文字 ----
+        if (imageBytes.isEmpty()) {
+            ConversionResult result;
+            result.errorKind = ConversionErrorKind::NoContent;
+            result.error = QStringLiteral("剪贴板里没有文本，没法生成 PDF。");
+            return result;
+        }
+        // 只有图：走图片那一路（页数 = 图片张数，不多出空白页）。
+        return clipboardImageToPdf(imageBytes, title, options);
+    }
+
+    // ---- 3. 没有图：走纯文字那一路（与现有行为等价）。----
+    if (imageBytes.isEmpty()) {
+        return rich ? clipboardHtmlToPdf(html, title, options)
+                    : clipboardTextToPdf(text, title, options);
+    }
+
+    // ---- 4. 混合：正文在前，图片在后。----
+    ConversionResult result;
+    result.title = title.trimmed();
+    result.sourceKind = ConversionSourceKind::Mixed;
+
+    // 正文那一半与纯文字那一路**逐字节相同**（同一套排版，同一张纸）。
+    ConversionResult textResult = rich ? clipboardHtmlToPdf(html, title, options)
+                                       : clipboardTextToPdf(text, title, options);
+    if (!textResult.ok) {
+        return textResult;
+    }
+    result.warning = textResult.warning;
+    result.replacedCharacterCount = textResult.replacedCharacterCount;
+
+    const QSizeF pageSize = pageSizeInPoints(options.pageSize, options.orientation);
+    const QByteArray mediaBox = "[0 0 " + formatPoints(pageSize.width()) + " " +
+                                formatPoints(pageSize.height()) + "]";
+
+    QVector<DocumentPiece> pieces;
+    DocumentPiece textPiece;
+    textPiece.sourcePdf = textResult.bytes;
+    pieces.append(textPiece);
+    // 图片页：页序 = 传入顺序（也就是剪贴板里的顺序）。
+    pieces.append(buildClipboardImagePieces(imageBytes, pageSize, options.marginPt,
+                                            &result.clipboardImageOutcome));
+
+    if (pieces.size() == 1) {
+        // 一张图都没排进去：正文那一半仍然有价值 —— 退回纯文字那份，
+        // 图逐张记成「没带进来」（原因留在 issues 里，不静默丢弃）。
+        ConversionResult fallback = textResult;
+        fallback.sourceKind = ConversionSourceKind::Mixed;
+        fallback.clipboardImageOutcome = result.clipboardImageOutcome;
+        fallback.clipboardImageOutcome.embedded = 0;
+        return fallback;
+    }
+
+    QByteArray composed;
+    int composedPages = 0;
+    QString composeError;
+    if (!composeDocument(pieces, mediaBox, &composed, &composedPages, &composeError)) {
+        // 合成失败：退回「只有正文」那份，图逐张记成「排不进这份 PDF」。
+        // 为什么退回而不是整次失败：正文已经排好了，为了一张图把正文丢掉不划算。
+        ConversionResult fallback = textResult;
+        fallback.sourceKind = ConversionSourceKind::Mixed;
+        fallback.clipboardImageOutcome = result.clipboardImageOutcome;
+        fallback.clipboardImageOutcome.embedded = 0;
+        fallback.clipboardImageOutcome.issues.clear();
+        for (int index = 0; index < imageBytes.size(); ++index) {
+            ClipboardImageIssue issue;
+            issue.index = index;
+            issue.kind = ClipboardImageIssueKind::LayoutFailed;
+            issue.detail = composeError;
+            fallback.clipboardImageOutcome.issues.append(issue);
+        }
+        return fallback;
     }
 
     result.ok = true;

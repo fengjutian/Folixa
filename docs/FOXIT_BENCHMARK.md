@@ -14,7 +14,7 @@
 | A8 | 文本重排（reflow） | ± | 对齐 | — | 整篇重排已实现并写回打开的文档：页面对象模型（`pdf::readPageObjectModel`：文字块 / 图片 / 矢量 / 表格 / 页眉 / 页脚，稳定 id 由「种类 + 内容指纹 + 量化几何 + 序号」派生）+ 搬运与锚点（`pdf::ReflowPlan`）+ PDFium 就地写回；**写回前有门禁**：重排结果重新打开、重新统计一遍，文字块 / 图片 / 表格少一个就拦住写回并写明少了什么（`report.error` 写原因、`bytes` 置空），不再静默丢；页眉页脚按每页重复放到每一页；无结构标签的文档明确拒绝，不做启发式重排；重排不保留书签与内部链接的目标（页码变了，界面必须提示）；竖排文字按横排重排；`DocumentReflowTests` 19 条 + `ReflowWriteBackTests` 14 条 + `PageObjectModelTests` 11 条。**另一条通道也做完了全文流式改写**（`pdf::reflowDocumentStream`）：按新的正文栏宽把每段重新流排并写回内容流，段落边界取自标签树的块级元素（P / H1 / TD…），**没有结构标签的文档直接拒绝整篇重排**并写明「只能逐段处理」；重排后段落变高会压到下一段或超出页面时该段保留原文并写明原因；写回后用 PDFium 重新打开、重新抽文字核对，段数或字数少一个就不写回（`Wave21StreamTests` 19 条）。**跨文本块合并**（`pdf::mergeTextBlocksAcrossSelection`）把勾选的几块合成一段连续文字，**每块自己的字体、字号与颜色跟着自己那段文字走**，块间夹着图片 / 矢量 / 表格时直接拒绝。 |
 | A9 | 夜间 / 护眼 / 高对比配色 | ✓ | 已具备 | 1.10.0 | 夜间 / 护眼 / 高对比四套配色，`app::theme::ReadingScheme` 统一管理、QSettings 持久化，Ribbon 有切换入口；`ReadingSchemeTests` 兜底 |
 | A10 | 图层（OCG）开关 | ✓ | 对齐 | 2.x | OCG 图层面板：列出全部图层（名称 / 默认可见 / 顺序），逐个开关并写回文档，页面级 OCMD 覆盖也显示（哪些页面单独改了某个图层的可见性）；**图层名不是 PDF 名字 token**，映射由领域层处理，界面不自己拼键名；`OptionalContentTests` |
-| A11 | 嵌入 3D / 媒体资源 | ± | 对齐 | — | 3D / 多媒体注解与作品集都已实现：写 `/3D`、`/Screen` 注解与 Filespec（`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`，`RichMedia3dTests` 27 条），作品集能读能写（`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`）；**音视频现在能解码能播放**：用 Windows 自带的 Media Foundation 解码（`pdf::openMediaFile` / `pdf::MediaDecoder`；WAV 5572 ms / 22050 Hz / 2 声道、MP3 14759 ms / 44100 Hz / 1 声道、视频 96×48 WMV2 30 fps 均为真机实测），播放时序由纯状态机 `pdf::MediaPlaybackController` 管（播放 / 暂停 / 停止 / 拖动 / 播完），声音走 Win32 waveOut（`app::PcmPlayer`），Ribbon「插入多媒体」对话框里带预览区（`app::MediaPreviewPanel`）；**3D 现在能渲染能旋转**：U3D 静态网格自研解码（ECMA-363 无压缩剖面）→ 自写 z-buffer 光栅化 → 轨道相机渲染成位图，Ribbon「查看 3D 模型」里可拖动旋转、滚轮缩放（`pdf::threeDRenderModel` / `threeDRenderMesh`，`Wave213dTests` 20 条）；用算术压缩剖面的 U3D 解不出网格时**退回降级海报并在界面上标明「非 3D 模型」**，不把海报当模型转——**写进文档的 3D 注解带模型字节、视图框与降级海报**（别的阅读器放不放得出来，取决于它有没有相应运行时）；**页面内放视频已实现**（`pdf::writeScreenMedia`：写 `/Screen` 注解 + catalog `/Assets` 名字树里的 MediaClip + 内嵌 MP4，按文件头 `ftyp` 判定格式，**只支持 MP4** —— 仓库录制器产出的 Motion-JPEG AVI 主流阅读器不认，仍走外部程序）；`ScreenAnnotationTests` 6 条 + `MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条 |
+| A11 | 嵌入 3D / 媒体资源 | ± | 对齐 | — | 3D / 多媒体注解与作品集都已实现：写 `/3D`、`/Screen` 注解与 Filespec（`pdf::writeThreeDAnnotation` / `writeMediaAnnotation` / `readRichMedia`，`RichMedia3dTests` 27 条），作品集能读能写（`pdf::writePortfolio` / `readPortfolio`，`PortfolioWriterTests`）；**音视频现在能解码能播放**：用 Windows 自带的 Media Foundation 解码（`pdf::openMediaFile` / `pdf::MediaDecoder`；WAV 5572 ms / 22050 Hz / 2 声道、MP3 14759 ms / 44100 Hz / 1 声道、视频 96×48 WMV2 30 fps 均为真机实测），播放时序由纯状态机 `pdf::MediaPlaybackController` 管（播放 / 暂停 / 停止 / 拖动 / 播完），声音走 Win32 waveOut（`app::PcmPlayer`），Ribbon「插入多媒体」对话框里带预览区（`app::MediaPreviewPanel`）；**3D 现在能渲染能旋转**：U3D 静态网格自研解码（ECMA-363 无压缩剖面）→ 自写 z-buffer 光栅化 → 轨道相机渲染成位图，Ribbon「查看 3D 模型」里可拖动旋转、滚轮缩放（`pdf::threeDRenderModel` / `threeDRenderMesh`，`Wave213dTests` 20 条）；用算术压缩剖面的 U3D 解不出网格时**退回降级海报并在界面上标明「非 3D 模型」**，不把海报当模型转——**写进文档的 3D 注解带模型字节、视图框与降级海报**（别的阅读器放不放得出来，取决于它有没有相应运行时）；**页面内放音视频已实现**（`pdf::writeScreenMediaAnnotation`：写 `/Screen` 注解 + catalog `/Assets` 名字树里的 MediaClip + 内嵌媒体，容器按**文件头**判定，**支持 MP4 / AVI / WAV 三种容器**，**MIME 由容器自己推导** —— 不接受调用方自报，杜绝「名字说 mp4、内容其实是 avi」；白名单外的输入明确失败并提示改用附件；**本程序不负责播放**，能不能播取决于阅读器的媒体运行时，Acrobat 不播 AVI、WAV 在 PDF 里更适合走 /Sound）；`ScreenAnnotationTests` 11 条 + `MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条 |
 | A12 | 复杂 CJK 排版与超大字符集 | ✓ | 对齐 | 2.0.0 | **可复跑的兼容语料回归**（`scripts/gen-cjk-corpus.py` 生成 9 份复杂 CJK 夹具，`scripts/verify-cjk-corpus.ps1` 逐份断言能打开 / 页数正确 / 能抽出文字 / 关键锚点命中 / 渲染不崩，已接进 `scripts/ci.ps1`）；**竖排按 WMode 1 排版**（`pdf::readVerticalMetrics` 读字体 vhea / vmtx 竖排度量，`pdf::layoutVerticalText` 列右→左、列内上→下，步进用竖排度量；字体字典写 `/WMode 1` + `/DW2` + `/W2`，Type0 用 `/Encoding /Identity-V` —— **实测 PDFium 判竖排看的是 Encoding CMap，不是 `/WMode`**，只写 `/WMode 1` 仍按横排渲染）；内容流顺序 = 阅读顺序，验收脚本对这份夹具**断言抽取串全等期望串**（顺序敏感，不是子串命中）并**查产物字体字典里确实有 `/WMode 1`**；字体没有竖排度量时按 1 em 默认宽度排版并如实标出降级，不编数；组合字符只断言「基字 + 变音符」的序列，不断言整形与顺序；`VerticalWritingTests` 12 条；**应用内把竖排写回任意 PDF 尚未打通**（PDFium 的文字对象 API 只能建简单字体，登记不了 Type0 / WMode 1 字体字典）。 |
 | A13 | 循环放映 | ✓ | 已具备 | — | 放映到最后一页时绕回第一页；循环开关做成**无界面依赖的纯函数状态机**（`app::nextPresentationPage`），关掉循环就逐字保持原来的「到头就停」；`PresentationLoopTests` 9 条；**不做定时自动翻页**，只影响手动翻页到头时的行为 |
 
@@ -43,7 +43,7 @@
 | C5 | 图形：矩形 / 椭圆 / 箭头 / 线 / 多边形 / 云线 | ✓ | 已具备 | 1.4.0 | 图形：矩形 / 椭圆 / 箭头 / 线 / 多边形 / 云线都能写盘并回读；**另加 callout 箭头框**（两段式交互：先拖注释框，再点箭头尖；PDF 没有 callout 这个 Subtype，用 Square + 自定义 /AP 实现）与**区域高亮**（Polygon + 自定义 /AP，带 /ExtGState 半透明）；`AnnotationShapesTests` 16 条 + `CustomAppearanceTests` 12 条 |
 | C6 | 墨迹与橡皮 | ✓ | 已具备 | 1.4.0 | 几何单测 + 整笔删除（可撤销）；工具可逐个标记为「放完保持选中」，标了就不退回选择态（`pdf::ToolRetentionSet`） |
 | C7 | 图章（内置 + 自定义） | ✓ | 已具备 | 1.4.0 | 四种文字图章 + **编号图章**（数字 / 大写字母 / 小写字母自动递增，可设起始号、补零与前后缀）+ 图片图章（Image XObject + `/SMask`）；编号规则、外观流与写盘各有一组单测 |
-| C8 | 附件 / 声音批注 | ✓ | 已具备 | 1.4.0 | **文档级附件面板已接回**（导航栏「附件」页：名称 / 说明 / 大小，添加 / 打开 / 保存副本 / 删除）：嵌入文件走 EmbeddedFile+Filespec，随文档一起保存（实测写盘后逐字节原样保留，删掉后文件体积真的变小）；**MIME 类型由保存链路补齐**（PDFium 的嵌入文件接口够不到嵌入文件流的 /Subtype，改由 `pdf::applyEmbeddedFileMimeTypes` 在 qpdf 侧补 `/Type /EmbeddedFile` + `/Subtype`，按文件名后缀推断，认不出走 application/octet-stream；**加密文档不补** —— 读它要密码、写回还要保住原加密设置）；页面上的附件批注另有一条路径，自建流字典、带正确的 /Subtype；声音批注为**原生 `/Sound` 注释**（自建字典注入页面 `/Annots`），支持录音（waveIn）与 WAV 文件（专项单测：`AttachmentPanelTests` 9 条） |
+| C8 | 附件 / 声音批注 | ✓ | 已具备 | 1.4.0 | **文档级附件面板已接回**（导航栏「附件」页：名称 / 说明 / 大小，添加 / 打开 / 保存副本 / 删除）：嵌入文件走 EmbeddedFile+Filespec，随文档一起保存（实测写盘后逐字节原样保留，删掉后文件体积真的变小）；**MIME 类型由保存链路补齐**（PDFium 的嵌入文件接口够不到嵌入文件流的 /Subtype，改由 `pdf::applyEmbeddedFileMimeTypes` 在 qpdf 侧补 `/Type /EmbeddedFile` + `/Subtype`，按文件名后缀推断，认不出走 application/octet-stream；**加密文档同样补** —— 带打开口令解析后用 `setPreserveEncryption` 原样保留原加密设置、所有者口令与 `/Perms`，实测 `/P` 与 `/Perms` 逐字节不变）；页面上的附件批注另有一条路径，自建流字典、带正确的 /Subtype；声音批注为**原生 `/Sound` 注释**（自建字典注入页面 `/Annots`），支持录音（waveIn）与 WAV 文件（专项单测：`AttachmentPanelTests` 9 条 + `EmbeddedFileMimeTests` 11 条） |
 | C9 | 测量（距离 / 周长 / 面积 + 比例尺） | ✓ | 已具备 | 1.4.0 | 三种口径 + `/Measure` 字典；几何单测 8 条 |
 | C10 | **/AP 外观流（在其他阅读器里可见）** | ✓ | 已具备 | 1.3.0 | PDFium + Windows 渲染器 + 福昕实机确认（2026-11-15） |
 | C11 | 回复线程 / 状态 / 作者时间 | ✓ | 已具备 | 1.4.0 | 数据层 + 批注面板「回复所选 / 设置审阅状态」；批注列表可**按类型与关键字筛选、全选筛选结果、批量改外观与批量删除**（`pdf::AnnotationFilter`）；保存重开后仍在 |
@@ -97,7 +97,7 @@
 | G5 | 数字签名（手写签章 + 证书签名）与证书链 / 撤销状态 | ✓ | 对齐 | 1.7.0 | 手写 / 导入签章 + PKCS#12 证书签名（**签名结果仍由随包 pyHanko 出，本程序不接管签名动作**）；**但证书链与撤销状态由主程序接管展示**：走 Windows 证书存储 + Crypt32 链策略（`pdf::inspectCertificateChain`），结论拆成**四个独立项** —— 受信任 / 已吊销 / 状态未知 / 已过期；**撤销信息查不到时报「状态未知」，不报「未被吊销」**（那是把「没查出来」说成「查过了、没问题」）；界面「签名列表」的证书链表有「撤销状态」列，链结论写进详情区；**原口径是「数字签名（手写签章 + 证书签名）」且写着「主程序不接管签名结果」；本轮把「证书链 / 撤销状态由主程序接管与展示」一并写进能力名，兑现范围以现在的名字为准**；`CertificateChainTests` 12 条 + `SignatureVerifierTests` 15 条 |
 | G6 | 验签、证书链、文档修改标记 | ✓ | 已具备 | 1.7.0 | 验签改为**逐项密码学判定**：自实现 RSA 验签（`pdf::RsaVerifier`，不依赖 BCrypt/Crypt32）+ 内容摘要比对 + OCSP 请求/响应解析 + RFC 3161 时间戳解析；签名列表多一列判定，成立显绿、不成立显中文原因。`SignatureVerifierTests` 15 条 + `RsaVerifierTests` 14 条 |
 | G7 | 时间戳（RFC 3161） | ✓ | 对齐 | 1.7.0 | 时间戳地址透传给 pyHanko；**应用内现在能解析 TSA 响应**（RFC 3161，提取签发时间与 TSA 主体），但签发时间戳本身仍由外部服务完成 |
-| G8 | 进程隔离与安全阅读模式 | ✓ | 已具备 | — | Worker 隔离 + 现有验收；**PDF 解析也已移出主进程**（新增独立可执行 `PdfParseWorker`，主进程只把路径字符串发过去，PDF 由那个进程用 PDFium 解析并渲染成 PNG 回传，主进程从头到尾不打开这个文件）；**代价是安全模式当前为只读**（不能编辑、不能取文字层、不能填表单）；`SafeDocumentTests` 12 条 |
+| G8 | 进程隔离与安全阅读模式 | ✓ | 已具备 | — | Worker 隔离 + 现有验收；**PDF 解析与编辑都在独立进程里**（新增独立可执行 `PdfParseWorker`，主进程只把路径字符串发过去，PDF 由那个进程用 PDFium 解析并渲染成 PNG 回传，主进程从头到尾不打开这个文件、也不持有它的字节）；**文档仍然可编辑**（表单填写、批注添加与保存落盘都是送进隔离进程执行的指令，IPC 协议 3 → 4）；保存由解析进程重写整个文件，实测**加密与口令保留**、**数字签名失效**、**增量历史不保留**、**结构被重写**（后三条在保存前的确认框里写明，保存后逐条报给用户）；`SafeDocumentTests` 28 条 |
 | G9 | 批量加密 | ✓ | 对齐 | — | 选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件；源文件本身已加密时用源文件密码解开旧的再按新设置加密（`makeEncryptStep` 的 sourcePassword）；`BatchEncryptTests` 11 条；**需要带 qpdf 的构建**（与 G1 同一条限制） |
 
 ### H. 转换与输出（11 项）
@@ -134,7 +134,7 @@
 | J2 | 键盘全路径可达 | ✓ | 对齐 | 1.10.0 | Ribbon 每个按钮都有**全 Ribbon 唯一的助记符**（ASCII 字母优先，没有字母时用首个汉字），主命令区可用 Alt+字母到达；并显式声明 Tab 顺序（Ribbon → 侧栏 → 主视图 → 状态栏）；助记符唯一性有单测守 |
 | J3 | 屏幕阅读器 / UIA 暴露 | ✓ | 对齐 | 1.10.0 | Ribbon 按钮逐个设 `accessibleName`（去掉助记符后的文字），屏幕阅读器能读出主命令区；新增的 20 个按钮逐个断言；`UiWiringTests` |
 | J4 | 朗读（逐词高亮） | ✓ | **已具备** | 1.10.0 | 走 Windows 系统语音合成（PowerShell + System.Speech）逐词朗读，页面上逐词高亮；**朗读设置可调音色 / 语速 / 音量**（音色取自系统语音列表，`speech::SpeechSettings`）；`SpeechTextTests` 13 条 + `SpeechEngineTests` 11 条；逐词合成长文较慢，系统无语音时优雅降级 |
-| J5|读取标签结构生成阅读顺序|✓|对齐| 1.10.0 | 能读既有 StructTreeRoot（`pdf::readStructTree`）：支持 `/K` 三种形态、`/Parent` 反查、防环，能读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，并有界面入口；**语义标签树已实现**（`pdf::writeSemanticTagTree`，Ribbon「辅助工具 → 标签 → 自动添加文档标签」入口已启用）：扫内容流整理出「块」→ `pdf::inferSemanticRoles` 推断角色（标题看字号、加粗与编号层级；列表看行首标记与连续编号；表格看多行的列位置在行间对不对得上）→ 搭出 Document → Part(每页) → Sect → H1..H6 / P / L / LI / Table(TR/TH/TD) / Figure / Form 的语义树 → `pdf::writeSemanticStructure` 写回（`/StructTreeRoot`、`/RoleMap`、`/ParentTree`、每页 `/Tabs /S`）；**归类不可靠的块如实标出来并写明原因**，不静默给一棵看着整齐其实归错的树；**没有依据的替代文本不写**，改不成就把原因列出来，不编一句；**读屏取文顺序按读屏的取文路径回读验证**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`，结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；**三条区域顺序命令已升到语义级**（`pdf::readSemanticReadingOrder` / `pdf::writeSemanticReadingOrder`，Ribbon「辅助工具 → 阅读 → 设置区域阅读顺序 / 更改区域顺序 / 应用区域顺序」）：调的是结构树里的内容元素（标题 / 段落 / 列表 / 表格 / 图），写回后按元素数、角色 + 文字、页内顺序三重读回校验，对不上就不写；**跨页移动不支持，只能在同一页内调整**；没有语义树的文档明确报错并指向「自动添加文档标签」，**不降级成行级**；`SemanticReadingOrderTests` 11 条 + `StructTreeReaderTests` 18 条 + `SemanticTagWriterTests` 20 条 + `UaGeneratorTests` 15 条。 |
+| J5|读取标签结构生成阅读顺序|✓|对齐| 1.10.0 | 能读既有 StructTreeRoot（`pdf::readStructTree`）：支持 `/K` 三种形态、`/Parent` 反查、防环，能读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，并有界面入口；**语义标签树已实现**（`pdf::writeSemanticTagTree`，Ribbon「辅助工具 → 标签 → 自动添加文档标签」入口已启用）：扫内容流整理出「块」→ `pdf::inferSemanticRoles` 推断角色（标题看字号、加粗与编号层级；列表看行首标记与连续编号；表格看多行的列位置在行间对不对得上）→ 搭出 Document → Part(每页) → Sect → H1..H6 / P / L / LI / Table(TR/TH/TD) / Figure / Form 的语义树 → `pdf::writeSemanticStructure` 写回（`/StructTreeRoot`、`/RoleMap`、`/ParentTree`、每页 `/Tabs /S`）；**归类不可靠的块如实标出来并写明原因**，不静默给一棵看着整齐其实归错的树；**没有依据的替代文本不写**，改不成就把原因列出来，不编一句；**读屏取文顺序按读屏的取文路径回读验证**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`，结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；**三条区域顺序命令已升到语义级**（`pdf::readSemanticReadingOrder` / `pdf::writeSemanticReadingOrder`，Ribbon「辅助工具 → 阅读 → 设置区域阅读顺序 / 更改区域顺序 / 应用区域顺序」）：调的是结构树里的内容元素（标题 / 段落 / 列表 / 表格 / 图），写回后按元素数、角色 + 文字、**全局顺序**三重读回校验，对不上就不写；**跨页移动已支持**（元素在阅读顺序里的位置与它内容所在的物理页分开——改位置不改内容，/Pg 与 MCID 不变；含图像 /OBJR 与表单域 widget 的文档也能重排）；「应用区域顺序」已改成**只作用选区**（选区外一个元素都不碰），不再整篇重建；没有语义树的文档明确报错并指向「自动添加文档标签」，**不降级成行级**；`SemanticReadingOrderTests` 17 条 + `SemanticOrderSelectionTests` + `SemanticAltTextTests` 14 条 + `StructTreeReaderTests` 18 条 + `SemanticTagWriterTests` 20 条 + `UaGeneratorTests` 15 条。 |
 | J6|PDF/UA 合规检查|✓|对齐| — | PDF/UA **合规检查器**已实现：给出「通过 / 警告 / 不通过」三档结论与逐条修复建议（`pdf::checkPdfUa`，条款 28 → 43，`PdfUaCheckerTests` 19 条）；**一键生成合规文件已实现**（`pdf::generateUaPdf`，Ribbon「辅助工具 → 标签 → 生成 PDF/UA 文件」入口已启用）：推断语义角色 → 写语义树 → 补 `/Lang`、`/Info /Title`、`/DisplayDocTitle`、含 `pdfuaid:part="1"` 的 XMP 元数据、每页 `/Tabs /S` → **对产物重跑检查器**；产物仍有 Error 时 `ok=false` 并逐条列出问题，**绝不宣布「已通过 PDF/UA 校验」**——界面结论用生成器给的摘要（`result.summaryText`），边界说明原样用 `pdf::uaGenerationDisclaimer()`；**支持的是 PDF/UA-1**（ISO 14289-1），PDF/UA-2 不支持；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`UaGeneratorTests` 15 条 + `PdfUaCheckerTests` 19 条。 |
 | J7|自动打标签到表单域|✓|对齐| — | 每个 AcroForm 域在结构树里对应一个 `/Form` 元素，带 `/T`（字段名）与 `/Alt`（替代文本），Widget 注解挂 `/StructParent`（`pdf::autoTagFormFields`，Ribbon「自动添加表单域标签」（`accessibility.autoTagForms`）入口已启用）；**替代文本取域的提示文字（`/TU`），没有就用字段名，两者都没有就如实说「这个域没有可用的替代文本」，不编一句**；**已有标签树按「合并」语义处理**（保留树里原有的章节标题、段落等结构元素与阅读顺序，只替换表单域相关的 `/Form` 元素；没有标签树的文档才新建一棵，界面会说明这次是合并还是新建）；**表单域挂到所在页的 `/Part` 之下并按页内阅读顺序排列**（页面没有 `/Part` 就新建；已有 `/Part` 优先复用而不是再造一个），**重跑幂等**：上一轮写下的 `/Form` 元素会被摘掉换成新的，结构树里 `/Form` 元素的数量与域数始终一致；**表单域在语义树里带角色与层级**（`pdf::inferSemanticRoles` 把域归成 `/Form` 角色并挂进 Document → Part → Sect → …，`/T` 与 `/Alt` 一起写进去）；**XFA 表单域不在这一条路径里**（覆盖范围是 AcroForm 字段与页上的 widget 注解）；**读屏软件实测未验证**（本机没有读屏软件；字段名与替代文本改用结构树回读链路逐节点断言）；`FormAutoTagTests` 14 条 + `SemanticTagWriterTests` 20 条。 |
 
@@ -506,6 +506,52 @@
   `保护|文档|安全文档`（解析移出主进程，代价只读）、
   `辅助工具|阅读|设置区域阅读顺序` / `更改区域顺序` / `应用区域顺序`（升到语义级）；
   `matrix-scorecard-exemptions.csv` 里 J5 这三行的理由同步改写 —— **理由本身也会过期**。
+- 2026-11-21 第二十八轮（**补齐 9 项缺口，对应 11 行矩阵**）：
+  这一轮把上一轮盘点出来的开放问题一次做完。每一项都是**有边界的新能力** ——
+  边界照实写进矩阵说明列，不把「做了一半」包装成「完成」。
+  - **交叉合并一次可对多份逐页交叉**（`pdf::planCrossMerge` 纯计算页序 + `doc::CrossMergeCommand`）：
+    页序按「页号为主序、来源文件为次序」排。**走一条可撤销的命令原地改页**，
+    不再像旧实现那样造一份新文档再 `setDocument` —— 那条路会重建控制器、把撤销历史整个丢掉，
+    而且合并后不刷新布局。
+  - **剪贴板文字 + 图片合成一份 PDF**（`doc::clipboardMixedToPdf`）：正文排在前面，
+    图片一图一页依次接在后面。剪贴板 HTML 里的 `<img>` 位置**不**作为插页依据
+    （剪贴板 HTML 的 src 常是失效的 `file:///` 或 `data:` URI）；
+    「主页 → 捕获」组也补上了剪贴板入口（原来只在「转换」页，与福昕的位置对不上）。
+  - **区域顺序跨页搬动**（`pdf::readSemanticReadingOrder` / `writeSemanticReadingOrder`）：
+    关键区分是**内容所在的物理页**（`/Pg`、MCID）与**阅读顺序里的位置**是两件事，
+    跨页移动只改后者。读回校验也跟着从「按物理页分页比对」改成「按全局序列比对」。
+    顺带修掉两个真缺陷：`buildTreeView` 原本遇到没有 `/S` 的元素就**整篇拒绝**
+    （图像的 `/OBJR` 与表单域 widget 都没有 `/S`），`objectRefs` / `annotations` 也没复制
+    （重排后引用会丢）。
+  - **「应用区域顺序」从整篇重建改成只作用选区**（`pdf::applySemanticOrderScope`）：
+    原来它与「自动添加文档标签」做的是同一件事，手工调过的顺序会被覆盖。
+    现在只把选区里的语义元素按视觉顺序换位，选区外一个都不碰；
+    换位只发生在同一个容器（Part / Sect）内，角色 / 文字 / 页归属一律不动。
+  - **替代文本作用到图像与表单域**（`pdf::setSemanticAltText`）：
+    图像走 `/OBJR`、表单域走 widget 引用，都用 PDF 对象号认人。
+    实测确认自动生成那条路把 `/Alt` 写在**挂 `/OBJR` 的那个元素本身**上，不是它的父 / 子元素。
+    界面上的目标列表**带页面位置**（如「第 3 页的图像 2（左上）」），否则用户认不出是哪一张图。
+  - **站内帮助中心**（`app::HelpCenterDialog`）：五章（快速上手 / 页面与导航 / 批注与审阅 /
+    编辑与安全 / 常见问题），讲的都是本程序实际有的命令，不再跳外部链接。
+  - **安全文档从只读改成可编辑**：表单填写、批注与保存都是送进隔离进程 `PdfParseWorker` 的
+    **指令**（IPC 协议 3 → 4），主进程从头到尾不持有这个 PDF 的字节。
+    保存由解析进程重写整个文件，用 qpdf **逐项实测**：**加密与口令保留**、
+    **数字签名失效**、**增量历史不保留**、**结构被重写** —— 后三条在保存前的确认框里写明。
+    顺带实测出一条更隐蔽的坑：直接截断写目标文件时 PDFium 会从已被截断的源里继续读对象，
+    5 MB 的文档被存成 2 KB —— 「先写临时文件再原子替换」不只是为了原子性，也是为了内容正确性。
+  - **加密文档也能补 MIME**：走「带口令解析 + `setPreserveEncryption` 原样保留加密」，
+    不走「解密后用用户口令当所有者口令重新加密」——后者会改掉用户的权限位与所有者口令，
+    是用户数据损失。实测原加密文档的 `/P` 与 `/Perms` 逐字节不变。
+  - **页面内媒体支持 MP4 / AVI / WAV**：`/Screen` 的 MIME **由容器自己推导**（按文件头判定），
+    杜绝「名字说 mp4、内容其实是 avi」。白名单外的输入明确失败并提示改用附件。
+    边界写明：**本程序不负责播放**，能不能播取决于阅读器的媒体运行时。
+  - **i18n**：本轮新增 115 条文案已补进英文目录（`scripts/check-i18n.py` 转绿，3439 / 3439 全覆盖）。
+  **能力评分卡的状态词表与计分项没有变化**（102 项，已具备 65、超越 4、对齐 33、未做 0）——
+  这一轮补的是「能不能做到」，不是「够不够得上更高一档」，所以**没有为了好看上调任何一项**。
+  **命令矩阵**同步回填 **11 行**：partial → aligned 共 **11 行**，
+  对齐 228 → **239** 条，部分 19 → **8** 条，未做仍是 **0** 条，
+  对齐率 83% → **87%**（86.6%）。`matrix-scorecard-exemptions.csv` 里 H9 / J5 那 6 行
+  一并删掉 —— **理由也会过期**，那条豁免登记的理由本身就是已经不成立的旧说法。
 
 **校准只允许改"已具备"，不允许为了让数字好看而降低目标。**
 
@@ -561,16 +607,16 @@
 | D 页面与组装 | 8 / 9 | 合并一次多份 + 跨文件书签搬运、页面标签、通用批处理与 JSON 报告都已补齐；书签编辑有**树视图 + 拖拽改层级**，仍记「对齐」 |
 | E 文档编辑 | 5 / 7 | 段落对齐 / 行距 / 缩进与整篇重排已补齐；整篇重排必然改版面并丢图形表格 |
 | F 表单 | 5 / 6 | 静态 XFA 字段提取与 CSV 导出已补齐；动态 XFA 只提取字段，不执行脚本 |
-| G 安全与签名 | 3 / 9 | 验签已是逐项密码学判定；**隐藏信息清理改成逐项勾选**（16 类清单 + 写盘前复验，嵌入文件默认不勾、另有全选开关；增量历史按文档自己的 xref 链计数，嵌在内层的 PDF 不再被多算）；加密、权限、签名、时间戳是对齐，但签名与时间戳仍依赖外部服务；**权限管理面板已实现**（所有者口令解开后整体重加密改权限位）；**安全文档的解析已移出主进程**（独立进程渲染，代价是只读） |
+| G 安全与签名 | 3 / 9 | 验签已是逐项密码学判定；**隐藏信息清理改成逐项勾选**（16 类清单 + 写盘前复验，嵌入文件默认不勾、另有全选开关；增量历史按文档自己的 xref 链计数，嵌在内层的 PDF 不再被多算）；加密、权限、签名、时间戳是对齐，但签名与时间戳仍依赖外部服务；**权限管理面板已实现**（所有者口令解开后整体重加密改权限位）；**安全文档的解析与编辑都在主进程之外**（独立进程渲染与落盘，主进程不持有它的字节；文档仍可编辑：表单、批注与保存都是送进隔离进程的指令；代价是保存会重写整个文件 —— 数字签名失效、增量历史不保留，这两条在保存前写明） |
 | H 转换与输出 | 5 / 11 | PDF→Office、任意文件→PDF、PDF/A、优化压缩、**剪贴板转 PDF（含图片）**都已补齐；PDF/A 有预检器（**预检不是合规认证**）；**PDF→Office 是整篇导出**（DOCX 带真图片与真表格、PPTX 一页一张带图带表、XLSX 按页拆工作表），但**只导文本层 + 图片 + 表格**（批注与精确版式进不去），表格靠启发式识别、认不出就不出表格；按[整改方案](DEGRADED_FEATURE_REMEDIATION.md) §3.1 的完成标准**还差「渲染差异设分档阈值」与「Excel 表格单元格结构 F1 ≥ 0.95」两项** |
 | I OCR 与扫描 | 2 / 5 | 隐藏文本层回写已补齐（重复写是替换语义）；语言包可由用户侧安装（用户目录优先于程序自带），缺包时给的是可执行引导而不是一句报错；**扫描仪只支持 WIA**，取帧路径已用假帧源跑通单测、**真机仍未验证**（本机无扫描仪） |
-| J 无障碍与国际化 | 2 / 7 | Ribbon accessibleName 与助记符、读既有标签树、PDF/UA 检查已补齐；**标签树已到语义级**（三条区域顺序命令不再只到行粒度），界面验收待 CI 实测 |
+| J 无障碍与国际化 | 2 / 7 | Ribbon accessibleName 与助记符、读既有标签树、PDF/UA 检查已补齐；**标签树已到语义级**（三条区域顺序命令不再只到行粒度；**跨页搬动已支持**，**「应用区域顺序」改成只作用选区**而不是整篇重建；替代文本可作用到图像与表单域），界面验收待 CI 实测 |
 | K 性能与兼容 | 3 / 6 | 1000 份兼容语料与采样脚本已就绪；K4 / K6 已有无 GUI 探针，**六项发布预算仍需 CI 实测** |
 | L AI 能力 | 6 / 8 | 文生图、总结配图、PPT 四模式、内容检测、智能朗读、本地离线问答已补齐；本地离线问答是抽取式，不是模型推理；**文档比较已补像素级视觉比对**（默认关闭）与**跨文档自动对齐**（页指纹 + 相似度贪心配对，插页 / 删页不再让配对整体后移），但仍不做版面结构分析，**矩阵这一行仍是「部分」** |
 | **合计** | **69 / 102（68%）** | 本轮把上一版记成「不做 / 未做 / 部分」的那一批补上了 |
 
-**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 228 条完全对齐、19 条部分、
-0 条未做，**对齐率 83%**（去掉 🚫/➖ 的 247 条里占 92%）。能力评分卡按域计，
+**命令级的对齐率是另一个口径，不要混用**：276 条福昕命令里 239 条完全对齐、8 条部分、
+0 条未做，**对齐率 87%**（去掉 🚫/➖ 的 247 条里占 97%）。能力评分卡按域计，
 命令矩阵按按钮计，两者不可互相换算。
 
 **这一段动的三项都来自同一条通路。** 打印、导出图片、导出文本共用

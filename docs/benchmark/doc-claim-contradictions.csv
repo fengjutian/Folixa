@@ -7,7 +7,7 @@ H5,docs/VERSION_AUDIT.md,Excel / PPT 仍未做,第十九次重算,历史轮次�
 H5,docs/VERSION_AUDIT.md,不含图片、表格与样式,第十九次重算,同上：DOCX/PPTX 已带真图片与真表格
 C8,docs/FOXIT_BENCHMARK.md,文档级附件不带 MIME 类型,,文档级附件的 MIME 由保存链路补齐（pdf::applyEmbeddedFileMimeTypes 在 qpdf 侧补 /Type /EmbeddedFile 与 /Subtype），这句是 2026-11-20 之前的旧说法
 C8,docs/VERSION_AUDIT.md,文档级附件带不了 MIME 类型,第二十六次,历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十六次重算起不得再出现这句
-C8,docs/VERSION_AUDIT.md,不带 MIME 类型,第二十六次,同上：现在剩下的边界只有「加密文档不补 MIME」这一条
+C8,docs/VERSION_AUDIT.md,不带 MIME 类型,第二十六次,第二十六次盘点时的剩余边界是「加密文档补不上」；第二十八轮那条边界已经补上（带打开口令解析 + setPreserveEncryption 原样保留加密），所以从第二十八次起这句禁词针对的是「文档级附件没有 MIME」这个旧结论本身
 G3,docs/FOXIT_BENCHMARK.md,嵌入文件本体与附件引用点默认不勾,第二十六轮,隐藏数据清理对话框新增「全选 / 全不选」开关，默认勾选口径不变但不再构成能力缺口；历史轮次的旧说法留在存档里
 G8,docs/FOXIT_BENCHMARK.md,PDF 解析仍在主进程,第二十七轮,安全文档的解析已移到独立进程（PdfParseWorker），主进程不再打开这个文件，这句是 2026-11-20 之前的旧说法
 G8,docs/VERSION_AUDIT.md,PDF 解析仍在主进程,第二十七次,同上：历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十七次盘点起不得再出现这句
@@ -15,7 +15,16 @@ G1,docs/FOXIT_BENCHMARK.md,没有独立的权限管理面板,第二十七轮,权
 G1,docs/FOXIT_BENCHMARK.md,权限位随保存写入,第二十七轮,同上：权限位现在也能事后单独改，不必跟着另一次保存一起写
 J5,docs/FOXIT_BENCHMARK.md,标签树仍只到行粒度,第二十七轮,三条区域顺序命令已升到语义级（结构树里的内容元素），这句是 2026-11-20 之前的旧说法
 J5,docs/VERSION_AUDIT.md,标签树仍只到行粒度,第二十七次,同上：历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十七次盘点起不得再出现这句
-C8,docs/FOXIT_BENCHMARK.md,页面内不播放音视频,第二十七轮,页面内放视频已实现（/Screen 注解 + MediaClip，只接受 MP4），这句是 2026-11-20 之前的旧说法
+C8,docs/FOXIT_BENCHMARK.md,页面内不播放音视频,第二十七轮,页面内放音视频已实现（/Screen 注解 + MediaClip，MP4 / AVI / WAV 三种容器），这句是 2026-11-20 之前的旧说法
 J5,docs/FOXIT_BENCHMARK.md,这条命令是行级操作,第二十七轮,三条区域顺序命令已升到语义级，这句是旧说法
 J5,docs/FOXIT_BENCHMARK.md,这条命令读的是**行级**顺序,第二十七轮,同上：设置区域阅读顺序现在读的是结构树里的语义元素
-J5,docs/FOXIT_BENCHMARK.md,写标签树（**行级**）,第二十七轮,同上：应用区域顺序现在按视觉顺序重建语义树
+J5,docs/FOXIT_BENCHMARK.md,写标签树（**行级**）,第二十七轮,同上：应用区域顺序现在按视觉顺序重排选区里的语义元素，不再重建整棵标签树
+J5,docs/FOXIT_BENCHMARK.md,跨页移动不支持,第二十八轮,跨页搬动已支持：元素在阅读顺序里的位置与它内容所在的物理页分开，改位置不改内容（/Pg 与 MCID 不变）
+J5,docs/VERSION_AUDIT.md,跨页移动不支持,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句
+J5,docs/FOXIT_BENCHMARK.md,应用区域顺序= 整篇重建,第二十八轮,应用区域顺序已改成只作用选区：选区外的内容一个都不碰，也不再重建整篇标签树
+J5,docs/VERSION_AUDIT.md,应用区域顺序= 整篇重建,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句
+C8,docs/FOXIT_BENCHMARK.md,加密文档不补 MIME,第二十八轮,加密文档同样补 MIME：带打开口令解析后用 setPreserveEncryption 原样保留原加密设置、所有者口令与 /Perms
+G8,docs/FOXIT_BENCHMARK.md,安全模式下为只读,第二十八轮,安全文档已可编辑：表单填写、批注与保存都是送进隔离进程执行的指令，主进程仍不持有该 PDF 的字节
+G8,docs/FOXIT_BENCHMARK.md,代价是只读,第二十八轮,同上：只读的限制在第二十七轮已经解除，隔离进程里现在能改也能存
+H9,docs/FOXIT_BENCHMARK.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八轮,剪贴板里的文字与图片现在能合成同一份 PDF（doc::clipboardMixedToPdf：正文在前、图片一图一页）
+H9,docs/VERSION_AUDIT.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句

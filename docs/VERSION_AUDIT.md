@@ -1262,6 +1262,71 @@ R6/AES-256 下权限的权威来源是加密字典里的 `/Perms`，`/P` 只是�
 
 **第二十七次（本轮）增至 65 / 102 与 83%（228 / 276）**，partial 20 → 19 条。
 
+### 1.12 2026-11-21 第二十八次盘点（补齐 9 项缺口：11 行矩阵）
+
+这一轮把「还差什么」那次盘点列出的 9 项缺口一次做完，对应 **11 行**矩阵命令。
+每项都是**有边界的新能力** —— 边界照实写进矩阵说明列，不把「做了一半」包装成「完成」。
+
+| # | 改什么 | 落在哪 | 验证 |
+|---|---|---|---|
+| 1 | 交叉合并一次可对多份逐页交叉 | `src/pdf/ops/CrossMergePlanner.{h,cpp}` + `src/doc/edit/CrossMergeCommand.{h,cpp}` + `PdfView::crossMergeDialog` | `CrossMergeTests` 15 条 |
+| 2 | 剪贴板文字 + 图片合成一份 PDF | `src/doc/convert/ConversionInputs.{h,cpp}` + `ConversionInputDialog.{h,cpp}` + `home.clipboardToPdf` | `ConversionInputsTests` 59 条 |
+| 3 | 区域顺序跨页移动 | `src/pdf/compliance/SemanticReadingOrder.{h,cpp}` + `src/app/dialogs/SemanticOrderDialog.{h,cpp}` | `SemanticReadingOrderTests` 17 条 |
+| 4 | 应用区域顺序只作用选区 | `src/pdf/compliance/SemanticOrderSelection.{h,cpp}` + `src/app/dialogs/SemanticOrderSelectionDialog.{h,cpp}` | `SemanticOrderSelectionTests` 15 条 |
+| 5 | 替代文本作用到图像与表单域 | `src/pdf/compliance/SemanticAltText.{h,cpp}` + `MainWindow::setSelectedAnnotationAltText` | `SemanticAltTextTests` 14 条 |
+| 6 | 站内帮助中心 | `src/app/dialogs/HelpCenterDialog.{h,cpp}` + `help.center` | `HelpCenterDialogTests` 6 条 |
+| 7 | 安全文档从只读改成可编辑 | `worker/parse/*` + `src/ipc/IpcProtocol.h` + `src/app/controllers/SafeDocumentController.{h,cpp}` | `SafeDocumentTests` 28 条 |
+| 8 | 加密文档也能补 MIME | `src/pdf/document/EmbeddedFileMime.{h,cpp}` + `DocumentWriter` | `EmbeddedFileMimeTests` 11 条 |
+| 9 | 页面内媒体支持 MP4 / AVI / WAV | `src/pdf/annot/ScreenAnnotation.{h,cpp}` + `WiringActions::insertScreenMedia` | `ScreenAnnotationTests` 11 条 |
+
+**跨页移动这一项顺带修掉两个真缺陷**。`buildTreeView` 原本遇到没有 `/S` 的元素就**整篇拒绝**，
+图像的 `/OBJR` 字典与表单域的 widget 注解都没有 `/S`，所以含图或含表单域的文档整篇重排做不了；
+`objectRefs` / `annotations` 也没有复制，重排后图像与表单域的引用会丢。
+现在前者归类为「引用元素」跳过、后者按共用读件的同一套遍历规则再走一遍树逐条核对后复制。
+**读回校验也从「按物理页分页比对」改成「按全局序列比对」** —— 跨页移动之后，
+元素的 `/Pg` 还在原来那一页，按页分组会把「位置」和「页」混成一件事。
+
+**「应用区域顺序」原本确实是整篇重建**（`pdf::writeSemanticTagTree` 与「自动添加文档标签」同一函数，
+弹窗原文自己写着「与自动添加文档标签做的是同一件事」）。现在改成**只作用选区**：
+选区由「哪些页」与「每页要不要再圈一块区域」组成，只把选区里的语义元素换位，
+选区外的内容一个都不碰，换位只发生在同一个容器（Part / Sect）内。
+
+**安全文档从只读改成可编辑**：表单填写、批注添加与保存落盘全部作为**指令**送进隔离进程
+`PdfParseWorker`（IPC 协议 3 → 4，新增 `pdf.edit` 与 `pdf.save`），主进程从头到尾不持有这个 PDF 的字节。
+用 PDFium 的 `FPDF_SaveAsCopy` 重写整个文件，**逐项实测**（qpdf 核对）的结论是：
+**加密与口令保留**（同一口令仍能打开）、**数字签名失效**（签名数据还在，但字节范围对不上新文件）、
+**增量更新的历史版本不保留**、**文件结构被重写**。后三条代价在保存前的确认框里写明，
+保存后按实际结果逐条报给用户。
+顺带实测出一条更隐蔽的坑：**直接截断写目标文件时，PDFium 会从已被截断的源里继续读对象**，
+5 MB 的文档被存成 2 KB —— 所以「先写临时文件再原子替换」不只是为了原子性，也是为了内容正确性。
+
+**加密文档补 MIME 走的是「带口令解析 + 原样保留加密」**（`setPreserveEncryption` +
+`copyEncryptionParameters`），不走「解密后用用户口令当所有者口令重新加密」——
+后者会改掉用户的权限位与所有者口令，是用户数据损失。实测原加密文档的 `/P` 与 `/Perms` 逐字节不变。
+
+**测试与负例对照**（每一项都是「改坏 → 重编 → 跑测试 → 还原 → 复检」）：
+
+- 把「找不到对应结构元素」退回「直接返回成功」→ `SemanticAltTextTests` **变红 2 条**；
+- 把「只改目标元素的 `/Alt`」退回「改所有元素」（并放行函数内部自查）→ `SemanticAltTextTests` **变红 3 条**；
+- 把读回校验退回「按物理页分页比对」→ `SemanticReadingOrderTests` **变红 3 条**；
+- 去掉 `objectRefs` / `annotations` 复制 → `SemanticReadingOrderTests` **变红 2 条**；
+- 把 `buildTreeView` 退回「无 `/S` 整篇拒绝」→ `SemanticReadingOrderTests` **变红 2 条**；
+- 把选区判定去掉（整篇都排）→ `SemanticOrderSelectionTests` **变红 5 条**；
+- 把 `visualLess` 方向反转 → `SemanticOrderSelectionTests` **变红 2 条**；
+- 把 `pdf.edit` 改成「直接返回成功但不改文档」→ `SafeDocumentTests` **变红 3 条**；
+- 把 `pdf.save` 的原子替换改成「直接截断写目标文件」→ `SafeDocumentTests` **变红 1 条**。
+
+**i18n**：本轮新增 115 条文案已补进英文目录（`scripts/check-i18n.py` 转绿，3439 / 3439 全覆盖）。
+
+**能力评分卡的状态词表与计分项没有变化**（102 项，已具备 65、超越 4、对齐 33、未做 0）——
+这一轮补的是「能不能做到」，不是「够不够得上更高一档」，所以**没有为了好看上调任何一项**。
+**命令矩阵**同步回填 **11 行**：partial → aligned 共 **11 行**，
+对齐 228 → **239** 条，部分 19 → **8** 条，未做仍是 **0** 条，
+对齐率 83% → **87%**（86.6%）。`matrix-scorecard-exemptions.csv` 里 H9 / J5 那 6 行
+（理由本身就是过时的说法）一并删掉 —— **理由也会过期**。
+
+**第二十八次（本轮）增至 65 / 102 与 87%（239 / 276）**，partial 19 → 8 条。
+
 ## 1. 结论
 
 计划中的 1.1 → 1.11 没有按顺序推进。实际代码集中在 **1.1–1.5、1.8、1.10，以及 1.11 的一部分**；

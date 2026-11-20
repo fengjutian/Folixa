@@ -12,6 +12,7 @@
 #include "app/dialogs/RegionPicker.h"
 #include "app/dialogs/RecordingCenterDialog.h"
 #include "app/dialogs/SafeDocumentViewerDialog.h"
+#include "app/dialogs/HelpCenterDialog.h"
 #include "app/controllers/ScreenCapture.h"
 #include "app/controllers/AudioRecorder.h"
 #include "app/recording/ScreenRecorder.h"
@@ -55,6 +56,8 @@
 #include "pdf/kernel/PdfiumAdapter.h"
 #include "pdf/annot/Annotation.h"
 #include "pdf/annot/AnnotationFilter.h"
+#include "pdf/compliance/SemanticAltText.h"
+#include "pdf/compliance/TagTreeWriter.h"
 #include "pdf/forms/FormData.h"
 #include "pdf/forms/FormAutoDetect.h"
 #include "pdf/forms/FormScriptStore.h"
@@ -1120,6 +1123,12 @@ void MainWindow::buildUi() {
     addRibbonCommand(captureGroup, "截图", "框选屏幕区域或整个窗口，保存为 PNG 图片",
                      ":/icons/square.svg", [this] { captureWindowScreenshot(); }, true,
                      "home.screenshot");
+    // 剪贴板转 PDF 也放在主页：福昕的这条命令在「主页 → 捕获」，
+    // 只挂在「转换」页会让人找不到。剪贴板里的文字与图片会合成**一份** PDF。
+    addRibbonCommand(captureGroup, "剪贴板转 PDF", "把剪贴板里的文字与图片合成一份 PDF",
+                     ":/icons/convert.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->convertFromClipboard(); }
+    }, true, "home.clipboardToPdf");
     // 放映：循环开关只影响手动翻页到头时的行为，不做定时自动翻页。
     auto* presentGroup = ribbonBar_->addGroup(homeTab, tr("放映"));
     addRibbonCommand(presentGroup, "循环放映", "放映到最后一页时自动回到第一页",
@@ -1502,8 +1511,9 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) view->redactionModeDialog();
     }, true, "ribbonRedactionModes");
     // 安全文档：PDF 的解析与渲染都发生在**独立进程**里，主进程不打开这个文件。
-    // 代价是只读：编辑需要主进程持有文档句柄，而安全模式恰恰不持有。
-    addRibbonCommand(securityGroup, "打开安全文档", "在隔离进程里只读打开 PDF（本进程不接触它的内容）",
+    // 代价是主进程不持有文档句柄 —— 但这不妨碍编辑：表单填写、批注与保存
+    // 都作为指令送进隔离进程，由那边改、由那边落盘，主进程始终不碰这个 PDF 的字节。
+    addRibbonCommand(securityGroup, "打开安全文档", "在隔离进程里打开 PDF 并可编辑（本进程不接触它的内容）",
                      ":/icons/protect.svg", [this] { openSafeDocument(); },
                      true, "protect.safeDocument");
     // 批量加密：给一个目录里的 PDF 逐个加打开密码，语义与单文档加密完全一致。
@@ -1846,9 +1856,9 @@ void MainWindow::buildUi() {
     }, true, "edit.insertMedia");
     // 页面内播放：写 /Screen 注解（PDF 2.0 媒体屏幕注解）+ 嵌入 MP4。
     // 与「插入多媒体」的 /RichMedia 不同：/Screen 是 PDF 标准里的媒体屏幕注解，
-    // 但只接受 MP4（H.264/AAC）——仓库录制器产出的 AVI 阅读器不播。
-    addRibbonCommand(insertEditGroup, "页面内播放视频",
-                     "把 MP4 挂成页面内可播放的媒体注解（只认 MP4 / H.264 / AAC）",
+    // 按**文件头**接受 MP4 / AVI / WAV 三种容器；结构写对不等于阅读器放得出来。
+    addRibbonCommand(insertEditGroup, "页面内音视频",
+                     "把 MP4 / AVI / WAV 挂成页面内的媒体注解（能否播放取决于阅读器）",
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertScreenMedia(); }
     }, true, "edit.insertScreenMedia");
@@ -2224,7 +2234,7 @@ void MainWindow::buildUi() {
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "accessibility.changeRegionOrder");
     addRibbonCommand(accessibilityReadingGroup, "应用区域顺序",
-                     "按从上到下的默认顺序给整篇文档写标签树", ":/icons/save.svg",
+                     "按视觉顺序重排选区里的语义元素，选区外的内容不变", ":/icons/save.svg",
                      [this] {
         if (auto* view = currentView()) { view->applyRegionReadingOrder(); }
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
@@ -2359,9 +2369,10 @@ void MainWindow::buildUi() {
                          manual.exec();
                      }, true, "help.userManual");
     addRibbonCommand(helpGroup, "帮助中心", "查看常见问题和使用帮助", ":/icons/help-center.svg",
-                     [openHelpUrl] {
-                         openHelpUrl(QUrl(QStringLiteral(
-                             "https://github.com/fengjutian/Folixa/issues")));
+                     [this] {
+                         // 站内帮助：不再跳外部链接。章节列表 + 正文都在对话框里。
+                         HelpCenterDialog dialog(this);
+                         dialog.exec();
                      }, true, "help.center");
     addRibbonCommand(helpGroup, "命令行帮助", "查看命令行用法", ":/icons/command-line.svg", [this] {
         QMessageBox::information(
@@ -4722,35 +4733,228 @@ void MainWindow::setSelectedAnnotationState() {
     boundAnnotations_->setReviewState(id, state);
 }
 
-// 给选中的批注写替代文本。
+namespace {
+
+// 把一个矩形在页面上的位置说成人话（"左上" / "正中" / "右下"……）。
+//
+// 为什么要这个：替代文本的目标列表里只有「图像 1 / 图像 2」时，用户没法知道
+// 哪一条是自己要看的那张图——页面上又没有编号。给出位置才认得出来。
+//
+// 判定用矩形**中心点**相对页面的位置，分三档（上/中/下、左/中/右）。
+QString describePagePosition(const QRectF& bounds, const pdf::MediaBox& box) {
+    const double width = box.width();
+    const double height = box.height();
+    if (width <= 0.0 || height <= 0.0 || bounds.isEmpty()) {
+        return QString();
+    }
+    const double cx = (bounds.center().x() - box.left) / width;
+    const double cy = (bounds.center().y() - box.bottom) / height;
+    const int column = cx < 1.0 / 3.0 ? 0 : (cx > 2.0 / 3.0 ? 2 : 1);
+    // PDF 的 y 向上为正：越靠上 cy 越大，所以上面一档对应 cy 大的。
+    const int row = cy > 2.0 / 3.0 ? 0 : (cy < 1.0 / 3.0 ? 2 : 1);
+    if (row == 0) {
+        return column == 0 ? i18n::tr("aipdf::app::MainWindow", "左上")
+               : column == 1 ? i18n::tr("aipdf::app::MainWindow", "中上")
+                             : i18n::tr("aipdf::app::MainWindow", "右上");
+    }
+    if (row == 1) {
+        return column == 0 ? i18n::tr("aipdf::app::MainWindow", "左中")
+               : column == 1 ? i18n::tr("aipdf::app::MainWindow", "正中")
+                             : i18n::tr("aipdf::app::MainWindow", "右中");
+    }
+    return column == 0 ? i18n::tr("aipdf::app::MainWindow", "左下")
+           : column == 1 ? i18n::tr("aipdf::app::MainWindow", "中下")
+                         : i18n::tr("aipdf::app::MainWindow", "右下");
+}
+
+}  // namespace
+
+// 给选中的对象写替代文本。
 //
 // 为什么放在「辅助工具」而不是批注属性里：替代文本是给读屏软件念的，
 // 只有做无障碍的人会关心它，跟颜色线宽混在一起反而找不到。
+//
+// **替代文本有两个落点**，这一条命令把两个都管了：
+//   * 批注：/Alt 写在批注注解自己的字典上（`boundAnnotations_->setAltText`）；
+//   * 图像与表单域：/Alt 写在**语义树的结构元素**上（PDF 32000-1 §14.7.4.4）——
+//     读屏软件念的是结构元素，不是页面上的图形，替代文本写在图形上没有用。
+//     这条路径由 `pdf::setSemanticAltText` 负责：按页面对象号找到引用它的结构元素，
+//     写完重新读回校验（目标元素是新值、别的元素没被动）。
+//
+// 所以先把可改的目标都列出来让用户挑：只给「当前选中的批注」一个入口的话，
+// 用户选中一张图想写说明时会发现命令像是坏了。
 void MainWindow::setSelectedAnnotationAltText() {
-    if (annotationList_ == nullptr || boundAnnotations_ == nullptr) {
-        return;
-    }
-    QListWidgetItem* item = annotationList_->currentItem();
-    if (item == nullptr) {
-        statusBar()->showMessage(tr("先在批注面板里选中一条批注"), 3000);
-        return;
-    }
-    const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
-    QString current;
-    for (const pdf::Annotation& annotation : boundAnnotations_->allAnnotations()) {
-        if (annotation.id == id) {
-            current = annotation.altText;
-            break;
+    // 一个可改的目标。
+    struct AltTarget {
+        QString label;
+        // 批注目标用 annotationId；图像 / 表单域目标用 objectId。
+        bool isAnnotation = false;
+        quint64 annotationId = 0;
+        int objectId = -1;
+        int pageIndex = -1;
+        QString currentAlt;
+    };
+    QVector<AltTarget> targets;
+
+    // 1) 批注面板里选中的批注。
+    if (annotationList_ != nullptr && boundAnnotations_ != nullptr) {
+        QListWidgetItem* item = annotationList_->currentItem();
+        if (item != nullptr) {
+            const quint64 id = static_cast<quint64>(item->data(Qt::UserRole).toULongLong());
+            for (const pdf::Annotation& annotation : boundAnnotations_->allAnnotations()) {
+                if (annotation.id != id) continue;
+                AltTarget target;
+                target.isAnnotation = true;
+                target.annotationId = id;
+                target.currentAlt = annotation.altText;
+                const QString summary = annotation.contents.trimmed();
+                target.label = summary.isEmpty()
+                                   ? tr("批注（无内容）")
+                                   : tr("批注：%1").arg(summary.left(24));
+                targets.append(target);
+                break;
+            }
         }
     }
+
+    // 2) 当前页的图像与表单域（替代文本随语义树走）。
+    PdfView* view = currentView();
+    QByteArray documentBytes;
+    if (view != nullptr) {
+        QString readError;
+        documentBytes = view->documentBytes(&readError);
+    }
+    if (!documentBytes.isEmpty()) {
+        const pdf::SemanticTreeIndex index = pdf::readSemanticTreeIndex(documentBytes);
+        if (!index.hasStructTree) {
+            // 没有语义树就没有「结构元素上的替代文本」这个落点。
+            // 不静默跳过：用户会以为命令坏了。
+            if (targets.isEmpty()) {
+                statusBar()->showMessage(
+                    tr("这份文档还没有语义标签树，图像与表单域写不了替代文本。"
+                       "先运行「辅助工具 → 标签 → 自动添加文档标签」。"),
+                    5000);
+                return;
+            }
+        } else if (view != nullptr) {
+            const int pageIndex = view->currentPage();
+            // 图像在页面上的位置：内容流扫描出来的图像带 bounds 与对象号，
+            // 靠对象号对上语义元素引用的是哪一个。有了位置，用户才认得出
+            // 列表里哪一条是自己要看的那张图（只给「图像 1 / 图像 2」认不出来）。
+            pdf::ScannedDocument scanned;
+            QString scanError;
+            const bool haveScan = pdf::scanDocumentContent(documentBytes, &scanned, &scanError);
+            QHash<int, QRectF> imageBounds;
+            if (haveScan && pageIndex >= 0 && pageIndex < scanned.pages.size()) {
+                for (const pdf::ScannedImage& image : scanned.pages.at(pageIndex).images) {
+                    if (image.objectId >= 0) {
+                        imageBounds.insert(image.objectId, image.bounds);
+                    }
+                }
+            }
+            const pdf::MediaBox box = view->pageContentBox(pageIndex);
+
+            int imageOrdinal = 0;
+            int formOrdinal = 0;
+            for (const pdf::SemanticElementInfo& element : index.elements) {
+                if (element.pageIndex != pageIndex) continue;
+                for (int i = 0; i < element.referencedObjectIds.size(); ++i) {
+                    const QString type = element.referencedObjectTypes.value(i);
+                    AltTarget target;
+                    target.objectId = element.referencedObjectIds.at(i);
+                    target.pageIndex = pageIndex;
+                    target.currentAlt = element.alt;
+                    if (type == QLatin1String("/Image")) {
+                        ++imageOrdinal;
+                        target.label = tr("第 %1 页的图像 %2").arg(pageIndex + 1).arg(imageOrdinal);
+                        const QRectF bounds = imageBounds.value(target.objectId);
+                        if (!bounds.isEmpty() && box.height() > 0.0 && box.width() > 0.0) {
+                            target.label += tr("（%1）").arg(describePagePosition(bounds, box));
+                        }
+                    } else if (type == QLatin1String("/Widget")) {
+                        ++formOrdinal;
+                        target.label = element.title.trimmed().isEmpty()
+                                           ? tr("第 %1 页的表单域 %2").arg(pageIndex + 1).arg(formOrdinal)
+                                           : tr("第 %1 页的表单域：%2").arg(pageIndex + 1).arg(element.title.trimmed());
+                    } else {
+                        continue;
+                    }
+                    if (!target.currentAlt.trimmed().isEmpty()) {
+                        target.label += tr("（现有说明：%1）").arg(target.currentAlt.trimmed().left(24));
+                    }
+                    targets.append(target);
+                }
+            }
+        }
+    }
+
+    if (targets.isEmpty()) {
+        statusBar()->showMessage(
+            tr("先在批注面板里选中一条批注，或在页面上选一张图 / 一个表单域。"), 4000);
+        return;
+    }
+
+    // 目标多于一个时让用户挑；只有一个就直接用它。
+    int chosen = 0;
+    if (targets.size() > 1) {
+        QStringList labels;
+        for (const AltTarget& target : targets) {
+            labels.append(target.label);
+        }
+        bool picked = false;
+        const QString pickedLabel = QInputDialog::getItem(
+            this, tr("替代文本"), tr("给哪个写替代文本？"), labels, 0, false, &picked);
+        if (!picked) {
+            return;
+        }
+        chosen = labels.indexOf(pickedLabel);
+        if (chosen < 0) {
+            return;
+        }
+    }
+    const AltTarget target = targets.at(chosen);
+
     bool accepted = false;
     const QString text = QInputDialog::getMultiLineText(
-        this, tr("替代文本"), tr("给读屏软件念的说明（留空表示清除）:"), current, &accepted);
+        this, tr("替代文本"), tr("给读屏软件念的说明（留空表示清除）:"), target.currentAlt, &accepted);
     if (!accepted) {
         return;
     }
-    if (!boundAnnotations_->setAltText(id, text.trimmed())) {
+    const QString trimmed = text.trimmed();
+
+    if (target.isAnnotation) {
+        if (boundAnnotations_ == nullptr || !boundAnnotations_->setAltText(target.annotationId, trimmed)) {
+            statusBar()->showMessage(tr("替代文本没有写进去"), 3000);
+            return;
+        }
+        statusBar()->showMessage(tr("已设置替代文本"), 3000);
+        return;
+    }
+
+    // 图像 / 表单域：走语义树那条路。
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("先打开一份 PDF。"), 3000);
+        return;
+    }
+    if (trimmed.isEmpty() && target.currentAlt.trimmed().isEmpty()) {
         statusBar()->showMessage(tr("替代文本没有写进去"), 3000);
+        return;
+    }
+    pdf::SemanticAltTextOptions options;
+    // 同一个图像 XObject 被多页复用时（页眉页脚那种 logo）树里有好几个元素指向它，
+    // 限定页码才不会改错那一个。
+    options.pageIndex = target.pageIndex;
+    options.allowClear = true;
+    const pdf::SemanticAltTextResult result =
+        pdf::setSemanticAltText(documentBytes, target.objectId, trimmed, options);
+    if (!result.ok() || result.bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("替代文本"),
+                             result.error.isEmpty() ? tr("替代文本没有写进去。") : result.error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+        QMessageBox::warning(this, tr("替代文本"), replaceError);
         return;
     }
     statusBar()->showMessage(tr("已设置替代文本"), 3000);
@@ -6082,8 +6286,9 @@ void MainWindow::convertDocument(ConversionKind kind) {
 void MainWindow::openSafeDocument() {
     // 关键：这里**不打开**这个文件。选完路径就把字符串交给隔离进程，
     // 本进程一个字节都不碰 —— 这正是「安全文档」与普通打开的区别。
+    // 文档仍然可以编辑：表单填写、批注与保存都是**指令**，由隔离进程去执行。
     const QString path = QFileDialog::getOpenFileName(
-        this, tr("在隔离进程中打开（只读）"), QString(), tr("PDF 文件 (*.pdf)"));
+        this, tr("在隔离进程中打开（可编辑）"), QString(), tr("PDF 文件 (*.pdf)"));
     if (path.isEmpty()) {
         return;
     }

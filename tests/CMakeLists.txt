@@ -1903,3 +1903,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ScreenAnnotationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticReadingOrderTests.cmake)
 # 安全文档（隔离解析进程）：2026-11-20 第二十七轮加的。
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SafeDocumentTests.cmake)
+# 第二十八轮（2026-11-20）：交叉合并的页序与命令、站内帮助中心、加密文档补 MIME。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CrossMergeTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/HelpCenterDialogTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbeddedFileMimeTests.cmake)
+# 第二十八轮续：替代文本作用到图像与表单域、应用区域顺序只作用选区。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticAltTextTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticOrderSelectionTests.cmake)

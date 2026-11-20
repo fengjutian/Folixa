@@ -30,31 +30,68 @@ QByteArray readFixture(const QString& name) {
     return file.readAll();
 }
 
+// 往字节串尾部追加一个 4 字节大端整数。
+//
+// RIFF 与 ISO BMFF 的长度字段都是这个排法（大端），所以三个夹具共用它。
+void appendU32(QByteArray& out, quint32 value) {
+    out.append(static_cast<char>((value >> 24) & 0xFF));
+    out.append(static_cast<char>((value >> 16) & 0xFF));
+    out.append(static_cast<char>((value >> 8) & 0xFF));
+    out.append(static_cast<char>(value & 0xFF));
+}
+
 // 造一段 MP4 字节。
 //
-// 为什么不用「假字节」：写页面内播放注解时会看媒体文件头——不像 MP4 就失败，
-// 所以夹具必须真的像个 MP4 才测得到结构。
+// 为什么不用「假字节」：写页面内播放注解时会看媒体文件头——不在容器白名单里
+// 就失败，所以夹具必须真的像那种容器才测得到结构。
 // 这里只造到「文件头是 ftyp 盒」的程度：字节一致性测试要的是「原样搬运」，
 // 不是「MP4 能不能播」。
 QByteArray makeMp4(const QByteArray& payload) {
     QByteArray out;
-    const auto appendU32 = [&out](quint32 value) {
-        out.append(static_cast<char>((value >> 24) & 0xFF));
-        out.append(static_cast<char>((value >> 16) & 0xFF));
-        out.append(static_cast<char>((value >> 8) & 0xFF));
-        out.append(static_cast<char>(value & 0xFF));
-    };
     QByteArray brands("isom");
     brands.append(QByteArray(4, '\0'));  // minor version
     brands.append("isom");
     brands.append("iso2");
     brands.append("avc1");
     brands.append("mp41");
-    appendU32(static_cast<quint32>(8 + brands.size()));
+    appendU32(out, static_cast<quint32>(8 + brands.size()));
     out.append("ftyp");
     out.append(brands);
-    appendU32(static_cast<quint32>(8 + payload.size()));
+    appendU32(out, static_cast<quint32>(8 + payload.size()));
     out.append("mdat");
+    out.append(payload);
+    return out;
+}
+
+// 造一段 AVI 字节（RIFF 容器，形式类型 'AVI '）。
+//
+// 只造到「文件头能被认出来」的程度：AVI 内部真正的轨结构不影响本模块的判定，
+// 本模块只认容器，不解析 AVI。
+QByteArray makeAvi(const QByteArray& payload) {
+    QByteArray out;
+    out.append("RIFF");
+    appendU32(out, static_cast<quint32>(4 + 8 + payload.size()));  // RIFF 剩余长度
+    out.append("AVI ");
+    out.append("LIST");
+    appendU32(out, static_cast<quint32>(4 + payload.size()));
+    out.append("movi");
+    out.append(payload);
+    return out;
+}
+
+// 造一段 WAV 字节（RIFF 容器，形式类型 'WAVE'）。
+//
+// 同上：只造到文件头能被认出来的程度。
+QByteArray makeWav(const QByteArray& payload) {
+    QByteArray out;
+    out.append("RIFF");
+    appendU32(out, static_cast<quint32>(4 + 8 + 16 + payload.size()));  // RIFF 剩余长度
+    out.append("WAVE");
+    out.append("fmt ");
+    appendU32(out, 16);
+    out.append(QByteArray(16, '\0'));  // PCM 参数（占位）
+    out.append("data");
+    appendU32(out, static_cast<quint32>(payload.size()));
     out.append(payload);
     return out;
 }
@@ -228,6 +265,11 @@ private slots:
     void rejectsNonMp4Media();
     void keepsRestOfDocumentIntact();
     void keepsBothClipsWhenWrittenTwice();
+    void acceptsAviContainer();
+    void acceptsWavContainer();
+    void derivesMimeFromContainerNotFileName();
+    void rejectsUnknownContainer();
+    void rejectsTruncatedContainerHeader();
 
 private:
     bool hasNormal_ = false;
@@ -341,7 +383,7 @@ void ScreenAnnotationTests::rejectsNonMp4Media() {
     spec.pageIndex = 0;
     spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
     spec.fileName = QStringLiteral("clip.mp4");
-    // 一段普通文本：不是 MP4。
+    // 一段普通文本：不是任何一种受支持的容器（MP4 / AVI / WAV）。
     spec.mediaBytes = QByteArray("this is definitely not an mp4 file");
 
     QString error;
@@ -434,6 +476,155 @@ void ScreenAnnotationTests::keepsBothClipsWhenWrittenTwice() {
 
     // 页面上有两个注解。
     QCOMPARE(screenAnnotationCount(twice, 0), 2);
+}
+
+// AVI 是白名单里的容器：写得出、读得回，MIME 是 video/x-msvideo。
+void ScreenAnnotationTests::acceptsAviContainer() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    QVERIFY(!source.isEmpty());
+
+    const QByteArray media = makeAvi(QByteArray("avi payload"));
+    ScreenMediaSpec spec;
+    spec.pageIndex = 0;
+    spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
+    spec.fileName = QStringLiteral("clip.avi");
+    spec.mediaBytes = media;
+
+    QString error;
+    const QByteArray written = writeScreenMediaAnnotation(source, spec, &error);
+    QVERIFY2(!written.isEmpty(), qPrintable(error));
+    QVERIFY(error.isEmpty());
+
+    // MIME 由容器推出：嵌入流的 /Subtype 与 MediaClip 的 /M 都要是 video/x-msvideo。
+    const QVector<AssetProbe> assets = probeAssets(written);
+    QCOMPARE(assets.size(), 1);
+    QCOMPARE(assets.first().streamSubtype, QStringLiteral("/video/x-msvideo"));
+    QCOMPARE(assets.first().mime, QStringLiteral("video/x-msvideo"));
+    // 字节仍然是原样搬运的。
+    QCOMPARE(assets.first().bytes, media);
+
+    // 读回来也是同一个 MIME。
+    const QVector<ScreenMediaAnnotation> found = readScreenMediaAnnotations(written, &error);
+    QCOMPARE(found.size(), 1);
+    QCOMPARE(found.first().mimeType, QStringLiteral("video/x-msvideo"));
+    QCOMPARE(found.first().fileName, QStringLiteral("clip.avi"));
+    QCOMPARE(found.first().mediaSize, static_cast<qint64>(media.size()));
+}
+
+// WAV 是白名单里的容器：MIME 是 audio/wav。
+void ScreenAnnotationTests::acceptsWavContainer() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    QVERIFY(!source.isEmpty());
+
+    const QByteArray media = makeWav(QByteArray("wav payload"));
+    ScreenMediaSpec spec;
+    spec.pageIndex = 0;
+    spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
+    spec.fileName = QStringLiteral("voice.wav");
+    spec.mediaBytes = media;
+
+    QString error;
+    const QByteArray written = writeScreenMediaAnnotation(source, spec, &error);
+    QVERIFY2(!written.isEmpty(), qPrintable(error));
+    QVERIFY(error.isEmpty());
+
+    const QVector<AssetProbe> assets = probeAssets(written);
+    QCOMPARE(assets.size(), 1);
+    QCOMPARE(assets.first().streamSubtype, QStringLiteral("/audio/wav"));
+    QCOMPARE(assets.first().mime, QStringLiteral("audio/wav"));
+    QCOMPARE(assets.first().bytes, media);
+
+    const QVector<ScreenMediaAnnotation> found = readScreenMediaAnnotations(written, &error);
+    QCOMPARE(found.size(), 1);
+    QCOMPARE(found.first().mimeType, QStringLiteral("audio/wav"));
+}
+
+// MIME 由**容器**决定，不由文件名决定：名字叫 .bin，内容是 MP4，写出去还是 video/mp4。
+void ScreenAnnotationTests::derivesMimeFromContainerNotFileName() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    QVERIFY(!source.isEmpty());
+
+    ScreenMediaSpec spec;
+    spec.pageIndex = 0;
+    spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
+    spec.fileName = QStringLiteral("clip.bin");  // 名字故意不对
+    spec.mediaBytes = makeMp4(QByteArray("payload"));
+
+    QString error;
+    const QByteArray written = writeScreenMediaAnnotation(source, spec, &error);
+    QVERIFY2(!written.isEmpty(), qPrintable(error));
+
+    const QVector<AssetProbe> assets = probeAssets(written);
+    QCOMPARE(assets.size(), 1);
+    QCOMPARE(assets.first().streamSubtype, QStringLiteral("/video/mp4"));
+    QCOMPARE(assets.first().mime, QStringLiteral("video/mp4"));
+    // 文件名照旧原样写进 filespec。
+    QCOMPARE(assets.first().filespecName, QStringLiteral("clip.bin"));
+}
+
+// 白名单之外的容器要**明确失败**，并说清支持哪几种。
+void ScreenAnnotationTests::rejectsUnknownContainer() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    QVERIFY(!source.isEmpty());
+
+    // RIFF 容器，但形式类型不是 AVI / WAVE：认不出来。
+    QByteArray riff("RIFF");
+    appendU32(riff, 32);
+    riff.append("WEBP");
+    riff.append("payload");
+
+    ScreenMediaSpec spec;
+    spec.pageIndex = 0;
+    spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
+    spec.fileName = QStringLiteral("clip.bin");
+    spec.mediaBytes = riff;
+
+    QString error;
+    const QByteArray written = writeScreenMediaAnnotation(source, spec, &error);
+    QVERIFY(written.isEmpty());
+    QVERIFY(!error.isEmpty());
+    // 错误信息要列出支持哪几种容器，以及替代做法。
+    QVERIFY(error.contains(QStringLiteral("MP4")));
+    QVERIFY(error.contains(QStringLiteral("AVI")));
+    QVERIFY(error.contains(QStringLiteral("WAV")));
+    QVERIFY(error.contains(QStringLiteral("附件")));
+    QVERIFY(error.contains(QStringLiteral("clip.bin")));
+
+    // 文档没被动过：失败时不该返回半成品。
+    QCOMPARE(screenAnnotationCount(source, 0), 0);
+}
+
+// 截断的文件头要判失败，且不能越界读。
+void ScreenAnnotationTests::rejectsTruncatedContainerHeader() {
+    const QByteArray source = readFixture(QStringLiteral("normal.pdf"));
+    QVERIFY(!source.isEmpty());
+
+    // 各种「长度不够认容器」的头：只有 'RIFF'、RIFF 缺形式类型、
+    // AVI / WAV 的形式类型只剩三个字节。
+    const QVector<QByteArray> truncated = {
+        QByteArray("RIFF", 4),
+        QByteArray("RIFF\x10\x00\x00\x00", 8),
+        QByteArray("RIFF\x10\x00\x00\x00AVI", 11),
+        QByteArray("RIFF\x10\x00\x00\x00WAV", 11),
+    };
+
+    for (const QByteArray& media : truncated) {
+        ScreenMediaSpec spec;
+        spec.pageIndex = 0;
+        spec.rect = QRectF(10.0, 10.0, 80.0, 60.0);
+        spec.fileName = QStringLiteral("clip.bin");
+        spec.mediaBytes = media;
+
+        QString error;
+        const QByteArray written = writeScreenMediaAnnotation(source, spec, &error);
+        QVERIFY2(written.isEmpty(), "截断的文件头不该被放行");
+        QVERIFY(!error.isEmpty());
+        // 失败信息同样要说清支持哪几种容器。
+        QVERIFY(error.contains(QStringLiteral("AVI")));
+        QVERIFY(error.contains(QStringLiteral("WAV")));
+    }
+
+    QCOMPARE(screenAnnotationCount(source, 0), 0);
 }
 
 QTEST_GUILESS_MAIN(ScreenAnnotationTests)

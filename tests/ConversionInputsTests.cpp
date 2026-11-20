@@ -472,6 +472,13 @@ private slots:
     void clipboardImageLimitIsReported();
     void clipboardHtmlDoesNotEmbedImages();
 
+    // ------------------------------------------- 剪贴板：文字 + 图片 ----
+    void clipboardMixedProducesTextThenImagePages();
+    void clipboardMixedKeepsImageOrder();
+    void clipboardMixedTextOnlyStaysOnePage();
+    void clipboardMixedImageOnlyStaysImagePages();
+    void clipboardMixedKeepsTextWhenImageIsBroken();
+
     // ------------------------------------------------------------ 网页 ----
     void htmlBodyDropsScriptStyleAndNavigation();
     void htmlToPdfProducesReadablePdf();
@@ -513,6 +520,7 @@ private slots:
     void dialogRejectsUnreadableTemplateFile();
     void dialogConvertsImageOnlyClipboard();
     void dialogConvertsInjectedClipboardImages();
+    void dialogConvertsMixedClipboardIntoOnePdf();
 
     // ------------------------------------------- 网页：浏览器引擎优先 ----
     void dialogWebPrefersTheBrowserEngine();
@@ -811,8 +819,8 @@ void ConversionInputsTests::clipboardImageLimitIsReported() {
 }
 
 void ConversionInputsTests::clipboardHtmlDoesNotEmbedImages() {
-    // 边界：HTML 里的图（data: 内联图）仍然不排 —— 那一路只排正文。
-    // 剪贴板里的图片走另一个入口（clipboardImageToPdf）。
+    // 边界（一）：HTML 里内联的图（data: URI）仍然**不**被嵌入 ——
+    // 那一路只排正文。
     const QString html = QStringLiteral(
         "<html><body><p>Text body</p>"
         "<img src=\"data:image/png;base64,iVBORw0KGgo=\"></body></html>");
@@ -823,6 +831,145 @@ void ConversionInputsTests::clipboardHtmlDoesNotEmbedImages() {
     // 网页那套的带图结果不因为这次是剪贴板而变样。
     QVERIFY(!result.imageOutcome.attempted);
     QCOMPARE(result.clipboardImageOutcome.found, 0);
+
+    // 边界（二）：**剪贴板里的**图片是另一份字节（从剪贴板直接拿到的），
+    // 它作为**独立页**被嵌进去（第 2 页）；HTML 里那个 <img src> 仍然没被嵌入。
+    //
+    // 为什么这两件事要分开说：前者是「HTML 源码里引用的图」（地址多半已失效），
+    // 后者是「剪贴板里真实存在的图片字节」。合成时只认后者。
+    const ConversionResult mixed = aipdf::doc::clipboardMixedToPdf(
+        QString(), html, QVector<QByteArray>{makeSolidPng(60, 60, 0, 128, 255)});
+    QVERIFY(mixed.ok);
+    QCOMPARE(mixed.pageCount, 2);                        // 1 页正文 + 1 页图片
+    QCOMPARE(mixed.bytes.count("/Subtype /Image"), 1);  // 只有剪贴板那张图
+    QCOMPARE(mixed.clipboardImageOutcome.found, 1);
+    QCOMPARE(mixed.clipboardImageOutcome.embedded, 1);
+    const PdfProbe probe = probeWithPdfium(mixed.bytes);
+    QVERIFY(probe.opened);
+    QCOMPARE(probe.pageCount, 2);
+    // 第 1 页是 HTML 的正文，第 2 页才是剪贴板里的图。
+    QVERIFY(squeezeWhitespace(probe.pageTexts.at(0)).contains(QStringLiteral("Textbody")));
+    QVERIFY(squeezeWhitespace(probe.pageTexts.at(1)).isEmpty());
+}
+
+// ============================================================ 剪贴板：混合 ====
+
+void ConversionInputsTests::clipboardMixedProducesTextThenImagePages() {
+    // 正例（核心）：剪贴板里同时有文字和一张图 → **一份** PDF。
+    // 页序（产品决定）：第 1 页正文，第 2 页起是图片（一图一页）。
+    const ConversionResult result = aipdf::doc::clipboardMixedToPdf(
+        QStringLiteral("Mixed body text"), QString(),
+        QVector<QByteArray>{makeSolidPng(120, 120, 255, 0, 0)});
+    QVERIFY(result.ok);
+    QVERIFY(!result.bytes.isEmpty());
+    // 页数 = 1（正文）+ 1（图片）。
+    QCOMPARE(result.pageCount, 2);
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::Mixed);
+    QCOMPARE(result.clipboardImageOutcome.found, 1);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 1);
+    QVERIFY(result.clipboardImageOutcome.issues.isEmpty());
+
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    QCOMPARE(probe.pageCount, 2);
+    // 第 1 页是正文：文字抽得回来。
+    QVERIFY(squeezeWhitespace(probe.pageTexts.at(0)).contains(QStringLiteral("Mixedbodytext")));
+    // 图在文件里（不是只在返回值里说嵌进去了）。
+    QCOMPARE(result.bytes.count("/Subtype /Image"), 1);
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("mixed.pdf"));
+    QVERIFY(opened.document.isValid());
+    QCOMPARE(opened.document.pageCount(), 2);
+    // 正文那一页**不该**有图（图在第 2 页，不插在正文中间）。
+    const std::optional<aipdf::pdf::PdfPage> textPage = opened.document.page(0);
+    QVERIFY(textPage.has_value());
+    QCOMPARE(countImageObjects(*textPage), 0);
+    // 第 2 页是图片页：图真的画得出来（不是空白页）。
+    const std::optional<aipdf::pdf::PdfPage> imagePage = opened.document.page(1);
+    QVERIFY(imagePage.has_value());
+    QCOMPARE(countImageObjects(*imagePage), 1);
+    const QImage rendered = imagePage->render(1.0);
+    QVERIFY(!rendered.isNull());
+    QVERIFY2(hasColorNear(rendered, 255, 0, 0), "剪贴板图片没有渲染出来");
+}
+
+void ConversionInputsTests::clipboardMixedKeepsImageOrder() {
+    // 正例：文字 + 两张图 → 3 页（1 页正文 + 2 页图），
+    // 图片页序 = 剪贴板里的顺序（靠颜色认页）。
+    QVector<QByteArray> images;
+    images.append(makeSolidPng(120, 120, 255, 0, 0));
+    images.append(makeSolidPng(120, 120, 0, 255, 0));
+    const ConversionResult result = aipdf::doc::clipboardMixedToPdf(
+        QStringLiteral("Body before images"), QString(), images);
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 3);
+    QCOMPARE(result.clipboardImageOutcome.found, 2);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 2);
+    QVERIFY(result.clipboardImageOutcome.issues.isEmpty());
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(result.bytes, QStringLiteral("mixed.pdf"));
+    QVERIFY(opened.document.isValid());
+    QCOMPARE(opened.document.pageCount(), 3);
+    const QVector<QColor> expected = {QColor(255, 0, 0), QColor(0, 255, 0)};
+    for (int index = 0; index < expected.size(); ++index) {
+        const std::optional<aipdf::pdf::PdfPage> page = opened.document.page(index + 1);
+        QVERIFY(page.has_value());
+        QCOMPARE(countImageObjects(*page), 1);
+        const QImage rendered = page->render(1.0);
+        QVERIFY(!rendered.isNull());
+        const QColor color = expected.at(index);
+        QVERIFY2(hasColorNear(rendered, color.red(), color.green(), color.blue()),
+                 qPrintable(QStringLiteral("第 %1 页的图片颜色不对").arg(index + 2)));
+    }
+    // 正文在第 1 页。
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    QVERIFY(squeezeWhitespace(probe.pageTexts.at(0)).contains(QStringLiteral("Bodybeforeimages")));
+}
+
+void ConversionInputsTests::clipboardMixedTextOnlyStaysOnePage() {
+    // 回归：只有文字 → 仍然是一页，产物与纯文字那一路**逐字节相同**。
+    const ConversionResult result = aipdf::doc::clipboardMixedToPdf(
+        QStringLiteral("Only text"), QString(), QVector<QByteArray>());
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 1);
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::PlainText);
+    const ConversionResult plain = aipdf::doc::clipboardTextToPdf(QStringLiteral("Only text"));
+    QVERIFY(plain.ok);
+    QCOMPARE(result.bytes, plain.bytes);
+}
+
+void ConversionInputsTests::clipboardMixedImageOnlyStaysImagePages() {
+    // 回归：只有图片 → 页数 = 图片张数，**不多出**一页空白正文。
+    QVector<QByteArray> images;
+    images.append(makeSolidPng(120, 120, 255, 0, 0));
+    images.append(makeSolidPng(120, 120, 0, 0, 255));
+    const ConversionResult result =
+        aipdf::doc::clipboardMixedToPdf(QString(), QString(), images);
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 2);
+    QCOMPARE(result.sourceKind, aipdf::doc::ConversionSourceKind::Images);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 2);
+    QVERIFY(result.clipboardImageOutcome.issues.isEmpty());
+}
+
+void ConversionInputsTests::clipboardMixedKeepsTextWhenImageIsBroken() {
+    // 负例：图认不出来 → 整次转换**不该**失败：正文照常出 PDF，
+    // 图逐张记成「没带进来」（不静默丢弃）。
+    const ConversionResult result = aipdf::doc::clipboardMixedToPdf(
+        QStringLiteral("Body survives"), QString(),
+        QVector<QByteArray>{QByteArrayLiteral("GIF89a") + QByteArrayLiteral("not-really-an-image")});
+    QVERIFY(result.ok);
+    QCOMPARE(result.pageCount, 1);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 0);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    QCOMPARE(result.clipboardImageOutcome.issues.at(0).kind,
+             aipdf::doc::ClipboardImageIssueKind::UnsupportedFormat);
+    const PdfProbe probe = probeWithPdfium(result.bytes);
+    QVERIFY(probe.opened);
+    QVERIFY(squeezeWhitespace(probe.allText()).contains(QStringLiteral("Bodysurvives")));
 }
 
 // ============================================================ 网页 =====
@@ -1353,6 +1500,31 @@ void ConversionInputsTests::dialogConvertsInjectedClipboardImages() {
     QCOMPARE(outcome.sourceKind, aipdf::doc::ConversionSourceKind::Images);
     // 走图片这一路要说明白：每张图一页。
     QVERIFY(outcome.detailLines.join(QStringLiteral("|")).contains(QStringLiteral("图片")));
+}
+
+void ConversionInputsTests::dialogConvertsMixedClipboardIntoOnePdf() {
+    // 注入路径（不碰用户剪贴板）：文字 + 图片 → **一份** PDF。
+    //
+    // 这条钉死的是「图片没有进 PDF」那句话不再出现：
+    // 图真的进了 PDF（图在第 2 页），所以不该再警告用户说图被丢了。
+    aipdf::app::ConversionInputDialog dialog;
+    dialog.setMode(aipdf::app::ConversionInputDialog::Mode::Clipboard);
+    dialog.setClipboardText(QStringLiteral("Body text"));
+    dialog.setClipboardHtml(QStringLiteral("<html><body><p>Body text</p></body></html>"));
+    dialog.setClipboardImages({makeSolidPng(40, 40, 255, 0, 0)});
+    aipdf::app::ConversionInputOutcome outcome;
+    QVERIFY(dialog.convert(&outcome));
+    // 一份 PDF：1 页正文 + 1 页图片。
+    QCOMPARE(outcome.pageCount, 2);
+    QCOMPARE(outcome.sourceKind, aipdf::doc::ConversionSourceKind::Mixed);
+    // 「图片没有进 PDF」这句话不该再出现。
+    QVERIFY2(!outcome.warning.contains(QStringLiteral("图片没有进 PDF")),
+             "混合内容不该再警告「图片没有进 PDF」");
+    // 如实说明页序：正文在前，图片在后。
+    const QString details = outcome.detailLines.join(QStringLiteral("|"));
+    QVERIFY2(details.contains(QStringLiteral("已合成")), "没有说明这一份是怎么拼出来的");
+    QVERIFY(details.contains(QStringLiteral("正文")));
+    QVERIFY(details.contains(QStringLiteral("图片")));
 }
 
 void ConversionInputsTests::dialogConvertsImageOnlyClipboard() {

@@ -412,7 +412,8 @@ public slots:
     void redactionModeDialog();
     // 验签：签名列表 + 证书链面板。
     void showSignatureListDialog();
-    // 区域阅读顺序：看已写入的顺序 / 调整当前页顺序 / 整篇按默认顺序写入。
+    // 区域阅读顺序：看已写入的顺序 / 调整语义元素先后（可跨页搬动） /
+    // 按视觉顺序重排**选区里**的语义元素（选区外不动，不整篇重建）。
     void showRegionReadingOrderDialog();
     void changeRegionReadingOrderDialog();
     void applyRegionReadingOrder();

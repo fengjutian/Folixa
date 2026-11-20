@@ -87,8 +87,12 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/EncryptionDialog.cpp
     app/dialogs/PermissionPanelDialog.h
     app/dialogs/PermissionPanelDialog.cpp
+    app/dialogs/HelpCenterDialog.h
+    app/dialogs/HelpCenterDialog.cpp
     app/dialogs/SemanticOrderDialog.h
     app/dialogs/SemanticOrderDialog.cpp
+    app/dialogs/SemanticOrderSelectionDialog.h
+    app/dialogs/SemanticOrderSelectionDialog.cpp
     app/dialogs/SafeDocumentViewerDialog.h
     app/dialogs/SafeDocumentViewerDialog.cpp
     app/controllers/SafeDocumentController.h
@@ -294,6 +298,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/convert/DxfExport.h
     pdf/ops/PageSplitPlanner.cpp
     pdf/ops/PageSplitPlanner.h
+    pdf/ops/CrossMergePlanner.cpp
+    pdf/ops/CrossMergePlanner.h
     pdf/security/Redaction.cpp
     pdf/security/Redaction.h
     pdf/ops/BatchReplace.cpp
@@ -314,6 +320,10 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/compliance/SemanticTagWriter.h
     pdf/compliance/SemanticReadingOrder.cpp
     pdf/compliance/SemanticReadingOrder.h
+    pdf/compliance/SemanticAltText.cpp
+    pdf/compliance/SemanticAltText.h
+    pdf/compliance/SemanticOrderSelection.cpp
+    pdf/compliance/SemanticOrderSelection.h
     pdf/compliance/UaGenerator.cpp
     pdf/compliance/UaGenerator.h
     pdf/annot/AnnotationShapes.cpp
@@ -498,6 +508,8 @@ qt_add_executable(AiPdfEditor WIN32
     doc/index/LocalIndex.h
     doc/edit/PageCommand.cpp
     doc/edit/PageCommand.h
+    doc/edit/CrossMergeCommand.cpp
+    doc/edit/CrossMergeCommand.h
     doc/persist/RecoveryLog.cpp
     doc/persist/RecoveryLog.h
     pdf/kernel/SafeSave.cpp
