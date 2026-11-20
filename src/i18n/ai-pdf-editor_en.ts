@@ -6481,6 +6481,14 @@ Write them into the document?</translation>
 <context>
         <name>aipdf::pdf::DocumentReflow</name>
         <message>
+            <source>这张表的一行都放不进新页，没能搬过去</source>
+            <translation>Not a single row of this table fits on the new page, so it could not be moved</translation>
+        </message>
+        <message>
+            <source>这张表算不出行高，没能搬过去</source>
+            <translation>The row height of this table could not be computed, so it could not be moved</translation>
+        </message>
+        <message>
             <source>重排后正文少了 %1 个字符（%2 → %3），已阻止写回</source>
             <translation>Reflow lost %1 body characters (%2 → %3); write-back was blocked</translation>
         </message>

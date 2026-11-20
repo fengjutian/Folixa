@@ -253,6 +253,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ops/AnchorMover.h
     pdf/ops/AnchorPlanner.cpp
     pdf/ops/AnchorPlanner.h
+    pdf/ops/TablePagination.cpp
+    pdf/ops/TablePagination.h
     pdf/ops/StreamingEdit.cpp
     pdf/ops/StreamingEdit.h
     pdf/ops/TranslationWriter.cpp

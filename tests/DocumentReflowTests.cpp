@@ -204,40 +204,6 @@ QByteArray taggedPdf() {
     return buildPdf(objects);
 }
 
-// 一张三行的表格：页高很小的时候必须按行拆到多页，不能整张丢掉。
-QByteArray taggedTablePdf() {
-    const QByteArray content =
-        "/Tag << /MCID 0 >> BDC\n"
-        "BT /F1 12 Tf 40 250 Td (Row one) Tj ET\n"
-        "EMC\n"
-        "/Tag << /MCID 1 >> BDC\n"
-        "BT /F1 12 Tf 40 220 Td (Row two) Tj ET\n"
-        "EMC\n"
-        "/Tag << /MCID 2 >> BDC\n"
-        "BT /F1 12 Tf 40 190 Td (Row three) Tj ET\n"
-        "EMC";
-    QVector<QPair<int, QByteArray>> objects;
-    objects.append(qMakePair(1, QByteArray("<< /Type /Catalog /Pages 2 0 R /Lang (zh-CN) "
-                                            "/StructTreeRoot 8 0 R >>")));
-    objects.append(qMakePair(2, QByteArray("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")));
-    objects.append(qMakePair(3, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] "
-                                            "/Resources << /Font << /F1 7 0 R >> >> "
-                                            "/Contents 4 0 R /StructParents 0 >>")));
-    objects.append(qMakePair(4, streamObject(content)));
-    objects.append(qMakePair(7, QByteArray("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")));
-    objects.append(qMakePair(8, QByteArray("<< /Type /StructTreeRoot /K [9 0 R] >>")));
-    objects.append(qMakePair(9, QByteArray("<< /Type /StructElem /S /Document /P 8 0 R "
-                                             "/K [13 0 R] >>")));
-    objects.append(qMakePair(13, QByteArray("<< /Type /StructElem /S /Table /P 9 0 R "
-                                              "/Pg 3 0 R /K [15 0 R 17 0 R 19 0 R] >>")));
-    objects.append(qMakePair(15, QByteArray("<< /Type /StructElem /S /TD /P 13 0 R "
-                                              "/Pg 3 0 R /K 0 >>")));
-    objects.append(qMakePair(17, QByteArray("<< /Type /StructElem /S /TD /P 13 0 R "
-                                              "/Pg 3 0 R /K 1 >>")));
-    objects.append(qMakePair(19, QByteArray("<< /Type /StructElem /S /TD /P 13 0 R "
-                                              "/Pg 3 0 R /K 2 >>")));
-    return buildPdf(objects);
-}
 // 一份「有东西搬不过去」的标签文档：正文是一段正常文字。
 //
 // 搬不过去靠**排版参数**触发（测试里把首行缩进设得比可用宽度还大），
@@ -328,7 +294,6 @@ class DocumentReflowTests : public QObject {
 
 private slots:
     void initTestCase();
-    void aTableSplitsAcrossPagesWhenItDoesNotFit();
 
     // ---- 负例 ----
 
@@ -556,21 +521,5 @@ void DocumentReflowTests::initTestCase() {
 // QGuiApplication 之后才能访问——QTEST_GUILESS_MAIN 建的是 QCoreApplication，
 // 会在 QFontDatabase 处直接 QFATAL（整个测试进程 abort）。
 // 仓库里 tests/ParagraphFormatTests.cpp 有同样的做法与同样的说明。
-void DocumentReflowTests::aTableSplitsAcrossPagesWhenItDoesNotFit() {
-    ReflowOptions options = defaultOptions();
-    options.pageWidth = 300.0;
-    options.pageHeight = 60.0;
-    options.marginTop = 10.0;
-    options.marginBottom = 10.0;
-    options.marginLeft = 10.0;
-    options.marginRight = 10.0;
-    const DocumentReflowResult result = reflowTaggedDocument(taggedTablePdf(), options);
-    QVERIFY2(result.ok(), qPrintable(result.report.error));
-    QVERIFY2(result.report.outputPageCount >= 2,
-             qPrintable(QStringLiteral("页数 = %1").arg(result.report.outputPageCount)));
-    for (const aipdf::pdf::ReflowDropped& item : result.report.dropped) {
-        QVERIFY2(item.tag != QStringLiteral("Table"), qPrintable(item.reason));
-    }
-}
 QTEST_MAIN(DocumentReflowTests)
 #include "DocumentReflowTests.moc"

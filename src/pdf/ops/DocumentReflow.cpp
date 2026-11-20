@@ -1,4 +1,5 @@
 #include "pdf/ops/DocumentReflow.h"
+#include "pdf/ops/TablePagination.h"
 
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/compliance/TagTreeWriter.h"
@@ -515,8 +516,9 @@ QByteArray writeReflowedDocument(const QByteArray& sourceBytes, QVector<LayoutIt
                     for (int column = 0; column < columns; ++column) {
                         const double left = columnLeft.value(column, chunk.bounds.left());
                         const double width = item.columnWidths.value(column, 0.0);
-                        const double top = chunk.bounds.top() - localRow * rowHeight;
-                        const QRectF cell(left, top - rowHeight, width, rowHeight);
+                        const double top = chunk.bounds.bottom() + rowCount * rowHeight;
+                        const QRectF cell(left, top - (localRow + 1) * rowHeight, width,
+                                          rowHeight);
                         if (!insertBorderRect(context, page, cell, 0.5)) {
                             ok = false;
                             break;
@@ -529,8 +531,9 @@ QByteArray writeReflowedDocument(const QByteArray& sourceBytes, QVector<LayoutIt
                         if (cell.row < firstRow || cell.row >= firstRow + rowCount) continue;
                         const double left = columnLeft.value(cell.column, chunk.bounds.left());
                         const int localRow = cell.row - firstRow;
-                        const double baseline = chunk.bounds.top() -
-                                                (localRow + 1) * rowHeight + rowHeight * 0.3;
+                        const double top = chunk.bounds.bottom() + rowCount * rowHeight;
+                        const double baseline =
+                            top - (localRow + 1) * rowHeight + rowHeight * 0.3;
                         const QString text = cell.text;
                         if (text.isEmpty()) continue;
                         if (!insertTextRun(context, page, text, left + 2.0, baseline,
@@ -927,36 +930,30 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
                     dropped.append(itemDropped);
                     continue;
                 }
-                int row = 0;
-                bool tableFailed = false;
-                while (row < rows) {
-                    if (geometry.contentTop - cursor < rowHeight) startNewPage();
-                    const int fit = static_cast<int>(
-                        std::floor((geometry.contentTop - cursor) / rowHeight));
-                    if (fit <= 0) {
-                        ReflowDropped itemDropped;
-                        itemDropped.tag = QStringLiteral("Table");
-                        itemDropped.reason = i18n::tr(
-                            "aipdf::pdf::DocumentReflow",
-                            "这张表的一行都放不进新页，没能搬过去");
-                        itemDropped.pageIndex = item.sourcePage;
-                        dropped.append(itemDropped);
-                        tableFailed = true;
-                        break;
-                    }
-                    const int take = qMin(fit, rows - row);
+                const QVector<TableRowChunk> parts =
+                    paginateTableRows(rows, rowHeight, geometry.contentBottom,
+                                      geometry.contentTop, cursor, options.paragraphSpacing);
+                if (parts.isEmpty()) {
+                    ReflowDropped itemDropped;
+                    itemDropped.tag = QStringLiteral("Table");
+                    itemDropped.reason = i18n::tr(
+                        "aipdf::pdf::DocumentReflow",
+                        "这张表的一行都放不进新页，没能搬过去");
+                    itemDropped.pageIndex = item.sourcePage;
+                    dropped.append(itemDropped);
+                    continue;
+                }
+                for (const TableRowChunk& part : parts) {
+                    if (part.newPage) startNewPage();
                     LayoutChunk chunk;
                     chunk.pageIndex = pageIndex;
                     chunk.bounds = QRectF(geometry.contentLeft, cursor, contentWidth,
-                                          take * rowHeight);
-                    chunk.firstRow = row;
-                    chunk.rowCount = take;
+                                          part.height);
+                    chunk.firstRow = part.firstRow;
+                    chunk.rowCount = part.rowCount;
                     item.chunks.append(chunk);
-                    cursor += take * rowHeight + options.paragraphSpacing;
-                    row += take;
-                    if (row < rows) startNewPage();
+                    cursor += part.height + options.paragraphSpacing;
                 }
-                if (tableFailed) continue;
             }
         } else {
             // 图片与矢量：按原尺寸搬过去；放不下就等比缩小到内容宽度。
