@@ -63,6 +63,7 @@
 #include "pdf/convert/PortfolioWriter.h"
 #include "pdf/compliance/PreflightChecker.h"
 #include "pdf/annot/RichMedia3d.h"
+#include "pdf/annot/ScreenAnnotation.h"
 #include "pdf/annot/ThreeDModel.h"
 #include "pdf/forms/XfaSupport.h"
 #include "pdf/ops/StreamingEdit.h"
@@ -1235,8 +1236,82 @@ void WiringActions::insertRichMedia(bool preferThreeD) {
     dialog.exec();
 }
 
+// ---------------------------------------------------------- 页面内音视频 ----
+
+void WiringActions::insertScreenMedia() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "页面内播放视频");
+    const QString path = QFileDialog::getOpenFileName(
+        parentWidget_, title, QString(),
+        i18n::tr("aipdf::app::MainWindow", "MP4 视频 (*.mp4)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(
+            parentWidget_, title,
+            i18n::tr("aipdf::app::MainWindow", "读不了这个文件：%1").arg(path));
+        return;
+    }
+    const QByteArray content = file.readAll();
+    file.close();
+    if (content.isEmpty()) {
+        QMessageBox::warning(
+            parentWidget_, title,
+            i18n::tr("aipdf::app::MainWindow", "这个文件是空的：%1").arg(path));
+        return;
+    }
+
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    // 摆在当前页正中：先给一个能用的位置，用户可以在阅读器里再调。
+    const pdf::MediaBox box = view->pageContentBox(view->currentPage());
+    const QRectF rect(box.left + box.width() * 0.25,
+                      box.bottom + box.height() * 0.25,
+                      box.width() * 0.5, box.height() * 0.5);
+
+    pdf::ScreenMediaSpec spec;
+    spec.pageIndex = view->currentPage();
+    spec.rect = rect;
+    spec.mediaBytes = content;
+    spec.fileName = QFileInfo(path).fileName();
+    const QByteArray written = pdf::writeScreenMediaAnnotation(bytes, spec, &error);
+    if (written.isEmpty()) {
+        // 这里最常见的原因是格式不对：页面内播放只认 MP4（H.264/AAC），
+        // 仓库录制器产出的 Motion-JPEG AVI 不在其列。
+        QMessageBox::warning(
+            parentWidget_, title,
+            error.isEmpty()
+                ? i18n::tr("aipdf::app::MainWindow", "写入失败，文档没有修改。")
+                : error);
+        return;
+    }
+    // 回读校验：结构写对没有，读回来看过才算数。
+    const QVector<pdf::ScreenMediaAnnotation> found =
+        pdf::readScreenMediaAnnotations(written, &error);
+    if (found.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title, error);
+        return;
+    }
+    QString replaceError;
+    if (!view->replaceDocumentBytes(written, &replaceError)) {
+        QMessageBox::warning(parentWidget_, title, replaceError);
+        return;
+    }
+    notify(i18n::tr("aipdf::app::MainWindow",
+                    "已写入页面内播放的视频（%1）。阅读器需支持媒体注解才能在页面里放出来。")
+               .arg(QFileInfo(path).fileName()));
+}
+
 // ---------------------------------------------------------- 3D 模型查看 ----
-//
 // 读文档里的 3D 注解 → 渲染 → 给出可拖动旋转的查看器。
 //
 // 判定一律在领域层：这里不自己解析模型，也不自己判断「这是模型还是海报」，

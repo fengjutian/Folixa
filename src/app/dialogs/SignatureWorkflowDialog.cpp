@@ -1,6 +1,7 @@
 #include "app/dialogs/SignatureWorkflowDialog.h"
 
 #include "app/controllers/SignatureWorkflowController.h"
+#include "i18n/Translate.h"
 #include "pdf/security/SignatureWorkflow.h"
 
 #include <QAbstractItemView>
@@ -29,33 +30,33 @@ namespace {
 
 QString stateName(pdf::WorkflowState state) {
     switch (state) {
-        case pdf::WorkflowState::Draft: return SignatureWorkflowDialog::tr("草稿");
-        case pdf::WorkflowState::InProgress: return SignatureWorkflowDialog::tr("进行中");
-        case pdf::WorkflowState::Completed: return SignatureWorkflowDialog::tr("已完成");
-        case pdf::WorkflowState::Aborted: return SignatureWorkflowDialog::tr("已中止");
+        case pdf::WorkflowState::Draft: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "草稿");
+        case pdf::WorkflowState::InProgress: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "进行中");
+        case pdf::WorkflowState::Completed: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "已完成");
+        case pdf::WorkflowState::Aborted: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "已中止");
     }
-    return SignatureWorkflowDialog::tr("草稿");
+    return i18n::tr("aipdf::app::SignatureWorkflowDialog", "草稿");
 }
 
 QString stepName(pdf::SignStepStatus status) {
     switch (status) {
-        case pdf::SignStepStatus::Pending: return SignatureWorkflowDialog::tr("待签署");
-        case pdf::SignStepStatus::Signed: return SignatureWorkflowDialog::tr("已签署");
-        case pdf::SignStepStatus::Rejected: return SignatureWorkflowDialog::tr("已拒签");
-        case pdf::SignStepStatus::Skipped: return SignatureWorkflowDialog::tr("已跳过");
+        case pdf::SignStepStatus::Pending: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "待签署");
+        case pdf::SignStepStatus::Signed: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "已签署");
+        case pdf::SignStepStatus::Rejected: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "已拒签");
+        case pdf::SignStepStatus::Skipped: return i18n::tr("aipdf::app::SignatureWorkflowDialog", "已跳过");
     }
-    return SignatureWorkflowDialog::tr("待签署");
+    return i18n::tr("aipdf::app::SignatureWorkflowDialog", "待签署");
 }
 
 QString actionName(const QString& action) {
-    if (action == QLatin1String("created")) return SignatureWorkflowDialog::tr("创建流程");
-    if (action == QLatin1String("signatory_added")) return SignatureWorkflowDialog::tr("新增签署人");
-    if (action == QLatin1String("started")) return SignatureWorkflowDialog::tr("开始签署流程");
-    if (action == QLatin1String("signed")) return SignatureWorkflowDialog::tr("签署完成");
-    if (action == QLatin1String("rejected")) return SignatureWorkflowDialog::tr("拒签");
-    if (action == QLatin1String("skipped")) return SignatureWorkflowDialog::tr("跳过签署");
-    if (action == QLatin1String("completed")) return SignatureWorkflowDialog::tr("完成流程");
-    if (action == QLatin1String("aborted")) return SignatureWorkflowDialog::tr("中止流程");
+    if (action == QLatin1String("created")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "创建流程");
+    if (action == QLatin1String("signatory_added")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "新增签署人");
+    if (action == QLatin1String("started")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "开始签署流程");
+    if (action == QLatin1String("signed")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "签署完成");
+    if (action == QLatin1String("rejected")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "拒签");
+    if (action == QLatin1String("skipped")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "跳过签署");
+    if (action == QLatin1String("completed")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "完成流程");
+    if (action == QLatin1String("aborted")) return i18n::tr("aipdf::app::SignatureWorkflowDialog", "中止流程");
     return action;
 }
 
@@ -63,7 +64,7 @@ void showReport(const pdf::SignatureWorkflow& workflow, QWidget* parent) {
     const QString text = workflow.buildReport().toPlainText();
     QDialog dialog(parent);
     dialog.setObjectName(QStringLiteral("signature.workflow.reportDialog"));
-    dialog.setWindowTitle(SignatureWorkflowDialog::tr("签署报告"));
+    dialog.setWindowTitle(i18n::tr("aipdf::app::SignatureWorkflowDialog", "签署报告"));
     dialog.resize(680, 560);
     auto* layout = new QVBoxLayout(&dialog);
     auto* editor = new QPlainTextEdit(&dialog);
@@ -72,10 +73,10 @@ void showReport(const pdf::SignatureWorkflow& workflow, QWidget* parent) {
     editor->setPlainText(text);
     layout->addWidget(editor);
     auto* buttons = new QDialogButtonBox(&dialog);
-    auto* copy = buttons->addButton(SignatureWorkflowDialog::tr("复制到剪贴板"),
+    auto* copy = buttons->addButton(i18n::tr("aipdf::app::SignatureWorkflowDialog", "复制到剪贴板"),
                                     QDialogButtonBox::ActionRole);
     copy->setObjectName(QStringLiteral("signature.workflow.reportCopy"));
-    auto* exportButton = buttons->addButton(SignatureWorkflowDialog::tr("导出为文本文件"),
+    auto* exportButton = buttons->addButton(i18n::tr("aipdf::app::SignatureWorkflowDialog", "导出为文本文件"),
                                             QDialogButtonBox::ActionRole);
     exportButton->setObjectName(QStringLiteral("signature.workflow.reportExport"));
     buttons->addButton(QDialogButtonBox::Close);
@@ -84,13 +85,13 @@ void showReport(const pdf::SignatureWorkflow& workflow, QWidget* parent) {
                      [text] { QApplication::clipboard()->setText(text); });
     QObject::connect(exportButton, &QPushButton::clicked, &dialog, [text, &dialog] {
         const QString path = QFileDialog::getSaveFileName(
-            &dialog, SignatureWorkflowDialog::tr("导出签署报告"), QString(),
-            SignatureWorkflowDialog::tr("文本文件 (*.txt)"));
+            &dialog, i18n::tr("aipdf::app::SignatureWorkflowDialog", "导出签署报告"), QString(),
+            i18n::tr("aipdf::app::SignatureWorkflowDialog", "文本文件 (*.txt)"));
         if (path.isEmpty()) return;
         QFile file(path);
         if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-            QMessageBox::warning(&dialog, SignatureWorkflowDialog::tr("导出签署报告"),
-                                 SignatureWorkflowDialog::tr("写不了这个文件。"));
+            QMessageBox::warning(&dialog, i18n::tr("aipdf::app::SignatureWorkflowDialog", "导出签署报告"),
+                                 i18n::tr("aipdf::app::SignatureWorkflowDialog", "写不了这个文件。"));
             return;
         }
         file.write(text.toUtf8());

@@ -5,3 +5,17 @@ H5,docs/DEGRADED_FEATURE_REMEDIATION.md,DOCX/RTF 只导一页文字层,,整篇�
 H5,docs/DEGRADED_FEATURE_REMEDIATION.md,Excel 与 PPT 未实现,,Excel/PPT 已实现，这句是旧说法
 H5,docs/VERSION_AUDIT.md,Excel / PPT 仍未做,第十九次重算,历史轮次里的旧结论要留在存档里（那是当时的账），但从最新一轮重算起不得再出现这句
 H5,docs/VERSION_AUDIT.md,不含图片、表格与样式,第十九次重算,同上：DOCX/PPTX 已带真图片与真表格
+C8,docs/FOXIT_BENCHMARK.md,文档级附件不带 MIME 类型,,文档级附件的 MIME 由保存链路补齐（pdf::applyEmbeddedFileMimeTypes 在 qpdf 侧补 /Type /EmbeddedFile 与 /Subtype），这句是 2026-11-20 之前的旧说法
+C8,docs/VERSION_AUDIT.md,文档级附件带不了 MIME 类型,第二十六次,历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十六次重算起不得再出现这句
+C8,docs/VERSION_AUDIT.md,不带 MIME 类型,第二十六次,同上：现在剩下的边界只有「加密文档不补 MIME」这一条
+G3,docs/FOXIT_BENCHMARK.md,嵌入文件本体与附件引用点默认不勾,第二十六轮,隐藏数据清理对话框新增「全选 / 全不选」开关，默认勾选口径不变但不再构成能力缺口；历史轮次的旧说法留在存档里
+G8,docs/FOXIT_BENCHMARK.md,PDF 解析仍在主进程,第二十七轮,安全文档的解析已移到独立进程（PdfParseWorker），主进程不再打开这个文件，这句是 2026-11-20 之前的旧说法
+G8,docs/VERSION_AUDIT.md,PDF 解析仍在主进程,第二十七次,同上：历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十七次盘点起不得再出现这句
+G1,docs/FOXIT_BENCHMARK.md,没有独立的权限管理面板,第二十七轮,权限管理面板已实现（所有者口令解密后按新权限位整体重加密），这句是 2026-11-20 之前的旧说法
+G1,docs/FOXIT_BENCHMARK.md,权限位随保存写入,第二十七轮,同上：权限位现在也能事后单独改，不必跟着另一次保存一起写
+J5,docs/FOXIT_BENCHMARK.md,标签树仍只到行粒度,第二十七轮,三条区域顺序命令已升到语义级（结构树里的内容元素），这句是 2026-11-20 之前的旧说法
+J5,docs/VERSION_AUDIT.md,标签树仍只到行粒度,第二十七次,同上：历史轮次里的旧结论要留在存档里（那是当时的账），但从第二十七次盘点起不得再出现这句
+C8,docs/FOXIT_BENCHMARK.md,页面内不播放音视频,第二十七轮,页面内放视频已实现（/Screen 注解 + MediaClip，只接受 MP4），这句是 2026-11-20 之前的旧说法
+J5,docs/FOXIT_BENCHMARK.md,这条命令是行级操作,第二十七轮,三条区域顺序命令已升到语义级，这句是旧说法
+J5,docs/FOXIT_BENCHMARK.md,这条命令读的是**行级**顺序,第二十七轮,同上：设置区域阅读顺序现在读的是结构树里的语义元素
+J5,docs/FOXIT_BENCHMARK.md,写标签树（**行级**）,第二十七轮,同上：应用区域顺序现在按视觉顺序重建语义树

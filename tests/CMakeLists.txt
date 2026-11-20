@@ -602,6 +602,9 @@ qt_add_executable(DocumentWriterTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/EmbeddedFileMime.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/EmbeddedFileMime.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/MimeTypes.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
     ${CMAKE_SOURCE_DIR}/src/pdf/kernel/SafeSave.cpp
@@ -929,6 +932,9 @@ qt_add_executable(DocumentOutputTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/AnnotationDictionary.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/DocumentWriter.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/EmbeddedFileMime.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/document/EmbeddedFileMime.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/kernel/MimeTypes.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/document/QpdfBackend.h
     ${CMAKE_SOURCE_DIR}/src/pdf/document/IncrementalWriter.cpp
@@ -1863,6 +1869,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CertificateChainTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MediaPreviewPanelTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AttachmentPanelTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ViewSettingsTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/HiddenDataDialogTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/OfdConverterTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardActionsTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardPrintRangeTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardDocumentActionsTests.cmake)
@@ -1887,3 +1895,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave213dTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21DxfTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21RtfTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Wave21StreamTests.cmake)
+# 权限管理面板（事后单独改权限位）：2026-11-20 第二十七轮加的。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PermissionPanelDialogTests.cmake)
+# 页面内音视频（/Screen 注解）：2026-11-20 第二十七轮加的。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ScreenAnnotationTests.cmake)
+# 语义级区域阅读顺序：2026-11-20 第二十七轮加的。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SemanticReadingOrderTests.cmake)
+# 安全文档（隔离解析进程）：2026-11-20 第二十七轮加的。
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SafeDocumentTests.cmake)

@@ -3,6 +3,8 @@
 #include "app/controllers/AudioRecorder.h"
 #include "app/controllers/DocumentOutput.h"
 #include "app/dialogs/EncryptionDialog.h"
+#include "app/dialogs/PermissionPanelDialog.h"
+#include "app/dialogs/SemanticOrderDialog.h"
 #include "app/dialogs/HiddenDataDialog.h"
 #include "app/panels/LastWavePanels.h"
 #include "app/controllers/LastWaveWriter.h"
@@ -29,6 +31,7 @@
 #include "pdf/forms/FormFieldWriter.h"
 #include "pdf/forms/FormToolSettings.h"
 #include "pdf/security/PdfSecurity.h"
+#include "pdf/kernel/SafeSave.h"
 #include "pdf/ops/BatchReplace.h"
 #include "pdf/document/NamedDestination.h"
 #include "doc/model/OutlineGenerator.h"
@@ -40,6 +43,8 @@
 #include "pdf/security/SignatureVerifier.h"
 #include "pdf/ops/SpellChecker.h"
 #include "pdf/compliance/StructTreeReader.h"
+#include "pdf/compliance/SemanticReadingOrder.h"
+#include "pdf/compliance/UaGenerator.h"
 #include "pdf/content/ParagraphFormat.h"
 #include "pdf/compliance/TagTreeWriter.h"
 #include "speech/SpeechEngine.h"
@@ -1936,6 +1941,10 @@ void PdfView::applyWatermarkDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：水印要写进页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("添加水印"))) {
+        return;
+    }
     bool accepted = false;
     const QString text = QInputDialog::getText(this, tr("添加水印"), tr("水印文字（仅支持西文）:"),
                                                QLineEdit::Normal, QStringLiteral("DRAFT"),
@@ -1963,6 +1972,10 @@ void PdfView::applyWatermarkDialog() {
 void PdfView::applyHeaderFooterDialog() {
     trace(QStringLiteral("decor header footer dialog"));
     if (!document_.isValid()) {
+        return;
+    }
+    // 内容修改权限：页眉页脚要写进页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("添加页眉页脚"))) {
         return;
     }
     bool accepted = false;
@@ -1997,6 +2010,10 @@ void PdfView::applyHeaderFooterDialog() {
 
 void PdfView::applyPageNumbersDialog() {
     if (!document_.isValid()) {
+        return;
+    }
+    // 内容修改权限：页码要写进页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("添加页码"))) {
         return;
     }
     pdf::PageNumberOptions options;
@@ -2113,6 +2130,114 @@ void PdfView::configureEncryptionDialog() {
               .arg(encryptionOptions_.userPassword.isEmpty() ? 0 : 1));
 }
 
+void PdfView::managePermissions() {
+    if (!document_.isValid()) {
+        QMessageBox::information(this, tr("权限管理"), tr("先打开一份 PDF。"));
+        return;
+    }
+    if (!pdf::encryptionAvailable()) {
+        QMessageBox::warning(this, tr("权限管理"),
+                             tr("本次构建没有启用 qpdf，改不了权限位。请用带 qpdf 的安装包。"));
+        return;
+    }
+    if (filePath_.isEmpty()) {
+        QMessageBox::information(
+            this, tr("权限管理"),
+            tr("这份文档还没有保存到磁盘：权限位写在加密字典里，得先存成文件才能改。"));
+        return;
+    }
+    if (modified_) {
+        QMessageBox::information(this, tr("权限管理"),
+                                 tr("请先保存当前修改，再改权限：权限是针对磁盘上这份文件改的。"));
+        return;
+    }
+
+    QFile file(filePath_);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("权限管理"), tr("无法读取原始 PDF。"));
+        return;
+    }
+    const QByteArray source = file.readAll();
+    file.close();
+
+    // 读当前权限位：拿它当面板的初始值。
+    pdf::PdfPermissionState state;
+    QString error;
+    if (!pdf::inspectPermissions(source, documentPassword_, &state, &error)) {
+        QMessageBox::warning(this, tr("权限管理"),
+                             error.isEmpty() ? tr("读不出这份文档的加密信息。") : error);
+        return;
+    }
+    if (!state.encrypted) {
+        QMessageBox::information(
+            this, tr("权限管理"),
+            tr("这份文档还没有加密。请先用「加密与权限」启用加密，再来设置权限位。"));
+        return;
+    }
+
+    PermissionPanelDialog dialog(state.permissions, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const PermissionPanelDialog::Result choice = dialog.result();
+
+    // 所有者口令要先验：它既证明用户有权改权限，也是解开文档的那把钥匙。
+    if (!pdf::verifyOwnerPassword(source, choice.ownerPassword, &error)) {
+        QMessageBox::warning(this, tr("权限管理"), error);
+        return;
+    }
+    // 已经证明是所有者：本次会话按所有者权限算，后面的权限检查不会再拦一次。
+    ownerPermissionsUnlocked_ = true;
+
+    // 权限检查：改权限属于改文档。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("修改权限"))) {
+        return;
+    }
+
+    // 解密 → 按新权限重新加密。
+    //
+    // 这里**不能**原地改 /P：R6（AES-256）下权限的权威来源是 /Encrypt 里的
+    // /Perms，只改 /P 会得到一份「/P 与 /Perms 打架」的加密字典
+    // （实测 qpdf 12.4.2：会报 /Perms 与期望值不符，有效权限一点没变）。
+    const QByteArray changed = pdf::reencryptWithPermissions(
+        source, choice.permissions, choice.ownerPassword, choice.userPassword, &error);
+    if (changed.isEmpty()) {
+        QMessageBox::warning(this, tr("权限管理"), error);
+        ownerPermissionsUnlocked_ = false;
+        return;
+    }
+
+    const doc::SaveResult written = doc::SafeSave::writeAtomically(
+        filePath_, changed, document_.pageCount(), true, choice.userPassword);
+    if (!written.ok) {
+        QMessageBox::warning(this, tr("权限管理"), written.errorMessage);
+        ownerPermissionsUnlocked_ = false;
+        return;
+    }
+
+    // 权限变了，PDFium 那边的权限快照也得跟着换：重新打开这份文档。
+    pdf::PdfOpenResult reopened =
+        pdf::openDocumentFromBytes(changed, filePath_, choice.userPassword);
+    if (!reopened.document.isValid()) {
+        QMessageBox::warning(this, tr("权限管理"), reopened.errorMessage);
+        return;
+    }
+    setDocument(std::move(reopened.document), filePath_);
+
+    // 把这次的设置记住：用户之后保存时，DocumentWriter 要用同一套口令与权限位，
+    // 否则下一次保存会把刚改好的权限又写回旧值（或者换一个随机所有者口令，
+    // 让用户从此失去解除限制的能力）。
+    documentPassword_ = choice.userPassword;
+    encryptionEnabled_ = true;
+    encryptionOptions_.permissions = choice.permissions;
+    encryptionOptions_.userPassword = choice.userPassword;
+    encryptionOptions_.ownerPassword = choice.ownerPassword;
+
+    emit permissionsChanged();
+    emit statusMessage(tr("权限已更新，文档已用新的权限位重新加密。"));
+    trace(QStringLiteral("permissions updated via panel"));
+}
+
 void PdfView::sanitizeHiddenData() {
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("清理隐藏信息"), tr("先打开一份 PDF。"));
@@ -2204,6 +2329,8 @@ void PdfView::sanitizeHiddenData() {
 
 void PdfView::redactSelection() {
     if (!document_.isValid() || textController_ == nullptr) return;
+    // 内容修改权限：永久遮盖要删掉页面上的对象。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("密文遮盖"))) return;
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -2295,6 +2422,10 @@ void PdfView::applyBatesNumberingDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：贝茨编号要写进页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("添加贝茨编号"))) {
+        return;
+    }
     bool accepted = false;
     const QString prefix = QInputDialog::getText(
         this, tr("贝茨编号"), tr("前缀（仅支持西文）:"), QLineEdit::Normal,
@@ -2331,6 +2462,10 @@ void PdfView::duplicateCurrentPage() {
     if (!document_.isValid()) {
         return;
     }
+    // 页面组装权限：复制页是结构改动，与插入/删除/旋转同级。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("复制页面"))) {
+        return;
+    }
     const int index = currentPage();
     const pdf::PdfDocument backup = document_.backupPage(index);
     if (!backup.isValid() || !document_.restorePageFrom(backup, index + 1)) {
@@ -2348,6 +2483,11 @@ void PdfView::swapCurrentWithNext() {
     if (!document_.isValid() || annotationController_ == nullptr) {
         return;
     }
+    // 页面组装权限：交换与移动、插入、删除、旋转一样是改文档结构，
+    // 少了这道检查，禁用了「页面组装」的文档仍能被换页序。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("交换页面"))) {
+        return;
+    }
     const int index = currentPage();
     if (index < 0 || index + 1 >= document_.pageCount()) {
         emit statusMessage(tr("已经是最后一页了"));
@@ -2361,8 +2501,59 @@ void PdfView::swapCurrentWithNext() {
     emit statusMessage(tr("已交换第 %1、%2 页").arg(index + 1).arg(index + 2));
 }
 
+// 交换任意两页。
+//
+// 为什么要有这条：「与下一页交换」只够应付「把这一页挪到后面去」这种最常见的情况，
+// 但「把第 30 页和第 2 页对调」是同样常见的整理动作，之前做不了。
+//
+// 领域层给的是 doc::SwapPagesCommand（一条命令 = 一步撤销），
+// 界面只负责收两个页号——页序怎么换由领域层算，界面不自己算。
+void PdfView::swapPagesDialog() {
+    if (!document_.isValid() || annotationController_ == nullptr) {
+        return;
+    }
+    // 页面组装权限：交换是改文档结构。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("交换页面"))) {
+        return;
+    }
+    const int count = annotationController_->pageCount();
+    if (count < 2) {
+        emit statusMessage(tr("只有一页，没有可交换的另一页"));
+        return;
+    }
+    bool accepted = false;
+    const int current = currentPage();
+    const int first = QInputDialog::getInt(
+        this, tr("交换页面"), tr("要交换的第一页:"), current + 1, 1, count, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int second = QInputDialog::getInt(
+        this, tr("交换页面"), tr("要交换的第二页:"), first == count ? count - 1 : first + 1,
+        1, count, 1, &accepted);
+    if (!accepted) {
+        return;
+    }
+    const int firstIndex = first - 1;
+    const int secondIndex = second - 1;
+    if (firstIndex == secondIndex) {
+        emit statusMessage(tr("同一页不用交换"));
+        return;
+    }
+    if (!annotationController_->swapPages(firstIndex, secondIndex)) {
+        emit statusMessage(tr("交换页面失败"));
+        return;
+    }
+    goToPage(secondIndex);
+    emit statusMessage(tr("已交换第 %1、%2 页").arg(first).arg(second));
+}
+
 void PdfView::reversePages() {
     if (!document_.isValid() || annotationController_ == nullptr) {
+        return;
+    }
+    // 页面组装权限：整篇逆序是结构改动，与移动/插入/删除同级。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("逆序页面"))) {
         return;
     }
     const int count = document_.pageCount();
@@ -2657,6 +2848,10 @@ void PdfView::setPageBackgroundDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：页面背景要写进页面对象。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("设置页面背景"))) {
+        return;
+    }
     const QColor color = QColorDialog::getColor(QColor(255, 249, 224), this, tr("页面背景"));
     if (!color.isValid()) {
         return;
@@ -2695,6 +2890,10 @@ void PdfView::replaceCurrentPageDialog() {
     if (!document_.isValid() || annotationController_ == nullptr) {
         return;
     }
+    // 页面组装权限：替换页是结构改动。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("替换页面"))) {
+        return;
+    }
     const QString path = QFileDialog::getOpenFileName(this, tr("替换页面"), QString(),
                                                       tr("PDF 文件 (*.pdf)"));
     if (path.isEmpty()) {
@@ -2731,6 +2930,10 @@ void PdfView::replaceCurrentPageDialog() {
 }
 void PdfView::crossMergeDialog() {
     if (!document_.isValid()) {
+        return;
+    }
+    // 页面组装权限：交叉合并会把别的文件的页搬进来，是结构改动。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("交叉合并"))) {
         return;
     }
     const QString path = QFileDialog::getOpenFileName(this, tr("交叉合并"), QString(),
@@ -2831,6 +3034,10 @@ void PdfView::extractPagesDialog() {
 
 void PdfView::insertPagesFromFileDialog() {
     if (!document_.isValid()) {
+        return;
+    }
+    // 页面组装权限：从别的文件插页是结构改动。
+    if (!requirePermission(effectivePermissions().allowAssembly, tr("插入页面"))) {
         return;
     }
     const QString path = QFileDialog::getOpenFileName(this, tr("插入页面"), QString(),
@@ -3642,6 +3849,10 @@ void PdfView::namedDestinationDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：命名位置要写进文档目录。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("命名位置"))) {
+        return;
+    }
     QString error;
     const QByteArray source = document_.serialize(&error);
     if (source.isEmpty()) {
@@ -3902,6 +4113,10 @@ void PdfView::pageLabelsDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：页面标签要写进文档目录。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("页面标签"))) {
+        return;
+    }
     QDialog dialog(this);
     dialog.setWindowTitle(tr("页码标签"));
     dialog.resize(420, 240);
@@ -4079,6 +4294,10 @@ void PdfView::replaceSelectionWithImageDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
         return;
     }
+    // 内容修改权限：替换图片要改写页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("替换图片"))) {
+        return;
+    }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -4121,6 +4340,10 @@ void PdfView::deleteSelectionImagesDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
         return;
     }
+    // 内容修改权限：删除图片要改写页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("删除图片"))) {
+        return;
+    }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -4148,6 +4371,10 @@ void PdfView::deleteSelectionImagesDialog() {
 
 void PdfView::replaceSelectionTextDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
+        return;
+    }
+    // 内容修改权限：替换选中文字会改写页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("替换文字"))) {
         return;
     }
     const int pageIndex = textController_->selectionPage();
@@ -4283,6 +4510,10 @@ void PdfView::editSelectedObjectsDialog() {
 }
 
 void PdfView::editObjectsInRect(int pageIndex, const QRectF& userRect, bool useCurrentSelection) {
+    // 权限检查放在**改动发生点**，不放在各个入口：
+    // 这个函数既被「编辑页面对象」命令调用，也被画布上拖框直接触发，
+    // 只在命令里加检查，画布那条路就漏了。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("编辑页面对象"))) return;
     auto page = document_.page(pageIndex);
     if (!page || userRect.isEmpty()) return;
     QVector<pdf::PageObjectInfo> objects = page->objectsInRect(userRect);
@@ -4517,6 +4748,10 @@ void PdfView::applyParagraphFormat(int pageIndex, const QVector<pdf::PageObjectI
     if (!document_.isValid()) {
         return;
     }
+    // 权限检查放在改动发生点：段落排版会重写整页内容流，是内容修改。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("段落排版"))) {
+        return;
+    }
     QStringList texts;
     QVector<int> textIndexes;
     QRectF bounds;
@@ -4731,6 +4966,9 @@ void PdfView::transformSelectedObjects(int pageIndex, const QRectF& oldRect,
 }
 
 void PdfView::rotateSelectedObjects(int pageIndex, double degrees) {
+    // 权限检查放在改动发生点：这个函数由画布的旋转手势直接触发，
+    // 没有命令层可以兜。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("旋转对象"))) return;
     if (pageIndex != selectedObjectPage_ || selectedObjectIndexes_.isEmpty()) return;
     auto page = document_.page(pageIndex);
     if (page) {
@@ -5148,6 +5386,10 @@ void PdfView::searchReplaceDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：批量替换会改写命中的页面内容。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("查找替换"))) {
+        return;
+    }
     bool accepted = false;
     const QString query = QInputDialog::getText(this, tr("搜索替换"), tr("查找内容:"),
                                                  QLineEdit::Normal, QString(), &accepted);
@@ -5280,6 +5522,10 @@ void PdfView::addLinkToSelectionDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
         return;
     }
+    // 批注权限：这条命令加的是链接批注。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("添加链接"))) {
+        return;
+    }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -5383,6 +5629,10 @@ void PdfView::detectWebLinks() {
     if (!document_.isValid()) {
         return;
     }
+    // 批注权限：自动识别网址链接会往页面里**写**链接注解，不是只读检测。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("识别网络链接"))) {
+        return;
+    }
     int added = 0;
     for (int pageIndex = 0; pageIndex < document_.pageCount(); ++pageIndex) {
         auto page = document_.page(pageIndex);
@@ -5423,6 +5673,10 @@ static QRectF defaultInsertRect(const pdf::PdfDocument& document, int pageIndex,
 // （PDF 里唯一能跨页跳的批注类型）。两者叠在同一块区域上。
 void PdfView::insertCrossReferenceDialog() {
     if (!document_.isValid()) {
+        return;
+    }
+    // 批注权限：交叉引用会加一条链接批注。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("插入交叉引用"))) {
         return;
     }
     const auto entries = pdf::flattenOutline(outline());
@@ -5526,6 +5780,10 @@ void PdfView::insertCrossReferenceDialog() {
 // 文章框是正文容器，通常放多段文字，所以默认给一个更大的框与字号。
 void PdfView::addArticleFrameDialog() {
     if (!document_.isValid()) {
+        return;
+    }
+    // 批注权限：文章框走的是自由文本批注。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("添加文章框"))) {
         return;
     }
     bool accepted = false;
@@ -5646,6 +5904,10 @@ void PdfView::showDocumentPropertiesDialog() {
         QMessageBox::information(this, tr("文档属性"), tr("先打开一份 PDF。"));
         return;
     }
+    // 内容修改权限：这个对话框除了读 /Info，还能改写回。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("修改文档属性"))) {
+        return;
+    }
     QString error;
     const QByteArray serialized = document_.serialize(&error);
     if (serialized.isEmpty()) {
@@ -5718,6 +5980,10 @@ void PdfView::showDocumentPropertiesDialog() {
 void PdfView::createOutlineFromHeadingsDialog() {
     if (!document_.isValid()) {
         QMessageBox::information(this, tr("自动创建书签"), tr("先打开一份 PDF。"));
+        return;
+    }
+    // 内容修改权限：自动生成的书纲要写进文档目录。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("自动创建书签"))) {
         return;
     }
     QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -7005,6 +7271,10 @@ void PdfView::batchReplaceDialog() {
     if (!document_.isValid()) {
         return;
     }
+    // 内容修改权限：批量替换会改写命中的页面内容。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("批量替换"))) {
+        return;
+    }
     QDialog dialog(this);
     dialog.setWindowTitle(tr("批量替换"));
     dialog.resize(760, 460);
@@ -7331,6 +7601,10 @@ void PdfView::redactionModeDialog() {
     if (!document_.isValid() || textController_ == nullptr) {
         return;
     }
+    // 内容修改权限：密文模式要改写页面内容流。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("密文模式"))) {
+        return;
+    }
     const int pageIndex = textController_->selectionPage();
     const QVector<QRectF> displayRects = textController_->selectionRects();
     if (pageIndex < 0 || displayRects.isEmpty()) {
@@ -7643,69 +7917,21 @@ void PdfView::showSignatureWorkflowDialog() {
     dialog.exec();
 }
 
-// -------------------------------------------------- 区域阅读顺序（标签树）----
+// -------------------------------------------------- 区域阅读顺序（语义级）----
 //
-// 写标签树要三样东西：每页的行（user space 矩形）、行的先后顺序、
-// 以及把顺序写进 /StructTreeRoot 的能力（pdf::TagTreeWriter）。
+// 三条命令现在都按**语义树**工作：
+//   - 设置区域阅读顺序：读结构树里已经写好的顺序（标题 / 段落 / 列表 / 表格 / 图 / 表单域）；
+//   - 更改区域顺序：在当前页内调整语义元素的先后，写回结构树；
+//   - 应用区域顺序：整篇按默认（视觉）顺序重建语义标签树。
 //
-// 诚实性边界：写进去的是**页粒度以下**的行级顺序（每行一个 Span），
-// 不做完整的 PDF/A 标签合规（无 Alt、无 /Lang 全覆盖、无图件替代文本），
-// 所以读屏软件能按我们给的顺序念，但拿不到「这是一张什么图」这类补充信息。
-
-// 把整篇文档的行整理成「每页一个区域列表」。
+// 为什么不再走行级：行级顺序说不了「先念标题还是先念正文」；更麻烦的是行级树与
+// 语义树写的是**同一个** /StructTreeRoot，两条路互相覆盖——用户调好顺序再跑另一条
+// 命令，前面的功夫就没了。语义级只有一条路。
 //
-// 当前页用用户排好的顺序，其余页用默认顺序（从上到下）。
-QVector<QVector<pdf::TaggedRegion>> PdfView::buildTaggedRegions(
-    int pageIndex, const QVector<int>& currentPageOrder) const {
-    QVector<QVector<pdf::TaggedRegion>> regions(document_.pageCount());
-    for (int index = 0; index < document_.pageCount(); ++index) {
-        auto page = document_.page(index);
-        if (!page.has_value()) {
-            continue;
-        }
-        const std::optional<pdf::TextPage> text = page->extractText();
-        if (!text.has_value() || text->chars.isEmpty()) {
-            continue;
-        }
-        const QVector<UserSpaceLine> lines = userSpaceTextLines(*text);
-        QVector<pdf::TaggedRegion> pageRegions;
-        for (int line = 0; line < lines.size(); ++line) {
-            int order = line;
-            if (index == pageIndex && line < currentPageOrder.size()) {
-                order = currentPageOrder.at(line);
-            }
-            pageRegions.append(pdf::TaggedRegion{lines.at(line).box, order});
-        }
-        regions[index] = pageRegions;
-    }
-    return regions;
-}
+// 诚实性边界：结构树只表达「顺序与角色」，不等于 PDF/UA 合规（没有 Alt、
+// /Lang 也没有全覆盖）；读屏软件能不能真按这个顺序念，本机没有读屏软件，未做验收。
 
-// 把标签树写回文档。失败时给用户看原因，文档保持原样。
-bool PdfView::writeTaggedRegions(const QVector<QVector<pdf::TaggedRegion>>& regions, QString* error) {
-    QString serializeError;
-    const QByteArray input = document_.serialize(&serializeError);
-    if (input.isEmpty()) {
-        if (error) *error = serializeError;
-        return false;
-    }
-    QString writeError;
-    const QByteArray tagged = pdf::writeTaggedStructure(input, regions, &writeError);
-    if (tagged.isEmpty()) {
-        if (error) *error = writeError.isEmpty() ? tr("写入标签树失败，文档没有修改。") : writeError;
-        return false;
-    }
-    QString reloadError;
-    if (!document_.reloadFromBytes(tagged, &reloadError)) {
-        if (error) *error = tr("写入后的文档无法重新打开，文档没有修改：%1").arg(reloadError);
-        return false;
-    }
-    refreshAfterDecoration();
-    setModified(true);
-    return true;
-}
-
-// 看当前文档的标签树里已经写好的顺序。
+// 看当前文档的语义阅读顺序。
 void PdfView::showRegionReadingOrderDialog() {
     if (!document_.isValid()) {
         return;
@@ -7717,151 +7943,149 @@ void PdfView::showRegionReadingOrderDialog() {
         return;
     }
     QString error;
-    const QVector<QVector<int>> order = pdf::readTaggedOrder(bytes, &error);
-    bool hasTree = false;
-    for (const QVector<int>& page : order) {
-        if (!page.isEmpty()) {
-            hasTree = true;
-            break;
-        }
-    }
-    if (!hasTree) {
+    const QVector<pdf::SemanticOrderPage> pages = pdf::readSemanticReadingOrder(bytes, &error);
+    if (pages.isEmpty()) {
         QMessageBox::information(
             this, tr("区域阅读顺序"),
             error.isEmpty()
-                ? tr("这份文档里还没有标签树。用「更改区域顺序」或「应用区域顺序」写一份。")
+                ? tr("这份文档里还没有语义标签树。先运行「辅助工具 → 标签 → 自动添加文档标签」，"
+                     "再回来调整顺序。")
                 : error);
         return;
     }
     QStringList lines;
-    for (int page = 0; page < order.size(); ++page) {
-        if (order.at(page).isEmpty()) {
+    for (const pdf::SemanticOrderPage& page : pages) {
+        if (page.entries.isEmpty()) {
             continue;
         }
-        lines.append(tr("第 %1 页：%2 个区域，顺序 %3")
-                         .arg(page + 1)
-                         .arg(order.at(page).size())
-                         .arg(order.at(page).size() > 1
-                                  ? QString::number(order.at(page).first() + 1) + QStringLiteral(" 起")
-                                  : QStringLiteral("1")));
+        lines.append(tr("第 %1 页：%2 个语义元素").arg(page.pageIndex + 1).arg(page.entries.size()));
+        for (const pdf::SemanticOrderEntry& entry : page.entries) {
+            QString preview = entry.text.trimmed();
+            if (preview.size() > 36) {
+                preview = preview.left(36) + QStringLiteral("…");
+            }
+            lines.append(QStringLiteral("  [%1] %2").arg(entry.role, preview));
+        }
     }
-    QMessageBox::information(this, tr("区域阅读顺序"),
-                             lines.join('\n') + tr("\n\n（显示的是标签树里每页的子元素顺序；"
-                                                  "语义树与行级树都能读，取决于这份文档最后写的是哪一棵。）"));
+    QMessageBox::information(
+        this, tr("区域阅读顺序"),
+        lines.join('\n') +
+            tr("\n\n（显示的是结构树里的语义元素顺序；读屏软件按这个顺序念。）"));
 }
 
-// 调整当前页各行的先后顺序，然后写进标签树。
+// 调整当前页各**语义元素**的先后顺序，然后写进结构树。
 void PdfView::changeRegionReadingOrderDialog() {
     if (!document_.isValid()) {
         return;
     }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("更改区域顺序"), serializeError);
+        return;
+    }
+    QString error;
+    const QVector<pdf::SemanticOrderPage> pages = pdf::readSemanticReadingOrder(bytes, &error);
+    if (pages.isEmpty()) {
+        QMessageBox::information(
+            this, tr("更改区域顺序"),
+            error.isEmpty()
+                ? tr("这份文档里还没有语义标签树。先运行「辅助工具 → 标签 → 自动添加文档标签」，"
+                     "再回来调整顺序。")
+                : error);
+        return;
+    }
     const int pageIndex = currentPage();
-    auto page = document_.page(pageIndex);
-    if (!page.has_value()) {
-        return;
-    }
-    const std::optional<pdf::TextPage> text = page->extractText();
-    if (!text.has_value() || text->chars.isEmpty()) {
-        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有可标记的文字。"));
-        return;
-    }
-    const QVector<UserSpaceLine> lines = userSpaceTextLines(*text);
-    if (lines.isEmpty()) {
-        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有可标记的文字。"));
-        return;
-    }
-
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("更改区域顺序"));
-    dialog.resize(640, 460);
-    auto* layout = new QVBoxLayout(&dialog);
-    layout->addWidget(new QLabel(
-        tr("下面是当前页按视觉顺序排出的行。调整先后后写进 PDF 的标签树，"
-           "读屏软件会按这个顺序念。"),
-        &dialog));
-
-    auto* list = new QListWidget(&dialog);
-    list->setObjectName(QStringLiteral("regionOrder.lines"));
-    for (const UserSpaceLine& line : lines) {
-        list->addItem(line.text.trimmed());
-    }
-    layout->addWidget(list);
-
-    auto* moveUp = new QPushButton(tr("上移"), &dialog);
-    auto* moveDown = new QPushButton(tr("下移"), &dialog);
-    auto* buttons = new QHBoxLayout;
-    buttons->addWidget(moveUp);
-    buttons->addWidget(moveDown);
-    buttons->addStretch(1);
-    layout->addLayout(buttons);
-
-    connect(moveUp, &QPushButton::clicked, &dialog, [list, moveUp] {
-        const int row = list->currentRow();
-        if (row <= 0) {
-            return;
+    QVector<pdf::SemanticOrderPage> current;
+    for (const pdf::SemanticOrderPage& page : pages) {
+        if (page.pageIndex == pageIndex) {
+            current.append(page);
         }
-        QListWidgetItem* item = list->takeItem(row);
-        list->insertItem(row - 1, item);
-        list->setCurrentRow(row - 1);
-        moveUp->setEnabled(row > 0);
-    });
-    connect(moveDown, &QPushButton::clicked, &dialog, [list, moveDown] {
-        const int row = list->currentRow();
-        if (row < 0 || row >= list->count() - 1) {
-            return;
-        }
-        QListWidgetItem* item = list->takeItem(row);
-        list->insertItem(row + 1, item);
-        list->setCurrentRow(row + 1);
-        moveDown->setEnabled(row < list->count() - 1);
-    });
+    }
+    if (current.isEmpty() || current.first().entries.isEmpty()) {
+        QMessageBox::information(this, tr("更改区域顺序"), tr("这一页没有语义元素。"));
+        return;
+    }
 
-    auto* dialogButtons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    dialogButtons->button(QDialogButtonBox::Ok)->setText(tr("写入"));
-    layout->addWidget(dialogButtons);
-    connect(dialogButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(dialogButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
+    SemanticOrderDialog dialog(current, this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
-
-    // 列表里的次序就是新的阅读顺序。
-    QVector<int> order;
-    for (int row = 0; row < list->count(); ++row) {
-        order.append(row);
-    }
-    QString error;
-    if (!writeTaggedRegions(buildTaggedRegions(pageIndex, order), &error)) {
-        QMessageBox::warning(this, tr("更改区域顺序"),
-                             error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
+    const QVector<pdf::SemanticOrderPage> chosen = dialog.order();
+    if (chosen.isEmpty()) {
         return;
     }
-    emit statusMessage(tr("已把第 %1 页的阅读顺序写进标签树").arg(pageIndex + 1));
+
+    // 权限检查：写顺序就是改文档。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("写入阅读顺序"))) {
+        return;
+    }
+
+    // 把新的页内顺序放回整篇的顺序里，再写回。
+    QVector<pdf::SemanticOrderPage> updated;
+    for (const pdf::SemanticOrderPage& page : pages) {
+        updated.append(page.pageIndex == pageIndex ? chosen.first() : page);
+    }
+    QString writeError;
+    const QByteArray written = pdf::writeSemanticReadingOrder(bytes, updated, &writeError);
+    if (written.isEmpty()) {
+        QMessageBox::warning(this, tr("更改区域顺序"),
+                             writeError.isEmpty() ? tr("写入失败，文档没有修改。") : writeError);
+        return;
+    }
+    QString reloadError;
+    if (!document_.reloadFromBytes(written, &reloadError)) {
+        QMessageBox::warning(this, tr("更改区域顺序"),
+                             tr("写入后的文档无法重新打开，文档没有修改：%1").arg(reloadError));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已把第 %1 页的语义阅读顺序写进结构树").arg(pageIndex + 1));
 }
 
-// 整篇按「从上到下」的默认顺序写标签树，不做交互。
+// 整篇按默认（视觉）顺序重建语义标签树，不做交互。
 void PdfView::applyRegionReadingOrder() {
     if (!document_.isValid()) {
         return;
     }
     if (QMessageBox::question(
             this, tr("应用区域顺序"),
-            tr("会按「从上到下、从左到右」的顺序给整篇文档写一份标签树。"
-               "页面外观不变，但读屏软件会按这个顺序念。继续吗？"),
+            tr("会按「从上到下、从左到右」的顺序给整篇文档重建一份**语义**标签树"
+               "（标题 / 段落 / 列表 / 表格 / 图 / 表单域）。页面外观不变，"
+               "读屏软件会按这个顺序念。\n\n"
+               "这一步与「辅助工具 → 标签 → 自动添加文档标签」做的是同一件事："
+               "它按视觉顺序重建整棵语义树，手工调过的顺序会被这次重建覆盖。继续吗？"),
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) {
         return;
     }
+    QString serializeError;
+    const QByteArray bytes = document_.serialize(&serializeError);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(this, tr("应用区域顺序"), serializeError);
+        return;
+    }
+    if (!requirePermission(effectivePermissions().allowModifying, tr("写入阅读顺序"))) {
+        return;
+    }
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    const QVector<QVector<pdf::TaggedRegion>> regions = buildTaggedRegions(currentPage(), {});
-    QApplication::restoreOverrideCursor();
     QString error;
-    if (!writeTaggedRegions(regions, &error)) {
+    const pdf::SemanticWriteResult result = pdf::writeSemanticTagTree(bytes, {}, &error);
+    QApplication::restoreOverrideCursor();
+    if (!result.ok || result.bytes.isEmpty()) {
         QMessageBox::warning(this, tr("应用区域顺序"),
                              error.isEmpty() ? tr("写入失败，文档没有修改。") : error);
         return;
     }
-    emit statusMessage(tr("已按默认顺序写好标签树"));
+    QString reloadError;
+    if (!document_.reloadFromBytes(result.bytes, &reloadError)) {
+        QMessageBox::warning(this, tr("应用区域顺序"),
+                             tr("写入后的文档无法重新打开，文档没有修改：%1").arg(reloadError));
+        return;
+    }
+    refreshAfterDecoration();
+    setModified(true);
+    emit statusMessage(tr("已按默认顺序写好语义标签树"));
 }
 
 // ------------------------------------------------- 第二批接线（E/F/G/H）----
@@ -7932,6 +8156,13 @@ pdf::MediaBox PdfView::pageContentBox(int pageIndex) const {
 bool PdfView::applyDocumentAction(doc::WizardActionType type,
                                   const QVector<doc::WizardParam>& params,
                                   QString* reason) {
+    // 内容修改权限：动作向导里的步骤（水印、页码、加密、转换格式……）都会改文档。
+    if (!requirePermission(effectivePermissions().allowModifying, tr("执行文档动作"))) {
+        if (reason != nullptr) {
+            *reason = tr("文档权限禁止执行这个动作。");
+        }
+        return false;
+    }
     if (!document_.isValid()) {
         if (reason != nullptr) {
             *reason = tr("先打开一份 PDF。");
@@ -8640,6 +8871,10 @@ bool PdfView::insertTextAnnotation(const QString& text, double fontSize) {
     if (!document_.isValid() || text.isEmpty() || annotationController_ == nullptr) {
         return false;
     }
+    // 批注权限：这条入口由计算器与符号面板直接触发，不经过工具激活。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("插入文字批注"))) {
+        return false;
+    }
     const int pageIndex = currentPage();
     const QRectF rect = defaultInsertRect(document_, pageIndex, 220.0, 40.0);
     if (rect.isEmpty()) {
@@ -8658,6 +8893,10 @@ bool PdfView::insertTextAnnotation(const QString& text, double fontSize) {
 
 bool PdfView::insertGeneratedImage(const QByteArray& imageBytes, const QString& label) {
     if (!document_.isValid() || imageBytes.isEmpty() || annotationController_ == nullptr) {
+        return false;
+    }
+    // 批注权限：AI 生成图走的是图片批注，同样要过权限这一关。
+    if (!requirePermission(effectivePermissions().allowAnnotations, tr("插入生成图片"))) {
         return false;
     }
     QImage image;

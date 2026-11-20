@@ -50,3 +50,37 @@ target_sources(PdfAiWorker PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
 aipdf_deploy_qt_runtime(PdfAiWorker)
 
+# ------------------------------------------------------------ 隔离解析进程 ----
+#
+# 与 PdfAiWorker 分开的原因：AI Worker 持有 API 凭据、还要发网络请求，
+# 「解析不可信的 PDF」不能放在那个进程里。这个进程只做一件事——
+# 在自己的地址空间里打开 PDF、渲染页面，把图片路径回给主进程。
+qt_add_executable(PdfParseWorker
+    parse/main.cpp
+    parse/PdfParseServer.cpp
+    parse/PdfParseServer.h
+    ParentWatchdog.cpp
+    ParentWatchdog.h
+    ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/ipc/IpcProtocol.h
+)
+
+target_link_libraries(PdfParseWorker PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Network
+    ${AIPDF_PDFIUM_LIBRARY}
+)
+
+target_include_directories(PdfParseWorker PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/worker
+    ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+
+target_compile_definitions(PdfParseWorker PRIVATE AIPDF_VERSION="${PROJECT_VERSION}")
+
+# 控制台程序：出问题时 stderr 要能直接看到，不要 GUI 子系统吞掉。
+set_target_properties(PdfParseWorker PROPERTIES WIN32_EXECUTABLE FALSE)
+
+aipdf_deploy_qt_runtime(PdfParseWorker)
+aipdf_deploy_pdfium(PdfParseWorker)
+

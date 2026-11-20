@@ -1058,6 +1058,27 @@ bool AnnotationController::movePage(int from, int to) {
     return true;
 }
 
+bool AnnotationController::swapPages(int first, int second) {
+    if (!document_.isValid()) {
+        return false;
+    }
+    const int count = document_.pageCount();
+    if (first < 0 || first >= count || second < 0 || second >= count || first == second) {
+        return false;
+    }
+    // 一条命令而不是两次 movePage：连着搬两次会留下两条撤销记录，
+    // 用户按一次 Ctrl+Z 只回到中间态（换了一半）。交换是自身的逆，
+    // 所以撤销就是再做一次交换。
+    auto command = std::make_unique<doc::SwapPagesCommand>(first, second);
+    if (!undoStack_.push(std::move(command), this)) {
+        return false;
+    }
+    trace(QStringLiteral("page swap first=%1 second=%2 pages=%3")
+              .arg(first).arg(second).arg(pageCount()));
+    emit undoStateChanged();
+    return true;
+}
+
 int AnnotationController::pageCount() const {
     return document_.pageCount();
 }

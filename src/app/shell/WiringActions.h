@@ -100,6 +100,8 @@ public:
     void xfaFields();
     // R：插入 3D 模型 / 多媒体注解（只写结构，不渲染）。
     void insertRichMedia(bool preferThreeD = true);
+    // 页面内播放视频：把 MP4 挂成 /Screen 注解（PDF 2.0 媒体屏幕注解）。
+    void insertScreenMedia();
     // 查看并旋转文档里的 3D 模型：自研解码 U3D 静态网格 + 轨道相机渲染。
     void view3dModel();
     // 全文流式重排：把整篇按新的正文栏宽重新流排并写回。

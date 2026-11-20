@@ -190,6 +190,8 @@ public:
     bool rotatePage(int index, int quarterTurns);
     // 把第 from 页移动到第 to 页（to 是移动之后的目标下标）。
     bool movePage(int from, int to);
+    // 交换任意两页（一条命令，一步撤销）。
+    bool swapPages(int first, int second);
     // 用另一份文档里备份的一页替换当前页（可撤销）。
     bool replacePageWithBackup(int index, std::shared_ptr<doc::PageBackup> backup);
 

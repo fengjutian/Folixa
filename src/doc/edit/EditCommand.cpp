@@ -268,6 +268,9 @@ std::unique_ptr<EditCommand> createEditCommand(const QString& typeName) {
     if (typeName == QLatin1String("page.move")) {
         return std::make_unique<MovePageCommand>();
     }
+    if (typeName == QLatin1String("page.swap")) {
+        return std::make_unique<SwapPagesCommand>();
+    }
     return nullptr;
 }
 

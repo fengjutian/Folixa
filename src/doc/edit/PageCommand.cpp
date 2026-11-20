@@ -15,6 +15,7 @@ constexpr auto kTypeInsert = "page.insert";
 constexpr auto kTypeDelete = "page.delete";
 constexpr auto kTypeRotate = "page.rotate";
 constexpr auto kTypeMove = "page.move";
+constexpr auto kTypeSwap = "page.swap";
 
 constexpr auto kKeyType = "type";
 constexpr auto kKeyIndex = "index";
@@ -406,6 +407,97 @@ int MovePageCommand::from() const {
 
 int MovePageCommand::to() const {
     return to_;
+}
+
+
+// ------------------------------------------------------ SwapPagesCommand ----
+
+SwapPagesCommand::SwapPagesCommand(int first, int second) : first_(first), second_(second) {}
+
+QString SwapPagesCommand::typeName() const {
+    return QString::fromLatin1(kTypeSwap);
+}
+
+QString SwapPagesCommand::displayName() const {
+    return i18n::tr("aipdf::doc::PageCommand", "交换页面");
+}
+
+QByteArray SwapPagesCommand::serialize() const {
+    QJsonObject object;
+    object.insert(QString::fromLatin1(kKeyType), typeName());
+    object.insert(QString::fromLatin1(kKeyFrom), first_);
+    object.insert(QString::fromLatin1(kKeyTo), second_);
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+bool SwapPagesCommand::deserialize(const QByteArray& data, QString* error) {
+    QJsonObject object;
+    if (!parseCommandJson(data, typeName(), &object, error)) {
+        return false;
+    }
+    if (!object.value(QString::fromLatin1(kKeyFrom)).isDouble() ||
+        !object.value(QString::fromLatin1(kKeyTo)).isDouble()) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::doc::PageCommand", "交换页命令缺少页序号");
+        }
+        return false;
+    }
+    first_ = object.value(QString::fromLatin1(kKeyFrom)).toInt();
+    second_ = object.value(QString::fromLatin1(kKeyTo)).toInt();
+    if (first_ < 0 || second_ < 0 || first_ == second_) {
+        if (error != nullptr) {
+            *error = i18n::tr("aipdf::doc::PageCommand", "交换页命令的页序号不合法");
+        }
+        return false;
+    }
+    return true;
+}
+
+bool SwapPagesCommand::apply(EditContext* context) const {
+    PageOperations* pages = (context != nullptr) ? context->pages() : nullptr;
+    if (pages == nullptr) {
+        return false;
+    }
+    const int count = pages->pageCount();
+    if (first_ < 0 || first_ >= count || second_ < 0 || second_ >= count || first_ == second_) {
+        return false;
+    }
+    // 交换 = 两次搬移：
+    //   1) 把第二页搬到第一页的位置（第一页顺移到 first+1）；
+    //   2) 把（此时在 first+1 的）第一页搬到 second。
+    // 推导：原序列 [.., A(first), .., B(second), ..]
+    //   搬 1 后 [.., B(first), A(first+1), ..]
+    //   搬 2 把 A 从 first+1 挪到 second，中间那段自动补位
+    //   → [.., B(first), .., A(second), ..] 正是交换后的结果。
+    //
+    // 第二步失败时把第一步退回去：不能让文档停在「只搬了一半」的状态。
+    QVector<int> mapping;
+    const int low = qMin(first_, second_);
+    const int high = qMax(first_, second_);
+    if (!pages->movePage(high, low, &mapping)) {
+        return false;
+    }
+    // 搬完第一步：high 处的页到了 low，原来 low 的页到了 low+1。
+    if (!pages->movePage(low + 1, high, &mapping)) {
+        QVector<int> rollback;
+        pages->movePage(low, low + 1, &rollback);
+        return false;
+    }
+    context->pageStructureChanged(mapping);
+    return true;
+}
+
+bool SwapPagesCommand::revert(EditContext* context) const {
+    // 交换是自身的逆：换一次回去，再换一次就回来了。
+    return apply(context);
+}
+
+int SwapPagesCommand::first() const {
+    return first_;
+}
+
+int SwapPagesCommand::second() const {
+    return second_;
 }
 
 

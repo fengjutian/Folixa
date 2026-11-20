@@ -64,7 +64,7 @@ $stagingDir = Join-Path $OutputDir 'staging'
 $stage = Join-Path $stagingDir $packageName
 $zipPath = Join-Path $OutputDir "$packageName.zip"
 
-foreach ($required in @('AiPdfEditor.exe', 'PdfAiWorker.exe')) {
+foreach ($required in @('AiPdfEditor.exe', 'PdfAiWorker.exe', 'PdfParseWorker.exe')) {
     $path = Join-Path $binDir $required
     if (-not (Test-Path -LiteralPath $path)) {
         throw "缺少构建产物 $path，请先执行 cmake --build --preset windows-release"
@@ -85,6 +85,8 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Write-Host '==> 复制构建产物' -ForegroundColor Cyan
 Copy-Item -LiteralPath (Join-Path $binDir 'AiPdfEditor.exe') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $binDir 'PdfAiWorker.exe') -Destination $stage
+# 隔离解析进程：安全文档模式用它打开 PDF，主进程不接触文件内容。
+Copy-Item -LiteralPath (Join-Path $binDir 'PdfParseWorker.exe') -Destination $stage
 
 Write-Host '==> 复制 PDFium 运行库' -ForegroundColor Cyan
 $pdfiumDll = Join-Path $PdfiumRoot 'bin\pdfium.dll'

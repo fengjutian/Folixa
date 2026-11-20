@@ -324,6 +324,10 @@ RoleInferenceResult inferSemanticRoles(const QVector<SemanticBlock>& blocks) {
         int end = i;
         while (end + 1 < result.blocks.size()) {
             const SemanticBlock& next = result.blocks.at(end + 1);
+            // 跨页不合并：段落元素挂在**一页**的 Part 之下，
+            // 把两页的行并成一个元素，写回时那些行就无处安放
+            // （实测：多页文档自动打标签后会报「第 N 页有 M 处文字不归属任何语义元素」）。
+            if (next.pageIndex != block.pageIndex) break;
             if (next.tableCell || next.image || next.formField) break;
             if (!sameLeftEdge(block.rect, next.rect)) break;
             ListMarker nextMarker;

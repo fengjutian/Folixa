@@ -1,0 +1,6 @@
+function,reason
+refreshAfterDecoration,共享助手：内容改动后的重绘，由已经拦过的调用方调用；在这里再拦会弹两次所有者密码框
+recordContentEdit,共享助手：撤销记账，由已经拦过的调用方调用
+restoreContentSnapshot,共享助手：撤销回滚，由已经拦过的调用方调用
+detectTableDialog,只读检测：只把表格候选填进面板，真正写盘发生在用户确认后的另一条命令
+replaceDocumentBytes,通用写出口：被多条命令调用，各命令自己已经拦过

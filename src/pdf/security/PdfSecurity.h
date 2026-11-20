@@ -166,4 +166,48 @@ bool verifyOwnerPassword(const QByteArray& input,
                          const QString& password,
                          QString* error = nullptr);
 
+// ---------------------------------------------------------------- 权限管理
+
+// 一份文档的加密与权限现状。
+struct PdfPermissionState {
+    bool encrypted = false;
+    int revision = 0;   // /R：加密版本（6 = AES-256 / PDF 2.0）
+    int userBits = 0;   // /P：兼容用的权限位整数
+    // 读者实际会执行的权限。
+    //
+    // 为什么不信 /P：R6（AES-256）下权限的权威来源是 /Encrypt 字典里的
+    // **/Perms**（一段用用户密钥加密的权限块），/P 只是给老阅读器的兼容项。
+    // 实测（qpdf 12.4.2）：把 /P 单独改掉而不动 /Perms，qpdf 立刻报
+    // 「/Perms field in encryption dictionary doesn't match expected value」，
+    // 而且有效权限**一点没变**。所以权限必须整体重算，不能原地改一个整数。
+    PdfPermissions permissions;
+    bool ownerPasswordMatched = false;  // 这次给的口令是不是所有者口令
+};
+
+// 读一份文档的加密与权限现状。
+//
+// password 给的是**打开口令**（可以为空：加密但允许无口令打开的文档也读得了）。
+bool inspectPermissions(const QByteArray& input,
+                        const QString& password,
+                        PdfPermissionState* state,
+                        QString* error = nullptr);
+
+// 用所有者口令解密后，按新的权限位**重新加密**。
+//
+// 为什么必须「解密再重加密」，而不是直接改 /P：
+//   R6（AES-256）下 /P、/Perms、/O、/OE、/U、/UE 全部由口令派生、互相绑定。
+//   原地改 /P 只会让文件「/P 说一套、/Perms 说另一套」，读者要么忽略这次改动，
+//   要么判定文件不自洽。所以正确做法是：用所有者口令解开，再按新权限重新加密，
+//   让 qpdf 把这一整套重新算出来（/P 与 /Perms 同步，/O 与 /OE 也一并更新）。
+//
+// ownerPassword：所有者口令。既用来解开当前文档，也是新文档的所有者口令。
+// userPassword：新的打开口令，可以为空（空 = 无需口令即可打开，权限位仍然写入）。
+//
+// 失败返回空数组并写 error；成功返回重新加密后的完整 PDF 字节。
+QByteArray reencryptWithPermissions(const QByteArray& input,
+                                    const PdfPermissions& permissions,
+                                    const QString& ownerPassword,
+                                    const QString& userPassword,
+                                    QString* error = nullptr);
+
 }  // namespace aipdf::pdf

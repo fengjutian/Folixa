@@ -10,6 +10,7 @@
 #include "pdf/kernel/PdfiumAdapter.h"
 #include "pdf/security/PdfSecurity.h"
 #include "pdf/document/QpdfBackend.h"
+#include "pdf/document/EmbeddedFileMime.h"
 
 namespace aipdf::pdf {
 
@@ -208,6 +209,35 @@ SaveOutcome DocumentWriter::save(const PdfDocument& document, const QString& tar
             }
             bytes = plain;
         }
+    }
+
+    // 文档级附件的 MIME 类型：PDFium 的嵌入文件接口写不进 /Subtype（实测限制），
+    // 这里用 qpdf 补上。**必须在加密之前做**——补完再加密，加密才盖得住它；
+    // 反过来的话，加密后的字节 qpdf 读不了，类型就永远补不上。
+    //
+    // 补不上不是保存失败：这是「锦上添花」，不能因为补个类型就拦住用户存盘。
+    // 原来加密、且用户没改加密设置的那条路这里跳过——那种情况下字节仍是加密的，
+    // 读它要密码，写回还要保住原加密设置（本仓库拿不到原所有者口令）。
+    if (!requiresPasswordToOpen(bytes, nullptr)) {
+        EmbeddedFileMimeReport mimeReport;
+        QString mimeError;
+        const QByteArray withMime = applyEmbeddedFileMimeTypes(bytes, &mimeReport, &mimeError);
+        if (!withMime.isEmpty()) {
+            bytes = withMime;
+        }
+        if (mimeReport.patched > 0) {
+            outcome.warning = outcome.warning.isEmpty()
+                                  ? i18n::tr("aipdf::pdf::DocumentWriter",
+                                             "已给 %1 个文档级附件补上 MIME 类型")
+                                             .arg(mimeReport.patched)
+                                  : outcome.warning + QStringLiteral("；") +
+                                        i18n::tr("aipdf::pdf::DocumentWriter",
+                                                 "已给 %1 个文档级附件补上 MIME 类型")
+                                             .arg(mimeReport.patched);
+        }
+    }
+
+    if (encryption != nullptr) {
         QString encryptionError;
         bytes = encryptPdf(bytes, *encryption, &encryptionError);
         if (bytes.isEmpty()) {

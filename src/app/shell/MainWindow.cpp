@@ -11,6 +11,7 @@
 #include "app/editor/PdfView.h"
 #include "app/dialogs/RegionPicker.h"
 #include "app/dialogs/RecordingCenterDialog.h"
+#include "app/dialogs/SafeDocumentViewerDialog.h"
 #include "app/controllers/ScreenCapture.h"
 #include "app/controllers/AudioRecorder.h"
 #include "app/recording/ScreenRecorder.h"
@@ -22,6 +23,7 @@
 #include "app/controllers/DigitalSignatureBackend.h"
 #include "app/controllers/ExternalProcessTask.h"
 #include "app/controllers/OfdBatchConverter.h"
+#include "app/controllers/OfdConverters.h"
 #include "app/panels/IndexPanel.h"
 #include "app/panels/AttachmentPanel.h"
 #include "app/controllers/IndexController.h"
@@ -636,6 +638,20 @@ void MainWindow::buildUi() {
         }
         view->configureEncryptionDialog();
     });
+    // 权限管理：事后单独改权限位（用所有者口令解密后重新加密）。
+    auto* permissionPanelAction = appMenu->addAction(QString());
+    texts_.bind([this, permissionPanelAction] {
+        permissionPanelAction->setText(tr("权限管理…"));
+    });
+    permissionPanelAction->setObjectName(QStringLiteral("securityPermissionPanel"));
+    connect(permissionPanelAction, &QAction::triggered, this, [this] {
+        PdfView* view = currentView();
+        if (view == nullptr) {
+            statusBar()->showMessage(tr("先打开一份 PDF"), 5000);
+            return;
+        }
+        view->managePermissions();
+    });
     // AI 文档操作（v0.14.0）：只读扫描 → 生成提案 → 用户确认 → 走命令系统。
     // 这条路径上没有任何一步能绕过确认框。
     auto* blankAction = appMenu->addAction(QString());
@@ -1233,6 +1249,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(pageGroup, "交换", "与下一页交换", ":/icons/move-down.svg", [this] {
         if (auto* view = currentView()) { view->swapCurrentWithNext(); }
     }, true, "ribbonSwap");
+    addRibbonCommand(pageGroup, "交换两页", "交换任意两页", ":/icons/move-down.svg", [this] {
+        if (auto* view = currentView()) { view->swapPagesDialog(); }
+    }, true, "ribbonSwapPages");
     addRibbonCommand(pageGroup, "逆序", "整篇页面逆序", ":/icons/pages.svg", [this] {
         if (auto* view = currentView()) { view->reversePages(); }
     }, true, "ribbonReverse");    auto* assemblyGroup = ribbonBar_->addGroup(pageTab, tr("组装"));
@@ -1482,6 +1501,11 @@ void MainWindow::buildUi() {
                      ":/icons/protect.svg", [this] {
         if (auto* view = currentView()) view->redactionModeDialog();
     }, true, "ribbonRedactionModes");
+    // 安全文档：PDF 的解析与渲染都发生在**独立进程**里，主进程不打开这个文件。
+    // 代价是只读：编辑需要主进程持有文档句柄，而安全模式恰恰不持有。
+    addRibbonCommand(securityGroup, "打开安全文档", "在隔离进程里只读打开 PDF（本进程不接触它的内容）",
+                     ":/icons/protect.svg", [this] { openSafeDocument(); },
+                     true, "protect.safeDocument");
     // 批量加密：给一个目录里的 PDF 逐个加打开密码，语义与单文档加密完全一致。
     auto* protectDocumentGroup = ribbonBar_->addGroup(protectTab, tr("文档"));
     addRibbonCommand(protectDocumentGroup, "批量加密", "给一个目录里的 PDF 批量加打开密码",
@@ -1820,6 +1844,14 @@ void MainWindow::buildUi() {
                      ":/icons/annotation.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->insertRichMedia(false); }
     }, true, "edit.insertMedia");
+    // 页面内播放：写 /Screen 注解（PDF 2.0 媒体屏幕注解）+ 嵌入 MP4。
+    // 与「插入多媒体」的 /RichMedia 不同：/Screen 是 PDF 标准里的媒体屏幕注解，
+    // 但只接受 MP4（H.264/AAC）——仓库录制器产出的 AVI 阅读器不播。
+    addRibbonCommand(insertEditGroup, "页面内播放视频",
+                     "把 MP4 挂成页面内可播放的媒体注解（只认 MP4 / H.264 / AAC）",
+                     ":/icons/annotation.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->insertScreenMedia(); }
+    }, true, "edit.insertScreenMedia");
     QToolButton* addShapeButton = addRibbonCommand(
         insertEditGroup, "添加形状", "选择形状后在页面上绘制", ":/icons/square.svg",
         [this] {
@@ -5014,6 +5046,7 @@ void MainWindow::updatePermissionActionState() {
         } else if (name.startsWith(QStringLiteral("permission.page")) ||
                    name == QStringLiteral("ribbonDuplicate") ||
                    name == QStringLiteral("ribbonSwap") ||
+                   name == QStringLiteral("ribbonSwapPages") ||
                    name == QStringLiteral("ribbonReverse") ||
                    name == QStringLiteral("ribbonExtractRange") ||
                    name == QStringLiteral("ribbonExtractCurrent") ||
@@ -6046,16 +6079,68 @@ void MainWindow::convertDocument(ConversionKind kind) {
     task->start(plan.program, plan.arguments, 10 * 60 * 1000);
 }
 
+void MainWindow::openSafeDocument() {
+    // 关键：这里**不打开**这个文件。选完路径就把字符串交给隔离进程，
+    // 本进程一个字节都不碰 —— 这正是「安全文档」与普通打开的区别。
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("在隔离进程中打开（只读）"), QString(), tr("PDF 文件 (*.pdf)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    auto* dialog = new app::SafeDocumentViewerDialog(path, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->exec();
+}
+
 void MainWindow::batchConvertOfd() {
+    // 先把上次记下的路径与哈希读出来，**再**去改设置。
+    //
+    // 顺序反了会误报：用户在下面刚挑了一个新转换器，设置里已经写成新路径了，
+    // 这时再读「上次的路径」读到的就是新路径，与旧哈希一比就成了「文件被换过」，
+    // 用户白白被问一句「还要不要用它」。
+    const QString rememberedPath =
+        QSettings().value(QStringLiteral("documentManagement/ofdConverter")).toString();
+    const QString rememberedHash =
+        QSettings().value(QStringLiteral("documentManagement/ofdConverterSha256")).toString();
+
     QString converter = QStandardPaths::findExecutable(QStringLiteral("ofd2pdf"));
-    if (converter.isEmpty()) converter = QSettings().value(QStringLiteral("documentManagement/ofdConverter")).toString();
+    if (converter.isEmpty()) converter = rememberedPath;
     if (converter.isEmpty() || !QFileInfo::exists(converter)) {
         converter = QFileDialog::getOpenFileName(this, tr("选择 OFD 转 PDF 工具"), QString(), tr("可执行文件 (*.exe)"));
         if (converter.isEmpty()) return;
         QSettings().setValue(QStringLiteral("documentManagement/ofdConverter"), converter);
     }
+
+    // 认出是支持列表里的哪一个转换器：不同转换器的命令行约定不一样
+    // （ofd2pdf 只收输入，ofd-converter 收 `-format pdf <输入> <输出>`），
+    // 认错了参数就会转换失败或把文件写到意料之外的地方。
+    const OfdConverterProfile profile = ofdConverterProfileFor(converter);
+    const QString converterLabel =
+        profile.id.isEmpty()
+            ? tr("自定义 OFD 转换器（按「输入 输出」调用）：%1").arg(converter)
+            : tr("OFD 转换器：%1（%2）").arg(profile.displayName, converter);
+
+    // 哈希复核：这个程序要**执行**用户指定的外部可执行文件。
+    // 记下首次使用时的 SHA-256，之后每次复核；文件被换过就把变化摆到用户面前。
+    const OfdConverterIntegrityResult integrity =
+        checkOfdConverterIntegrity(converter, rememberedPath, rememberedHash);
+    if (integrity.status == OfdConverterIntegrity::Changed) {
+        const QMessageBox::StandardButton answer = QMessageBox::warning(
+            this, tr("OFD 转换器已变化"),
+            integrity.message + QStringLiteral("\n\n") + tr("仍要使用它吗？"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes) {
+            return;
+        }
+    }
+    if (integrity.status == OfdConverterIntegrity::FirstUse) {
+        QSettings().setValue(QStringLiteral("documentManagement/ofdConverter"), converter);
+        QSettings().setValue(QStringLiteral("documentManagement/ofdConverterSha256"), integrity.sha256);
+    }
+
     const QStringList files = QFileDialog::getOpenFileNames(this, tr("选择 OFD 文件"), QString(), tr("OFD 文件 (*.ofd *.OFD)"));
     if (files.isEmpty()) return;
+    statusBar()->showMessage(converterLabel, 5000);
     auto* progress = new QProgressDialog(
         tr("正在转换 OFD 文件…"), tr("取消"), 0, files.size(), this);
     progress->setAttribute(Qt::WA_DeleteOnClose);

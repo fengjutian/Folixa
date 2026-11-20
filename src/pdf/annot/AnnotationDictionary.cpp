@@ -1,5 +1,7 @@
 #include "pdf/annot/AnnotationDictionary.h"
 
+#include "pdf/kernel/MimeTypes.h"
+
 #include <QChar>
 #include <QFileInfo>
 
@@ -272,40 +274,6 @@ QByteArray typeSpecificExtras(const Annotation& annotation) {
 
 QByteArray annotationTextString(const QString& text) {
     return textString(text);
-}
-
-QByteArray mimeTypeForFileName(const QString& fileName) {
-    // 后缀一律小写再比对：Windows 上文件名大小写不固定，按原样比对会漏掉一半。
-    const QString suffix = QFileInfo(fileName).suffix().toLower();
-    struct Entry {
-        const char* suffix;
-        const char* mime;
-    };
-    // 只收认得出的类型；表里没有的一律走 application/octet-stream。
-    static const Entry kTable[] = {
-        {"avi", "video/x-msvideo"},
-        {"mp4", "video/mp4"},
-        {"mov", "video/quicktime"},
-        {"webm", "video/webm"},
-        {"mkv", "video/x-matroska"},
-        {"wav", "audio/wav"},
-        {"mp3", "audio/mpeg"},
-        {"m4a", "audio/mp4"},
-        {"wma", "audio/x-ms-wma"},
-        {"ogg", "audio/ogg"},
-        {"flac", "audio/flac"},
-        {"pdf", "application/pdf"},
-        {"txt", "text/plain"},
-        {"png", "image/png"},
-        {"jpg", "image/jpeg"},
-        {"jpeg", "image/jpeg"},
-    };
-    for (const auto& entry : kTable) {
-        if (suffix == QLatin1String(entry.suffix)) {
-            return QByteArray(entry.mime);
-        }
-    }
-    return QByteArray("application/octet-stream");
 }
 
 }  // namespace aipdf::pdf

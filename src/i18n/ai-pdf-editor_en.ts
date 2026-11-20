@@ -864,6 +864,10 @@
             <source>阿里云百炼的兼容模式，密钥在百炼控制台创建。</source>
             <translation>Alibaba Cloud Bailian compatibility mode; create the key in the Bailian console.</translation>
         </message>
+        <message>
+            <source>配置文件写不进去，检查 %1 是否可写。</source>
+            <translation>Could not write the configuration file. Check that %1 is writable.</translation>
+        </message>
     </context>
     <context>
         <name>aipdf::app::AnnotationController</name>
@@ -3527,6 +3531,74 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
             <source>先打开一份 PDF。</source>
             <translation>Open a PDF first.</translation>
         </message>
+        <message>
+            <source>自定义 OFD 转换器（按「输入 输出」调用）：%1</source>
+            <translation>Custom OFD converter (called as "input output"): %1</translation>
+        </message>
+        <message>
+            <source>OFD 转换器：%1（%2）</source>
+            <translation>OFD converter: %1 (%2)</translation>
+        </message>
+        <message>
+            <source>OFD 转换器已变化</source>
+            <translation>The OFD converter has changed</translation>
+        </message>
+        <message>
+            <source>仍要使用它吗？</source>
+            <translation>Use it anyway?</translation>
+        </message>
+        <message>
+            <source>打印队列</source>
+            <translation>Print queue</translation>
+        </message>
+        <message>
+            <source>数字签名进程超时。</source>
+            <translation>The digital signing process timed out.</translation>
+        </message>
+        <message>
+            <source>正在验证数字签名…</source>
+            <translation>Verifying digital signatures…</translation>
+        </message>
+        <message>
+            <source>添加多份 PDF，统一设置份数和页码范围，再进入系统打印设置。</source>
+            <translation>Add several PDFs, set copies and page ranges together, then continue to the system print settings.</translation>
+        </message>
+        <message>
+            <source>签名验证已取消。</source>
+            <translation>Signature verification was canceled.</translation>
+        </message>
+        <message>
+            <source>继续打印</source>
+            <translation>Continue printing</translation>
+        </message>
+        <message>
+            <source>转换进程超时。</source>
+            <translation>The conversion process timed out.</translation>
+        </message>
+        <message>
+            <source>透明度</source>
+            <translation>Opacity</translation>
+        </message>
+        <message>
+            <source>MP4 视频 (*.mp4)</source>
+            <translation>MP4 video (*.mp4)</translation>
+        </message>
+        <message>
+            <source>在隔离进程中打开（只读）</source>
+            <translation>Open in an isolated process (read-only)</translation>
+        </message>
+        <message>
+            <source>已写入页面内播放的视频（%1）。阅读器需支持媒体注解才能在页面里放出来。</source>
+            <translation>Wrote the in-page video (%1). A reader with media annotation support is needed to play it inside the page.</translation>
+        </message>
+        <message>
+            <source>权限管理…</source>
+            <translation>Permission management…</translation>
+        </message>
+        <message>
+            <source>页面内播放视频</source>
+            <translation>Play video in page</translation>
+        </message>
 </context>
         <context>
         <name>aipdf::app::MediaPreview</name>
@@ -5711,6 +5783,170 @@ Write them into the document?</translation>
             <source>删除附件</source>
             <translation>Delete attachment</translation>
         </message>
+        <message>
+            <source>交换页面</source>
+            <translation>Swap pages</translation>
+        </message>
+        <message>
+            <source>修改文档属性</source>
+            <translation>Change document properties</translation>
+        </message>
+        <message>
+            <source>写入阅读顺序</source>
+            <translation>Write the reading order</translation>
+        </message>
+        <message>
+            <source>只有一页，没有可交换的另一页</source>
+            <translation>There is only one page, so there is no other page to swap with.</translation>
+        </message>
+        <message>
+            <source>同一页不用交换</source>
+            <translation>A page does not need to be swapped with itself.</translation>
+        </message>
+        <message>
+            <source>复制页面</source>
+            <translation>Duplicate page</translation>
+        </message>
+        <message>
+            <source>密文模式</source>
+            <translation>Cipher mode</translation>
+        </message>
+        <message>
+            <source>执行文档动作</source>
+            <translation>Run a document action</translation>
+        </message>
+        <message>
+            <source>插入交叉引用</source>
+            <translation>Insert a cross-reference</translation>
+        </message>
+        <message>
+            <source>插入文字批注</source>
+            <translation>Insert a text annotation</translation>
+        </message>
+        <message>
+            <source>插入生成图片</source>
+            <translation>Insert a generated image</translation>
+        </message>
+        <message>
+            <source>文档权限禁止修改阅读顺序。</source>
+            <translation>The document permissions forbid changing the reading order.</translation>
+        </message>
+        <message>
+            <source>文档权限禁止执行这个动作。</source>
+            <translation>The document permissions forbid running this action.</translation>
+        </message>
+        <message>
+            <source>替换图片</source>
+            <translation>Replace image</translation>
+        </message>
+        <message>
+            <source>查找替换</source>
+            <translation>Find and replace</translation>
+        </message>
+        <message>
+            <source>添加贝茨编号</source>
+            <translation>Add Bates numbering</translation>
+        </message>
+        <message>
+            <source>添加页眉页脚</source>
+            <translation>Add header and footer</translation>
+        </message>
+        <message>
+            <source>添加页码</source>
+            <translation>Add page numbers</translation>
+        </message>
+        <message>
+            <source>要交换的第一页:</source>
+            <translation>First page to swap:</translation>
+        </message>
+        <message>
+            <source>要交换的第二页:</source>
+            <translation>Second page to swap:</translation>
+        </message>
+        <message>
+            <source>设置页面背景</source>
+            <translation>Set the page background</translation>
+        </message>
+        <message>
+            <source>识别网络链接</source>
+            <translation>Detect web links</translation>
+        </message>
+        <message>
+            <source>逆序页面</source>
+            <translation>Reverse pages</translation>
+        </message>
+        <message>
+            <source>页面标签</source>
+            <translation>Page labels</translation>
+        </message>
+        <message>
+            <source>
+
+（显示的是结构树里的语义元素顺序；读屏软件按这个顺序念。）</source>
+            <translation>
+
+(This shows the semantic element order in the structure tree; a screen reader speaks it in this order.)</translation>
+        </message>
+        <message>
+            <source>会按「从上到下、从左到右」的顺序给整篇文档重建一份**语义**标签树（标题 / 段落 / 列表 / 表格 / 图 / 表单域）。页面外观不变，读屏软件会按这个顺序念。
+
+这一步与「辅助工具 → 标签 → 自动添加文档标签」做的是同一件事：它按视觉顺序重建整棵语义树，手工调过的顺序会被这次重建覆盖。继续吗？</source>
+            <translation>This rebuilds a semantic tag tree for the whole document in top-to-bottom, left-to-right order (headings / paragraphs / lists / tables / figures / form fields). The pages look the same, but a screen reader speaks them in this order.
+
+This is the same thing as “Auxiliary tools → Tags → Auto-tag document”: it rebuilds the whole semantic tree in visual order, so a hand-tuned order is overwritten by this rebuild. Continue?</translation>
+        </message>
+        <message>
+            <source>修改权限</source>
+            <translation>Change permissions</translation>
+        </message>
+        <message>
+            <source>已把第 %1 页的语义阅读顺序写进结构树</source>
+            <translation>Wrote the semantic reading order of page %1 into the structure tree</translation>
+        </message>
+        <message>
+            <source>已按默认顺序写好语义标签树</source>
+            <translation>Wrote the semantic tag tree in the default order</translation>
+        </message>
+        <message>
+            <source>本次构建没有启用 qpdf，改不了权限位。请用带 qpdf 的安装包。</source>
+            <translation>This build has no qpdf, so the permission bits cannot be changed. Please use an installation that includes qpdf.</translation>
+        </message>
+        <message>
+            <source>权限已更新，文档已用新的权限位重新加密。</source>
+            <translation>Permissions updated; the document was re-encrypted with the new permission bits.</translation>
+        </message>
+        <message>
+            <source>权限管理</source>
+            <translation>Permission management</translation>
+        </message>
+        <message>
+            <source>第 %1 页：%2 个语义元素</source>
+            <translation>Page %1: %2 semantic elements</translation>
+        </message>
+        <message>
+            <source>请先保存当前修改，再改权限：权限是针对磁盘上这份文件改的。</source>
+            <translation>Save the current changes first: permissions are changed in the file on disk.</translation>
+        </message>
+        <message>
+            <source>读不出这份文档的加密信息。</source>
+            <translation>Cannot read the encryption information of this document.</translation>
+        </message>
+        <message>
+            <source>这一页没有语义元素。</source>
+            <translation>This page has no semantic elements.</translation>
+        </message>
+        <message>
+            <source>这份文档还没有保存到磁盘：权限位写在加密字典里，得先存成文件才能改。</source>
+            <translation>This document has not been saved to disk yet: the permission bits live in the encryption dictionary, so the file has to exist before they can be changed.</translation>
+        </message>
+        <message>
+            <source>这份文档还没有加密。请先用「加密与权限」启用加密，再来设置权限位。</source>
+            <translation>This document is not encrypted yet. Enable encryption with “Encryption and permissions” first, then set the permission bits.</translation>
+        </message>
+        <message>
+            <source>这份文档里还没有语义标签树。先运行「辅助工具 → 标签 → 自动添加文档标签」，再回来调整顺序。</source>
+            <translation>This document has no semantic tag tree yet. Run “Auxiliary tools → Tags → Auto-tag document” first, then come back to adjust the order.</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -6153,6 +6389,18 @@ Write them into the document?</translation>
         <message>
             <source>页面命令类型不匹配</source>
             <translation>The page command type does not match</translation>
+        </message>
+        <message>
+            <source>交换页命令的页序号不合法</source>
+            <translation>The swap-pages command has invalid page numbers</translation>
+        </message>
+        <message>
+            <source>交换页命令缺少页序号</source>
+            <translation>The swap-pages command is missing page numbers</translation>
+        </message>
+        <message>
+            <source>交换页面</source>
+            <translation>Swap pages</translation>
         </message>
     </context>
     <context>
@@ -6618,6 +6866,10 @@ Write them into the document?</translation>
         <message>
             <source>文档序列化失败</source>
             <translation>Failed to serialize the document</translation>
+        </message>
+        <message>
+            <source>已给 %1 个文档级附件补上 MIME 类型</source>
+            <translation>Added MIME types to %1 document-level attachment(s)</translation>
         </message>
     </context>
     <context>
@@ -7414,6 +7666,14 @@ Write them into the document?</translation>
         <message>
             <source>安装语言包…</source>
             <translation>Install Language Pack…</translation>
+        </message>
+        <message>
+            <source>AI 设置保存失败</source>
+            <translation>Failed to save the AI settings</translation>
+        </message>
+        <message>
+            <source>配置全局 AI 服务、模型、数据范围和安全凭据。</source>
+            <translation>Configure the global AI services, models, data scope and credentials.</translation>
         </message>
     </context>
     <context>
@@ -9399,6 +9659,22 @@ Notes: %1</translation></message>
                 <translation>Cancel</translation>
             </message>
             <message>
+                <source>全选</source>
+                <translation>Select all</translation>
+            </message>
+            <message>
+                <source>全不选</source>
+                <translation>Clear all</translation>
+            </message>
+            <message>
+                <source>勾上这份文档里所有存在的类别，包括签名、表单已填值与嵌入文件本体。</source>
+                <translation>Check every category that exists in this document, including signatures, filled form values and embedded file payloads.</translation>
+            </message>
+            <message>
+                <source>取消所有勾选，什么都不清。</source>
+                <translation>Uncheck everything; nothing will be cleaned.</translation>
+            </message>
+            <message>
                 <source>勾掉要清理的类别。页面正文、可见批注和表单域结构都会保留；嵌入文件与附件默认不勾，勾了才会删。</source>
                 <translation>Uncheck the categories to clean. Page content, visible annotations and form structure are kept; embedded files and attachments are unchecked by default and are only removed if you check them.</translation>
             </message>
@@ -10057,6 +10333,494 @@ If you need to keep the signatures, do not modify and save this file again after
         <message>
             <source>页面布局</source>
             <translation>Page layout</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainWindow</name>
+        <message>
+            <source>正在转换：%1</source>
+            <translation>Converting: %1</translation>
+        </message>
+    </context>
+
+    <context>
+        <name>aipdf::app::SignatureWorkflowDialog</name>
+        <message>
+            <source>中止</source>
+            <translation>Abort</translation>
+        </message>
+        <message>
+            <source>中止必须写理由。</source>
+            <translation>Aborting requires a reason.</translation>
+        </message>
+        <message>
+            <source>中止流程</source>
+            <translation>Workflow aborted</translation>
+        </message>
+        <message>
+            <source>中止理由（必填）</source>
+            <translation>Reason for aborting (required)</translation>
+        </message>
+        <message>
+            <source>做了什么</source>
+            <translation>Action</translation>
+        </message>
+        <message>
+            <source>先选中要删除的签署人。</source>
+            <translation>Select the signatory to remove first.</translation>
+        </message>
+        <message>
+            <source>写不了这个文件。</source>
+            <translation>Cannot write this file.</translation>
+        </message>
+        <message>
+            <source>创建流程</source>
+            <translation>Workflow created</translation>
+        </message>
+        <message>
+            <source>创建签署流程失败。</source>
+            <translation>Failed to create the signing workflow.</translation>
+        </message>
+        <message>
+            <source>删除签署人</source>
+            <translation>Remove signatory</translation>
+        </message>
+        <message>
+            <source>发起人</source>
+            <translation>Initiator</translation>
+        </message>
+        <message>
+            <source>复制到剪贴板</source>
+            <translation>Copy to clipboard</translation>
+        </message>
+        <message>
+            <source>姓名</source>
+            <translation>Name</translation>
+        </message>
+        <message>
+            <source>完成</source>
+            <translation>Done</translation>
+        </message>
+        <message>
+            <source>完成流程</source>
+            <translation>Workflow completed</translation>
+        </message>
+        <message>
+            <source>导出为文本文件</source>
+            <translation>Export as text file</translation>
+        </message>
+        <message>
+            <source>导出签署报告</source>
+            <translation>Export signing report</translation>
+        </message>
+        <message>
+            <source>已中止</source>
+            <translation>Aborted</translation>
+        </message>
+        <message>
+            <source>已完成</source>
+            <translation>Completed</translation>
+        </message>
+        <message>
+            <source>已拒签</source>
+            <translation>Rejected</translation>
+        </message>
+        <message>
+            <source>已签署</source>
+            <translation>Signed</translation>
+        </message>
+        <message>
+            <source>已跳过</source>
+            <translation>Skipped</translation>
+        </message>
+        <message>
+            <source>开始签署</source>
+            <translation>Start signing</translation>
+        </message>
+        <message>
+            <source>开始签署流程</source>
+            <translation>Signing started</translation>
+        </message>
+        <message>
+            <source>待签署</source>
+            <translation>Pending</translation>
+        </message>
+        <message>
+            <source>拒签</source>
+            <translation>Rejected</translation>
+        </message>
+        <message>
+            <source>拒签必须写理由。</source>
+            <translation>Rejecting requires a reason.</translation>
+        </message>
+        <message>
+            <source>拒签理由（必填）</source>
+            <translation>Reason for rejection (required)</translation>
+        </message>
+        <message>
+            <source>操作没有成功。</source>
+            <translation>The operation did not succeed.</translation>
+        </message>
+        <message>
+            <source>文本文件 (*.txt)</source>
+            <translation>Text files (*.txt)</translation>
+        </message>
+        <message>
+            <source>新增签署人</source>
+            <translation>Signatory added</translation>
+        </message>
+        <message>
+            <source>时间</source>
+            <translation>Time</translation>
+        </message>
+        <message>
+            <source>查看签署报告</source>
+            <translation>View signing report</translation>
+        </message>
+        <message>
+            <source>标记已签</source>
+            <translation>Mark as signed</translation>
+        </message>
+        <message>
+            <source>标记拒签</source>
+            <translation>Mark as rejected</translation>
+        </message>
+        <message>
+            <source>标题</source>
+            <translation>Title</translation>
+        </message>
+        <message>
+            <source>添加签署人</source>
+            <translation>Add signatory</translation>
+        </message>
+        <message>
+            <source>状态</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <source>签署人 %1 不能删除：签署记录要保留完整名单。</source>
+            <translation>Signatory %1 cannot be removed: the signing record keeps the full list.</translation>
+        </message>
+        <message>
+            <source>签署人名单</source>
+            <translation>Signatories</translation>
+        </message>
+        <message>
+            <source>签署完成</source>
+            <translation>Signed</translation>
+        </message>
+        <message>
+            <source>签署报告</source>
+            <translation>Signing report</translation>
+        </message>
+        <message>
+            <source>签署流程</source>
+            <translation>Signing workflow</translation>
+        </message>
+        <message>
+            <source>签署记录</source>
+            <translation>Signing record</translation>
+        </message>
+        <message>
+            <source>联系方式</source>
+            <translation>Contact</translation>
+        </message>
+        <message>
+            <source>自动</source>
+            <translation>Auto</translation>
+        </message>
+        <message>
+            <source>草稿</source>
+            <translation>Draft</translation>
+        </message>
+        <message>
+            <source>说明</source>
+            <translation>Description</translation>
+        </message>
+        <message>
+            <source>谁</source>
+            <translation>Who</translation>
+        </message>
+        <message>
+            <source>跳过</source>
+            <translation>Skip</translation>
+        </message>
+        <message>
+            <source>跳过签署</source>
+            <translation>Skipped</translation>
+        </message>
+        <message>
+            <source>进行中</source>
+            <translation>In progress</translation>
+        </message>
+        <message>
+            <source>顺序</source>
+            <translation>Order</translation>
+        </message>
+        <message>
+            <source>（还没有签署人）</source>
+            <translation>(No signatories yet)</translation>
+        </message>
+        <message>
+            <source>（还没有签署记录）</source>
+            <translation>(No signing records yet)</translation>
+        </message>
+    </context>
+
+    <context>
+        <name>aipdf::app::PermissionPanelDialog</name>
+        <message>
+            <source>允许其它修改</source>
+            <translation>Allow other modifications</translation>
+        </message>
+        <message>
+            <source>允许填写表单</source>
+            <translation>Allow filling in forms</translation>
+        </message>
+        <message>
+            <source>允许复制文本与图片</source>
+            <translation>Allow copying text and images</translation>
+        </message>
+        <message>
+            <source>允许打印</source>
+            <translation>Allow printing</translation>
+        </message>
+        <message>
+            <source>允许插入、删除、旋转页面</source>
+            <translation>Allow inserting, deleting and rotating pages</translation>
+        </message>
+        <message>
+            <source>允许无障碍工具提取内容（PDF 2.0 规定始终允许，不能关闭）</source>
+            <translation>Allow accessibility tools to extract content (PDF 2.0 always allows this; it cannot be turned off)</translation>
+        </message>
+        <message>
+            <source>允许添加批注</source>
+            <translation>Allow adding annotations</translation>
+        </message>
+        <message>
+            <source>允许高质量打印</source>
+            <translation>Allow high-quality printing</translation>
+        </message>
+        <message>
+            <source>取消</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>所有者口令不能为空：它用来解开这份文档。</source>
+            <translation>The owner password cannot be empty: it is used to decrypt this document.</translation>
+        </message>
+        <message>
+            <source>所有者口令（用来解开文档，也是改完后的所有者口令）</source>
+            <translation>Owner password (used to decrypt the document, and kept as the owner password)</translation>
+        </message>
+        <message>
+            <source>打开口令不能与所有者口令相同：两者相同时，拿到打开口令的人就是所有者，权限限制形同虚设。</source>
+            <translation>The open password must differ from the owner password: when they are the same, anyone who can open the document is the owner and the restrictions mean nothing.</translation>
+        </message>
+        <message>
+            <source>打开口令不能与所有者口令相同：那样任何拿到打开口令的人都能绕过权限限制。</source>
+            <translation>The open password must differ from the owner password: otherwise anyone who has it can bypass the permission restrictions.</translation>
+        </message>
+        <message>
+            <source>改权限会用所有者口令把文档解开、再按新的权限位重新加密（PDF 2.0 / AES-256）。文档内容不会变；所有者口令保持不变。</source>
+            <translation>Changing permissions decrypts the document with the owner password and re-encrypts it with the new permission bits (PDF 2.0 / AES-256). The content does not change and the owner password stays the same.</translation>
+        </message>
+        <message>
+            <source>新的打开口令（留空表示打开不需要口令）</source>
+            <translation>New open password (leave empty to open without a password)</translation>
+        </message>
+        <message>
+            <source>权限管理</source>
+            <translation>Permission management</translation>
+        </message>
+        <message>
+            <source>确定</source>
+            <translation>OK</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::SafeDocumentViewerDialog</name>
+        <message>
+            <source>上一页</source>
+            <translation>Previous page</translation>
+        </message>
+        <message>
+            <source>下一页</source>
+            <translation>Next page</translation>
+        </message>
+        <message>
+            <source>共 %1 页</source>
+            <translation>%1 pages in total</translation>
+        </message>
+        <message>
+            <source>安全文档（隔离解析）</source>
+            <translation>Safe document (isolated parsing)</translation>
+        </message>
+        <message>
+            <source>已在隔离进程中打开，共 %1 页。</source>
+            <translation>Opened in an isolated process, %1 pages in total.</translation>
+        </message>
+        <message>
+            <source>打开密码</source>
+            <translation>Open password</translation>
+        </message>
+        <message>
+            <source>渲染出来的图片读不出来。</source>
+            <translation>The rendered image cannot be read.</translation>
+        </message>
+        <message>
+            <source>用密码重试</source>
+            <translation>Retry with a password</translation>
+        </message>
+        <message>
+            <source>这一页渲染失败。</source>
+            <translation>Failed to render this page.</translation>
+        </message>
+        <message>
+            <source>隔离解析进程没能打开这个文件。</source>
+            <translation>The isolated parsing process could not open this file.</translation>
+        </message>
+        <message>
+            <source>隔离进程中解析：本进程不打开这个 PDF；页面由独立进程渲染。当前为只读，不能编辑。</source>
+            <translation>Parsed in an isolated process: this process never opens the PDF; the pages are rendered by a separate process. Read-only — editing is not available.</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::SemanticOrderDialog</name>
+        <message>
+            <source>%1：%2</source>
+            <translation>%1: %2</translation>
+        </message>
+        <message>
+            <source>上移</source>
+            <translation>Move up</translation>
+        </message>
+        <message>
+            <source>下移</source>
+            <translation>Move down</translation>
+        </message>
+        <message>
+            <source>下面是文档语义树里的内容元素（标题 / 段落 / 列表 / 表格 / 图）。调整先后后写进 PDF 的结构树，读屏软件会按这个顺序念。跨页移动不支持，只能在同一页内调整。</source>
+            <translation>Below are the content elements of the document's semantic tree (headings / paragraphs / lists / tables / figures). Reorder them and the order is written into the PDF structure tree, which is the order a screen reader speaks. Moving elements across pages is not supported; they can only be reordered within one page.</translation>
+        </message>
+        <message>
+            <source>写入</source>
+            <translation>Write</translation>
+        </message>
+        <message>
+            <source>取消</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>第 %1 页</source>
+            <translation>Page %1</translation>
+        </message>
+        <message>
+            <source>语义元素的数量变了，不能写回（会丢掉内容）。</source>
+            <translation>The number of semantic elements changed, so nothing was written back (that would lose content).</translation>
+        </message>
+        <message>
+            <source>语义阅读顺序</source>
+            <translation>Semantic reading order</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::pdf::SemanticReadingOrder</name>
+        <message>
+            <source>内容流里 MCID %1 出现了两次，无法确定它对应哪段文字。</source>
+            <translation>MCID %1 appears twice in the content stream, so it cannot be matched to a text run.</translation>
+        </message>
+        <message>
+            <source>写回后有语义元素的角色或文字变了，文档没有修改。</source>
+            <translation>After writing back, the role or text of a semantic element changed; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>写回后的语义元素数量对不上（写之前 %1 个，写之后 %2 个），文档没有修改。</source>
+            <translation>The number of semantic elements does not match after writing back (%1 before, %2 after); the document was not modified.</translation>
+        </message>
+        <message>
+            <source>写回后的语义树读不出来（%1），文档没有修改。</source>
+            <translation>The semantic tree cannot be read back after writing (%1); the document was not modified.</translation>
+        </message>
+        <message>
+            <source>写语义标签树失败，文档没有修改。</source>
+            <translation>Failed to write the semantic tag tree; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>当前构建没有启用 qpdf，无法重排语义阅读顺序</source>
+            <translation>This build has no qpdf, so the semantic reading order cannot be rearranged</translation>
+        </message>
+        <message>
+            <source>扫描文档内容失败：%1</source>
+            <translation>Failed to scan the document content: %1</translation>
+        </message>
+        <message>
+            <source>第 %1 页写回后的语义元素数量对不上，文档没有修改。</source>
+            <translation>The number of semantic elements on page %1 does not match after writing back; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页写回后的语义顺序与要求的不一致，文档没有修改。</source>
+            <translation>The semantic order on page %1 does not match the requested one after writing back; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页有 %2 处文字不归属任何语义元素（结构树与内容流对不上），无法安全重排，文档没有修改。</source>
+            <translation>On page %1, %2 text runs belong to no semantic element (the structure tree and the content stream disagree), so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页没有语义元素，无法按这份顺序重排。</source>
+            <translation>Page %1 has no semantic elements, so it cannot be rearranged with this order.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的 MCID %2 在内容流里找不到对应的标记内容，无法安全重排，文档没有修改。</source>
+            <translation>On page %1, MCID %2 has no matching marked content in the content stream, so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的内容流与扫描结果对不上（%2 个显示操作符 / %3 个文本运行），无法安全重排，文档没有修改。</source>
+            <translation>On page %1, the content stream and the scan disagree (%2 display operators / %3 text runs), so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的语义元素数量对不上（文档里 %2 个，传入 %3 个），文档没有修改。</source>
+            <translation>The number of semantic elements on page %1 does not match (the document has %2, %3 were given); the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的语义元素没有出现在传入的顺序里，文档没有修改。</source>
+            <translation>A semantic element on page %1 does not appear in the given order; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的顺序里有一个不属于这一页的语义元素，文档没有修改。</source>
+            <translation>The order for page %1 contains a semantic element that does not belong to that page; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>第 %1 页的顺序里有重复的语义元素，文档没有修改。</source>
+            <translation>The order for page %1 contains a duplicate semantic element; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>语义树里有元素没有页码，无法安全重排，文档没有修改。</source>
+            <translation>Some elements in the semantic tree have no page number, so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>读取页面内容流失败：%1</source>
+            <translation>Failed to read the page content stream: %1</translation>
+        </message>
+        <message>
+            <source>输入的 PDF 内容为空</source>
+            <translation>The input PDF content is empty</translation>
+        </message>
+        <message>
+            <source>这份文档的语义树有多个根节点，无法安全重排，文档没有修改。</source>
+            <translation>The semantic tree of this document has several roots, so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>这份文档的语义树没有根节点，无法安全重排，文档没有修改。</source>
+            <translation>The semantic tree of this document has no root, so the order cannot be rearranged safely; the document was not modified.</translation>
+        </message>
+        <message>
+            <source>这份文档的语义树里含表单域（/Form）结构，语义级重排暂不支持表单域，文档没有修改。</source>
+            <translation>The semantic tree of this document contains form field (/Form) structures; semantic reordering does not support form fields yet, so the document was not modified.</translation>
+        </message>
+        <message>
+            <source>这份文档还没有语义标签树；先运行「自动添加文档标签」生成语义树</source>
+            <translation>This document has no semantic tag tree yet; run “Auto-tag document” to create one</translation>
         </message>
     </context>
 </TS>

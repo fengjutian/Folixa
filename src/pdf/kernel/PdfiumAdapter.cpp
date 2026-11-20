@@ -1,5 +1,6 @@
 #include "pdf/kernel/PdfiumAdapter.h"
 #include "pdf/kernel/DocumentOpen.h"
+#include "pdf/kernel/MimeTypes.h"
 #include <QImage>
 #include <QPainter>
 #include <QPolygonF>
@@ -1635,6 +1636,14 @@ QVector<DocumentAttachment> PdfDocument::attachments() const {
             return FPDFAttachment_GetSubtype(attachment,
                                             static_cast<FPDF_WCHAR*>(buffer), size);
         });
+        if (entry.mimeType.isEmpty()) {
+            // PDFium 的 FPDFAttachment_GetSubtype 读不回来——它是从 /Params 里读的，
+            // 而 PDFium 自己写的时候就把键写进了 /Params（非标准位置）。
+            // 所以这里按文件名后缀兜底推断：保存链路会用 qpdf 把真正的 /Subtype
+            // 补进嵌入文件流（pdf::applyEmbeddedFileMimeTypes），但**读回**这一侧
+            // 仍然只能靠文件名——不能因为读不回来就让界面上那一列永远空着。
+            entry.mimeType = QString::fromLatin1(mimeTypeForFileName(entry.name));
+        }
         unsigned long fileSize = 0;
         // 空缓冲只问长度：PDFium 文档说这时不会写 buffer。
         if (FPDFAttachment_GetFile(attachment, nullptr, 0, &fileSize)) {

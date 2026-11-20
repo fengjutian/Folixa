@@ -201,6 +201,8 @@ private:
     void openInvoiceManager();
     void createReimbursementList();
     void batchConvertOfd();
+    // 安全文档：在隔离进程里只读打开一份 PDF（主进程不打开它）。
+    void openSafeDocument();
     void showRecordingCenter();
     void startScreenRecording(bool presentPdf);
     // 声音录制：录一段麦克风，产出 WAV 文件并登记进录制列表。

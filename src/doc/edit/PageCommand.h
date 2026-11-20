@@ -122,6 +122,37 @@ private:
     int to_ = 0;
 };
 
+// 交换任意两页。
+//
+// 为什么单独一条命令，而不是界面连着调两次「移动页」：
+// 1. **一步撤销**。连着搬两次会留下两条撤销记录，用户按一次 Ctrl+Z 只回到中间态
+//    （两页换了一半），得按两次才真的换回来——这在用户看来就是「撤销坏了」。
+// 2. **失败不留半截**。交换是两次搬移：第二步失败时必须把第一步退回去，
+//    否则文档停在「只搬了一半」的状态。做成一条命令，这个回滚写在命令里，
+//    界面层不用知道。
+//
+// 交换是自身的逆：把第 i 页和第 j 页换一次，再换一次就回去了，
+// 所以撤销就是再做一次同样的交换（见 PageCommand.cpp 里的推导）。
+class SwapPagesCommand final : public EditCommand {
+public:
+    SwapPagesCommand() = default;
+    SwapPagesCommand(int first, int second);
+
+    QString typeName() const override;
+    QString displayName() const override;
+    QByteArray serialize() const override;
+    bool deserialize(const QByteArray& data, QString* error) override;
+    bool apply(EditContext* context) const override;
+    bool revert(EditContext* context) const override;
+
+    int first() const;
+    int second() const;
+
+private:
+    int first_ = 0;
+    int second_ = 0;
+};
+
 // 用另一页替换当前页。
 //
 // 替换 = 备份原页 + 删除 + 恢复新页；撤销做反向三步。

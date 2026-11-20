@@ -3,6 +3,8 @@ add_library(aipdf_app_tasks STATIC
     app/controllers/ExternalProcessTask.h
     app/controllers/OfdBatchConverter.cpp
     app/controllers/OfdBatchConverter.h
+    app/controllers/OfdConverters.cpp
+    app/controllers/OfdConverters.h
 )
 target_link_libraries(aipdf_app_tasks PUBLIC Qt6::Core)
 target_include_directories(aipdf_app_tasks PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -83,6 +85,14 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/SettingsDialog.cpp
     app/dialogs/EncryptionDialog.h
     app/dialogs/EncryptionDialog.cpp
+    app/dialogs/PermissionPanelDialog.h
+    app/dialogs/PermissionPanelDialog.cpp
+    app/dialogs/SemanticOrderDialog.h
+    app/dialogs/SemanticOrderDialog.cpp
+    app/dialogs/SafeDocumentViewerDialog.h
+    app/dialogs/SafeDocumentViewerDialog.cpp
+    app/controllers/SafeDocumentController.h
+    app/controllers/SafeDocumentController.cpp
     app/dialogs/ViewSettingsDialog.h
     app/dialogs/ViewSettingsDialog.cpp
     app/dialogs/SignatureDialog.h
@@ -302,6 +312,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/compliance/AltTextGenerator.h
     pdf/compliance/SemanticTagWriter.cpp
     pdf/compliance/SemanticTagWriter.h
+    pdf/compliance/SemanticReadingOrder.cpp
+    pdf/compliance/SemanticReadingOrder.h
     pdf/compliance/UaGenerator.cpp
     pdf/compliance/UaGenerator.h
     pdf/annot/AnnotationShapes.cpp
@@ -310,6 +322,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/ops/DocumentReflow.h
     pdf/annot/RichMedia3d.cpp
     pdf/annot/RichMedia3d.h
+    pdf/annot/ScreenAnnotation.cpp
+    pdf/annot/ScreenAnnotation.h
     pdf/annot/ThreeDModel.cpp
     pdf/annot/ThreeDModel.h
     pdf/forms/XfaSupport.cpp
@@ -432,6 +446,9 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/document/IncrementalWriter.h
     pdf/document/DocumentWriter.cpp
     pdf/document/DocumentWriter.h
+    pdf/document/EmbeddedFileMime.cpp
+    pdf/document/EmbeddedFileMime.h
+    pdf/kernel/MimeTypes.h
     pdf/document/QpdfBackend.cpp
     pdf/document/QpdfBackend.h
     pdf/security/PdfSecurity.cpp

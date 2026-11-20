@@ -165,7 +165,7 @@ if(AIPDF_BUILD_TESTS)
 endif()
 
 # 安装规则：主程序与 Worker 平铺在同一目录，运行库由 scripts/package.ps1 部署。
-install(TARGETS AiPdfEditor PdfAiWorker
+install(TARGETS AiPdfEditor PdfAiWorker PdfParseWorker
     RUNTIME DESTINATION .
 )
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE DESTINATION .)

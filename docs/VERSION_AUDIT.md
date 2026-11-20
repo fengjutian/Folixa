@@ -908,7 +908,7 @@ Adobe 就不支持，要主流阅读器能播得走 H.264/AAC 的 MP4 + Rich Med
 
 - `src/CMakeLists.txt` 明写着「qpdf 是必需依赖……**不再有『没有 qpdf 的构建』**」，
   所有 `#ifdef AIPDF_WITH_QPDF` 的降级分支在主程序里已经不可达；
-- `PdfSecurityTests` 10 条 + `BatchEncryptTests` 11 条**实测 0 skipped** ——
+- `PdfSecurityTests` 15 条 + `BatchEncryptTests` 11 条**实测 0 skipped** ——
   加密是真跑的，不是「本机构建没 qpdf 所以测不了」；
 - `EncryptionDialog` 里是**七个权限位勾选框**（打印 / 高质量打印 / 复制 / 批注 /
   表单 / 页面组装 / 其它修改），无障碍提取按 PDF 2.0 规范恒允许并有界面说明；
@@ -1008,7 +1008,8 @@ partial 24 条。
 
 - 新增专项单测目标 `AttachmentPanelTests` 9 条（适配层 6 条 + 面板 3 条），
   含「加 → 序列化 → 重开 → 读回 → 删」的完整往返；
-- `DocumentWriterTests` 19 条（其中新增 2 条）：
+- `DocumentWriterTests` 20 条（本轮又加了 1 条 `documentLevelAttachmentCarriesMimeTypeInFile`；
+  这一节原本记的 19 条里，1.8.4 那轮新增的是下面两条）：
   `documentLevelAttachmentSurvivesSaveToDisk`（走应用真正的保存链路）与
   `removingDocumentAttachmentKeepsFileConsistent`（删除后文件仍是好文件 + 体积真的变小）；
 - **负例对照**（`build/negative-check-attachment.py`，改坏 → 重编 → 跑测试 → 还原 → 复检）：
@@ -1067,6 +1068,199 @@ partial 24 条。
 
 **矩阵那一行由 partial 升 aligned**，说明列按实情重写；评分卡 A6 的验收列同步。
 **第二十五次（本轮）增至 65 / 102 与 81%（224 / 276）**，partial 24 → 23 条。
+
+### 1.10 2026-11-20 第二十六次盘点（小活批次：附件 MIME / 任意页交换 / 隐藏数据全选 / 权限漏点 / OFD 登记）
+
+这一轮是照着「还差多少」那次盘点的结论，挑了四处**不动架构**的缺口一次做完，
+外加把外部依赖登记补齐。四处都要求落到「能写盘、能撤销、能复验」的完整链路，
+半截的不算数。
+
+| # | 改什么 | 落在哪 | 验证 |
+|---|---|---|---|
+| 1 | 文档级附件带 MIME 类型 | `src/pdf/document/EmbeddedFileMime.{h,cpp}` + `DocumentWriter::save` | `DocumentWriterTests` 20 条（新增 `documentLevelAttachmentCarriesMimeTypeInFile`） |
+| 2 | 页面可交换**任意**两页 | `src/doc/edit/PageCommand.{h,cpp}`（`SwapPagesCommand`）+ `PdfView::swapPagesDialog` + Ribbon「交换两页」 | `PageOperationTests` 17 条（新增 3 条） |
+| 3 | 隐藏数据清理加「全选 / 全不选」开关 | `src/app/dialogs/HiddenDataDialog.{h,cpp}` | 新增专项目标 `HiddenDataDialogTests` 7 条 |
+| 4 | 27 处权限漏点 | `src/app/editor/PdfView.cpp` | 新增门禁 `scripts/check-permission-coverage.py`（45 个改文档入口 / 40 个有检查 / 5 个登记豁免） |
+
+**实测纠正了 1.8.4 的一处旧说法**（那一节留作当时的账，这里指出它哪里不准）：
+1.8.4 记的是「PDFium 的嵌入文件接口只能把键写进 `/Params`
+（写出来是 `/Params<</#2FSubtype(text/plain)…>>` 这种非标准位置）」——
+实测写进 `/Params` 的只有 `/CheckSum /CreationDate /Size`，**根本没有 MIME**；
+而且 PDFium 写的嵌入文件流字典只有 `/DL /Filter /Length /Params`，
+**`/Type /EmbeddedFile` 与 `/Subtype` 两项都没有**。所以这件事在 PDFium 侧无解，
+改由 qpdf 后处理（`pdf::applyEmbeddedFileMimeTypes`），且**必须在加密之前做**
+（先加密再补，qpdf 读不了那段字节，类型就永远补不上）。
+
+**边界照实写进矩阵**：**加密文档不补 MIME** —— 读它要密码、写回还要保住原加密设置，
+本仓库拿不到原所有者口令。「编辑 / 附件 / 文件附件」这一行仍是 partial，
+边界从「PDFium 侧够不到 /Subtype」换成这一句。
+
+**权限检查这一处为什么用静态门禁而不是单测**：`requirePermission` 不通过时会弹
+`QMessageBox` 问所有者密码，写单测就得让界面弹窗——本地不跑抢桌面的脚本，
+所以改用静态门禁 `scripts/check-permission-coverage.py`：按「写入原语」扫
+`PdfView.cpp`，凡是改了文档的入口都必须挂 `requirePermission(`，
+要豁免得在 `docs/benchmark/permission-coverage-exemptions.csv` 登记理由，
+而且豁免行一旦不再是 partial 就报失败（免得豁免变成永久通行证）。
+门禁配负例对照 `scripts/test-permission-coverage-negative.py`（4 条）。
+
+**OFD 走「驱动外部转换器」这条路，不自建读侧**。理由：仓库只有写没有读，
+`ZipWriter.h:57-64` 只支持 store 模式而真实 OFD 多为 deflate，
+自建读侧的量级与 `OfdExport.cpp` 的 617 行相当，不划算。
+这一轮做的是三件事：
+
+1. **支持列表**（`src/app/controllers/OfdConverters.cpp`）：不同转换器的命令行约定**不一样**
+   ——`ofd2pdf` 只收一个输入（PDF 落在输入旁边），`ofd-converter` 收
+   `-format pdf <输入> <输出>`。认错了参数就会转换失败或把文件写到别处。
+   列表里每一项都核实过上游 README，认不出的工具仍按通用「输入 输出」约定调用。
+2. **哈希校验**：程序要**执行**用户指定的外部可执行文件。
+   首次使用记下它的 SHA-256，之后每次复核；同一个路径上的文件被换掉了，
+   就把变化摆到用户面前让他决定（而不是毫无察觉地执行新内容）。
+   没有「可信哈希白名单」是刻意的：转换器由用户自备、版本各不相同，白名单在这里没有意义。
+3. **依赖登记**：`THIRD_PARTY_LICENSES.md` 补了三行 —— Ghostscript、veraPDF、OFD 转换器，
+   都是「运行时发现、不捆绑、用户自备」。Ghostscript 那行写清了
+   **AGPL-3.0，按依赖政策第 3 条不引入**（产品与法务决策没做，就不捆绑也不分发）；
+   没它时优化器仍有 qpdf 的结构档，缺的是图片重编码、字体重压与 `/ebook` 降采样。
+4. **转换在临时沙箱里跑**（补做，用户数据损失那一类）：只收输入的转换器（`ofd2pdf`）
+   把 PDF 写到**输入旁边** —— 用户目录里很可能已经有那一份同名 `.pdf`，
+   直接跑就把它覆盖了，用户自己的文件就没了。
+   现在一次转换整个安排在 `QTemporaryDir` 沙箱里：输入**复制**进沙箱、
+   命令行指向沙箱里的路径、产物再搬到用户目录里一个**保证不存在**的名字
+   （`base.pdf` 已被占用就退到 `base-converted.pdf`、`base-converted2.pdf`……）。
+   **落盘时再挑一次名字**：挑名字到落盘之间转换器还在跑，那个名字可能被别人占了 ——
+   换个名字写，**不覆盖也不删**占着的那份。
+   这套安排抽成纯逻辑 `app::prepareOfdConversion`（挑目的地 + 进沙箱 + 复制输入 +
+   生成命令行）与 `app::copyOfdResultTo`（落盘、不覆盖），所以能单测；
+   `OfdBatchConverter` 只管起进程与搬产物。
+
+**测试与负例对照**（每一项都是「改坏 → 重编 → 跑测试 → 还原 → 复检」）：
+
+- 破坏 MIME 映射（`pdfNameForMime` 一律写 `application/octet-stream`）→
+  `DocumentWriterTests` **当场变红 2 条**（文件字节里的 `/Subtype` 断言 + 读回兜底断言）；
+- 把交换退回「只支持相邻两页」（`apply` 里加相邻限制）→
+  `PageOperationTests` **当场变红 3 条**（不相邻两页交换 / 批注跟着走 / 一步撤销）；
+- 把全选退回「只勾默认项」→ `HiddenDataDialogTests` **当场变红 2 条**；
+- 把「挑一个不存在的目的地」退回「无视同名文件」（旧行为，会覆盖用户自己的 `.pdf`）→
+  `OfdConverterTests` **当场变红 2 条**（目的地撞车 + 已有名字要避让）；
+- 把沙箱退回「直接在用户目录里跑」→ `OfdConverterTests` **当场变红 2 条**
+  （三类转换器产出不同源 / 用户的 `.pdf` 会被写）；
+- 把落盘退回「先删占着的那个再写」（旧行为）→ `OfdConverterTests` **当场变红 1 条**
+  （用户的 `.pdf` 被删掉）；
+- 五次还原后各自复检全绿（`DocumentWriterTests` 22 = 20 + init/cleanup，
+  `PageOperationTests` 19 = 17 + init/cleanup，`HiddenDataDialogTests` 9 = 7 + init/cleanup，
+  `OfdConverterTests` 15 = 13 + init/cleanup）。
+
+> **踩到的一个坑，写下来免得下次再踩**：用 `Copy-Item` 从备份还原源文件时，
+> PowerShell 会把备份的 **LastWriteTime 一起带回去**，于是源文件的时间戳比
+> 目标文件还旧，ninja 认为「没变过」**根本不重编**——跑的还是改坏之前那个二进制，
+> 测试当然还是红的。还原之后必须显式把时间戳刷成当前时间，
+> 并确认输出里真的出现了 `Linking CXX executable`，再跑测试。
+
+**顺带修掉的两处历史欠账**：
+
+1. **i18n 覆盖门禁从红转绿**。`scripts/check-i18n.py`（在 `scripts/ci.ps1` 里挂着）
+   这一轮实测报出 **35 条漏翻 + 39 条上下文对不上 + 25 处推断不出上下文**：
+   本轮新增的 26 条（权限检查的动作名、交换页对话框、MIME 提示）已补进 `.ts`；
+   历史欠账的 9 条漏翻一并补齐；39 条上下文对不上的是「目录里有这条文案但登记在别的上下文」
+   ——按 `lupdate` 的做法把译文搬到正确的上下文下；
+   25 处推断不出上下文的是 `SignatureWorkflowDialog.cpp` 匿名命名空间里的
+   `SignatureWorkflowDialog::tr(...)` ——改成显式上下文的
+   `i18n::tr("aipdf::app::SignatureWorkflowDialog", ...)`，
+   **运行时上下文不变**（Qt6 的 moc 用带命名空间的类名做 context，
+   `moc_WelcomePage.cpp` 里能直接看到 `"aipdf::app::WelcomePage"`）。
+   复跑：源码里的 3210 条待翻译文案**全部覆盖**，退出码 0。
+2. **5 处测试条数漂移**：`SignatureVerifierTests` 14 → 15、`SignatureWorkflowTests` 34 → 35
+   （来源是提交 `389e8da` 加了 2 个用例但文档没同步），
+   加本轮新增的 `DocumentWriterTests` 19 → 20。`scripts/check-test-counts.py` 复跑 EXIT=0。
+
+**矩阵状态订正 4 行**（每一条都先核了代码，再动状态）：
+
+| 行 | 原状态 | 新状态 | 依据 |
+|---|---|---|---|
+| 保护 / 隐私 / 隐藏数据 | partial | **aligned** | 「嵌入文件本体默认不勾」这条缺口由「全选 / 全不选」开关补上；默认口径**不变**（签名有法律效力），但用户一步就能全选，不再是能力缺口 |
+| 页面管理 / 组装 / 交换 | partial | **aligned** | `SwapPagesCommand` 支持任意两页，一条命令 = 一步撤销 |
+| 电子签章 / 签章 / 管理对外签章 | partial | **na** | 对外电子签平台是产品形态差异，同组的「对外签署 / 对内签署 / 邀请他人签署 / 分享反馈 / 我的额度 / 签署设置」都是同一口径 |
+| 电子签章 / 签署 / 完成签署 | na | **aligned** | Ribbon「电子签章 → 签署 → 完成签署」早就接了 `MainWindow::saveDocument`，矩阵这行一直标错了 |
+
+评分卡 `G3` 的说明列同步改写；`matrix-scorecard-exemptions.csv` 删掉两行
+（`G3,保护,隐藏数据` 与 `G5,电子签章,管理对外签章`）——豁免表里登记的那条已经不是 partial
+就该报失败（R3），否则豁免会变成永久通行证。
+
+**第二十六次（本轮）增至 65 / 102 与 82%（227 / 276）**，partial 23 → 20 条。
+
+### 1.11 2026-11-20 第二十七次盘点（权限管理面板 / 页面内音视频 / 区域顺序语义级 / 安全文档隔离解析）
+
+这一轮把上一轮盘点出来的四个开放问题一次做完。四项都是**有边界的新能力** ——
+边界照实写进矩阵说明列，不把「做了一半」包装成「完成」。
+
+| # | 改什么 | 落在哪 | 验证 |
+|---|---|---|---|
+| 1 | 权限管理面板（事后单独改权限位） | `src/pdf/security/PdfSecurity.{h,cpp}` + `src/app/dialogs/PermissionPanelDialog.{h,cpp}` + `PdfView::managePermissions` | `PdfSecurityTests` 15 条 + `PermissionPanelDialogTests` 5 条 |
+| 2 | 页面内音视频（`/Screen` 包装器） | `src/pdf/annot/ScreenAnnotation.{h,cpp}` + `WiringActions::insertScreenMedia` | `ScreenAnnotationTests` 6 条 |
+| 3 | 三条区域顺序命令升到语义级 | `src/pdf/compliance/SemanticReadingOrder.{h,cpp}` + `src/app/dialogs/SemanticOrderDialog.{h,cpp}` | `SemanticReadingOrderTests` 11 条 |
+| 4 | 安全文档的解析移出主进程 | `worker/parse/*` + `src/app/controllers/SafeDocumentController.{h,cpp}` + `src/app/dialogs/SafeDocumentViewerDialog.{h,cpp}` | `SafeDocumentTests` 12 条 |
+
+**权限管理面板这一项先测后写**。用 qpdf 12.4.2 实测确定了一件反直觉的事：
+R6/AES-256 下权限的权威来源是加密字典里的 `/Perms`，`/P` 只是兼容项 ——
+只改 `/P` 会触发「`/Perms` field ... doesn't match expected value」，而且**有效权限根本没变**。
+所以语义只能是「用所有者口令解密后按新权限重加密」，
+`/P`、`/Perms`、`/O`、`/OE`、`/U`、`/UE` 一起同步；写盘走 `doc::SafeSave::writeAtomically`，
+写完重新打开并复验（有效权限逐位一致、所有者口令仍然有效）。
+打开口令不得与所有者口令相同 —— R6 下两者相同等于「用户即所有者」，权限形同虚设，
+面板与领域层都拦；qpdf 会把保留位置 1、无障碍位恒为 1，所以比对只看管理的 8 位权限掩码。
+
+**三条区域顺序命令升到语义级**：调的是结构树里的内容元素（标题 / 段落 / 列表 / 表格 / 图），
+不再是文本行；写回后按元素数、角色 + 文字、页内顺序三重读回校验，对不上就不写。
+**没有语义树的文档明确报错并指向「自动添加文档标签」，不降级成行级**。
+「应用区域顺序」= 按视觉顺序重建整篇语义树，与「自动添加文档标签」做的是同一件事，
+界面上写明（手工调过的顺序会被这次重建覆盖）。
+
+**顺带修掉一个真缺陷**：`pdf::inferSemanticRoles` 的段落合并原本**不检查页码**，
+跨页元素会让多页文档写不进语义树（段落被错误地并到一起）。
+加上 `if (next.pageIndex != block.pageIndex) break;` 之后多页用例通过。
+
+**`/Screen` 只接受 MP4**：格式按文件头 `ftyp` 判定，不看扩展名。
+仓库录制器产出的是 Motion-JPEG AVI（依赖政策不引外部编码器的硬约束），主流阅读器不认 ——
+「页面内播」这条路在当前编码格式下本来就走不通，
+所以界面上给的是「落成附件交给外部程序」的替代方案，而不是塞一个播不了的附件。
+注解写 `/Screen` + `/Rendition`，**不写 `/AP`**。
+
+**安全文档**：新增独立可执行 `PdfParseWorker`（不复用持 API 凭据的 `PdfAiWorker`），
+主进程只把**路径字符串**发过去，PDF 由那个进程用 PDFium 解析并渲染成 PNG 回传 ——
+主进程从头到尾不打开这个文件。**代价是安全模式当前为只读**
+（不能编辑、不能取文字层、不能填表单），这条代价写进矩阵说明列与界面提示。
+
+**测试与负例对照**（每一项都是「改坏 → 重编 → 跑测试 → 还原 → 复检」）：
+
+- 把「重新加密」退回「原地改 `/P`」→ `PermissionPanelDialogTests` **当场变红 2 条**；
+- 把 `/Screen` 注解退回 `/RichMedia` → `ScreenAnnotationTests` **当场变红 5 条**；
+- 把 MediaClip 挂到错的目录树 → `ScreenAnnotationTests` **当场变红 5 条**；
+- 把 `/F 4`（隐藏注解标志）退回 `/F 0` → `ScreenAnnotationTests` **当场变红 1 条**；
+- 把语义角色压平成同一种 → `SemanticReadingOrderTests` **当场变红 5 条**；
+- 让顺序改动不生效 → `SemanticReadingOrderTests` **当场变红 5 条**；
+- 把写回的 MCID 顺序写反 → `SemanticReadingOrderTests` **当场变红 4 条**；
+- 撤掉 `inferSemanticRoles` 的页码检查 → `SemanticReadingOrderTests` **当场变红 1 条**；
+- 让解析失败冒充成功 → `SafeDocumentTests` **当场变红 5 条**；
+- 关闭后留孤儿进程 → `SafeDocumentTests` **当场变红 1 条**；
+- 十处还原后各自复检全绿（`PdfSecurityTests` 17 = 15 + init/cleanup，
+  `PermissionPanelDialogTests` 7 = 5 + init/cleanup，`ScreenAnnotationTests` 8 = 6 + init/cleanup，
+  `SemanticReadingOrderTests` 13 = 11 + init/cleanup，`SafeDocumentTests` 14 = 12 + init/cleanup）。
+
+**i18n**：本轮新增 81 条文案已补进英文目录（`scripts/check-i18n.py` 退出码 0）；
+其中 9 条通用文案（取消 / 上移 / 第 %1 页 等）复用其它 context 的同源译文 ——
+补词脚本加了「同源译文跨 context 复用」兜底，避免同一句中文出现两种英文。
+
+**矩阵状态订正 1 行**（先核代码，再动状态）：
+
+| 行 | 原状态 | 新状态 | 依据 |
+|---|---|---|---|
+| 保护 / 设置 / 设置 | partial | **aligned** | 权限管理面板补上「事后单独改权限位」这条缺口；R6 下走解密后重加密 |
+
+另 5 行只改说明列（状态不变）：`编辑 / 附件 / 音频&视频`（边界换成「页面内播放只支持 MP4」）、
+`保护 / 文档 / 安全文档`（解析移出主进程，代价只读）、
+`辅助工具 / 阅读 / 设置区域阅读顺序` / `更改区域顺序` / `应用区域顺序`（升到语义级）。
+`matrix-scorecard-exemptions.csv` 里 J5 这三行的理由同步改写 —— **理由本身也会过期**。
+
+**第二十七次（本轮）增至 65 / 102 与 83%（228 / 276）**，partial 20 → 19 条。
 
 ## 1. 结论
 

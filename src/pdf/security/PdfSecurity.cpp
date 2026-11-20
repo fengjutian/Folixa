@@ -164,6 +164,62 @@ qpdf_r3_print_e printMode(const PdfPermissions& permissions) {
     return permissions.allowHighQualityPrinting ? qpdf_r3p_full : qpdf_r3p_low;
 }
 
+// PDF 权限位（/P 的整数形式）。
+//
+// 位号按 PDF 32000-1 表 22 的 1-based 编号减一：位 3（打印）= 1<<2，
+// 位 4（改写）= 1<<3，位 5（提取正文）= 1<<4，位 6（批注与表单）= 1<<5，
+// 位 9（填写表单域）= 1<<8，位 10（无障碍提取）= 1<<9，
+// 位 11（组装页面）= 1<<10，位 12（高分辨率打印）= 1<<11。
+constexpr int kBitPrint = 1 << 2;
+constexpr int kBitModify = 1 << 3;
+constexpr int kBitExtract = 1 << 4;
+constexpr int kBitAnnotate = 1 << 5;
+constexpr int kBitFormFill = 1 << 8;
+constexpr int kBitAccessibility = 1 << 9;
+constexpr int kBitAssembly = 1 << 10;
+constexpr int kBitPrintHigh = 1 << 11;
+
+// 我们关心的那 8 个权限位。
+//
+// 为什么要掩码：qpdf 写出来的 /P 会把**保留位**（第 7、8 位与第 13 位以上）也置 1
+// （实测 qpdf 12.4.2：受限文档的 /P 是 -1324，其中第 7、8、13… 位都是 1）。
+// 那些位不表达任何权限，比对时必须忽略，只看这 8 位。
+constexpr int kManagedPermissionBits =
+    kBitPrint | kBitModify | kBitExtract | kBitAnnotate |
+    kBitFormFill | kBitAccessibility | kBitAssembly | kBitPrintHigh;
+
+// 权限位 ↔ /P 整数。
+//
+// 两边都要有：写的时候要算出来交给 qpdf，读回来的时候要把 /P 翻译成人看得懂的开关。
+int permissionBitsOf(const PdfPermissions& permissions) {
+    int bits = 0;
+    if (permissions.allowPrinting) bits |= kBitPrint;
+    if (permissions.allowHighQualityPrinting) bits |= kBitPrintHigh;
+    if (permissions.allowCopying) bits |= kBitExtract;
+    if (permissions.allowAnnotations) bits |= kBitAnnotate;
+    if (permissions.allowFormFilling) bits |= kBitFormFill;
+    if (permissions.allowAssembly) bits |= kBitAssembly;
+    if (permissions.allowModifying) bits |= kBitModify;
+    // 无障碍提取位始终给上：PDF 2.0 / R6 规定这一位不能被禁止
+    // （实测 qpdf 12.4.2：即使传 false，写出来的 /P 里这一位也是 1）。
+    // 这里跟 qpdf 的实际行为对齐，否则复验时会误判「权限位与设定不一致」。
+    bits |= kBitAccessibility;
+    return bits;
+}
+
+PdfPermissions permissionsFromBits(int bits) {
+    PdfPermissions permissions;
+    permissions.allowPrinting = (bits & kBitPrint) != 0;
+    permissions.allowHighQualityPrinting = (bits & kBitPrintHigh) != 0;
+    permissions.allowCopying = (bits & kBitExtract) != 0;
+    permissions.allowAccessibility = (bits & kBitAccessibility) != 0;
+    permissions.allowAnnotations = (bits & kBitAnnotate) != 0;
+    permissions.allowFormFilling = (bits & kBitFormFill) != 0;
+    permissions.allowAssembly = (bits & kBitAssembly) != 0;
+    permissions.allowModifying = (bits & kBitModify) != 0;
+    return permissions;
+}
+
 QString randomOwnerPassword() {
     // 32 个十六进制字符：不需要可记忆，只要不可猜。
     QString result;
@@ -1597,6 +1653,178 @@ bool inspectEncryption(const QByteArray& input,
     }
     return false;
 #endif
+}
+
+bool inspectPermissions(const QByteArray& input,
+                        const QString& password,
+                        PdfPermissionState* state,
+                        QString* error) {
+    if (state == nullptr) {
+        return false;
+    }
+    *state = PdfPermissionState();
+    if (input.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("没有可检查的内容"));
+        }
+        return false;
+    }
+#ifdef AIPDF_WITH_QPDF
+    try {
+        QPDF pdf;
+        const QByteArray utf8Password = password.toUtf8();
+        pdf.processMemoryFile("permissions.pdf",
+                               input.constData(),
+                               static_cast<size_t>(input.size()),
+                               utf8Password.constData());
+        int revision = 0;
+        int bits = 0;
+        if (!pdf.isEncrypted(revision, bits)) {
+            if (error != nullptr) {
+                *error = toLocal(QStringLiteral("这份文档没有加密"));
+            }
+            return false;
+        }
+        state->encrypted = true;
+        state->revision = revision;
+        state->userBits = bits;
+        state->permissions = permissionsFromBits(bits);
+        state->ownerPasswordMatched = pdf.ownerPasswordMatched();
+        return true;
+    } catch (const std::exception& exception) {
+        if (error != nullptr) {
+            *error = toLocal(QString::fromUtf8(exception.what()));
+        }
+        return false;
+    }
+#else
+    Q_UNUSED(input);
+    Q_UNUSED(password);
+    if (error != nullptr) {
+        *error = missingQpdfError();
+    }
+    return false;
+#endif
+}
+
+QByteArray reencryptWithPermissions(const QByteArray& input,
+                                    const PdfPermissions& permissions,
+                                    const QString& ownerPassword,
+                                    const QString& userPassword,
+                                    QString* error) {
+    if (input.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("没有可处理的内容"));
+        }
+        return {};
+    }
+    if (ownerPassword.isEmpty()) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("所有者口令不能为空"));
+        }
+        return {};
+    }
+    if (!encryptionAvailable()) {
+        if (error != nullptr) {
+            // 这一句不走 missingQpdfError()：那个函数只在**没有** qpdf 的构建里存在。
+            *error = toLocal(QStringLiteral("本次构建没有启用 qpdf，改不了权限位"));
+        }
+        return {};
+    }
+
+    // 第一步：确认这份文档确实加密了，而且给的是**所有者口令**。
+    //
+    // 「能打开」不等于「是所有者」：只拿到打开口令的人也能打开文档，
+    // 但他不该有权改权限。所以这里查的是 ownerPasswordMatched()。
+    PdfPermissionState before;
+    if (!inspectPermissions(input, ownerPassword, &before, error)) {
+        if (error != nullptr && error->isEmpty()) {
+            *error = toLocal(QStringLiteral("读不出这份文档的加密信息"));
+        }
+        return {};
+    }
+    if (!before.encrypted) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral(
+                "这份文档还没有加密：请先用「加密与权限」启用加密，再来设置权限位"));
+        }
+        return {};
+    }
+    if (!before.ownerPasswordMatched) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("这个口令可以打开文档，但不是所有者口令，不能改权限"));
+        }
+        return {};
+    }
+    // R6 下所有者口令就是「绕过权限」的钥匙：它与打开口令相同的话，
+    // 任何拿到打开口令的人都是所有者，权限位形同虚设。
+    if (!userPassword.isEmpty() && userPassword == ownerPassword) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral(
+                "打开口令不能与所有者口令相同（那样任何人都能绕过权限限制）"));
+        }
+        return {};
+    }
+
+    // 第二步：用所有者口令解密。
+    QByteArray plain = decryptPdf(input, ownerPassword, error);
+    if (plain.isEmpty()) {
+        if (error != nullptr && error->isEmpty()) {
+            *error = toLocal(QStringLiteral("用所有者口令解不开这份文档"));
+        }
+        return {};
+    }
+
+    // 第三步：按新权限重新加密。
+    //
+    // 这里是整件事的关键：qpdf 会把 /P、/Perms、/O、/OE、/U、/UE 一次性重算，
+    // 保证它们互相自洽。原地改 /P 做不到这一点 —— R6 的权限真正存在 /Perms 里，
+    // 只改 /P 会得到一份「/P 与 /Perms 打架」的加密字典。
+    PdfEncryptionOptions options;
+    options.userPassword = userPassword;
+    options.ownerPassword = ownerPassword;
+    options.permissions = permissions;
+    options.encryptMetadata = true;
+    QByteArray output = encryptPdf(plain, options, error);
+    if (output.isEmpty()) {
+        return {};
+    }
+
+    // 第四步：复验。
+    //
+    // 「写出了字节」不等于「权限真的改成了这样」：这里用新的打开口令重新打开，
+    // 确认 (1) 是 AES-256 文档、(2) /P 位与设定一致、(3) 所有者口令仍然有效。
+    PdfPermissionState after;
+    if (!inspectPermissions(output, userPassword, &after, error)) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("改完权限后的文件用新打开口令打不开"));
+        }
+        return {};
+    }
+    if (after.revision < 6) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("改完权限后的文件不是 AES-256 加密文档"));
+        }
+        return {};
+    }
+    if ((after.userBits & kManagedPermissionBits) !=
+        (permissionBitsOf(permissions) & kManagedPermissionBits)) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("改完权限后的权限位与设定不一致（实际 %1，期望 %2）")
+                                 .arg(after.userBits)
+                                 .arg(permissionBitsOf(permissions)));
+        }
+        return {};
+    }
+    PdfPermissionState afterByOwner;
+    if (!inspectPermissions(output, ownerPassword, &afterByOwner, nullptr) ||
+        !afterByOwner.ownerPasswordMatched) {
+        if (error != nullptr) {
+            *error = toLocal(QStringLiteral("改完权限后所有者口令失效了"));
+        }
+        return {};
+    }
+    return output;
 }
 
 }  // namespace aipdf::pdf

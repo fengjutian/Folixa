@@ -81,6 +81,9 @@ private slots:
     void rotatePageChangesRotation();
     void movePageReordersPages();
     void movePageKeepsAnnotations();
+    void swapPagesExchangesAnyTwoPages();
+    void swapPagesKeepsAnnotations();
+    void swapPagesUndoRestoresOrderInOneStep();
     void deletePageUndoRestoresPage();
     void deletePageUndoRestoresAnnotations();
     void serializeKeepsPageOrder();
@@ -189,6 +192,72 @@ void PageOperationTests::movePageKeepsAnnotations() {
     const auto empty = result.document.page(0);
     QVERIFY(empty.has_value());
     QCOMPARE(empty->annotations().size(), 0);
+}
+
+// 交换任意两页：这是「交换两页」这条命令的领域层判据。
+//
+// 盯的是**不相邻**的两页（第 1 页与第 3 页）：相邻的那条「与下一页交换」
+// 早就有，这里要证明的是任意两页都能换，且中间那一页不动。
+void PageOperationTests::swapPagesExchangesAnyTwoPages() {
+    const auto result = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(result.document.isValid());
+    QCOMPARE(result.document.pageCount(), 3);
+    QCOMPARE(firstLineOfPage(result.document, 0), QStringLiteral("Navigation demo"));
+    QCOMPARE(firstLineOfPage(result.document, 1), QStringLiteral("Page two"));
+    QCOMPARE(firstLineOfPage(result.document, 2), QStringLiteral("Page three"));
+
+    AnnotationController controller(result.document);
+    QVERIFY(controller.swapPages(0, 2));
+
+    QCOMPARE(result.document.pageCount(), 3);
+    QCOMPARE(firstLineOfPage(result.document, 0), QStringLiteral("Page three"));
+    // 中间那一页没动。
+    QCOMPARE(firstLineOfPage(result.document, 1), QStringLiteral("Page two"));
+    QCOMPARE(firstLineOfPage(result.document, 2), QStringLiteral("Navigation demo"));
+}
+
+// 交换时批注要跟着自己的页面走。
+void PageOperationTests::swapPagesKeepsAnnotations() {
+    const auto result = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(result.document.isValid());
+
+    // 在第 0 页上写一条批注。
+    {
+        auto page = result.document.page(0);
+        QVERIFY(page.has_value());
+        QVERIFY(page->setAnnotations({makeHighlight(1, 0)}));
+    }
+
+    AnnotationController controller(result.document);
+    QVERIFY(controller.swapPages(0, 2));
+
+    const auto moved = result.document.page(2);
+    QVERIFY(moved.has_value());
+    const QVector<Annotation> annotations = moved->annotations();
+    QCOMPARE(annotations.size(), 1);
+    QCOMPARE(annotations.first().id, quint64(1));
+    const auto empty = result.document.page(0);
+    QVERIFY(empty.has_value());
+    QCOMPARE(empty->annotations().size(), 0);
+}
+
+// 交换必须**一步撤销**。
+//
+// 这一条盯的是「一步」：如果实现是连着调两次移动页，撤销栈里会有两条记录，
+// 用户按一次 Ctrl+Z 只回到中间态（换了一半）——必须按两次才真的换回来。
+// 所以这里断言的是：按一次撤销，顺序就完全回到原样。
+void PageOperationTests::swapPagesUndoRestoresOrderInOneStep() {
+    const auto result = openDocument(fixturePath(QStringLiteral("navigation.pdf")));
+    QVERIFY(result.document.isValid());
+
+    AnnotationController controller(result.document);
+    QVERIFY(controller.swapPages(0, 2));
+    QCOMPARE(firstLineOfPage(result.document, 0), QStringLiteral("Page three"));
+
+    QVERIFY(controller.undo());
+    QCOMPARE(firstLineOfPage(result.document, 0), QStringLiteral("Navigation demo"));
+    QCOMPARE(firstLineOfPage(result.document, 1), QStringLiteral("Page two"));
+    QCOMPARE(firstLineOfPage(result.document, 2), QStringLiteral("Page three"));
 }
 
 void PageOperationTests::deletePageUndoRestoresPage() {

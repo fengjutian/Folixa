@@ -177,6 +177,7 @@ public slots:
     void duplicateCurrentPage();
     void reversePages();
     void swapCurrentWithNext();
+    void swapPagesDialog();
     void splitDocumentDialog();
     void replaceCurrentPageDialog();
     void crossMergeDialog();
@@ -192,6 +193,8 @@ public slots:
     pdf::DocumentPermissions effectivePermissions() const;
     bool unlockPermissionsWithOwnerPassword();
     void configureEncryptionDialog();
+    // 权限管理面板：事后单独改权限位（用所有者口令解密后重新加密）。
+    void managePermissions();
     void sanitizeHiddenData();
     void redactSelection();
     // Ribbon 与验收脚本用的批注工具入口：id 与按钮对象名一致（highlight/square/ink…）。
@@ -452,10 +455,11 @@ private:
     // 取当前页的整页文本，并建立「文本码元 → 阅读顺序下标」的映射。
     // 朗读与拼写检查共用。
     bool collectPageText(int pageIndex);
-    // 区域阅读顺序：整理整篇的行与顺序，写回标签树。
-    QVector<QVector<pdf::TaggedRegion>> buildTaggedRegions(int pageIndex,
-                                                            const QVector<int>& currentPageOrder) const;
-    bool writeTaggedRegions(const QVector<QVector<pdf::TaggedRegion>>& regions, QString* error);
+    // 区域阅读顺序：读语义树的顺序 / 在页内调整语义元素先后 / 整篇按默认顺序重建。
+    //
+    // 为什么是**语义级**：行级顺序说不了「先念标题还是先念正文」；
+    // 语义级的顺序单位是结构元素本身（标题 / 段落 / 列表 / 表格 / 图 / 表单域），
+    // 读屏软件念的顺序跟着结构树走。
     // 朗读真正开始：切词、送引擎、接逐词高亮。
     void startSpeechOnPage(int pageIndex);
     // 显示坐标 → PDF 用户空间（y 反向）。

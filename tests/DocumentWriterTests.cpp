@@ -86,6 +86,7 @@ private slots:
     void savingEncryptedDocumentKeepsItsPassword();
     void reencryptingAnEncryptedDocumentUsesTheNewSettings();
     void documentLevelAttachmentSurvivesSaveToDisk();
+    void documentLevelAttachmentCarriesMimeTypeInFile();
     void removingDocumentAttachmentKeepsFileConsistent();
 };
 
@@ -684,14 +685,54 @@ void DocumentWriterTests::documentLevelAttachmentSurvivesSaveToDisk() {
     QVERIFY2(!data.isEmpty(), qPrintable(readError));
     QCOMPARE(data, QByteArray("attachment payload"));
 
-    // MIME 类型的边界（实测出来的限制，不是漏写）：
-    // PDFium 的嵌入文件接口只能把键写进 /Params，够不到嵌入文件流的 /Subtype，
-    // 它自己的 GetSubtype 也读不回来 —— 所以文档级附件**不带 MIME 类型**，
-    // 别的阅读器只能靠文件名后缀判断类型。
-    // 这一条是「边界观察哨」：哪天这里有值了，说明 PDFium 变了，
-    // 矩阵里的边界说明要跟着改（别让说明悄悄过期）。
-    QVERIFY2(entries.first().mimeType.isEmpty(),
-             "PDFium 现在能写 MIME 类型了：矩阵里的降级边界说明要跟着改");
+    // MIME 类型：PDFium 的嵌入文件接口**写不进** /Subtype（它只把键写进
+    // /Params，够不到嵌入文件流的字典），但保存链路会用 qpdf 把真正的
+    // /Subtype 补进嵌入文件流——别的阅读器靠它决定「点开用什么程序打开」。
+    //
+    // 读回这一侧仍然只能靠文件名后缀兜底（PDFium 的 GetSubtype 读的是
+    // /Params，读不到我们补的 /Subtype），所以这里断言的是**兜底后的结果**。
+    QCOMPARE(entries.first().mimeType, QStringLiteral("text/plain"));
+}
+
+// 文档级附件的 /Subtype 必须真的写进了嵌入文件流。
+//
+// 这一条盯的是**文件里的字节**，不是界面显示：界面上那列是靠文件名后缀兜底
+// 推断的（PDFium 读不回来 /Subtype），所以「界面上显示对了」不能证明
+// 「别的阅读器也认得出类型」。只有文件里那个 /Subtype 真的在，才算数。
+void DocumentWriterTests::documentLevelAttachmentCarriesMimeTypeInFile() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("with-mime.pdf"));
+
+    auto opened = openDocument(fixturePath(QStringLiteral("normal.pdf")));
+    QVERIFY(opened.document.isValid());
+
+    QString error;
+    // 用视频后缀：这个类型错了后果最明显（阅读器会当成一坨二进制）。
+    QVERIFY2(opened.document.addAttachment(QStringLiteral("clip.mp4"),
+                                            QByteArray("fake-mp4-payload"),
+                                            QStringLiteral("带类型的附件"), &error),
+             qPrintable(error));
+
+    const SaveOutcome outcome = DocumentWriter::save(opened.document, path, false);
+    QVERIFY2(outcome.ok, qPrintable(outcome.error));
+
+    // 直接看落盘字节：嵌入文件流上必须有 /Subtype，值是 MIME 的名字对象形式。
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    file.close();
+
+    // 名字对象里的斜杠要写成 #2F：/video#2Fmp4。
+    // 统一小写再比对：PDF 规范里 #xx 的十六进制不分大小写，qpdf 写的是小写 #2f。
+    const QByteArray lowered = bytes.toLower();
+    QVERIFY2(lowered.contains("/subtype /video#2fmp4"),
+             "文档级附件的嵌入文件流上没有 /Subtype（MIME）");
+
+    // 顺带钉住 /Type：PDFium 写的字典里没有这一项，补的时候要一起补上
+    // （别的阅读器靠它认出「这是嵌入文件流」）。
+    QVERIFY2(lowered.contains("/type /embeddedfile"),
+             "文档级附件的嵌入文件流上没有 /Type /EmbeddedFile");
 }
 
 // 删掉附件之后，文件本身必须还是一份好文件，而且附件列表里真的没有它了。

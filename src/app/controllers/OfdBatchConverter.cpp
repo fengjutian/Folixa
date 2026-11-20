@@ -1,9 +1,14 @@
 #include "app/controllers/OfdBatchConverter.h"
 
 #include "app/controllers/ExternalProcessTask.h"
+#include "app/controllers/OfdConverters.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QTemporaryDir>
+
+#include <memory>
 
 namespace aipdf::app {
 
@@ -37,21 +42,46 @@ void OfdBatchConverter::startNext() {
 
     const QString input = inputs_.at(index_);
     const QFileInfo inputInfo(input);
-    QString output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
-                                              QStringLiteral(".pdf"));
-    if (QFileInfo::exists(output)) {
-        output = inputInfo.dir().filePath(inputInfo.completeBaseName() +
-                                          QStringLiteral("-converted.pdf"));
-    }
     emit progress(index_, inputs_.size(), inputInfo.fileName());
+
+    // 在**沙箱**里跑：转换器碰不到用户自己的目录。
+    //
+    // 转换器是用户自备的可执行文件，命令行约定各异，不沙箱就等于让它往用户
+    // 目录里写文件（只收输入的那种会写同名 .pdf 覆盖掉用户那份）。
+    // 沙箱里跑完，产物再由我们搬到挑好的目的地（那个名字保证不存在）。
+    auto sandbox = std::make_unique<QTemporaryDir>();
+    if (!sandbox->isValid()) {
+        failures_.append(inputInfo.fileName());
+        ++index_;
+        startNext();
+        return;
+    }
+
+    const OfdConversionSession session = prepareOfdConversion(converter_, input, sandbox->path());
+    if (!session.isValid()) {
+        failures_.append(inputInfo.fileName());
+        ++index_;
+        startNext();
+        return;
+    }
 
     currentTask_ = new ExternalProcessTask(this);
     connect(currentTask_, &ExternalProcessTask::finished, this,
-            [this, input, output](const ExternalProcessTask::Result& result) {
+            [this, input, session, sandbox = std::move(sandbox)](
+                const ExternalProcessTask::Result& result) {
                 currentTask_->deleteLater();
                 currentTask_ = nullptr;
-                if (!result.canceled && result.succeeded() &&
-                    QFileInfo(output).isFile() && QFileInfo(output).size() > 0) {
+                const bool produced = QFileInfo(session.plan.expectedOutput).isFile() &&
+                                      QFileInfo(session.plan.expectedOutput).size() > 0;
+                if (!result.canceled && result.succeeded() && produced) {
+                    // 产物在沙箱里，搬到用户指定的位置（挑的是不存在的名字，
+                    // 落盘时再挑一次：期间被别人占了就换名，不覆盖也不删）。
+                    if (copyOfdResultTo(session.plan.expectedOutput, session.destination).isEmpty()) {
+                        failures_.append(QFileInfo(input).fileName());
+                        ++index_;
+                        startNext();
+                        return;
+                    }
                     ++converted_;
                 } else if (!result.canceled) {
                     failures_.append(QFileInfo(input).fileName());
@@ -59,7 +89,7 @@ void OfdBatchConverter::startNext() {
                 ++index_;
                 startNext();
             });
-    currentTask_->start(converter_, {input, output}, 120000);
+    currentTask_->start(session.plan.program, session.plan.arguments, 120000);
 }
 
 }  // namespace aipdf::app

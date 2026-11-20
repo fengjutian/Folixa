@@ -134,6 +134,31 @@ HiddenDataDialog::HiddenDataDialog(QWidget* parent)
     tree_->header()->setStretchLastSection(true);
     layout->addWidget(tree_, 1);
 
+    // 全选 / 全不选。
+    //
+    // 默认勾选是保守的（签名、嵌入文件本体默认不勾），但「彻底洗一遍」是真实需求，
+    // 与其逼用户一个个手动勾，不如给一个显式开关。**默认状态不变**——
+    // 开关只是让用户能一步到位，不是把保守默认换掉。
+    auto* selectRow = new QHBoxLayout;
+    selectRow->setObjectName(QStringLiteral("hiddenDataDialog.selectRow"));
+    auto* selectAllButton = new QPushButton(
+        i18n::tr("aipdf::app::HiddenDataDialog", "全选"), this);
+    selectAllButton->setObjectName(QStringLiteral("hiddenDataDialog.selectAll"));
+    selectAllButton->setToolTip(i18n::tr(
+        "aipdf::app::HiddenDataDialog",
+        "勾上这份文档里所有存在的类别，包括签名、表单已填值与嵌入文件本体。"));
+    auto* clearAllButton = new QPushButton(
+        i18n::tr("aipdf::app::HiddenDataDialog", "全不选"), this);
+    clearAllButton->setObjectName(QStringLiteral("hiddenDataDialog.clearAll"));
+    clearAllButton->setToolTip(
+        i18n::tr("aipdf::app::HiddenDataDialog", "取消所有勾选，什么都不清。"));
+    selectRow->addWidget(selectAllButton);
+    selectRow->addWidget(clearAllButton);
+    selectRow->addStretch(1);
+    layout->addLayout(selectRow);
+    connect(selectAllButton, &QPushButton::clicked, this, &HiddenDataDialog::selectAll);
+    connect(clearAllButton, &QPushButton::clicked, this, &HiddenDataDialog::clearAll);
+
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     buttons->button(QDialogButtonBox::Ok)->setText(i18n::tr("aipdf::app::HiddenDataDialog", "清理"));
     buttons->button(QDialogButtonBox::Cancel)->setText(i18n::tr("aipdf::app::HiddenDataDialog", "取消"));
@@ -161,11 +186,48 @@ void HiddenDataDialog::rebuild()
         item->setData(0, Qt::UserRole, category.id);
         // 这份文档里没有的东西没必要勾 —— 勾了也没得清。
         const bool hasItems = category.itemCount > 0;
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        if (hasItems) {
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        } else {
+            // QTreeWidgetItem 的默认 flags 里就带 ItemIsUserCheckable，
+            // 不显式清掉的话，这一行看起来仍是可以勾的（只是被禁用了）。
+            // 显式清掉：这一类在这份文档里没有东西，本来就不该出现在「已勾选」里。
+            item->setFlags(item->flags() & ~Qt::ItemIsUserCheckable);
+        }
         item->setCheckState(0, (hasItems && defaultChecked(category.id)) ? Qt::Checked : Qt::Unchecked);
         if (!hasItems) {
             item->setDisabled(true);
         }
+    }
+}
+
+void HiddenDataDialog::selectAll()
+{
+    if (tree_ == nullptr) {
+        return;
+    }
+    for (int row = 0; row < tree_->topLevelItemCount(); ++row) {
+        QTreeWidgetItem* item = tree_->topLevelItem(row);
+        if (item == nullptr || item->isDisabled()) {
+            // 这一类在这份文档里没有东西，勾上去清不到任何东西，
+            // 复验时那一行还是 0，用户只会以为自己漏勾了。
+            continue;
+        }
+        item->setCheckState(0, Qt::Checked);
+    }
+}
+
+void HiddenDataDialog::clearAll()
+{
+    if (tree_ == nullptr) {
+        return;
+    }
+    for (int row = 0; row < tree_->topLevelItemCount(); ++row) {
+        QTreeWidgetItem* item = tree_->topLevelItem(row);
+        if (item == nullptr) {
+            continue;
+        }
+        item->setCheckState(0, Qt::Unchecked);
     }
 }
 

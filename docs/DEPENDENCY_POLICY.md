@@ -26,6 +26,29 @@ Acceptance conditions met: license row in `THIRD_PARTY_LICENSES.md`, SBOM
 entry, pinned version with SHA-256 in `scripts/bootstrap-qpdf.ps1`, and an
 emergency update path for the PDF parser (rule 7).
 
+## Accepted change: external runtime dependencies (Ghostscript, veraPDF, OFD converter, Tesseract)
+
+Four components are **found at runtime and never bundled**. They are listed in
+`THIRD_PARTY_LICENSES.md` with an exact version, the license position and an
+update path, so rule 1 is satisfied even though nothing is shipped.
+
+Two decisions are recorded here because they are easy to read the wrong way:
+
+- **Ghostscript stays out.** It is AGPL-3.0, and rule 3 requires an explicit
+  product and legal decision before a GPL-only dependency is adopted. That
+  decision has not been made, so Ghostscript is never bundled and never
+  redistributed. The optimiser still works without it — the structural tier
+  comes from the qpdf build that is already linked in; what is missing without
+  Ghostscript is the image re-encoding, font re-compression and `/ebook`
+  down-sampling tier.
+- **The OFD converter is driven, not re-implemented.** This project has no OFD
+  reader. `app::OfdConverters` keeps the list of converters whose command line
+  has been checked against upstream (their argument conventions differ), falls
+  back to the generic `input output` convention for anything else, and checks
+  the SHA-256 of the converter binary against the value recorded on first use.
+  Because the app **executes** a user-supplied executable, that integrity check
+  is what makes a replacement between runs visible to the user.
+
 ## Review record
 
 The dependency table in `THIRD_PARTY_LICENSES.md` is updated whenever a new dependency is proposed. A dependency is production-approved only after its status includes an exact version and an accepted distribution strategy.
