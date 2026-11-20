@@ -147,6 +147,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/controllers/DocumentOutput.h
     app/controllers/DocumentConverter.cpp
     app/controllers/DocumentConverter.h
+    app/controllers/ExternalProcessTask.cpp
+    app/controllers/ExternalProcessTask.h
     app/controllers/DigitalSignatureBackend.cpp
     app/controllers/DigitalSignatureBackend.h
     app/util/SearchMatcher.h

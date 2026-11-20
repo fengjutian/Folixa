@@ -20,6 +20,7 @@
 #include "app/controllers/DocumentOutput.h"
 #include "app/controllers/DocumentConverter.h"
 #include "app/controllers/DigitalSignatureBackend.h"
+#include "app/controllers/ExternalProcessTask.h"
 #include "app/panels/IndexPanel.h"
 #include "app/panels/AttachmentPanel.h"
 #include "app/controllers/IndexController.h"
@@ -143,6 +144,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <memory>
 
 namespace aipdf::app {
 
@@ -176,20 +178,12 @@ void trace(const QString& message) {
     }
 }
 
-// 读走子进程已经产出的输出，只保留尾部。
-//
-// 为什么必须在等待过程中读：QProcess 的管道缓冲区只有几十 KB，子进程写满
-// 之后会阻塞在 write() 上、永远不退出；如果父进程只 waitForFinished()、
-// 等退出后再 readAll()，双方就互等（经典死锁）。只保留尾部是为了不让一个
-// 话痨子进程把内存吃光，同时也足够给用户看错误原因。
+// The OFD batch converter still runs a sequence of processes. Keep draining its
+// pipe while that queue is migrated to ExternalProcessTask as a separate change.
 void drainProcessOutput(QProcess& process, QByteArray* sink, int maxBytes = 256 * 1024) {
-    if (sink == nullptr) {
-        return;
-    }
+    if (sink == nullptr) return;
     sink->append(process.readAll());
-    if (sink->size() > maxBytes) {
-        sink->remove(0, sink->size() - maxBytes);
-    }
+    if (sink->size() > maxBytes) sink->remove(0, sink->size() - maxBytes);
 }
 
 // 命令栏与页面页统一的图标：SVG 资源，18px（20px 画布按 0.9 缩）。
@@ -5830,58 +5824,56 @@ void MainWindow::digitallySignDocument() {
     const QString output = QFileDialog::getSaveFileName(this, tr("保存已签名文档"), suggested,
                                                         tr("PDF 文件 (*.pdf)"));
     if (output.isEmpty()) return;
-    QTemporaryFile passFile(QDir::temp().filePath(QStringLiteral("folixa-sign-pass-XXXXXX")));
-    passFile.setAutoRemove(true);
-    if (!passFile.open()) {
+    auto passFile = std::make_shared<QTemporaryFile>(
+        QDir::temp().filePath(QStringLiteral("folixa-sign-pass-XXXXXX")));
+    passFile->setAutoRemove(true);
+    if (!passFile->open()) {
         QMessageBox::warning(this, tr("数字签名"), tr("无法创建临时密码文件。"));
         return;
     }
-    passFile.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-    passFile.write(password->text().toUtf8());
-    passFile.write("\n");
-    passFile.flush();
+    passFile->setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    passFile->write(password->text().toUtf8());
+    passFile->write("\n");
+    passFile->flush();
 
     const SignatureCommand command = DigitalSignatureBackend::signPkcs12(
-        view->filePath(), output, certificate->text().trimmed(), passFile.fileName(),
+        view->filePath(), output, certificate->text().trimmed(), passFile->fileName(),
         timestamp->text().trimmed(), validation->isChecked());
     if (!command.isValid()) {
         QMessageBox::warning(this, tr("数字签名"), command.error);
         return;
     }
-    QProgressDialog progress(tr("正在创建数字签名…"), tr("取消"), 0, 0, this);
-    progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
-    process.start(command.program, command.arguments);
-    if (!process.waitForStarted(5000)) {
-        QMessageBox::warning(this, tr("数字签名"), tr("无法启动 pyHanko。"));
-        return;
-    }
-    QByteArray processOutput;
-    while (process.state() != QProcess::NotRunning && !progress.wasCanceled()) {
-        process.waitForFinished(100);
-        drainProcessOutput(process, &processOutput);
-        QApplication::processEvents();
-    }
-    if (process.state() != QProcess::NotRunning) {
-        process.kill();
-        process.waitForFinished(3000);
-    }
-    drainProcessOutput(process, &processOutput);
-    QString report = QString::fromUtf8(processOutput).trimmed();
-    if (progress.wasCanceled()) {
-        QFile::remove(output);
-        statusBar()->showMessage(tr("数字签名已取消。"), 4000);
-        return;
-    }
-    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
-        !QFileInfo(output).isFile() || QFileInfo(output).size() == 0) {
-        QFile::remove(output);
-        QMessageBox::warning(this, tr("数字签名失败"), report.isEmpty() ? tr("pyHanko 未生成签名文件。") : report);
-        return;
-    }
-    statusBar()->showMessage(tr("数字签名完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
+    auto* progress = new QProgressDialog(tr("正在创建数字签名…"), tr("取消"), 0, 0, this);
+    progress->setAttribute(Qt::WA_DeleteOnClose);
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->show();
+
+    auto* task = new ExternalProcessTask(this);
+    connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, this,
+            [this, progress, output, passFile](const ExternalProcessTask::Result& result) {
+                progress->close();
+                const QString report = QString::fromUtf8(result.output).trimmed();
+                if (result.canceled) {
+                    QFile::remove(output);
+                    statusBar()->showMessage(tr("数字签名已取消。"), 4000);
+                    return;
+                }
+                if (result.timedOut || !result.succeeded() ||
+                    !QFileInfo(output).isFile() || QFileInfo(output).size() == 0) {
+                    QFile::remove(output);
+                    const QString detail = result.timedOut
+                                               ? tr("数字签名进程超时。")
+                                               : (report.isEmpty() ? result.errorString : report);
+                    QMessageBox::warning(this, tr("数字签名失败"),
+                                         detail.isEmpty() ? tr("pyHanko 未生成签名文件。") : detail);
+                    return;
+                }
+                statusBar()->showMessage(
+                    tr("数字签名完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
+            });
+    task->start(command.program, command.arguments, 10 * 60 * 1000);
 }
 
 void MainWindow::verifyDigitalSignatures() {
@@ -5896,35 +5888,36 @@ void MainWindow::verifyDigitalSignatures() {
                                  command.error + tr("\n请安装 pyhanko-cli，并确保 pyhanko 位于 PATH 中。"));
         return;
     }
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
-    process.start(command.program, command.arguments);
-    if (!process.waitForStarted(5000)) {
-        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程启动失败。"));
-        return;
-    }
-    // 边等边读：pyhanko validate 的输出可能超过管道缓冲区，只等不读会死锁。
-    QByteArray verifyOutput;
-    QElapsedTimer verifyTimer;
-    verifyTimer.start();
-    while (process.state() != QProcess::NotRunning && verifyTimer.elapsed() < 120000) {
-        process.waitForFinished(100);
-        drainProcessOutput(process, &verifyOutput);
-        QApplication::processEvents();
-    }
-    if (process.state() != QProcess::NotRunning) {
-        process.kill();
-        process.waitForFinished(3000);
-        QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程超时。"));
-        return;
-    }
-    drainProcessOutput(process, &verifyOutput);
-    const QString report = QString::fromUtf8(verifyOutput).trimmed();
-    if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-        QMessageBox::information(this, tr("签名验证通过"), report);
-    } else {
-        QMessageBox::warning(this, tr("签名验证未通过"), report.isEmpty() ? tr("没有发现有效数字签名。") : report);
-    }
+    auto* progress = new QProgressDialog(tr("正在验证数字签名…"), tr("取消"), 0, 0, this);
+    progress->setAttribute(Qt::WA_DeleteOnClose);
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->show();
+
+    auto* task = new ExternalProcessTask(this);
+    connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, this,
+            [this, progress](const ExternalProcessTask::Result& result) {
+                progress->close();
+                if (result.canceled) {
+                    statusBar()->showMessage(tr("签名验证已取消。"), 4000);
+                    return;
+                }
+                if (result.timedOut) {
+                    QMessageBox::warning(this, tr("验证签名"), tr("签名验证进程超时。"));
+                    return;
+                }
+                const QString report = QString::fromUtf8(result.output).trimmed();
+                if (result.succeeded()) {
+                    QMessageBox::information(this, tr("签名验证通过"), report);
+                } else {
+                    const QString detail = report.isEmpty() ? result.errorString : report;
+                    QMessageBox::warning(
+                        this, tr("签名验证未通过"),
+                        detail.isEmpty() ? tr("没有发现有效数字签名。") : detail);
+                }
+            });
+    task->start(command.program, command.arguments, 120000);
 }
 
 void MainWindow::convertDocument(ConversionKind kind) {
@@ -5959,12 +5952,13 @@ void MainWindow::convertDocument(ConversionKind kind) {
         return;
     }
 
-    QTemporaryDir temporary;
-    if (!temporary.isValid()) {
+    auto temporary = std::make_shared<QTemporaryDir>();
+    if (!temporary->isValid()) {
         QMessageBox::warning(this, tr("转换"), tr("无法创建安全的临时目录。"));
         return;
     }
-    const QString temporaryOutput = QDir(temporary.path()).filePath(QStringLiteral("converted.pdf"));
+    const QString temporaryOutput =
+        QDir(temporary->path()).filePath(QStringLiteral("converted.pdf"));
     ConversionPlan plan = DocumentConverter::plan(kind, input, temporaryOutput);
     if (!plan.isValid()) {
         QMessageBox::information(
@@ -5974,61 +5968,56 @@ void MainWindow::convertDocument(ConversionKind kind) {
         return;
     }
 
-    QProgressDialog progress(tr("正在使用 %1 转换…").arg(plan.engineName), tr("取消"), 0, 0, this);
-    progress.setWindowTitle(tr("文档转换"));
-    progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
-    process.start(plan.program, plan.arguments);
-    if (!process.waitForStarted(5000)) {
-        QMessageBox::warning(this, tr("转换失败"),
-                             tr("无法启动 %1：%2").arg(plan.engineName, process.errorString()));
-        return;
-    }
-    QElapsedTimer elapsed;
-    elapsed.start();
-    QByteArray diagnostics;
-    while (process.state() != QProcess::NotRunning && elapsed.elapsed() < 10 * 60 * 1000 &&
-           !progress.wasCanceled()) {
-        process.waitForFinished(100);
-        drainProcessOutput(process, &diagnostics);
-        QApplication::processEvents();
-    }
-    if (process.state() != QProcess::NotRunning) {
-        process.kill();
-        process.waitForFinished(3000);
-    }
-    drainProcessOutput(process, &diagnostics);
-    if (progress.wasCanceled()) {
-        statusBar()->showMessage(tr("转换已取消。"), 4000);
-        return;
-    }
-    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0 ||
-        !QFileInfo(plan.expectedOutput).isFile() || QFileInfo(plan.expectedOutput).size() == 0) {
-        QString detail = QString::fromLocal8Bit(diagnostics).trimmed();
-        if (detail.size() > 1200) detail = detail.right(1200);
-        QMessageBox::warning(this, tr("转换失败"),
-                             tr("%1 返回了错误。\n%2").arg(plan.engineName, detail));
-        return;
-    }
+    auto* progress = new QProgressDialog(
+        tr("正在使用 %1 转换…").arg(plan.engineName), tr("取消"), 0, 0, this);
+    progress->setAttribute(Qt::WA_DeleteOnClose);
+    progress->setWindowTitle(tr("文档转换"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->show();
 
-    QFile source(plan.expectedOutput);
-    QSaveFile destination(output);
-    if (!source.open(QIODevice::ReadOnly) || !destination.open(QIODevice::WriteOnly)) {
-        QMessageBox::warning(this, tr("转换失败"), tr("无法写入输出文件。"));
-        return;
-    }
-    while (!source.atEnd()) {
-        const QByteArray block = source.read(1024 * 1024);
-        if (block.isEmpty() && source.error() != QFileDevice::NoError) break;
-        if (destination.write(block) != block.size()) break;
-    }
-    if (source.error() != QFileDevice::NoError || !destination.commit()) {
-        QMessageBox::warning(this, tr("转换失败"), tr("保存转换结果失败，原文件没有改动。"));
-        return;
-    }
-    statusBar()->showMessage(tr("转换完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
+    auto* task = new ExternalProcessTask(this);
+    connect(progress, &QProgressDialog::canceled, task, &ExternalProcessTask::cancel);
+    connect(task, &ExternalProcessTask::finished, this,
+            [this, progress, output, plan, temporary](const ExternalProcessTask::Result& result) {
+                progress->close();
+                if (result.canceled) {
+                    statusBar()->showMessage(tr("转换已取消。"), 4000);
+                    return;
+                }
+                QString detail = QString::fromLocal8Bit(result.output).trimmed();
+                if (detail.size() > 1200) detail = detail.right(1200);
+                if (result.timedOut || !result.succeeded() ||
+                    !QFileInfo(plan.expectedOutput).isFile() ||
+                    QFileInfo(plan.expectedOutput).size() == 0) {
+                    if (detail.isEmpty()) detail = result.errorString;
+                    if (result.timedOut) detail = tr("转换进程超时。");
+                    QMessageBox::warning(this, tr("转换失败"),
+                                         tr("%1 返回了错误。\n%2").arg(plan.engineName, detail));
+                    return;
+                }
+
+                QFile source(plan.expectedOutput);
+                QSaveFile destination(output);
+                if (!source.open(QIODevice::ReadOnly) ||
+                    !destination.open(QIODevice::WriteOnly)) {
+                    QMessageBox::warning(this, tr("转换失败"), tr("无法写入输出文件。"));
+                    return;
+                }
+                while (!source.atEnd()) {
+                    const QByteArray block = source.read(1024 * 1024);
+                    if (block.isEmpty() && source.error() != QFileDevice::NoError) break;
+                    if (destination.write(block) != block.size()) break;
+                }
+                if (source.error() != QFileDevice::NoError || !destination.commit()) {
+                    QMessageBox::warning(this, tr("转换失败"),
+                                         tr("保存转换结果失败，原文件没有改动。"));
+                    return;
+                }
+                statusBar()->showMessage(
+                    tr("转换完成：%1").arg(QDir::toNativeSeparators(output)), 7000);
+            });
+    task->start(plan.program, plan.arguments, 10 * 60 * 1000);
 }
 
 void MainWindow::batchConvertOfd() {
