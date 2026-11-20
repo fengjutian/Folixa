@@ -10,6 +10,7 @@
 #include <QtTest>
 
 #include "pdf/security/SignatureWorkflow.h"
+#include "app/controllers/SignatureWorkflowController.h"
 
 using namespace aipdf::pdf;
 
@@ -77,6 +78,7 @@ private slots:
     void reportTextContainsTitleAndNames();
     void eventsKeepInsertionOrder();
     void nextPendingSignatoryFollowsOrder();
+    void controllerOwnsAndAdvancesWorkflow();
 };
 
 void SignatureWorkflowTests::createWorkflowStartsInDraft() {
@@ -501,6 +503,22 @@ void SignatureWorkflowTests::removeSignatoryRecordsEvent() {
     }
     QCOMPARE(actions, QStringList({QStringLiteral("created"), QStringLiteral("signatory_added"),
                                    QStringLiteral("signatory_removed")}));
+}
+
+void SignatureWorkflowTests::controllerOwnsAndAdvancesWorkflow() {
+    aipdf::app::SignatureWorkflowController controller;
+    QString error;
+    QVERIFY(controller.ensureCreated(QStringLiteral("合同会签"),
+                                     QStringLiteral("王发起"), &error));
+    QVERIFY(controller.addSignatory(makeSignatory(QStringLiteral("张三"), 1), &error));
+    QVERIFY(controller.addSignatory(makeSignatory(QStringLiteral("李四"), 2), &error));
+    QVERIFY(controller.start(&error));
+    QVERIFY(controller.signNext(QDateTime::currentDateTime(), &error));
+    QVERIFY(controller.skipNext(&error));
+    QVERIFY(controller.complete(&error));
+    QCOMPARE(controller.model().state(), WorkflowState::Completed);
+    QCOMPARE(controller.model().buildReport().signedCount, 1);
+    QCOMPARE(controller.model().buildReport().skippedCount, 1);
 }
 
 QTEST_GUILESS_MAIN(SignatureWorkflowTests)

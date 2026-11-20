@@ -17,7 +17,6 @@
 #include "pdf/annot/AnnotationToolkit.h"
 #include "pdf/forms/FormFieldWriter.h"
 #include "pdf/forms/FormAppearance.h"
-#include "pdf/security/SignatureWorkflow.h"
 #include "pdf/compliance/TagTreeWriter.h"
 #include "pdf/forms/FormScriptStore.h"
 #include "i18n/Translate.h"
@@ -48,6 +47,7 @@ class PageTransform;
 class PresentationWindow;
 class FormInteractionController;
 class FormDocumentController;
+class SignatureWorkflowController;
 
 // PDF 页面视图：连续显示多页，按视口渲染，支持缩放与旋转。
 class PdfView final : public QWidget {
@@ -659,7 +659,7 @@ private:
     // 电子签章：多方签署流程的状态机。
     // 流程状态与签署人状态只由领域层管，界面不另算一套 ——
     // 签署记录是拿来追责的，不能有第二种说法。
-    pdf::SignatureWorkflow signatureWorkflow_;
+    std::unique_ptr<SignatureWorkflowController> signatureWorkflowController_;
 
     QLabel* zoomLabel_ = nullptr;
     QLabel* pageInfoLabel_ = nullptr;

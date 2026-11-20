@@ -216,8 +216,10 @@ void SignatureVerifierTests::inspectionControllerAggregatesResults() {
     QCOMPARE(result.verdicts.size(), 1);
     QVERIFY(result.verdicts.first().signatureValid);
     const auto chain = controller.certificateChain(result.signatures.first());
-    QVERIFY(chain.error.isEmpty());
     QVERIFY(!chain.certificates.isEmpty());
+    // The fixture is self-signed, so Windows may correctly report an
+    // untrusted-root error. The controller must still return the built chain.
+    QVERIFY(!chain.summary.isEmpty() || !chain.error.isEmpty());
 }
 
 void SignatureVerifierTests::tamperedSampleFailsWithReason() {

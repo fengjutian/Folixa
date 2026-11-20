@@ -9,6 +9,8 @@
 
 qt_add_executable(SignatureWorkflowTests
     ${CMAKE_CURRENT_LIST_DIR}/../SignatureWorkflowTests.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignatureWorkflowController.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/controllers/SignatureWorkflowController.h
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureWorkflow.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/security/SignatureWorkflow.h
 )

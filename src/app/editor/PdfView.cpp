@@ -60,6 +60,7 @@
 #include "app/controllers/FormDocumentController.h"
 #include "app/controllers/SignaturePlacementController.h"
 #include "app/controllers/SignatureInspectionController.h"
+#include "app/controllers/SignatureWorkflowController.h"
 #include "app/controllers/IndexController.h"
 #include "app/controllers/DocumentQaController.h"
 #include "app/layout/PageTransform.h"
@@ -7637,7 +7638,11 @@ void PdfView::showSignatureListDialog() {
 // 流程状态与签署人状态**一律**由 pdf::SignatureWorkflow 管，界面不另算一套 ——
 // 两处各算一套迟早会打架，而签署记录是拿来追责的，不能有第二种说法。
 void PdfView::showSignatureWorkflowDialog() {
-    pdf::SignatureWorkflow& workflow = signatureWorkflow_;
+    if (!signatureWorkflowController_) {
+        signatureWorkflowController_ = std::make_unique<SignatureWorkflowController>();
+    }
+    SignatureWorkflowController& workflowController = *signatureWorkflowController_;
+    const pdf::SignatureWorkflow& workflow = workflowController.model();
 
     QDialog dialog(this);
     // 名字与 Ribbon 上的按钮（signature.workflow）错开一位：
@@ -7829,7 +7834,7 @@ void PdfView::showSignatureWorkflowDialog() {
         QString error;
         const QString title = titleEdit->text().trimmed();
         const QString initiator = initiatorEdit->text().trimmed();
-        if (workflow.createWorkflow(title, initiator, &error).isEmpty()) {
+        if (!workflowController.ensureCreated(title, initiator, &error)) {
             QMessageBox::warning(&dialog, tr("签署流程"),
                                  error.isEmpty() ? tr("创建签署流程失败。") : error);
             return false;
@@ -7850,8 +7855,7 @@ void PdfView::showSignatureWorkflowDialog() {
         signatory.contact = contactEdit->text();
         signatory.order = orderSpin->value();
         QString error;
-        workflow.addSignatory(signatory, &error);
-        if (!error.isEmpty()) {
+        if (!workflowController.addSignatory(signatory, &error)) {
             showError(error);
             return;
         }
@@ -7879,7 +7883,7 @@ void PdfView::showSignatureWorkflowDialog() {
             return;
         }
         QString error;
-        if (!workflow.startSigning(&error)) {
+        if (!workflowController.start(&error)) {
             showError(error);
             return;
         }
@@ -7887,13 +7891,8 @@ void PdfView::showSignatureWorkflowDialog() {
     });
 
     connect(signedButton, &QPushButton::clicked, &dialog, [&]() {
-        const QString name = workflow.nextPendingSignatory();
-        if (name.isEmpty()) {
-            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
-            return;
-        }
         QString error;
-        if (!workflow.recordSigned(name, QDateTime::currentDateTime(), &error)) {
+        if (!workflowController.signNext(QDateTime::currentDateTime(), &error)) {
             showError(error);
             return;
         }
@@ -7901,11 +7900,6 @@ void PdfView::showSignatureWorkflowDialog() {
     });
 
     connect(rejectButton, &QPushButton::clicked, &dialog, [&]() {
-        const QString name = workflow.nextPendingSignatory();
-        if (name.isEmpty()) {
-            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
-            return;
-        }
         bool ok = false;
         const QString reason = QInputDialog::getText(&dialog, tr("标记拒签"),
                                                      tr("拒签理由（必填）"), QLineEdit::Normal,
@@ -7918,7 +7912,7 @@ void PdfView::showSignatureWorkflowDialog() {
             return;
         }
         QString error;
-        if (!workflow.recordRejected(name, reason.trimmed(), QDateTime::currentDateTime(), &error)) {
+        if (!workflowController.rejectNext(reason, QDateTime::currentDateTime(), &error)) {
             showError(error);
             return;
         }
@@ -7926,13 +7920,8 @@ void PdfView::showSignatureWorkflowDialog() {
     });
 
     connect(skipButton, &QPushButton::clicked, &dialog, [&]() {
-        const QString name = workflow.nextPendingSignatory();
-        if (name.isEmpty()) {
-            QMessageBox::information(&dialog, tr("签署流程"), tr("没有待签署的人。"));
-            return;
-        }
         QString error;
-        if (!workflow.skipSignatory(name, &error)) {
+        if (!workflowController.skipNext(&error)) {
             showError(error);
             return;
         }
@@ -7941,7 +7930,7 @@ void PdfView::showSignatureWorkflowDialog() {
 
     connect(completeButton, &QPushButton::clicked, &dialog, [&]() {
         QString error;
-        if (!workflow.completeWorkflow(&error)) {
+        if (!workflowController.complete(&error)) {
             showError(error);
             return;
         }
@@ -7961,7 +7950,7 @@ void PdfView::showSignatureWorkflowDialog() {
             return;
         }
         QString error;
-        if (!workflow.abortWorkflow(reason.trimmed(), &error)) {
+        if (!workflowController.abort(reason, &error)) {
             showError(error);
             return;
         }
