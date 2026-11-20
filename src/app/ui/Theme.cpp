@@ -363,6 +363,19 @@ QListWidget#annotationList {
 QListWidget#annotationList::item { min-height: 38px; padding: 4px 8px; border-radius: 6px; }
 QListWidget#annotationList::item:hover { background: #F1F4FF; color: #3159B8; }
 QListWidget#annotationList::item:selected { background: #E9F0FB; color: #24499D; }
+
+/* 批量打印：Qlementine 负责控件绘制，这里只定义信息层级与品牌强调。 */
+QLabel#printBatchTitle { color: #202A3A; font-size: 20px; font-weight: 700; }
+QLabel#printBatchDescription { color: #8792A3; font-size: 12px; padding-bottom: 2px; }
+QFrame#printBatchSettingsCard {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px;
+}
+QTableWidget[printBatchTable="true"] {
+    background: #FFFFFF; alternate-background-color: #FAFBFD;
+    border: 1px solid #E3E8F0; border-radius: 9px; outline: 0;
+}
+QLabel[printBatchPlan="true"] { color: #465267; font-weight: 600; }
+QLabel[printBatchWarnings="true"] { color: #C0562F; }
 /* 导航轨按钮：扁平图标，选中只换图标颜色（QIcon::On 的那份重染色），
    不再画整块浅蓝底 + 左侧竖条——那套边框在圆角下会弯成一只「括号」，
    看着像残缺的控件。 */

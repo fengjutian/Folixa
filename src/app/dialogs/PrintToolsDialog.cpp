@@ -6,6 +6,7 @@
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -179,16 +180,37 @@ void NewDocumentDialog::refreshEnabledState() {
 PrintBatchDialog::PrintBatchDialog(QWidget* parent) : QDialog(parent) {
     setObjectName(QStringLiteral("file.printBatchDialog"));
     setWindowTitle(i18n::tr("aipdf::app::MainWindow", "批量打印"));
-    resize(680, 460);
+    resize(780, 600);
 
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 18, 20, 18);
+    layout->setSpacing(12);
+
+    auto* heading = new QLabel(i18n::tr("aipdf::app::MainWindow", "打印队列"), this);
+    heading->setObjectName(QStringLiteral("printBatchTitle"));
+    layout->addWidget(heading);
+    auto* description = new QLabel(
+        i18n::tr("aipdf::app::MainWindow", "添加多份 PDF，统一设置份数和页码范围，再进入系统打印设置。"), this);
+    description->setObjectName(QStringLiteral("printBatchDescription"));
+    description->setWordWrap(true);
+    layout->addWidget(description);
 
     table_ = new QTableWidget(0, 3, this);
     table_->setObjectName(QStringLiteral("file.printBatch.table"));
+    table_->setProperty("printBatchTable", true);
     table_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "待打印文件"));
     table_->setHorizontalHeaderLabels({i18n::tr("aipdf::app::MainWindow", "文件"), i18n::tr("aipdf::app::MainWindow", "份数"), i18n::tr("aipdf::app::MainWindow", "页码范围")});
-    table_->horizontalHeader()->setStretchLastSection(true);
-    layout->addWidget(table_);
+    table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    table_->verticalHeader()->setVisible(false);
+    table_->setShowGrid(false);
+    table_->setAlternatingRowColors(true);
+    table_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table_->setSelectionMode(QAbstractItemView::SingleSelection);
+    table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_->verticalHeader()->setDefaultSectionSize(38);
+    layout->addWidget(table_, 1);
 
     auto* addRow = new QHBoxLayout;
     auto* addButton = new QPushButton(i18n::tr("aipdf::app::MainWindow", "添加文件"), this);
@@ -202,50 +224,61 @@ PrintBatchDialog::PrintBatchDialog(QWidget* parent) : QDialog(parent) {
     addRow->addStretch(1);
     layout->addLayout(addRow);
 
-    auto* form = new QFormLayout;
-    copiesSpin_ = new QSpinBox(this);
+    auto* settingsCard = new QFrame(this);
+    settingsCard->setObjectName(QStringLiteral("printBatchSettingsCard"));
+    auto* form = new QFormLayout(settingsCard);
+    form->setContentsMargins(16, 14, 16, 14);
+    form->setHorizontalSpacing(16);
+    form->setVerticalSpacing(10);
+    copiesSpin_ = new QSpinBox(settingsCard);
     copiesSpin_->setObjectName(QStringLiteral("file.printBatch.copies"));
     copiesSpin_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "份数"));
     copiesSpin_->setRange(1, 99);
     copiesSpin_->setValue(1);
     form->addRow(i18n::tr("aipdf::app::MainWindow", "份数:"), copiesSpin_);
 
-    rangeEdit_ = new QLineEdit(this);
+    rangeEdit_ = new QLineEdit(settingsCard);
     rangeEdit_->setObjectName(QStringLiteral("file.printBatch.range"));
     rangeEdit_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "页码范围"));
     rangeEdit_->setPlaceholderText(i18n::tr("aipdf::app::MainWindow", "留空表示全部页，例如 1-3,5"));
     form->addRow(i18n::tr("aipdf::app::MainWindow", "页码范围:"), rangeEdit_);
 
-    jobNameEdit_ = new QLineEdit(this);
+    jobNameEdit_ = new QLineEdit(settingsCard);
     jobNameEdit_->setObjectName(QStringLiteral("file.printBatch.jobName"));
     jobNameEdit_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "任务名"));
     form->addRow(i18n::tr("aipdf::app::MainWindow", "任务名:"), jobNameEdit_);
 
-    combineBox_ = new QCheckBox(i18n::tr("aipdf::app::MainWindow", "合并成一份打印"), this);
+    combineBox_ = new QCheckBox(i18n::tr("aipdf::app::MainWindow", "合并成一份打印"), settingsCard);
     combineBox_->setObjectName(QStringLiteral("file.printBatch.combine"));
     combineBox_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "合并成一份打印"));
     form->addRow(QString(), combineBox_);
 
-    outputEdit_ = new QLineEdit(this);
+    outputEdit_ = new QLineEdit(settingsCard);
     outputEdit_->setObjectName(QStringLiteral("file.printBatch.output"));
     outputEdit_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "合并输出路径"));
     form->addRow(i18n::tr("aipdf::app::MainWindow", "合并输出路径:"), outputEdit_);
-    layout->addLayout(form);
+    layout->addWidget(settingsCard);
 
     planLabel_ = new QLabel(this);
     planLabel_->setObjectName(QStringLiteral("file.printBatch.plan"));
+    planLabel_->setProperty("printBatchPlan", true);
     planLabel_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "打印计划"));
     layout->addWidget(planLabel_);
 
     warningsLabel_ = new QLabel(this);
     warningsLabel_->setObjectName(QStringLiteral("file.printBatch.warnings"));
+    warningsLabel_->setProperty("printBatchWarnings", true);
     warningsLabel_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "打印提醒"));
     warningsLabel_->setWordWrap(true);
     layout->addWidget(warningsLabel_);
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    buttons->button(QDialogButtonBox::Ok)->setText(i18n::tr("aipdf::app::MainWindow", "继续打印"));
+    buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("primaryButton"));
+    buttons->button(QDialogButtonBox::Cancel)->setText(i18n::tr("aipdf::app::MainWindow", "取消"));
     layout->addWidget(buttons);
 
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(addButton, &QPushButton::clicked, this, [this] {
         const QStringList paths = QFileDialog::getOpenFileNames(
@@ -264,6 +297,8 @@ PrintBatchDialog::PrintBatchDialog(QWidget* parent) : QDialog(parent) {
     connect(copiesSpin_, &QSpinBox::valueChanged, this, [this](int) { refreshPlan(); });
     connect(rangeEdit_, &QLineEdit::textChanged, this, [this](const QString&) { refreshPlan(); });
     connect(combineBox_, &QCheckBox::toggled, this, [this](bool) { refreshPlan(); });
+    connect(combineBox_, &QCheckBox::toggled, outputEdit_, &QWidget::setEnabled);
+    outputEdit_->setEnabled(false);
 
     refreshPlan();
 }

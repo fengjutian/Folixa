@@ -71,6 +71,20 @@ endforeach()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Svg PrintSupport)
 
+# Qlementine：Qt Widgets 的现代 QStyle。固定版本保证 CI、开发机和发布包外观一致。
+# 它负责标准控件的基础绘制；应用品牌色与专属面板仍由 Theme.cpp 叠加。
+include(FetchContent)
+set(QLEMENTINE_SANDBOX OFF CACHE BOOL "" FORCE)
+set(QLEMENTINE_SHOWCASE OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    qlementine
+    GIT_REPOSITORY https://github.com/oclero/qlementine.git
+    # Release v1.4.2. The immutable commit keeps builds reproducible even if
+    # an upstream tag is moved.
+    GIT_TAG 13f72eb8b53bafd9ac24e5562d8ddc28d5440469
+)
+FetchContent_MakeAvailable(qlementine)
+
 if(AIPDF_BUILD_TESTS)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 endif()

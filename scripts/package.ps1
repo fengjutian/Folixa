@@ -145,7 +145,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\THIRD_PARTY_LICENSES.md') -D
 # 写入前统一按 LF 归一化：上游来源行尾不一致（MinGW 的 COPYING.RUNTIME 是 CRLF），
 # 而仓库与安装包都按 LF 落地，归一化后安装包才是可复现的。
 $licenseSources = Join-Path $PSScriptRoot '..\licenses'
-foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt', 'Apache-2.0.txt', 'SCOWL.txt', 'MIT-jieba.txt', 'QuickJS-MIT.txt')) {
+foreach ($licenseFile in @('LGPL-3.0.txt', 'GPL-3.0.txt', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt', 'Apache-2.0.txt', 'SCOWL.txt', 'MIT-jieba.txt', 'QuickJS-MIT.txt', 'Qlementine-MIT.txt')) {
     $source = Join-Path $licenseSources $licenseFile
     if (-not (Test-Path -LiteralPath $source)) {
         throw "缺少许可证全文 $source（可运行 scripts\fetch-licenses.ps1 补齐）"

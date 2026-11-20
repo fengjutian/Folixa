@@ -14,6 +14,8 @@
 #include <QSettings>
 #include <QTimer>
 
+#include <oclero/qlementine.hpp>
+
 #include <memory>
 
 int main(int argc, char* argv[]) {
@@ -23,6 +25,10 @@ int main(int argc, char* argv[]) {
     SetProcessDPIAware();
 #endif
     QApplication application(argc, argv);
+    // 先安装现代 QStyle，再叠加 Folixa 的品牌主题。标准表格、输入框、数字框、
+    // 菜单和按钮由 Qlementine 统一绘制，专属组件继续使用 Theme.cpp 的规则。
+    auto* qlementineStyle = new oclero::qlementine::QlementineStyle(&application);
+    QApplication::setStyle(qlementineStyle);
     QCoreApplication::setApplicationName("AI PDF Editor");
     QCoreApplication::setOrganizationName("AI PDF Editor Project");
     QCoreApplication::setApplicationVersion(AIPDF_VERSION);
