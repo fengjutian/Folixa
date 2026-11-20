@@ -9,6 +9,7 @@
 #include <memory>
 
 class QFile;
+class QScreen;
 class QTimer;
 
 namespace aipdf::app {
@@ -32,7 +33,7 @@ class ScreenRecorder : public QObject {
 
 public:
     struct Options {
-        // 要录的区域（**屏幕坐标**）。空矩形表示整块主屏。
+        // 要录的区域（**全局屏幕坐标**）。空矩形表示整块目标屏。
         QRect region;
         // 帧率。屏幕内容变化慢，默认 10 帧足够，帧率越高文件越大。
         int framesPerSecond = 10;
@@ -86,6 +87,8 @@ private:
     void onTimeout();
     QImage grabFrame() const;
     QImage prepareFrame() const;
+    // 抓到的这一张图对应哪块逻辑区域（全局屏幕坐标），用来把选区换算成图内坐标。
+    QRect sourceRectFor(const QImage& image) const;
     QByteArray encodeJpeg(const QImage& image) const;
     void cleanup();
 
@@ -95,7 +98,9 @@ private:
     QFile* file_ = nullptr;
     std::unique_ptr<MotionJpegAviWriter> writer_;
     QString outputPath_;
-    // 裁剪用的矩形，已经换算成「抓到的画面」的坐标。
+    // 录哪块屏（多屏时按选区落在哪块屏上决定）。不持有所有权。
+    QScreen* screen_ = nullptr;
+    // 要录的区域（**全局屏幕坐标**）。空矩形表示整块目标屏。
     QRect cropRect_;
     int frameCount_ = 0;
     int width_ = 0;

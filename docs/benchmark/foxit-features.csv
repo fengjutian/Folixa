@@ -1,4 +1,4 @@
-tab,group,command,status,capability,note
+﻿tab,group,command,status,capability,note
 文件,文件操作,打开,aligned,—,命令行/拖放/最近文档
 文件,文件操作,创建,aligned,E7,新建空白文档：选纸张（标准/自定义）、方向与页数，落盘后按既有打开流程载入；Ribbon「文件 → 新建」；`doc::BlankDocument`，`BlankDocumentTests`
 文件,文件操作,属性,aligned,—,读 PDF 的 /Info 并可改写回；有专项单测
@@ -247,11 +247,11 @@ tab,group,command,status,capability,note
 文档管理,发票,发票合并,aligned,—,复用 PDF 页面合并通路
 文档管理,批量,批量重命名,aligned,D9,本地安全批量重命名并拒绝外部覆盖
 文档管理,批量,OFD批量转换,partial,—,依赖本机外部转换器；支持进度、取消、超时与失败汇总
-录制,录制,PDF录制,partial,—,先进入放映再调系统录屏工具；不产出文件
-录制,录制,屏幕录制,partial,—,委托 Windows 游戏栏录制任意窗口
-录制,录制,声音录制,partial,C8,已有录音组件（批注用），没有录制中心
+录制,录制,PDF录制,aligned,—,PDF 演示录制已实现并有界面入口（Ribbon「录制 → PDF 录制」，`record.pdf`）：先放映当前 PDF，**放映过程由本程序自己抓帧录下来**（`app::ScreenRecorder` 定时抓帧 → JPEG → 自研 MJPEG/AVI 封装 `app::MotionJpegAviWriter`），**放映一关就自动收尾**（`PdfView::presentationClosed` 信号），产出真正的视频文件并登记进录制列表；**不支持 H.264/MP4**（不引外部编码器是依赖政策的硬约束，代价是文件比 MP4 大）；**只录画面没有声音**；录的是主屏（放映是全屏的）；`RecordingTests` 14 条 + 独立校验 `scripts/verify-recordings.py`（另写一份 AVI 解析器 + PIL 真解码）
+录制,录制,屏幕录制,aligned,—,屏幕录制已实现并有界面入口（Ribbon「录制 → 屏幕录制」，`record.screen`）：**区域框选**与**整个窗口**两种范围（与主页截图共用同一套选区层），**由本程序自己抓帧产出真正的视频文件**（`app::ScreenRecorder` → `app::MotionJpegAviWriter`），状态条上有红点计时与「停止录制」按钮，录完自动登记进录制列表；**不支持 H.264/MP4**（同上，依赖政策决定）；默认 10 帧 / 秒、最长边 1280 像素，**只录画面没有声音**，抓的是屏幕像素（被别的窗口挡住就录不到）；`RecordingTests` 14 条 + `scripts/verify-recordings.py` 独立校验
+录制,录制,声音录制,aligned,C8,声音录制已实现并有界面入口（Ribbon「录制 → 声音录制」，`record.audio`）：`app::AudioRecorder`（Win32 waveIn，零外部依赖）录一段麦克风 → 完整 WAV 字节 → 落盘成文件 → 登记进录制列表；**只收麦克风输入，不录系统声音**（不混音）；没有录音设备时明确报错而不是静默失败；把音频嵌进 PDF 页面的「声音批注」仍在注释工具栏里；`RecordingTests` 14 条
 录制,录制,截图,aligned,—,截图：录制页的截图与主页共用同一套区域框选选区层，可框选区域或整个窗口；`ScreenCaptureTests` 7 条
-录制,录制,录制列表,partial,—,录制中心可管理输出文件
+录制,录制,录制列表,aligned,—,录制中心已实现并有界面入口（Ribbon「录制 → 录制列表」与「录制中心」，`record.list` / `record.center`）：`app::RecordingCenterDialog` 列出全部录制产物（名称 / 类型 / 时长 / 大小 / 时间），可**打开**、**在文件夹中显示**、**删除**（连磁盘上的文件一起删，删除前有确认）；索引是应用数据目录下的 `recordings.json`，**与磁盘对不上时自动对账**（文件被用户删掉的条目会清掉，目录里新出现的 `Folixa-*` 会被补进来）；只管本程序录出来的产物，不扫别处的文件
 帮助,帮助,用户手册,aligned,—,应用内手册窗口
 帮助,帮助,帮助中心,partial,—,打开仓库 Issues 页面，不是站内帮助中心
 帮助,帮助,命令行帮助,aligned,—,命令行用法对话框

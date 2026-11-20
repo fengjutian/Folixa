@@ -433,6 +433,12 @@ private:
     // 而录像是从主窗口这一侧发起的，两边要在同一个对象上对齐。
     RecordingLibrary* recordingLibrary_ = nullptr;
     ScreenRecorder* screenRecorder_ = nullptr;
+    // 本次录制属于哪一类（屏幕 / PDF 放映）。
+    //
+    // 为什么单独记着：录完之后要把它登记进录制列表，而登记发生在
+    // ScreenRecorder::finished 信号里——那时候只有文件路径，
+    // 靠文件名猜种类是猜不准的（用户可以改文件名）。
+    RecordingKind pendingRecordingKind_ = RecordingKind::Screen;
     // 录制中的状态条部件：红点 + 计时 + 「停止录制」。
     QLabel* recordingIndicator_ = nullptr;
     QPushButton* stopRecordingButton_ = nullptr;

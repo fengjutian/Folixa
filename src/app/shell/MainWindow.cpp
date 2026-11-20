@@ -4878,13 +4878,14 @@ void MainWindow::startScreenRecording(bool presentPdf) {
 
     const QString directory = RecordingLibrary::defaultDirectory();
     QDir().mkpath(directory);
+    pendingRecordingKind_ = presentPdf ? RecordingKind::Presentation : RecordingKind::Screen;
     const QString output = QDir(directory).filePath(
-        RecordingLibrary::fileNameFor(presentPdf ? RecordingKind::Presentation
-                                                 : RecordingKind::Screen,
-                                      QDateTime::currentDateTime()));
+        RecordingLibrary::fileNameFor(pendingRecordingKind_, QDateTime::currentDateTime()));
 
     if (screenRecorder_ == nullptr) {
         screenRecorder_ = new ScreenRecorder(this);
+        // 收尾、提示与登记都在这里统一做：不管是谁触发的结束（用户点停止、
+        // 放映结束、连续抓不到画面自动收尾），走的都是这一条路。
         connect(screenRecorder_, &ScreenRecorder::finished, this,
                 [this](bool ok, const QString& path, const QString& error) {
                     hideRecordingIndicator();
@@ -4893,12 +4894,9 @@ void MainWindow::startScreenRecording(bool presentPdf) {
                             error.isEmpty() ? tr("录制没有完成。") : error, 6000);
                         return;
                     }
-                    registerRecording(path.endsWith(QStringLiteral(".avi"))
-                                          ? (path.contains(QStringLiteral("presentation"))
-                                                 ? RecordingKind::Presentation
-                                                 : RecordingKind::Screen)
-                                          : RecordingKind::Screen,
-                                      path, 0, 0, 0);
+                    registerRecording(pendingRecordingKind_, path,
+                                      screenRecorder_->elapsedMs(),
+                                      screenRecorder_->width(), screenRecorder_->height());
                 });
     }
 
@@ -4921,22 +4919,8 @@ void MainWindow::startScreenRecording(bool presentPdf) {
 
 void MainWindow::finishScreenRecording() {
     if (screenRecorder_ == nullptr || !screenRecorder_->isRecording()) return;
-    QString error;
-    const QString path = screenRecorder_->outputPath();
-    const qint64 duration = screenRecorder_->elapsedMs();
-    const int width = screenRecorder_->width();
-    const int height = screenRecorder_->height();
-    if (!screenRecorder_->stop(&error)) {
-        QMessageBox::warning(this, tr("屏幕录制"),
-                             error.isEmpty() ? tr("录制没有正常收尾。") : error);
-        hideRecordingIndicator();
-        return;
-    }
-    hideRecordingIndicator();
-    registerRecording(path.contains(QStringLiteral("presentation"))
-                          ? RecordingKind::Presentation
-                          : RecordingKind::Screen,
-                      path, duration, width, height);
+    // 收尾之后 finished 信号里统一提示与登记，这里不再重复登记一次。
+    screenRecorder_->stop();
 }
 
 void MainWindow::startAudioRecording() {
