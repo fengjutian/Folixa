@@ -240,6 +240,8 @@ private:
     PdfView* currentView() const;
     // 切换阅读配色（夜间 / 护眼 / 高对比）。
     void changeReadingScheme();
+    // 视图设置面板：集中设置缩放、页面布局、侧栏显示与视图旋转。
+    void showViewSettingsDialog();
     // 目录树里点到某个条目：跳到它的目标页。
     void navigateToOutlineTarget(int pageIndex, const QString& title);
     void addCurrentPageBookmark();

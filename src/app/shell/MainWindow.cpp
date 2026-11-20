@@ -28,6 +28,7 @@
 #include "app/panels/AiPanel.h"
 #include "app/shell/WiringActions.h"
 #include "app/dialogs/SettingsDialog.h"
+#include "app/dialogs/ViewSettingsDialog.h"
 #include "app/dialogs/SignatureDialog.h"
 #include "app/dialogs/BookmarkTreeDialog.h"
 #include "app/dialogs/FormScriptDialog.h"
@@ -1337,6 +1338,21 @@ void MainWindow::buildUi() {
     addLayoutCommand("双页封面", "第一页单独作为封面", ":/icons/layout-facing-cover.svg",
                      PageLayout::LayoutMode::FacingCover, false);
     auto* showGroup = ribbonBar_->addGroup(viewTab, tr("显示"));
+    // 视图设置面板：把散在各处的视图选项（缩放、布局、面板、旋转）收到一个对话框。
+    // 放在「显示」组的第一位——它是这组命令的总入口。
+    //
+    // 这里用 ribbonBar_->addCommand 的直接形式（文案写死成 tr("…")），
+    // 不用 addRibbonCommand 包装：包装里是 tr(source) 传变量，
+    // 翻译目录与 i18n 门禁都看不见字面量（现有 addRibbonCommand 命令因此都没进目录）。
+    auto* viewSettingsButton = ribbonBar_->addCommand(
+        showGroup, tr("视图设置"), QIcon(":/icons/tools.svg"),
+        tr("集中设置缩放、页面布局、面板显示与视图旋转"), true, "view.settings");
+    texts_.bind([this, viewSettingsButton] {
+        viewSettingsButton->setText(tr("视图设置"));
+        viewSettingsButton->setToolTip(tr("集中设置缩放、页面布局、面板显示与视图旋转"));
+    });
+    connect(viewSettingsButton, &QToolButton::clicked, this,
+            [this] { showViewSettingsDialog(); });
     addRibbonCommand(showGroup, "放映", "全屏放映", ":/icons/book.svg", [this] {
         if (auto* view = currentView()) { view->startPresentation(); }
     });
@@ -4829,6 +4845,69 @@ void MainWindow::changeReadingScheme() {
         }
     }
     statusBar()->showMessage(tr("阅读配色已切换"), 3000);
+}
+
+// 视图设置面板：把缩放、页面布局、侧栏显示与视图旋转收到一个对话框里。
+//
+// 分工：对话框只负责收集参数（app/dialogs/ViewSettingsDialog.h），
+// 这里负责把参数应用到当前文档视图与侧栏上——和「加密与权限」同一个分工。
+void MainWindow::showViewSettingsDialog() {
+    PdfView* view = currentView();
+    ViewSettings current;
+    current.navigationVisible = navigationDock_ != nullptr && navigationDock_->isVisible();
+    current.aiVisible = aiDock_ != nullptr && aiDock_->isVisible();
+    if (view != nullptr) {
+        current.layoutMode = view->layoutMode();
+        current.rulerVisible = view->rulerVisible();
+        current.rotation = view->userRotation();
+        current.customZoom = view->zoom();
+        // 缩放方式不从比例反推：视图层自己记着「现在是适合宽度还是适合页面」。
+        // 反推会把「刚好 100% 的适合宽度」误判成实际大小。
+        if (view->zoomFitsWidth()) {
+            current.zoomMode = ViewSettings::ZoomMode::FitWidth;
+        } else if (view->zoomFitsPage()) {
+            current.zoomMode = ViewSettings::ZoomMode::FitPage;
+        } else if (qFuzzyCompare(view->zoom(), 1.0)) {
+            current.zoomMode = ViewSettings::ZoomMode::ActualSize;
+        } else {
+            current.zoomMode = ViewSettings::ZoomMode::Custom;
+        }
+    }
+    ViewSettingsDialog dialog(current, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const ViewSettings settings = dialog.settings();
+
+    if (navigationDock_ != nullptr) {
+        navigationDock_->setVisible(settings.navigationVisible);
+    }
+    // AI 面板只在文档已经打开时才显示：没有文档时 Worker 不可用，
+    // 「面板可见 + Worker 不可用」会让进程直接退出（与启动路径同一条约束）。
+    if (aiDock_ != nullptr && view != nullptr) {
+        aiDock_->setVisible(settings.aiVisible);
+    }
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("视图设置已应用（没有打开文档，页面相关的设置暂不生效）"), 3000);
+        return;
+    }
+    switch (settings.zoomMode) {
+        case ViewSettings::ZoomMode::ActualSize:
+            view->setZoom(1.0);
+            break;
+        case ViewSettings::ZoomMode::FitWidth:
+            view->zoomToFitWidth();
+            break;
+        case ViewSettings::ZoomMode::FitPage:
+            view->zoomToFitPage();
+            break;
+        case ViewSettings::ZoomMode::Custom:
+            view->setZoom(settings.customZoom);
+            break;
+    }
+    view->setLayoutMode(settings.layoutMode);
+    view->setRulerVisible(settings.rulerVisible);
+    view->setUserRotation(settings.rotation);
 }
 
 PdfView* MainWindow::currentView() const {

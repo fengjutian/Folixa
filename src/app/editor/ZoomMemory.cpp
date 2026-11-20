@@ -1,36 +1,17 @@
 ﻿#include "app/editor/ZoomMemory.h"
 
-#include <QDir>
-#include <QFileInfo>
+#include "app/editor/ViewMemory.h"
+
 #include <QSettings>
 
 #include <cmath>
 
 namespace aipdf::app {
 
-namespace {
-
-QString normalizedPath(const QString& filePath) {
-    if (filePath.isEmpty()) {
-        return {};
-    }
-    // 用绝对路径做键：相对路径在不同工作目录下指向同一个文件，但字符串不同，
-    // 不归一化就会出现"同一个文件记住两套缩放"。
-    const QFileInfo info(filePath);
-    const QString absolute = info.absoluteFilePath();
-    return QDir::cleanPath(absolute).toLower();
-}
-
-}  // namespace
-
 QString zoomSettingsKey(const QString& filePath) {
-    const QString normalized = normalizedPath(filePath);
-    if (normalized.isEmpty()) {
-        return {};
-    }
-    // qHash 是进程内稳定的（Qt 的散列种子固定），不同版本之间不做兼容承诺，
-    // 所以键里带上版本前缀：将来换算法时旧值自然失效，不会读出乱七八糟的数字。
-    return QStringLiteral("view/zoom/v1/%1").arg(qHash(normalized), 0, 16);
+    // 键算法搬到 ViewMemory（缩放与页面布局是同一族视图状态）。
+    // 键的格式没变（view/zoom/v1/<hash>），老配置继续有效。
+    return viewSettingsKey(filePath, QStringLiteral("zoom"));
 }
 
 void rememberZoomForFile(const QString& filePath, double zoom) {

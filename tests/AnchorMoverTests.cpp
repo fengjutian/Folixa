@@ -98,6 +98,51 @@ QByteArray makePdfWithContent(const QByteArray& content) {
     pdf.getRoot().replaceKey("/Pages", pdf.makeIndirectObject(pages));
     return toBytes(pdf);
 }
+// 图片的摆放跨两条内容流：cm 在第一条，Do 在第二条。
+QByteArray makePdfWithSplitContent(const QByteArray& first, const QByteArray& second) {
+    QPDF pdf;
+    pdf.emptyPDF();
+    QByteArray imageData;
+    imageData.append('\x20');
+    imageData.append('\x80');
+    imageData.append('\xC0');
+    QPDFObjectHandle image = pdf.newStream(imageData.toStdString());
+    QPDFObjectHandle dict = image.getDict();
+    dict.replaceKey("/Type", QPDFObjectHandle::newName("/XObject"));
+    dict.replaceKey("/Subtype", QPDFObjectHandle::newName("/Image"));
+    dict.replaceKey("/Width", QPDFObjectHandle::newInteger(1));
+    dict.replaceKey("/Height", QPDFObjectHandle::newInteger(1));
+    dict.replaceKey("/ColorSpace", QPDFObjectHandle::newName("/DeviceRGB"));
+    dict.replaceKey("/BitsPerComponent", QPDFObjectHandle::newInteger(8));
+    const QPDFObjectHandle imageRef = pdf.makeIndirectObject(image);
+    QPDFObjectHandle xobjects = QPDFObjectHandle::newDictionary();
+    xobjects.replaceKey("/Im1", imageRef);
+    QPDFObjectHandle resources = QPDFObjectHandle::newDictionary();
+    resources.replaceKey("/XObject", xobjects);
+
+    QPDFObjectHandle page = QPDFObjectHandle::newDictionary();
+    page.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
+    QPDFObjectHandle box = QPDFObjectHandle::newArray();
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(600));
+    box.appendItem(QPDFObjectHandle::newInteger(800));
+    page.replaceKey("/MediaBox", box);
+    page.replaceKey("/Resources", resources);
+    QPDFObjectHandle parts = QPDFObjectHandle::newArray();
+    parts.appendItem(pdf.makeIndirectObject(pdf.newStream(first.toStdString())));
+    parts.appendItem(pdf.makeIndirectObject(pdf.newStream(second.toStdString())));
+    page.replaceKey("/Contents", parts);
+    const QPDFObjectHandle pageRef = pdf.makeIndirectObject(page);
+    QPDFObjectHandle pages = QPDFObjectHandle::newDictionary();
+    pages.replaceKey("/Type", QPDFObjectHandle::newName("/Pages"));
+    QPDFObjectHandle kids = QPDFObjectHandle::newArray();
+    kids.appendItem(pageRef);
+    pages.replaceKey("/Kids", kids);
+    pages.replaceKey("/Count", QPDFObjectHandle::newInteger(1));
+    pdf.getRoot().replaceKey("/Pages", pdf.makeIndirectObject(pages));
+    return toBytes(pdf);
+}
 QString contentOf(const QByteArray& bytes) {
     QPDF pdf;
     pdf.processMemoryFile("content.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
@@ -120,6 +165,7 @@ private slots:
     void noMovesKeepsBytes();
     void movesManyPlacements();
     void movesRectanglePath();
+    void movesImageAcrossSplitStreams();
     void movesCurvePath();
     void reportsMissingPath();
 };
@@ -214,6 +260,20 @@ void AnchorMoverTests::reportsMissingPath() {
     QVERIFY(!result.ok());
     QVERIFY2(result.errors.first().contains(QStringLiteral("没找到")),
              qPrintable(result.errors.join(QStringLiteral("; "))));
+}
+void AnchorMoverTests::movesImageAcrossSplitStreams() {
+    const QByteArray pdf =
+        makePdfWithSplitContent("q 50 0 0 50 100 500 cm", "/Im1 Do Q");
+    AnchorImageMove move;
+    move.from = QRectF(100, 500, 50, 50);
+    move.deltaY = 25.0;
+    const AnchorMoveResult result = moveAnchoredImages(pdf, {move});
+    QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
+    QCOMPARE(result.moved, 1);
+    const QString content = contentOf(result.bytes);
+    QVERIFY2(content.contains(QStringLiteral("q 1 0 0 1 0 -25.000 cm")), qPrintable(content));
+    QVERIFY2(content.contains(QStringLiteral("/Im1 Do")), qPrintable(content));
+    QVERIFY2(content.contains(QStringLiteral("50 0 0 50 100 500 cm")), qPrintable(content));
 }
 QTEST_MAIN(AnchorMoverTests)
 #include "AnchorMoverTests.moc"

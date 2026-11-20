@@ -1116,6 +1116,22 @@
     </context>
     <context>
         <name>aipdf::app::MainWindow</name>
+        <message>
+            <source>集中设置缩放、页面布局、面板显示与视图旋转</source>
+            <translation>Set zoom, page layout, panel visibility and view rotation in one place</translation>
+        </message>
+        <message>
+            <source>视图设置</source>
+            <translation>View settings</translation>
+        </message>
+        <message>
+            <source>集中设置缩放、页面布局、面板显示与视图旋转</source>
+            <translation>Set zoom, page layout, panel visibility and view rotation in one place</translation>
+        </message>
+        <message>
+            <source>视图设置已应用（没有打开文档，页面相关的设置暂不生效）</source>
+            <translation>View settings applied (no document is open, so page-related settings are not in effect yet)</translation>
+        </message>
                         <message>
             <source>Excel 工作簿 (*.xlsx)</source>
             <translation>Excel workbook (*.xlsx)</translation>
@@ -9934,6 +9950,93 @@ If you need to keep the signatures, do not modify and save this file again after
         <message>
             <source>这个录制文件已经不在了：</source>
             <translation>This recording file is gone:</translation>
+        </message>
+    </context>
+    <context>
+        <name>aipdf::app::ViewSettingsDialog</name>
+        <message>
+            <source>0°</source>
+            <translation>0°</translation>
+        </message>
+        <message>
+            <source>90°</source>
+            <translation>90°</translation>
+        </message>
+        <message>
+            <source>180°</source>
+            <translation>180°</translation>
+        </message>
+        <message>
+            <source>270°</source>
+            <translation>270°</translation>
+        </message>
+        <message>
+            <source>AI 助手面板</source>
+            <translation>AI assistant panel</translation>
+        </message>
+        <message>
+            <source>一次显示一页</source>
+            <translation>One page at a time</translation>
+        </message>
+        <message>
+            <source>双页对开</source>
+            <translation>Two-page spread</translation>
+        </message>
+        <message>
+            <source>双页（第一页单独作为封面）</source>
+            <translation>Two pages (first page as cover)</translation>
+        </message>
+        <message>
+            <source>实际大小（100%）</source>
+            <translation>Actual size (100%)</translation>
+        </message>
+        <message>
+            <source>标尺</source>
+            <translation>Rulers</translation>
+        </message>
+        <message>
+            <source>自定义</source>
+            <translation>Custom</translation>
+        </message>
+        <message>
+            <source>视图旋转（不改文档）</source>
+            <translation>View rotation (does not modify the document)</translation>
+        </message>
+        <message>
+            <source>视图设置</source>
+            <translation>View settings</translation>
+        </message>
+        <message>
+            <source>连续滚动</source>
+            <translation>Continuous scrolling</translation>
+        </message>
+        <message>
+            <source>适合宽度</source>
+            <translation>Fit width</translation>
+        </message>
+        <message>
+            <source>适合页面</source>
+            <translation>Fit page</translation>
+        </message>
+        <message>
+            <source>%</source>
+            <translation>%</translation>
+        </message>
+        <message>
+            <source>导航面板</source>
+            <translation>Navigation panel</translation>
+        </message>
+        <message>
+            <source>显示</source>
+            <translation>Display</translation>
+        </message>
+        <message>
+            <source>缩放</source>
+            <translation>Zoom</translation>
+        </message>
+        <message>
+            <source>页面布局</source>
+            <translation>Page layout</translation>
         </message>
     </context>
 </TS>

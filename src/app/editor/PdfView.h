@@ -135,6 +135,16 @@ public slots:
     void setLayoutMode(PageLayout::LayoutMode mode);
     PageLayout::LayoutMode layoutMode() const;
 
+    // 当前是不是「适合宽度 / 适合页面」这两种适配模式。
+    // 视图设置面板靠它判断该勾哪个单选项（缩放方式不是从比例反推的）。
+    bool zoomFitsWidth() const;
+    bool zoomFitsPage() const;
+    // 视图旋转（0/90/180/270），只改显示，不写进文档。
+    int userRotation() const;
+    void setUserRotation(int degrees);
+    // 标尺是否显示（视图设置面板要显示当前状态）。
+    bool rulerVisible() const;
+
     // 前进 / 后退：回到上一次跳转或缩放的位置。
     void navigateBack();
     void navigateForward();

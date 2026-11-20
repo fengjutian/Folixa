@@ -64,6 +64,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/SettingsDialog.cpp
     app/dialogs/EncryptionDialog.h
     app/dialogs/EncryptionDialog.cpp
+    app/dialogs/ViewSettingsDialog.h
+    app/dialogs/ViewSettingsDialog.cpp
     app/dialogs/SignatureDialog.h
     app/dialogs/SignatureDialog.cpp
     app/shell/RibbonBar.h
@@ -162,6 +164,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/editor/ViewFit.cpp
     app/editor/ZoomMemory.h
     app/editor/ZoomMemory.cpp
+    app/editor/ViewMemory.h
+    app/editor/ViewMemory.cpp
     app/layout/InkGeometry.h
     app/layout/InkGeometry.cpp
     app/layout/MeasureGeometry.h

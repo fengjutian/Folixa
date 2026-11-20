@@ -49,6 +49,7 @@
 #include "app/editor/PresentationWindow.h"
 #include "app/layout/ViewModes.h"
 #include "app/editor/ZoomMemory.h"
+#include "app/editor/ViewMemory.h"
 #include "app/editor/PageCanvas.h"
 #include "app/editor/RenderThread.h"
 #include "app/controllers/TextController.h"
@@ -883,6 +884,15 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
     userRotation_ = 0;
     fitToWidth_ = false;
     fitToPage_ = false;
+    // 页面布局同样按文档记住：上次用双页看的，这次打开还是双页。
+    // （没记过就是默认的连续长卷。）
+    const auto rememberedLayout = rememberedLayoutForFile(path);
+    if (rememberedLayout.has_value()) {
+        layout_.setLayoutMode(*rememberedLayout);
+        trace(QStringLiteral("layout restored mode=%1").arg(static_cast<int>(*rememberedLayout)));
+    } else {
+        layout_.setLayoutMode(PageLayout::LayoutMode::Continuous);
+    }
     cache_.clear();
     modified_ = false;
     emit permissionsChanged();
@@ -1553,6 +1563,11 @@ bool PdfView::replaceOutline(const std::vector<pdf::OutlineItem>& outline, QStri
 }
 
 void PdfView::setZoom(double factor) {
+    // 明确指定比例 = 退出「适合宽度 / 适合页面」。
+    // 目标比例与当前相同也要退出：视图设置面板里选「实际大小」必须真的不再适配，
+    // 否则会停在 fit 标志上（比例一样，模式却没换）。
+    fitToWidth_ = false;
+    fitToPage_ = false;
     applyZoom(factor, true);
 }
 
@@ -1667,30 +1682,21 @@ void PdfView::zoomToFitPage() {
 }
 
 void PdfView::rotateRight() {
-    userRotation_ = (userRotation_ + 90) % 360;
-    layout_.setUserRotation(userRotation_);
-    if (textController_) {
-        textController_->setUserRotation(userRotation_);
-    }
-    if (navigationController_) {
-        navigationController_->setUserRotation(userRotation_);
-    }
-    if (annotationController_) {
-        annotationController_->setUserRotation(userRotation_);
-    }
-    cache_.clear();
-    canvas_->setLayout(layout_);
-    trace(QStringLiteral("layout viewport=%1 canvas=%2 content=%3 zoom=%4")
-              .arg(canvas_->viewport()->width())
-              .arg(canvas_->width())
-              .arg(layout_.totalWidth())
-              .arg(zoom_));
-    updateZoomLabel();
-    requestVisiblePages();
+    setUserRotation(userRotation_ + 90);
 }
 
 void PdfView::rotateLeft() {
-    userRotation_ = (userRotation_ + 270) % 360;
+    setUserRotation(userRotation_ + 270);
+}
+
+// 设置视图旋转。只认 90 的倍数：页面自带的 /Rotate 也是 90 的倍数，
+// 别的角度在 PDF 里没有意义（渲染与文字定位都按整 90 度算）。
+void PdfView::setUserRotation(int degrees) {
+    const int normalized = ((degrees % 360) + 360) % 360;
+    if (normalized % 90 != 0 || normalized == userRotation_) {
+        return;
+    }
+    userRotation_ = normalized;
     layout_.setUserRotation(userRotation_);
     if (textController_) {
         textController_->setUserRotation(userRotation_);
@@ -1762,11 +1768,32 @@ void PdfView::setLayoutMode(PageLayout::LayoutMode mode) {
                        ? QStringLiteral("facing")
                        : (mode == PageLayout::LayoutMode::FacingCover ? QStringLiteral("cover")
                                                                      : QStringLiteral("single"))));
+    // 页面布局也按文档记住：同一份文档下次打开还是上次的排布方式，
+    // 与缩放记忆同一族（见 app/editor/ViewMemory.h）。
+    if (!filePath_.isEmpty()) {
+        rememberLayoutForFile(filePath_, mode);
+    }
     emit zoomChanged(zoom_);
 }
 
 PageLayout::LayoutMode PdfView::layoutMode() const {
     return layout_.layoutMode();
+}
+
+bool PdfView::zoomFitsWidth() const {
+    return fitToWidth_;
+}
+
+bool PdfView::zoomFitsPage() const {
+    return fitToPage_;
+}
+
+int PdfView::userRotation() const {
+    return userRotation_;
+}
+
+bool PdfView::rulerVisible() const {
+    return canvas_ != nullptr && canvas_->rulerVisible();
 }
 
 void PdfView::goToPage(int index) {

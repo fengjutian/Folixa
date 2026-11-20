@@ -843,6 +843,9 @@ qt_add_executable(ZoomMemoryTests
     ZoomMemoryTests.cpp
     ${CMAKE_SOURCE_DIR}/src/app/editor/ZoomMemory.cpp
     ${CMAKE_SOURCE_DIR}/src/app/editor/ZoomMemory.h
+    # 缩放键的算法搬到 ViewMemory 了（键格式没变），不编进来会链接失败。
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ViewMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/editor/ViewMemory.h
 )
 
 target_link_libraries(ZoomMemoryTests PRIVATE Qt6::Core Qt6::Test)
@@ -1833,6 +1836,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MediaSourceTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CertificateChainTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MediaPreviewPanelTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AttachmentPanelTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ViewSettingsTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardActionsTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardPrintRangeTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/WizardDocumentActionsTests.cmake)

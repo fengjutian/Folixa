@@ -173,17 +173,17 @@ AnchorMoveResult moveAnchoredGraphics(const QByteArray& pdfBytes,
             }
             QPDFObjectHandle page = pages.at(static_cast<size_t>(pageIndex));
             page.coalesceContentStreams();
-            const std::vector<QPDFObjectHandle> contents = page.getPageContents();
-            if (contents.size() != 1) {
-                result.errors.append(
-                    QStringLiteral("第 %1 页不是单条内容流，暂不支持搬动").arg(pageIndex + 1));
-                continue;
+            // 多内容流按顺序拼成一条再处理：CTM 本来就是跨流连续的。
+            std::vector<QPDFObjectHandle> contents = page.getPageContents();
+            QByteArray bytes;
+            for (QPDFObjectHandle& part : contents) {
+                if (!part.isStream()) continue;
+                const std::shared_ptr<Buffer> data = part.getStreamData(qpdf_dl_generalized);
+                if (!data) continue;
+                bytes += QByteArray(reinterpret_cast<const char*>(data->getBuffer()),
+                                    static_cast<qsizetype>(data->getSize()));
+                bytes += "\n";
             }
-            QPDFObjectHandle stream = contents.front();
-            const std::shared_ptr<Buffer> data = stream.getStreamData(qpdf_dl_generalized);
-            if (!data) continue;
-            const QByteArray bytes(reinterpret_cast<const char*>(data->getBuffer()),
-                                   static_cast<qsizetype>(data->getSize()));
             const ContentParseResult parsed = ContentStream::tokenize(bytes);
             if (!parsed.isValid()) {
                 result.errors.append(
@@ -395,8 +395,15 @@ AnchorMoveResult moveAnchoredGraphics(const QByteArray& pdfBytes,
             }
 
             if (output != bytes) {
-                stream.replaceStreamData(output.toStdString(), QPDFObjectHandle::newNull(),
-                                         QPDFObjectHandle::newNull());
+                if (contents.size() == 1) {
+                    contents.front().replaceStreamData(output.toStdString(),
+                                                       QPDFObjectHandle::newNull(),
+                                                       QPDFObjectHandle::newNull());
+                } else {
+                    // 原本是多条流：合并成一条，内容不变。
+                    QPDFObjectHandle merged = pdf.newStream(output.toStdString());
+                    page.replaceKey("/Contents", pdf.makeIndirectObject(merged));
+                }
             }
         }
 
