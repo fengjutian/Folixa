@@ -38,7 +38,6 @@
 #include "pdf/security/CertificateChain.h"
 #include "pdf/security/SignatureInspector.h"
 #include "pdf/security/SignatureVerifier.h"
-#include "pdf/security/SignatureWorkflow.h"
 #include "pdf/ops/SpellChecker.h"
 #include "pdf/compliance/StructTreeReader.h"
 #include "pdf/content/ParagraphFormat.h"
@@ -7635,9 +7634,7 @@ void PdfView::showSignatureListDialog() {
 
 // -------------------------------------------------- 电子签章：签署流程 ----
 //
-// 面板只做三件事：收集输入、把领域层的流程状态显示出来、把用户的动作转给领域层。
-// 流程状态与签署人状态**一律**由 pdf::SignatureWorkflow 管，界面不另算一套 ——
-// 两处各算一套迟早会打架，而签署记录是拿来追责的，不能有第二种说法。
+// PdfView 只持有工作流控制器；控件、展示和用户动作由独立对话框负责。
 void PdfView::showSignatureWorkflowDialog() {
     if (!signatureWorkflowController_) {
         signatureWorkflowController_ = std::make_unique<SignatureWorkflowController>();
