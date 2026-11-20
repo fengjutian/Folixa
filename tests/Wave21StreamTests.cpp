@@ -217,6 +217,20 @@ QByteArray plainPdf() {
     return buildPdf(objects);
 }
 
+// 文字贴着页底，栏宽一窄就会排到页面外。
+QByteArray tightBottomPdf() {
+    QVector<QPair<int, QByteArray>> objects;
+    objects.append(qMakePair(1, QByteArray("<< /Type /Catalog /Pages 2 0 R >>")));
+    objects.append(qMakePair(2, QByteArray("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")));
+    objects.append(qMakePair(3, QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] "
+                                            "/Resources << /Font << /F1 4 0 R >> >> "
+                                            "/Contents 5 0 R >>")));
+    objects.append(qMakePair(4, kFont));
+    objects.append(qMakePair(
+        5, streamObject("BT /F1 12 Tf 40 40 Td (the quick brown fox jumps over the lazy dog again "
+                        "and again and again) Tj ET")));
+    return buildPdf(objects);
+}
 // 读一页的内容流（用 qpdf，与写回通道无关的另一条路）。
 #ifdef AIPDF_WITH_QPDF
 QByteArray pageContentOf(const QByteArray& pdfBytes, int pageIndex) {
@@ -354,6 +368,7 @@ private slots:
     void translateKeepsOriginalWhenDoesNotFit();
     void translateKeepsDocumentWhenNothingFits();
     void writtenContentStreamStaysParseable();
+    void narrowWidthReportsOverflowBlocks();
 };
 
 // ---------------------------------------------------------------------------
@@ -717,5 +732,16 @@ void Wave21StreamTests::writtenContentStreamStaysParseable() {
     }
 }
 
+void Wave21StreamTests::narrowWidthReportsOverflowBlocks() {
+    StreamingReflowOptions options;
+    options.targetPageWidth = 90.0;
+    options.marginLeft = 6.0;
+    options.marginRight = 6.0;
+    options.requireStructTags = false;
+    const StreamingReflowResult result = aipdf::pdf::reflowDocumentStream(tightBottomPdf(), options);
+    // 全部段落都排不下时整体拒绝，但报告仍要如实计数，界面据此改走整篇重排。
+    QVERIFY(!result.ok());
+    QVERIFY2(result.report.overflowBlockCount > 0, qPrintable(reflowDetail(result.report)));
+}
 QTEST_MAIN(Wave21StreamTests)
 #include "Wave21StreamTests.moc"

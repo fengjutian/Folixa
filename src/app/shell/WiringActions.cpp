@@ -1339,8 +1339,39 @@ void WiringActions::reflowWholeDocumentStream() {
         QMessageBox::warning(parentWidget_, title, result.report.error);
         return;
     }
+    // 流式重排是就地改，放不下的段只能保留原文。带结构标签的文档改用整篇
+    // 重排：它按阅读顺序重新分页，段落和图表会一起搬到下一页。
+    QByteArray finalBytes = result.bytes;
+    QStringList crossPageNotes;
+    if (result.report.overflowBlockCount > 0) {
+        if (result.report.hasStructTags) {
+            pdf::ReflowOptions full;
+            full.pageWidth = options.targetPageWidth;
+            full.marginLeft = options.marginLeft;
+            full.marginRight = options.marginRight;
+            const pdf::DocumentReflowResult fullResult = pdf::reflowTaggedDocument(bytes, full);
+            if (fullResult.ok()) {
+                finalBytes = fullResult.bytes;
+                crossPageNotes.append(
+                    i18n::tr("aipdf::app::MainWindow",
+                             "有 %1 段在原页放不下，已改用整篇重排，把它们连同图表搬到下一页。")
+                        .arg(result.report.overflowBlockCount));
+            } else {
+                crossPageNotes.append(
+                    i18n::tr("aipdf::app::MainWindow",
+                             "有 %1 段在原页放不下；整篇重排也失败：%2")
+                        .arg(result.report.overflowBlockCount)
+                        .arg(fullResult.report.error));
+            }
+        } else {
+            crossPageNotes.append(
+                i18n::tr("aipdf::app::MainWindow",
+                         "有 %1 段在原页放不下；文档没有结构标签，无法跨页搬运，已保留原文。")
+                    .arg(result.report.overflowBlockCount));
+        }
+    }
     QString replaceError;
-    if (!view->replaceDocumentBytes(result.bytes, &replaceError)) {
+    if (!view->replaceDocumentBytes(finalBytes, &replaceError)) {
         QMessageBox::warning(parentWidget_, title, replaceError);
         return;
     }
@@ -1358,6 +1389,9 @@ void WiringActions::reflowWholeDocumentStream() {
         text += QLatin1Char('\n') +
                 i18n::tr("aipdf::app::MainWindow", "有 %1 段里有标准 14 号字体表示不了的字符，写成了 '?' 占位符。")
                     .arg(result.report.degradedBlockCount);
+    }
+    for (const QString& note : crossPageNotes) {
+        text += QLatin1Char('\n') + note;
     }
     for (const QString& note : result.report.notes) {
         text += QLatin1Char('\n') + note;

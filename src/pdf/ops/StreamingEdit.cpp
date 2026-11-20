@@ -1320,6 +1320,7 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
             if (interleaved) break;
         }
         if (interleaved) {
+            ++result.report.overflowBlockCount;
             record.reason = i18n::tr("aipdf::pdf::StreamingEdit",
                                      "这一段的文字与别的内容交错，没法整段换行，保留原文");
             result.report.blocks.append(record);
@@ -1336,6 +1337,7 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         const QVector<QVector<TextPiece>> lines =
             wrapStyledText(segments, contentWidth, measureStyle, &wrapError);
         if (lines.isEmpty()) {
+            ++result.report.overflowBlockCount;
             record.reason = wrapError.isEmpty()
                                ? i18n::tr("aipdf::pdf::StreamingEdit", "这一段按新宽度排不出来，保留原文")
                                : wrapError;
@@ -1355,6 +1357,7 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         const double lowest =
             paragraph.firstBaseline - (lines.size() - 1) * lineStep - metrics.descent();
         if (lowest < bottomLimit) {
+            ++result.report.overflowBlockCount;
             record.reason = i18n::tr("aipdf::pdf::StreamingEdit",
                                      "这一段按新宽度排下来放不进原来的位置（会压到下一段或超出页面），保留原文");
             result.report.blocks.append(record);

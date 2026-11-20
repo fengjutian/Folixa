@@ -246,6 +246,8 @@ struct StreamingReflowReport {
     bool hasStructTags = false;
     // 文字里有标准 14 号字体表示不了的字符、被写成 '?' 占位符的段数。
     int degradedBlockCount = 0;
+    // 按新宽度排下来放不进原位置、只能保留原文的段数。
+    int overflowBlockCount = 0;
     QVector<ReflowedBlock> blocks;
     QStringList notes;
     // 失败原因（中文）。为空表示成功。
