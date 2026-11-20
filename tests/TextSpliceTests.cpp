@@ -177,6 +177,8 @@ private slots:
     void reportsMissingMatch();
     void rejectsPageOutOfRange();
     void replacesTextInsideFormXObject();
+    void replacesMatchSpanningTjElements();
+    void replacesMatchAcrossThreeTjElements();
 };
 
 void TextSpliceTests::replacesTextInTjAndKeepsBytes() {
@@ -296,6 +298,27 @@ void TextSpliceTests::replacesTextInsideFormXObject() {
     const QString text = pageText(result.bytes);
     QVERIFY2(text.contains(QStringLiteral("Outside")), qPrintable(text));
     QVERIFY2(!text.contains(QStringLiteral("Inside")), qPrintable(text));
+}
+void TextSpliceTests::replacesMatchSpanningTjElements() {
+    const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td [(Hel) (lo)] TJ ET");
+    const TextSpliceResult result =
+        splicePageText(pdf, makeTarget(QStringLiteral("Hello"), QStringLiteral("Hi")));
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QString text = pageText(result.bytes);
+    QVERIFY2(text.contains(QStringLiteral("Hi")), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("llo")), qPrintable(text));
+}
+
+void TextSpliceTests::replacesMatchAcrossThreeTjElements() {
+    const QByteArray pdf =
+        makePdfWithContent("BT /F1 12 Tf 72 720 Td [(fo) (o) (bar)] TJ ET");
+    const TextSpliceResult result =
+        splicePageText(pdf, makeTarget(QStringLiteral("oob"), QStringLiteral("X")));
+    QVERIFY2(result.ok(), qPrintable(result.report.error));
+    const QString text = pageText(result.bytes);
+    QVERIFY2(text.contains(QStringLiteral("X")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("ar")), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("oob")), qPrintable(text));
 }
 void TextSpliceTests::rejectsPageOutOfRange() {
     const QByteArray pdf = makePdfWithContent("BT /F1 12 Tf 72 720 Td (Hello) Tj ET");

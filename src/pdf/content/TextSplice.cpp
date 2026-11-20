@@ -287,10 +287,17 @@ QVector<ShowSpan> scanShows(const QVector<ContentToken>& tokens, const PageFontL
     return spans;
 }
 
-struct Match {
+// 一次替换可能横跨同一个 TJ 数组里的多个字符串元素：
+// 每个元素记一条「删哪一段、塞什么」，替换文本只塞进第一个元素。
+struct ElementEdit {
+    int pos = 0;
+    int length = 0;
+    QString replacement;
+};
+
+struct MatchGroup {
     int spanIndex = -1;
-    int elementIndex = -1;
-    int localPos = 0;
+    QVector<QVector<ElementEdit>> perElement;
 };
 
 QString pageTextOf(const QVector<ShowSpan>& spans) {
@@ -309,9 +316,26 @@ QString formatAdjustment(double value) {
     return text;
 }
 
+QString applyEdits(const QString& text, QVector<ElementEdit> edits) {
+    std::sort(edits.begin(), edits.end(),
+              [](const ElementEdit& left, const ElementEdit& right) {
+                  return left.pos < right.pos;
+              });
+    QString out;
+    int cursor = 0;
+    for (const ElementEdit& edit : edits) {
+        if (edit.pos < cursor) continue;
+        out += text.mid(cursor, edit.pos - cursor);
+        out += edit.replacement;
+        cursor = edit.pos + edit.length;
+    }
+    out += text.mid(cursor);
+    return out;
+}
+
 // 把一段文字（可能含多处替换）编码成 TJ 数组里的元素序列。
-bool buildElementBody(const ShowSpan& span, const QString& text, const QVector<int>& matchPositions,
-                      const QString& find, const QString& replace, QByteArray* out,
+bool buildElementBody(const ShowSpan& span, const QString& text,
+                      const QVector<ElementEdit>& edits, QByteArray* out,
                       int* removedGlyphs, int* insertedGlyphs, QString* error) {
     out->clear();
     if (span.font == nullptr) {
@@ -319,26 +343,28 @@ bool buildElementBody(const ShowSpan& span, const QString& text, const QVector<i
         return false;
     }
     int cursor = 0;
-    for (int position : matchPositions) {
-        const QString unchanged = text.mid(cursor, position - cursor);
+    for (const ElementEdit& edit : edits) {
+        if (edit.pos < cursor) continue;
+        const QString unchanged = text.mid(cursor, edit.pos - cursor);
         QByteArray encoded;
         if (!encodeWithFont(*span.font, unchanged, &encoded, error)) return false;
         *out += encoded;
 
         QByteArray replacement;
-        if (!encodeWithFont(*span.font, replace, &replacement, error)) return false;
+        if (!encodeWithFont(*span.font, edit.replacement, &replacement, error)) return false;
         *out += replacement;
-        *removedGlyphs += find.size();
-        *insertedGlyphs += replace.size();
+        *removedGlyphs += edit.length;
+        *insertedGlyphs += edit.replacement.size();
 
-        const double removedWidth = span.font->measure(find, span.fontSize);
-        const double insertedWidth = span.font->measure(replace, span.fontSize);
+        const QString removed = text.mid(edit.pos, edit.length);
+        const double removedWidth = span.font->measure(removed, span.fontSize);
+        const double insertedWidth = span.font->measure(edit.replacement, span.fontSize);
         const double adjustment =
             -(removedWidth - insertedWidth) * 1000.0 / span.fontSize;
         *out += ' ';
         *out += formatAdjustment(adjustment).toLatin1();
         *out += ' ';
-        cursor = position + find.size();
+        cursor = edit.pos + edit.length;
     }
     QByteArray tail;
     if (!encodeWithFont(*span.font, text.mid(cursor), &tail, error)) return false;
@@ -347,9 +373,8 @@ bool buildElementBody(const ShowSpan& span, const QString& text, const QVector<i
 }
 
 QByteArray buildReplacement(const QVector<ContentToken>& tokens, const ShowSpan& span,
-                            const QVector<QVector<int>>& matchesPerElement, const QString& find,
-                            const QString& replace, int* removedGlyphs, int* insertedGlyphs,
-                            QString* error) {
+                            const QVector<QVector<ElementEdit>>& editsPerElement,
+                            int* removedGlyphs, int* insertedGlyphs, QString* error) {
     QByteArray expression = "[";
     if (span.op == "TJ") {
         // 保留数组里原有的数字位移，只替换字符串元素。
@@ -361,9 +386,8 @@ QByteArray buildReplacement(const QVector<ContentToken>& tokens, const ShowSpan&
             if (elementIt != span.elements.constEnd()) {
                 const int elementIndex = static_cast<int>(elementIt - span.elements.constBegin());
                 QByteArray body;
-                if (!buildElementBody(span, elementIt->text, matchesPerElement.at(elementIndex),
-                                      find, replace, &body, removedGlyphs, insertedGlyphs,
-                                      error)) {
+                if (!buildElementBody(span, elementIt->text, editsPerElement.at(elementIndex),
+                                      &body, removedGlyphs, insertedGlyphs, error)) {
                     return {};
                 }
                 expression += body;
@@ -375,8 +399,8 @@ QByteArray buildReplacement(const QVector<ContentToken>& tokens, const ShowSpan&
         }
     } else {
         QByteArray body;
-        if (!buildElementBody(span, span.elements.first().text, matchesPerElement.first(), find,
-                              replace, &body, removedGlyphs, insertedGlyphs, error)) {
+        if (!buildElementBody(span, span.elements.first().text, editsPerElement.value(0), &body,
+                              removedGlyphs, insertedGlyphs, error)) {
             return {};
         }
         expression += body;
@@ -470,12 +494,16 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
             streamSpans.append(spans);
         }
 
-        QVector<Match> matches;
+        // 按显示顺序找匹配；一次匹配可以横跨同一个 TJ 数组里的多个字符串元素。
+        QVector<MatchGroup> groups;
         for (int spanIndex = 0; spanIndex < allSpans.size(); ++spanIndex) {
             const ShowSpan& span = allSpans.at(spanIndex);
+            if (span.elements.isEmpty()) continue;
+            QString joined;
+            for (const ShowElement& element : span.elements) joined += element.text;
             if (span.op == "'" || span.op == "\"") {
                 // 这两个操作符带换行语义，不能简单换成 TJ。
-                if (span.elements.first().text.contains(target.find, target.sensitivity)) {
+                if (joined.contains(target.find, target.sensitivity)) {
                     result.report.error =
                         QStringLiteral("匹配落在 ' 或 \" 操作符里，暂不支持替换");
                     return result;
@@ -483,89 +511,115 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
                 continue;
             }
             if (span.font == nullptr) continue;
-            for (int elementIndex = 0; elementIndex < span.elements.size(); ++elementIndex) {
-                const QString& text = span.elements.at(elementIndex).text;
-                int position = 0;
-                while (true) {
-                    const int found = text.indexOf(target.find, position, target.sensitivity);
-                    if (found < 0) break;
-                    matches.append(Match{spanIndex, elementIndex, found});
-                    position = found + target.find.size();
+            int position = 0;
+            while (true) {
+                const int found = joined.indexOf(target.find, position, target.sensitivity);
+                if (found < 0) break;
+                const int matchEnd = found + target.find.size();
+                position = matchEnd;
+
+                // 把 [found, matchEnd) 映射到元素区间。
+                int consumed = 0;
+                int startElement = -1;
+                int startOffset = 0;
+                int endElement = -1;
+                int endOffset = 0;
+                for (int e = 0; e < span.elements.size(); ++e) {
+                    const int length = span.elements.at(e).text.size();
+                    const int elementStart = consumed;
+                    const int elementEnd = consumed + length;
+                    if (startElement < 0 && found >= elementStart && found < elementEnd) {
+                        startElement = e;
+                        startOffset = found - elementStart;
+                    }
+                    if (matchEnd > elementStart && matchEnd <= elementEnd) {
+                        endElement = e;
+                        endOffset = matchEnd - elementStart;
+                    }
+                    consumed = elementEnd;
                 }
+                if (startElement < 0 || endElement < 0) continue;
+
+                MatchGroup group;
+                group.spanIndex = spanIndex;
+                group.perElement.resize(span.elements.size());
+                for (int e = startElement; e <= endElement; ++e) {
+                    const int textLength = span.elements.at(e).text.size();
+                    ElementEdit edit;
+                    edit.pos = (e == startElement) ? startOffset : 0;
+                    edit.length = ((e == endElement) ? endOffset : textLength) - edit.pos;
+                    edit.replacement = (e == startElement) ? target.replace : QString();
+                    group.perElement[e].append(edit);
+                }
+                groups.append(group);
             }
         }
-        if (matches.isEmpty()) {
+        if (groups.isEmpty()) {
             result.report.error = QStringLiteral("这一页上没有找到要替换的文字：%1").arg(target.find);
             return result;
         }
 
-        QVector<Match> selected;
+        QVector<MatchGroup> selected;
         if (target.occurrence < 0) {
-            selected = matches;
-        } else if (target.occurrence < matches.size()) {
-            selected.append(matches.at(target.occurrence));
+            selected = groups;
+        } else if (target.occurrence < groups.size()) {
+            selected.append(groups.at(target.occurrence));
         } else {
             result.report.error = QStringLiteral("这一页只有 %1 处匹配，找不到第 %2 处")
-                                      .arg(matches.size())
+                                      .arg(groups.size())
                                       .arg(target.occurrence);
             return result;
         }
 
-        // 期望的文字：每个元素内把选中的匹配换掉，其余逐字保留。
-        QVector<Match> ordered = selected;
-        std::sort(ordered.begin(), ordered.end(), [](const Match& left, const Match& right) {
-            if (left.spanIndex != right.spanIndex) return left.spanIndex < right.spanIndex;
-            if (left.elementIndex != right.elementIndex) return left.elementIndex < right.elementIndex;
-            return left.localPos < right.localPos;
-        });
+        // 期望的文字：每个元素按编辑列表重排，再按显示顺序拼起来。
         QString rebuilt;
         for (int spanIndex = 0; spanIndex < allSpans.size(); ++spanIndex) {
             const ShowSpan& span = allSpans.at(spanIndex);
             for (int elementIndex = 0; elementIndex < span.elements.size(); ++elementIndex) {
-                const QString& text = span.elements.at(elementIndex).text;
-                QVector<int> positions;
-                for (const Match& match : ordered) {
-                    if (match.spanIndex == spanIndex && match.elementIndex == elementIndex) {
-                        positions.append(match.localPos);
-                    }
+                QVector<ElementEdit> edits;
+                for (const MatchGroup& group : selected) {
+                    if (group.spanIndex != spanIndex) continue;
+                    edits += group.perElement.value(elementIndex);
                 }
-                std::sort(positions.begin(), positions.end());
-                int cursor = 0;
-                for (int position : positions) {
-                    rebuilt += text.mid(cursor, position - cursor);
-                    rebuilt += target.replace;
-                    cursor = position + target.find.size();
-                }
-                rebuilt += text.mid(cursor);
+                rebuilt += applyEdits(span.elements.at(elementIndex).text, edits);
             }
         }
         const QString expected = rebuilt;
 
         // 每个 span 生成一条替换后的表达式；同一个 span 里的多处匹配一起处理。
-        QHash<int, QVector<Match>> matchesBySpan;
-        for (const Match& match : selected) matchesBySpan[match.spanIndex].append(match);
+        QHash<int, QVector<QVector<ElementEdit>>> editsBySpan;
+        for (const MatchGroup& group : selected) {
+            QVector<QVector<ElementEdit>>& perElement = editsBySpan[group.spanIndex];
+            if (perElement.isEmpty()) perElement.resize(allSpans.at(group.spanIndex).elements.size());
+            for (int e = 0; e < group.perElement.size(); ++e) {
+                perElement[e] += group.perElement.at(e);
+            }
+        }
 
         QHash<int, QByteArray> expressionBySpan;
         QHash<int, QPair<int, int>> rangeBySpan;
-        for (auto it = matchesBySpan.constBegin(); it != matchesBySpan.constEnd(); ++it) {
+        for (auto it = editsBySpan.constBegin(); it != editsBySpan.constEnd(); ++it) {
             const int spanIndex = it.key();
             const ShowSpan& span = allSpans.at(spanIndex);
-            QVector<QVector<int>> perElement(span.elements.size());
-            for (const Match& match : it.value()) perElement[match.elementIndex].append(match.localPos);
-            for (QVector<int>& positions : perElement) std::sort(positions.begin(), positions.end());
+            QVector<QVector<ElementEdit>> perElement = it.value();
+            for (QVector<ElementEdit>& edits : perElement) {
+                std::sort(edits.begin(), edits.end(),
+                          [](const ElementEdit& left, const ElementEdit& right) {
+                              return left.pos < right.pos;
+                          });
+            }
             int removed = 0;
             int inserted = 0;
             QString error;
             const QByteArray expression =
                 buildReplacement(tokens.at(spanStream.at(spanIndex)), span, perElement,
-                                 target.find, target.replace, &removed, &inserted, &error);
+                                 &removed, &inserted, &error);
             if (expression.isEmpty()) {
                 result.report.error = error.isEmpty() ? QStringLiteral("改写失败") : error;
                 return result;
             }
             expressionBySpan.insert(spanIndex, expression);
             rangeBySpan.insert(spanIndex, {span.first, span.last});
-            result.report.occurrences += it.value().size();
             result.report.glyphsRemoved += removed;
             result.report.glyphsInserted += inserted;
             if (result.report.fontResource.isEmpty()) {
@@ -573,6 +627,7 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
                 result.report.baseFont = span.font != nullptr ? span.font->baseFont : QString();
             }
         }
+        result.report.occurrences = selected.size();
         for (int i = 0; i < result.report.occurrences; ++i) {
             result.report.removed.append(target.find);
             result.report.inserted.append(target.replace);
