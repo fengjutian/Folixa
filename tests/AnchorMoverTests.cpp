@@ -180,7 +180,8 @@ void AnchorMoverTests::movesImageAtMatchingRect() {
     QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
     QCOMPARE(result.moved, 1);
     const QString content = contentOf(result.bytes);
-    QVERIFY2(content.contains(QStringLiteral("q 1 0 0 1 0 -30.000 cm")), qPrintable(content));
+    // 位移要换算回当前用户空间：cm 的 y 缩放是 50，页面 30pt 对应本地 0.6。
+    QVERIFY2(content.contains(QStringLiteral("q 1 0 0 1 0 -0.6 cm")), qPrintable(content));
     // 原来的 cm 不动，只在图片前后包一层。
     QVERIFY2(content.contains(QStringLiteral("50 0 0 50 100 500 cm")), qPrintable(content));
     QVERIFY2(content.count(QStringLiteral("Do")) == 1, qPrintable(content));
@@ -220,8 +221,11 @@ void AnchorMoverTests::movesManyPlacements() {
         QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
         QCOMPARE(result.moved, 1);
         const QString content = contentOf(result.bytes);
+        QString local = QString::number(-delta / h, 'f', 3);
+        while (local.endsWith(QLatin1Char('0'))) local.chop(1);
+        if (local.endsWith(QLatin1Char('.'))) local.chop(1);
         const QString expected =
-            QStringLiteral("q 1 0 0 1 0 %1 cm").arg(QString::number(-delta, 'f', 3));
+            QStringLiteral("q 1 0 0 1 0 %1 cm").arg(local);
         QVERIFY2(content.contains(expected), qPrintable(content));
     }
 }
@@ -271,7 +275,7 @@ void AnchorMoverTests::movesImageAcrossSplitStreams() {
     QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
     QCOMPARE(result.moved, 1);
     const QString content = contentOf(result.bytes);
-    QVERIFY2(content.contains(QStringLiteral("q 1 0 0 1 0 -25.000 cm")), qPrintable(content));
+    QVERIFY2(content.contains(QStringLiteral("q 1 0 0 1 0 -0.5 cm")), qPrintable(content));
     QVERIFY2(content.contains(QStringLiteral("/Im1 Do")), qPrintable(content));
     QVERIFY2(content.contains(QStringLiteral("50 0 0 50 100 500 cm")), qPrintable(content));
 }

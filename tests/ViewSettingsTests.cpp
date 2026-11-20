@@ -24,16 +24,29 @@ using aipdf::app::ViewSettingsDialog;
 using aipdf::app::viewSettingsKey;
 using aipdf::app::zoomSettingsKey;
 
+namespace {
+
+// 按 objectName 找控件。找不到时给一条明确的提示，
+// 免得后面的解引用变成一个看不懂的访问违例。
+//
+// 注意 root 要显式传进来：findChild 是 QObject 的成员函数，
+// 写在测试类里会搜**测试对象**的孩子（一个都没有），而不是对话框的。
+template <typename T>
+T* mustFind(QWidget* root, const char* objectName) {
+    T* widget = root->findChild<T*>(QString::fromLatin1(objectName));
+    if (widget == nullptr) {
+        qWarning("ViewSettingsTests: 找不到控件 %s", objectName);
+    }
+    return widget;
+}
+
+}  // namespace
+
 class ViewSettingsTests final : public QObject {
     Q_OBJECT
 
 private:
     QTemporaryDir dir_;
-
-    template <typename T>
-    T* find(const char* objectName) {
-        return findChild<T*>(QString::fromLatin1(objectName));
-    }
 
 private slots:
     void init();
@@ -67,27 +80,64 @@ void ViewSettingsTests::dialogStartsWithCurrentValues() {
     current.rotation = 270;
 
     ViewSettingsDialog dialog(current);
-    QVERIFY(find<QRadioButton>("viewSettings.fitWidth")->isChecked());
-    QVERIFY(!find<QRadioButton>("viewSettings.actualSize")->isChecked());
-    QVERIFY(!find<QRadioButton>("viewSettings.fitPage")->isChecked());
-    QVERIFY(!find<QRadioButton>("viewSettings.customZoom")->isChecked());
-    QVERIFY(find<QRadioButton>("viewSettings.facingCover")->isChecked());
-    QVERIFY(!find<QRadioButton>("viewSettings.continuous")->isChecked());
-    QVERIFY(!find<QCheckBox>("viewSettings.navigation")->isChecked());
-    QVERIFY(find<QCheckBox>("viewSettings.aiPanel")->isChecked());
-    QVERIFY(find<QCheckBox>("viewSettings.ruler")->isChecked());
-    QVERIFY(find<QRadioButton>("viewSettings.rotation270")->isChecked());
-    QCOMPARE(find<QSpinBox>("viewSettings.customZoomSpin")->value(), 175);
+
+    auto* fitWidth = mustFind<QRadioButton>(&dialog, "viewSettings.fitWidth");
+    auto* actualSize = mustFind<QRadioButton>(&dialog, "viewSettings.actualSize");
+    auto* fitPage = mustFind<QRadioButton>(&dialog, "viewSettings.fitPage");
+    auto* customZoom = mustFind<QRadioButton>(&dialog, "viewSettings.customZoom");
+    auto* facingCover = mustFind<QRadioButton>(&dialog, "viewSettings.facingCover");
+    auto* continuous = mustFind<QRadioButton>(&dialog, "viewSettings.continuous");
+    auto* navigation = mustFind<QCheckBox>(&dialog, "viewSettings.navigation");
+    auto* aiPanel = mustFind<QCheckBox>(&dialog, "viewSettings.aiPanel");
+    auto* ruler = mustFind<QCheckBox>(&dialog, "viewSettings.ruler");
+    auto* rotation270 = mustFind<QRadioButton>(&dialog, "viewSettings.rotation270");
+    auto* spin = mustFind<QSpinBox>(&dialog, "viewSettings.customZoomSpin");
+    QVERIFY(fitWidth != nullptr);
+    QVERIFY(actualSize != nullptr);
+    QVERIFY(fitPage != nullptr);
+    QVERIFY(customZoom != nullptr);
+    QVERIFY(facingCover != nullptr);
+    QVERIFY(continuous != nullptr);
+    QVERIFY(navigation != nullptr);
+    QVERIFY(aiPanel != nullptr);
+    QVERIFY(ruler != nullptr);
+    QVERIFY(rotation270 != nullptr);
+    QVERIFY(spin != nullptr);
+
+    QVERIFY(fitWidth->isChecked());
+    QVERIFY(!actualSize->isChecked());
+    QVERIFY(!fitPage->isChecked());
+    QVERIFY(!customZoom->isChecked());
+    QVERIFY(facingCover->isChecked());
+    QVERIFY(!continuous->isChecked());
+    QVERIFY(!navigation->isChecked());
+    QVERIFY(aiPanel->isChecked());
+    QVERIFY(ruler->isChecked());
+    QVERIFY(rotation270->isChecked());
+    QCOMPARE(spin->value(), 175);
 }
 
 void ViewSettingsTests::settingsReflectUserChoices() {
     ViewSettingsDialog dialog(ViewSettings{});
-    find<QRadioButton>("viewSettings.customZoom")->setChecked(true);
-    find<QSpinBox>("viewSettings.customZoomSpin")->setValue(150);
-    find<QRadioButton>("viewSettings.singlePage")->setChecked(true);
-    find<QCheckBox>("viewSettings.navigation")->setChecked(false);
-    find<QCheckBox>("viewSettings.ruler")->setChecked(true);
-    find<QRadioButton>("viewSettings.rotation90")->setChecked(true);
+    auto* customZoom = mustFind<QRadioButton>(&dialog, "viewSettings.customZoom");
+    auto* spin = mustFind<QSpinBox>(&dialog, "viewSettings.customZoomSpin");
+    auto* singlePage = mustFind<QRadioButton>(&dialog, "viewSettings.singlePage");
+    auto* navigation = mustFind<QCheckBox>(&dialog, "viewSettings.navigation");
+    auto* ruler = mustFind<QCheckBox>(&dialog, "viewSettings.ruler");
+    auto* rotation90 = mustFind<QRadioButton>(&dialog, "viewSettings.rotation90");
+    QVERIFY(customZoom != nullptr);
+    QVERIFY(spin != nullptr);
+    QVERIFY(singlePage != nullptr);
+    QVERIFY(navigation != nullptr);
+    QVERIFY(ruler != nullptr);
+    QVERIFY(rotation90 != nullptr);
+
+    customZoom->setChecked(true);
+    spin->setValue(150);
+    singlePage->setChecked(true);
+    navigation->setChecked(false);
+    ruler->setChecked(true);
+    rotation90->setChecked(true);
 
     const ViewSettings result = dialog.settings();
     QCOMPARE(result.zoomMode, ViewSettings::ZoomMode::Custom);
@@ -101,17 +151,21 @@ void ViewSettingsTests::settingsReflectUserChoices() {
 
 void ViewSettingsTests::customZoomEnabledOnlyWhenCustomSelected() {
     ViewSettingsDialog dialog(ViewSettings{});
-    auto* spin = find<QSpinBox>("viewSettings.customZoomSpin");
+    auto* spin = mustFind<QSpinBox>(&dialog, "viewSettings.customZoomSpin");
+    auto* customZoom = mustFind<QRadioButton>(&dialog, "viewSettings.customZoom");
+    auto* actualSize = mustFind<QRadioButton>(&dialog, "viewSettings.actualSize");
     QVERIFY(spin != nullptr);
+    QVERIFY(customZoom != nullptr);
+    QVERIFY(actualSize != nullptr);
     // 默认是「实际大小」，那个百分比没有意义，不能让用户去改。
     QVERIFY(!spin->isEnabled());
 
-    find<QRadioButton>("viewSettings.customZoom")->setChecked(true);
+    customZoom->setChecked(true);
     QVERIFY(spin->isEnabled());
 
     // 换回别的模式，百分比框要跟着灰掉——不然界面上留着一个能改的数字，
     // 改完又不生效，是最容易让人以为程序坏了的地方。
-    find<QRadioButton>("viewSettings.actualSize")->setChecked(true);
+    actualSize->setChecked(true);
     QVERIFY(!spin->isEnabled());
 }
 
@@ -141,6 +195,12 @@ void ViewSettingsTests::zoomKeyUnchangedSoOldSettingsStillApply() {
     // 变了的话所有文件在升级后都会回到 100%（用户看不出原因，只觉得"记忆丢了"）。
     const QString path = dir_.filePath(QStringLiteral("legacy.pdf"));
     QCOMPARE(viewSettingsKey(path, QStringLiteral("zoom")), zoomSettingsKey(path));
+    // 只比「两者相等」不够：两个函数一起改就又相等了。
+    // 所以再钉住键的**格式**——版本前缀一变，老用户的配置就再也读不出来。
+    QVERIFY(viewSettingsKey(path, QStringLiteral("zoom")).startsWith(
+        QStringLiteral("view/zoom/v1/")));
+    QVERIFY(viewSettingsKey(path, QStringLiteral("layout")).startsWith(
+        QStringLiteral("view/layout/v1/")));
 }
 
 void ViewSettingsTests::invalidStoredLayoutCountsAsUnset() {
