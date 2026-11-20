@@ -1,0 +1,945 @@
+﻿file,dir_l1,dir_l2,dir_l3,ext,language,category,total,code,comment,blank
+assets/branding/build_icon.py,assets,assets/branding,assets/branding,.py,Python,own-code,345,278,13,54
+assets/branding/build_site_assets.py,assets,assets/branding,assets/branding,.py,Python,own-code,176,129,10,37
+astro.config.mjs,(root),(root),(root),.mjs,JavaScript,own-code,17,10,5,2
+cmake/toolchains/qt-mingw.cmake,cmake,cmake/toolchains,cmake/toolchains,.cmake,CMake,own-code,32,17,10,5
+scripts/AcceptanceProbe.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,1403,1202,91,110
+scripts/LicenseMap.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,31,27,1,3
+scripts/LicenseText.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,60,46,2,12
+scripts/bootstrap-pdfium.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,154,135,4,15
+scripts/bootstrap-pyhanko.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,84,73,4,7
+scripts/bootstrap-qpdf.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,101,78,12,11
+scripts/bootstrap-quickjs.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,70,51,11,8
+scripts/bootstrap-toolchain.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,136,115,5,16
+scripts/build-foxit-matrix.py,scripts,scripts,scripts,.py,Python,own-code,539,489,6,44
+scripts/check-doc-claims.py,scripts,scripts,scripts,.py,Python,own-code,172,136,5,31
+scripts/check-docs-consistency.py,scripts,scripts,scripts,.py,Python,own-code,203,170,15,18
+scripts/check-feature-claims.py,scripts,scripts,scripts,.py,Python,own-code,137,110,8,19
+scripts/check-i18n.py,scripts,scripts,scripts,.py,Python,own-code,272,223,10,39
+scripts/check-partial-boundaries.py,scripts,scripts,scripts,.py,Python,own-code,138,108,8,22
+scripts/check-test-counts.py,scripts,scripts,scripts,.py,Python,own-code,150,124,2,24
+scripts/check-version.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,103,87,1,15
+scripts/ci.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,360,295,37,28
+scripts/dev-watch.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,113,100,1,12
+scripts/dump-feature-modification-list.py,scripts,scripts,scripts,.py,Python,own-code,228,193,10,25
+scripts/fetch-licenses.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,104,88,4,12
+scripts/gen-cjk-corpus.py,scripts,scripts,scripts,.py,Python,own-code,1198,980,51,167
+scripts/gen-compat-corpus.py,scripts,scripts,scripts,.py,Python,own-code,781,620,27,134
+scripts/gen-office-corpus.py,scripts,scripts,scripts,.py,Python,own-code,792,627,65,100
+scripts/generate-sbom.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,223,203,1,19
+scripts/generate-test-pdfs.py,scripts,scripts,scripts,.py,Python,own-code,837,696,23,118
+scripts/modularize-src.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,238,202,12,24
+scripts/package.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,276,241,9,26
+scripts/perf.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,45,34,5,6
+scripts/pyhanko-launcher.py,scripts,scripts,scripts,.py,Python,own-code,7,4,0,3
+scripts/render-pdf-windows.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,87,66,10,11
+scripts/test-doc-claims-negative.py,scripts,scripts,scripts,.py,Python,own-code,170,137,5,28
+scripts/test-feature-claims-negative.py,scripts,scripts,scripts,.py,Python,own-code,125,102,8,15
+scripts/test-gates.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,364,286,25,53
+scripts/test-partial-boundaries-negative.py,scripts,scripts,scripts,.py,Python,own-code,192,154,6,32
+scripts/test-test-counts-negative.py,scripts,scripts,scripts,.py,Python,own-code,111,87,5,19
+scripts/verify-ai.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,530,428,46,56
+scripts/verify-annotation-types.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,151,123,16,12
+scripts/verify-annotations.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,514,435,29,50
+scripts/verify-ci-workflow.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,88,69,6,13
+scripts/verify-cjk-corpus.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,489,397,41,51
+scripts/verify-compat.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,192,163,12,17
+scripts/verify-corpus-tolerance.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,447,380,19,48
+scripts/verify-dependencies.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,260,228,13,19
+scripts/verify-editing.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,96,75,12,9
+scripts/verify-forms.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,120,101,7,12
+scripts/verify-i18n.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,137,112,8,17
+scripts/verify-index.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,396,323,33,40
+scripts/verify-layout.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,96,77,7,12
+scripts/verify-licenses.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,131,110,3,18
+scripts/verify-logs.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,147,119,13,15
+scripts/verify-m0.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,197,156,19,22
+scripts/verify-navigation.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,543,437,52,54
+scripts/verify-ocr.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,141,113,15,13
+scripts/verify-office-images.py,scripts,scripts,scripts,.py,Python,own-code,654,536,44,74
+scripts/verify-office-packages.py,scripts,scripts,scripts,.py,Python,own-code,170,137,7,26
+scripts/verify-optimize-fidelity.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,502,416,33,53
+scripts/verify-package.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,186,158,6,22
+scripts/verify-pages.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,424,337,44,43
+scripts/verify-pdf-office-packages.py,scripts,scripts,scripts,.py,Python,own-code,197,161,7,29
+scripts/verify-pdf.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,265,232,10,23
+scripts/verify-perf-budget.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,702,617,35,50
+scripts/verify-presentation.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,104,82,10,12
+scripts/verify-privacy.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,218,179,18,21
+scripts/verify-proposals.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,210,176,16,18
+scripts/verify-qa.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,630,517,53,60
+scripts/verify-qpdf.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,68,47,13,8
+scripts/verify-reading.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,450,386,28,36
+scripts/verify-recordings.py,scripts,scripts,scripts,.py,Python,own-code,283,232,9,42
+scripts/verify-recovery.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,243,207,13,23
+scripts/verify-sbom.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,109,93,1,15
+scripts/verify-scroll.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,201,171,8,22
+scripts/verify-text.ps1,scripts,scripts,scripts,.ps1,PowerShell,own-code,584,484,61,39
+src/ai/chat/ChatTypes.cpp,src,src/ai,src/ai/chat,.cpp,C++,own-code,139,119,7,13
+src/ai/chat/ChatTypes.h,src,src/ai,src/ai/chat,.h,C/C++ header,own-code,119,51,50,18
+src/ai/chat/ModelProvider.h,src,src/ai,src/ai/chat,.h,C/C++ header,own-code,51,21,21,9
+src/ai/chat/SseParser.cpp,src,src/ai,src/ai/chat,.cpp,C++,own-code,89,70,9,10
+src/ai/chat/SseParser.h,src,src/ai,src/ai/chat,.h,C/C++ header,own-code,55,19,26,10
+src/ai/content/AiContentDetection.cpp,src,src/ai,src/ai/content,.cpp,C++,own-code,267,200,37,30
+src/ai/content/AiContentDetection.h,src,src/ai,src/ai/content,.h,C/C++ header,own-code,56,13,36,7
+src/ai/content/AiImageGeneration.cpp,src,src/ai,src/ai/content,.cpp,C++,own-code,488,382,64,42
+src/ai/content/AiImageGeneration.h,src,src/ai,src/ai/content,.h,C/C++ header,own-code,155,49,84,22
+src/ai/content/AiNarration.cpp,src,src/ai,src/ai/content,.cpp,C++,own-code,390,285,64,41
+src/ai/content/AiNarration.h,src,src/ai,src/ai/content,.h,C/C++ header,own-code,51,18,26,7
+src/ai/content/PptGeneration.cpp,src,src/ai,src/ai/content,.cpp,C++,own-code,553,423,83,47
+src/ai/content/PptGeneration.h,src,src/ai,src/ai/content,.h,C/C++ header,own-code,160,38,107,15
+src/ai/content/PptxExport.cpp,src,src/ai,src/ai/content,.cpp,C++,own-code,27,18,5,4
+src/ai/content/PptxExport.h,src,src/ai,src/ai/content,.h,C/C++ header,own-code,33,3,25,5
+src/ai/provider/MockProvider.cpp,src,src/ai,src/ai/provider,.cpp,C++,own-code,184,135,29,20
+src/ai/provider/MockProvider.h,src,src/ai,src/ai/provider,.h,C/C++ header,own-code,51,25,15,11
+src/ai/provider/OpenAiProvider.cpp,src,src/ai,src/ai/provider,.cpp,C++,own-code,373,305,28,40
+src/ai/provider/OpenAiProvider.h,src,src/ai,src/ai/provider,.h,C/C++ header,own-code,87,48,27,12
+src/ai/provider/ProviderFactory.cpp,src,src/ai,src/ai/provider,.cpp,C++,own-code,36,23,9,4
+src/ai/provider/ProviderFactory.h,src,src/ai,src/ai/provider,.h,C/C++ header,own-code,18,3,10,5
+src/ai/settings/AuditLog.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,76,57,10,9
+src/ai/settings/AuditLog.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,46,23,14,9
+src/ai/settings/CredentialStore.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,165,108,40,17
+src/ai/settings/CredentialStore.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,39,13,20,6
+src/ai/settings/DataPolicy.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,93,71,9,13
+src/ai/settings/DataPolicy.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,51,23,18,10
+src/ai/settings/ProviderConfig.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,173,136,19,18
+src/ai/settings/ProviderConfig.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,59,18,30,11
+src/ai/settings/ProviderPreset.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,91,69,13,9
+src/ai/settings/ProviderPreset.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,64,14,40,10
+src/ai/settings/ProviderSelection.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,38,21,12,5
+src/ai/settings/ProviderSelection.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,25,7,13,5
+src/ai/settings/UploadPreview.cpp,src,src/ai,src/ai/settings,.cpp,C++,own-code,34,21,5,8
+src/ai/settings/UploadPreview.h,src,src/ai,src/ai/settings,.h,C/C++ header,own-code,35,15,13,7
+src/app/controllers/AiToolService.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,278,216,33,29
+src/app/controllers/AiToolService.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,78,35,27,16
+src/app/controllers/AnnotationController.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,1135,967,74,94
+src/app/controllers/AnnotationController.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,268,126,111,31
+src/app/controllers/AudioRecorder.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,186,157,10,19
+src/app/controllers/AudioRecorder.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,32,15,11,6
+src/app/controllers/DigitalSignatureBackend.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,72,60,6,6
+src/app/controllers/DigitalSignatureBackend.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,29,21,3,5
+src/app/controllers/DocumentConverter.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,107,90,5,12
+src/app/controllers/DocumentConverter.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,38,26,5,7
+src/app/controllers/DocumentOutput.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,294,225,32,37
+src/app/controllers/DocumentOutput.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,77,42,20,15
+src/app/controllers/DocumentQaController.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,368,291,34,43
+src/app/controllers/DocumentQaController.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,91,39,33,19
+src/app/controllers/IndexController.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,574,440,72,62
+src/app/controllers/IndexController.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,104,56,29,19
+src/app/controllers/LastWaveBridge.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,624,516,47,61
+src/app/controllers/LastWaveBridge.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,261,100,102,59
+src/app/controllers/LastWaveWriter.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,126,93,20,13
+src/app/controllers/LastWaveWriter.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,25,6,15,4
+src/app/controllers/NavigationController.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,276,221,22,33
+src/app/controllers/NavigationController.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,88,35,36,17
+src/app/controllers/OneNoteExporter.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,954,718,140,96
+src/app/controllers/OneNoteExporter.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,286,104,141,41
+src/app/controllers/PcmPlayer.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,349,246,55,48
+src/app/controllers/PcmPlayer.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,108,30,59,19
+src/app/controllers/PresentationLoop.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,41,24,8,9
+src/app/controllers/PresentationLoop.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,36,5,25,6
+src/app/controllers/ProposalRunner.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,128,95,18,15
+src/app/controllers/ProposalRunner.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,42,14,19,9
+src/app/controllers/ScannerCapture.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,1250,972,184,94
+src/app/controllers/ScannerCapture.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,210,100,78,32
+src/app/controllers/ScreenCapture.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,37,25,6,6
+src/app/controllers/ScreenCapture.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,32,5,20,7
+src/app/controllers/TextController.cpp,src,src/app,src/app/controllers,.cpp,C++,own-code,630,523,41,66
+src/app/controllers/TextController.h,src,src/app,src/app/controllers,.h,C/C++ header,own-code,126,54,51,21
+src/app/dialogs/AccessibilityWizard.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,229,179,19,31
+src/app/dialogs/AccessibilityWizard.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,79,40,25,14
+src/app/dialogs/AiSettingsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,348,276,29,43
+src/app/dialogs/AiSettingsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,82,50,21,11
+src/app/dialogs/AiToolsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,699,573,33,93
+src/app/dialogs/AiToolsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,191,112,50,29
+src/app/dialogs/AnnotationToolboxDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,291,226,23,42
+src/app/dialogs/AnnotationToolboxDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,105,53,30,22
+src/app/dialogs/BookmarkTreeDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,331,255,40,36
+src/app/dialogs/BookmarkTreeDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,85,33,36,16
+src/app/dialogs/ConversionInputDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,1105,872,145,88
+src/app/dialogs/ConversionInputDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,213,92,85,36
+src/app/dialogs/ConversionToolsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,481,393,33,55
+src/app/dialogs/ConversionToolsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,123,67,32,24
+src/app/dialogs/DocumentCompareDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,680,569,52,59
+src/app/dialogs/DocumentCompareDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,131,59,50,22
+src/app/dialogs/EditProposalDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,69,47,9,13
+src/app/dialogs/EditProposalDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,27,10,9,8
+src/app/dialogs/EncryptionDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,195,160,12,23
+src/app/dialogs/EncryptionDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,59,38,10,11
+src/app/dialogs/FormDesignAssistantDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,340,280,29,31
+src/app/dialogs/FormDesignAssistantDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,107,47,43,17
+src/app/dialogs/FormScriptDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,254,209,17,28
+src/app/dialogs/FormScriptDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,86,50,20,16
+src/app/dialogs/FormToolSettingsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,69,48,11,10
+src/app/dialogs/FormToolSettingsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,33,17,6,10
+src/app/dialogs/HiddenDataDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,197,153,27,17
+src/app/dialogs/HiddenDataDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,69,19,34,16
+src/app/dialogs/PrintToolsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,605,498,29,78
+src/app/dialogs/PrintToolsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,151,83,46,22
+src/app/dialogs/ReadingOptionsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,125,93,12,20
+src/app/dialogs/ReadingOptionsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,43,20,14,9
+src/app/dialogs/RecordingCenterDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,313,250,29,34
+src/app/dialogs/RecordingCenterDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,67,33,21,13
+src/app/dialogs/RegionPicker.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,135,101,17,17
+src/app/dialogs/RegionPicker.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,49,22,18,9
+src/app/dialogs/SettingsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,295,230,41,24
+src/app/dialogs/SettingsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,52,34,9,9
+src/app/dialogs/SignatureDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,255,206,21,28
+src/app/dialogs/SignatureDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,43,27,5,11
+src/app/dialogs/StampNumberDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,124,92,10,22
+src/app/dialogs/StampNumberDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,40,20,11,9
+src/app/dialogs/TextBlockMergeDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,78,54,11,13
+src/app/dialogs/TextBlockMergeDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,38,18,10,10
+src/app/dialogs/ThreeDViewerDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,174,130,17,27
+src/app/dialogs/ThreeDViewerDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,75,40,19,16
+src/app/dialogs/UploadPreviewDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,120,89,13,18
+src/app/dialogs/UploadPreviewDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,29,11,10,8
+src/app/dialogs/ViewSettingsDialog.cpp,src,src/app,src/app/dialogs,.cpp,C++,own-code,276,230,20,26
+src/app/dialogs/ViewSettingsDialog.h,src,src/app,src/app/dialogs,.h,C/C++ header,own-code,97,58,23,16
+src/app/editor/MouseShortcuts.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,71,57,5,9
+src/app/editor/MouseShortcuts.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,49,15,25,9
+src/app/editor/NavigationHistory.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,55,42,4,9
+src/app/editor/NavigationHistory.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,61,29,20,12
+src/app/editor/OcrController.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,220,166,27,27
+src/app/editor/OcrController.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,79,35,29,15
+src/app/editor/PageCanvas.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,2245,1916,190,139
+src/app/editor/PageCanvas.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,371,221,117,33
+src/app/editor/PdfView.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,9259,8054,726,479
+src/app/editor/PdfView.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,954,519,361,74
+src/app/editor/PresentationWindow.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,180,135,24,21
+src/app/editor/PresentationWindow.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,68,29,25,14
+src/app/editor/RenderThread.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,119,96,6,17
+src/app/editor/RenderThread.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,70,30,25,15
+src/app/editor/TileCache.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,113,86,5,22
+src/app/editor/TileCache.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,70,40,13,17
+src/app/editor/ViewFit.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,47,33,7,7
+src/app/editor/ViewFit.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,27,10,12,5
+src/app/editor/ViewMemory.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,65,47,9,9
+src/app/editor/ViewMemory.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,29,5,16,8
+src/app/editor/ZoomMemory.cpp,src,src/app,src/app/editor,.cpp,C++,own-code,40,26,6,8
+src/app/editor/ZoomMemory.h,src,src/app,src/app/editor,.h,C/C++ header,own-code,24,7,10,7
+src/app/layout/InkGeometry.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,40,30,5,5
+src/app/layout/InkGeometry.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,14,4,5,5
+src/app/layout/LinkHitTest.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,28,21,4,3
+src/app/layout/LinkHitTest.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,24,5,14,5
+src/app/layout/MeasureGeometry.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,63,49,6,8
+src/app/layout/MeasureGeometry.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,28,11,9,8
+src/app/layout/PageChunkBuilder.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,78,60,9,9
+src/app/layout/PageChunkBuilder.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,21,6,9,6
+src/app/layout/PageLayout.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,327,278,11,38
+src/app/layout/PageLayout.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,124,59,40,25
+src/app/layout/PageTextLines.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,119,91,20,8
+src/app/layout/PageTextLines.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,31,7,18,6
+src/app/layout/PageTransform.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,78,57,10,11
+src/app/layout/PageTransform.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,48,18,19,11
+src/app/layout/PdfPageOperations.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,68,48,4,16
+src/app/layout/PdfPageOperations.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,42,18,15,9
+src/app/layout/TextLayout.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,377,320,23,34
+src/app/layout/TextLayout.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,88,37,32,19
+src/app/layout/ViewModes.cpp,src,src/app,src/app/layout,.cpp,C++,own-code,355,273,43,39
+src/app/layout/ViewModes.h,src,src/app,src/app/layout,.h,C/C++ header,own-code,194,55,109,30
+src/app/panels/AiPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,1457,1208,133,116
+src/app/panels/AiPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,274,151,93,30
+src/app/panels/AttachmentPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,252,206,17,29
+src/app/panels/AttachmentPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,64,39,14,11
+src/app/panels/IndexPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,224,174,24,26
+src/app/panels/IndexPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,73,37,20,16
+src/app/panels/LastWavePanels.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,1673,1405,74,194
+src/app/panels/LastWavePanels.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,454,276,113,65
+src/app/panels/MediaPreviewPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,558,416,59,83
+src/app/panels/MediaPreviewPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,191,82,77,32
+src/app/panels/PdfAPreflightPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,315,260,27,28
+src/app/panels/PdfAPreflightPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,63,25,23,15
+src/app/panels/SearchPanel.cpp,src,src/app,src/app/panels,.cpp,C++,own-code,410,329,46,35
+src/app/panels/SearchPanel.h,src,src/app,src/app/panels,.h,C/C++ header,own-code,85,50,19,16
+src/app/recording/MotionJpegAviWriter.cpp,src,src/app,src/app/recording,.cpp,C++,own-code,311,258,19,34
+src/app/recording/MotionJpegAviWriter.h,src,src/app,src/app/recording,.h,C/C++ header,own-code,89,44,31,14
+src/app/recording/RecordingLibrary.cpp,src,src/app,src/app/recording,.cpp,C++,own-code,274,226,19,29
+src/app/recording/RecordingLibrary.h,src,src/app,src/app/recording,.h,C/C++ header,own-code,99,42,41,16
+src/app/recording/ScreenRecorder.cpp,src,src/app,src/app/recording,.cpp,C++,own-code,306,235,38,33
+src/app/recording/ScreenRecorder.h,src,src/app,src/app/recording,.h,C/C++ header,own-code,116,54,43,19
+src/app/shell/MainWindow.cpp,src,src/app,src/app/shell,.cpp,C++,own-code,7242,6190,735,317
+src/app/shell/MainWindow.h,src,src/app,src/app/shell,.h,C/C++ header,own-code,469,309,142,18
+src/app/shell/RibbonBar.cpp,src,src/app,src/app/shell,.cpp,C++,own-code,373,294,42,37
+src/app/shell/RibbonBar.h,src,src/app,src/app/shell,.h,C/C++ header,own-code,109,51,43,15
+src/app/shell/WelcomePage.cpp,src,src/app,src/app/shell,.cpp,C++,own-code,448,344,45,59
+src/app/shell/WelcomePage.h,src,src/app,src/app/shell,.h,C/C++ header,own-code,53,25,15,13
+src/app/shell/WiringActions.cpp,src,src/app,src/app/shell,.cpp,C++,own-code,2209,1876,220,113
+src/app/shell/WiringActions.h,src,src/app,src/app/shell,.h,C/C++ header,own-code,175,90,65,20
+src/app/shell/main.cpp,src,src/app,src/app/shell,.cpp,C++,own-code,124,65,45,14
+src/app/ui/AccessibilityPlan.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,95,53,32,10
+src/app/ui/BrandMark.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,75,55,8,12
+src/app/ui/BrandMark.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,26,12,6,8
+src/app/ui/Language.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,615,474,81,60
+src/app/ui/Language.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,208,65,99,44
+src/app/ui/LanguagePackInstaller.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,57,38,10,9
+src/app/ui/ModalScrim.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,88,54,22,12
+src/app/ui/ModalScrim.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,45,16,19,10
+src/app/ui/ReadingScheme.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,110,81,16,13
+src/app/ui/ReadingScheme.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,47,15,21,11
+src/app/ui/SystemCjkFont.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,63,35,23,5
+src/app/ui/Theme.cpp,src,src/app,src/app/ui,.cpp,C++,own-code,752,597,101,54
+src/app/ui/Theme.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,72,23,33,16
+src/app/ui/TraceText.h,src,src/app,src/app/ui,.h,C/C++ header,own-code,20,8,8,4
+src/app/util/BatchRename.cpp,src,src/app,src/app/util,.cpp,C++,own-code,144,120,9,15
+src/app/util/BatchRename.h,src,src/app,src/app/util,.h,C/C++ header,own-code,20,10,5,5
+src/app/util/BlankPageDetector.cpp,src,src/app,src/app/util,.cpp,C++,own-code,44,32,4,8
+src/app/util/BlankPageDetector.h,src,src/app,src/app/util,.h,C/C++ header,own-code,24,5,13,6
+src/app/util/ConversionExports.cpp,src,src/app,src/app/util,.cpp,C++,own-code,78,62,7,9
+src/app/util/ConversionExports.h,src,src/app,src/app/util,.h,C/C++ header,own-code,75,25,45,5
+src/app/util/ConversionReports.cpp,src,src/app,src/app/util,.cpp,C++,own-code,170,136,17,17
+src/app/util/ConversionReports.h,src,src/app,src/app/util,.h,C/C++ header,own-code,87,32,41,14
+src/app/util/SearchMatcher.cpp,src,src/app,src/app/util,.cpp,C++,own-code,119,92,14,13
+src/app/util/SearchMatcher.h,src,src/app,src/app/util,.h,C/C++ header,own-code,51,26,16,9
+src/app/util/ShareUtils.cpp,src,src/app,src/app/util,.cpp,C++,own-code,26,18,3,5
+src/app/util/ShareUtils.h,src,src/app,src/app/util,.h,C/C++ header,own-code,16,5,6,5
+src/app/util/WizardPageRange.cpp,src,src/app,src/app/util,.cpp,C++,own-code,110,93,12,5
+src/app/util/WizardPageRange.h,src,src/app,src/app/util,.h,C/C++ header,own-code,28,4,19,5
+src/app/util/WorkerTranslationProvider.cpp,src,src/app,src/app/util,.cpp,C++,own-code,215,169,24,22
+src/app/util/WorkerTranslationProvider.h,src,src/app,src/app/util,.h,C/C++ header,own-code,43,19,15,9
+src/doc/batch/ActionWizard.cpp,src,src/doc,src/doc/batch,.cpp,C++,own-code,720,610,48,62
+src/doc/batch/ActionWizard.h,src,src/doc,src/doc/batch,.h,C/C++ header,own-code,216,88,104,24
+src/doc/batch/BatchProcessor.cpp,src,src/doc,src/doc/batch,.cpp,C++,own-code,573,462,66,45
+src/doc/batch/BatchProcessor.h,src,src/doc,src/doc/batch,.h,C/C++ header,own-code,150,42,93,15
+src/doc/batch/WizardActions.cpp,src,src/doc,src/doc/batch,.cpp,C++,own-code,804,672,83,49
+src/doc/batch/WizardActions.h,src,src/doc,src/doc/batch,.h,C/C++ header,own-code,276,100,146,30
+src/doc/convert/BrowserPdfPrinter.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,659,497,103,59
+src/doc/convert/BrowserPdfPrinter.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,237,71,141,25
+src/doc/convert/ConversionInputs.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,1857,1513,238,106
+src/doc/convert/ConversionInputs.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,362,136,188,38
+src/doc/convert/FontFlattening.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,331,251,53,27
+src/doc/convert/FontFlattening.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,112,27,73,12
+src/doc/convert/GlyphOutline.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,327,227,67,33
+src/doc/convert/InvoiceLayout.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,441,354,45,42
+src/doc/convert/InvoiceLayout.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,147,50,84,13
+src/doc/convert/OutlinePdfWriter.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,463,346,80,37
+src/doc/convert/ScannedPdfOptimizer.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,146,108,18,20
+src/doc/convert/ScannedPdfOptimizer.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,66,24,32,10
+src/doc/convert/UniversalConverter.cpp,src,src/doc,src/doc/convert,.cpp,C++,own-code,1788,1473,181,134
+src/doc/convert/UniversalConverter.h,src,src/doc,src/doc/convert,.h,C/C++ header,own-code,218,68,130,20
+src/doc/edit/AnnotationModel.cpp,src,src/doc,src/doc/edit,.cpp,C++,own-code,174,148,7,19
+src/doc/edit/AnnotationModel.h,src,src/doc,src/doc/edit,.h,C/C++ header,own-code,85,27,42,16
+src/doc/edit/EditCommand.cpp,src,src/doc,src/doc/edit,.cpp,C++,own-code,298,234,27,37
+src/doc/edit/EditCommand.h,src,src/doc,src/doc/edit,.h,C/C++ header,own-code,101,53,27,21
+src/doc/edit/EditContext.h,src,src/doc,src/doc/edit,.h,C/C++ header,own-code,74,28,34,12
+src/doc/edit/PageCommand.cpp,src,src/doc,src/doc/edit,.cpp,C++,own-code,476,383,33,60
+src/doc/edit/PageCommand.h,src,src/doc,src/doc/edit,.h,C/C++ header,own-code,147,85,37,25
+src/doc/edit/UndoStack.cpp,src,src/doc,src/doc/edit,.cpp,C++,own-code,105,83,7,15
+src/doc/edit/UndoStack.h,src,src/doc,src/doc/edit,.h,C/C++ header,own-code,57,23,23,11
+src/doc/export/OfdExport.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,617,449,118,50
+src/doc/export/OfdExport.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,86,25,49,12
+src/doc/export/OfficeExport.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,1486,1159,237,90
+src/doc/export/OfficeExport.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,213,56,136,21
+src/doc/export/OfficeMedia.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,19,2,13,4
+src/doc/export/OfficeMedia.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,163,78,68,17
+src/doc/export/PdfToOffice.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,629,495,91,43
+src/doc/export/PdfToOffice.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,90,29,51,10
+src/doc/export/PptxWriter.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,708,592,65,51
+src/doc/export/PptxWriter.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,77,18,51,8
+src/doc/export/SpreadsheetExport.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,201,167,18,16
+src/doc/export/SpreadsheetExport.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,59,12,40,7
+src/doc/export/XmlText.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,79,53,19,7
+src/doc/export/ZipWriter.cpp,src,src/doc,src/doc/export,.cpp,C++,own-code,291,235,23,33
+src/doc/export/ZipWriter.h,src,src/doc,src/doc/export,.h,C/C++ header,own-code,66,20,34,12
+src/doc/index/CitationVerifier.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,223,179,22,22
+src/doc/index/CitationVerifier.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,89,34,43,12
+src/doc/index/EmbeddingProvider.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,43,15,20,8
+src/doc/index/HybridRetriever.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,182,134,27,21
+src/doc/index/HybridRetriever.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,91,33,46,12
+src/doc/index/LocalHashEmbedding.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,134,100,16,18
+src/doc/index/LocalHashEmbedding.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,50,15,25,10
+src/doc/index/LocalIndex.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,449,386,20,43
+src/doc/index/LocalIndex.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,121,48,59,14
+src/doc/index/OfflineQa.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,419,328,56,35
+src/doc/index/OfflineQa.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,148,54,79,15
+src/doc/index/VectorIndex.cpp,src,src/doc,src/doc/index,.cpp,C++,own-code,305,247,26,32
+src/doc/index/VectorIndex.h,src,src/doc,src/doc/index,.h,C/C++ header,own-code,84,33,37,14
+src/doc/model/BlankDocument.cpp,src,src/doc,src/doc/model,.cpp,C++,own-code,186,122,42,22
+src/doc/model/BlankDocument.h,src,src/doc,src/doc/model,.h,C/C++ header,own-code,52,13,31,8
+src/doc/model/ChunkBuilder.cpp,src,src/doc,src/doc/model,.cpp,C++,own-code,279,226,30,23
+src/doc/model/ChunkBuilder.h,src,src/doc,src/doc/model,.h,C/C++ header,own-code,91,34,47,10
+src/doc/model/DocumentChunk.h,src,src/doc,src/doc/model,.h,C/C++ header,own-code,47,16,25,6
+src/doc/model/DocumentStatistics.cpp,src,src/doc,src/doc/model,.cpp,C++,own-code,90,62,16,12
+src/doc/model/DocumentStatistics.h,src,src/doc,src/doc/model,.h,C/C++ header,own-code,66,20,38,8
+src/doc/model/OutlineGenerator.cpp,src,src/doc,src/doc/model,.cpp,C++,own-code,314,220,65,29
+src/doc/model/OutlineGenerator.h,src,src/doc,src/doc/model,.h,C/C++ header,own-code,116,30,73,13
+src/doc/persist/RecoveryLog.cpp,src,src/doc,src/doc/persist,.cpp,C++,own-code,181,149,12,20
+src/doc/persist/RecoveryLog.h,src,src/doc,src/doc/persist,.h,C/C++ header,own-code,53,17,25,11
+src/doc/print/PrintBatch.cpp,src,src/doc,src/doc/print,.cpp,C++,own-code,118,77,25,16
+src/doc/print/PrintBatch.h,src,src/doc,src/doc/print,.h,C/C++ header,own-code,66,24,35,7
+src/doc/print/PrintTemplate.cpp,src,src/doc,src/doc/print,.cpp,C++,own-code,211,159,27,25
+src/doc/print/PrintTemplate.h,src,src/doc,src/doc/print,.h,C/C++ header,own-code,60,22,28,10
+src/i18n/Translate.h,src,src/i18n,src/i18n,.h,C/C++ header,own-code,51,21,21,9
+src/i18n/ai-pdf-editor_en.ts,src,src/i18n,src/i18n,.ts,TypeScript,generated-data,10054,10023,0,31
+src/ipc/IpcProtocol.cpp,src,src/ipc,src/ipc,.cpp,C++,own-code,61,48,4,9
+src/ipc/IpcProtocol.h,src,src/ipc,src/ipc,.h,C/C++ header,own-code,37,16,11,10
+src/ipc/WorkerClient.cpp,src,src/ipc,src/ipc,.cpp,C++,own-code,345,265,38,42
+src/ipc/WorkerClient.h,src,src/ipc,src/ipc,.h,C/C++ header,own-code,81,47,21,13
+src/ocr/core/OcrEngine.h,src,src/ocr,src/ocr/core,.h,C/C++ header,own-code,34,10,15,9
+src/ocr/core/OcrGeometry.cpp,src,src/ocr,src/ocr/core,.cpp,C++,own-code,54,37,8,9
+src/ocr/core/OcrGeometry.h,src,src/ocr,src/ocr/core,.h,C/C++ header,own-code,23,4,14,5
+src/ocr/core/OcrTextUtils.cpp,src,src/ocr,src/ocr/core,.cpp,C++,own-code,78,60,9,9
+src/ocr/core/OcrTextUtils.h,src,src/ocr,src/ocr/core,.h,C/C++ header,own-code,33,6,20,7
+src/ocr/core/OcrTypes.h,src,src/ocr,src/ocr/core,.h,C/C++ header,own-code,58,34,15,9
+src/ocr/engines/OcrEngineFactory.cpp,src,src/ocr,src/ocr/engines,.cpp,C++,own-code,17,9,4,4
+src/ocr/engines/OcrEngineFactory.h,src,src/ocr,src/ocr/engines,.h,C/C++ header,own-code,16,3,8,5
+src/ocr/engines/TesseractCliEngine.cpp,src,src/ocr,src/ocr/engines,.cpp,C++,own-code,289,230,31,28
+src/ocr/engines/TesseractCliEngine.h,src,src/ocr,src/ocr/engines,.h,C/C++ header,own-code,58,28,18,12
+src/ocr/engines/WindowsOcrEngine.cpp,src,src/ocr,src/ocr/engines,.cpp,C++,own-code,294,232,32,30
+src/ocr/engines/WindowsOcrEngine.h,src,src/ocr,src/ocr/engines,.h,C/C++ header,own-code,43,18,15,10
+src/ocr/pipeline/ImagePreprocess.cpp,src,src/ocr,src/ocr/pipeline,.cpp,C++,own-code,611,514,51,46
+src/ocr/pipeline/ImagePreprocess.h,src,src/ocr,src/ocr/pipeline,.h,C/C++ header,own-code,140,40,67,33
+src/ocr/pipeline/OcrChunkBridge.cpp,src,src/ocr,src/ocr/pipeline,.cpp,C++,own-code,37,29,3,5
+src/ocr/pipeline/OcrChunkBridge.h,src,src/ocr,src/ocr/pipeline,.h,C/C++ header,own-code,23,7,11,5
+src/ocr/pipeline/OcrService.cpp,src,src/ocr,src/ocr/pipeline,.cpp,C++,own-code,312,249,33,30
+src/ocr/pipeline/OcrService.h,src,src/ocr,src/ocr/pipeline,.h,C/C++ header,own-code,54,22,19,13
+src/ocr/pipeline/ScannedPageDetector.cpp,src,src/ocr,src/ocr/pipeline,.cpp,C++,own-code,17,11,3,3
+src/ocr/pipeline/ScannedPageDetector.h,src,src/ocr,src/ocr/pipeline,.h,C/C++ header,own-code,23,9,9,5
+src/pages/index.astro,src,src/pages,src/pages,.astro,Astro,own-code,225,199,10,16
+src/pages/robots.txt.ts,src,src/pages,src/pages,.ts,TypeScript,own-code,15,11,1,3
+src/pages/sitemap.xml.ts,src,src/pages,src/pages,.ts,TypeScript,own-code,19,16,1,2
+src/pdf/annot/Annotation.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,232,209,6,17
+src/pdf/annot/Annotation.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,122,57,57,8
+src/pdf/annot/AnnotationDictionary.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,311,269,22,20
+src/pdf/annot/AnnotationDictionary.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,53,10,34,9
+src/pdf/annot/AnnotationFilter.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,56,48,3,5
+src/pdf/annot/AnnotationFilter.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,47,14,25,8
+src/pdf/annot/AnnotationShapes.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,431,344,43,44
+src/pdf/annot/AnnotationShapes.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,105,22,69,14
+src/pdf/annot/AnnotationSummary.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,103,86,5,12
+src/pdf/annot/AnnotationSummary.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,17,4,8,5
+src/pdf/annot/AnnotationToolkit.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,869,676,110,83
+src/pdf/annot/AnnotationToolkit.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,287,79,165,43
+src/pdf/annot/AppearanceStream.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,653,583,39,31
+src/pdf/annot/AppearanceStream.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,47,13,25,9
+src/pdf/annot/PageAnnotsInjector.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,355,302,24,29
+src/pdf/annot/PageAnnotsInjector.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,36,16,14,6
+src/pdf/annot/RichMedia3d.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,1079,868,138,73
+src/pdf/annot/RichMedia3d.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,315,98,188,29
+src/pdf/annot/SoundFormat.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,78,65,3,10
+src/pdf/annot/SoundFormat.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,28,11,11,6
+src/pdf/annot/ThreeDModel.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,414,338,39,37
+src/pdf/annot/ThreeDModel.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,925,664,185,76
+src/pdf/annot/Xfdf.cpp,src,src/pdf,src/pdf/annot,.cpp,C++,own-code,316,280,11,25
+src/pdf/annot/Xfdf.h,src,src/pdf,src/pdf/annot,.h,C/C++ header,own-code,41,10,22,9
+src/pdf/compliance/AltTextGenerator.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,135,104,16,15
+src/pdf/compliance/AltTextGenerator.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,45,12,26,7
+src/pdf/compliance/PdfAChecker.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,1199,1009,113,77
+src/pdf/compliance/PdfAChecker.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,168,29,129,10
+src/pdf/compliance/PdfUaChecker.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,1033,806,152,75
+src/pdf/compliance/PdfUaChecker.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,80,19,54,7
+src/pdf/compliance/PreflightChecker.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,762,582,112,68
+src/pdf/compliance/PreflightChecker.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,56,18,31,7
+src/pdf/compliance/RoleInference.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,506,410,57,39
+src/pdf/compliance/RoleInference.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,112,41,62,9
+src/pdf/compliance/SemanticTagWriter.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,107,84,13,10
+src/pdf/compliance/SemanticTagWriter.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,61,20,34,7
+src/pdf/compliance/StructTreeModel.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,69,57,3,9
+src/pdf/compliance/StructTreeModel.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,414,303,82,29
+src/pdf/compliance/StructTreeReader.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,828,677,86,65
+src/pdf/compliance/StructTreeReader.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,89,32,47,10
+src/pdf/compliance/TagTreeWriter.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,1815,1447,235,133
+src/pdf/compliance/TagTreeWriter.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,226,76,133,17
+src/pdf/compliance/UaGenerator.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,472,358,66,48
+src/pdf/compliance/UaGenerator.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,87,25,53,9
+src/pdf/compliance/VeraPdfChecker.cpp,src,src/pdf,src/pdf/compliance,.cpp,C++,own-code,221,177,23,21
+src/pdf/compliance/VeraPdfChecker.h,src,src/pdf,src/pdf/compliance,.h,C/C++ header,own-code,129,43,73,13
+src/pdf/content/ContentStream.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,334,286,31,17
+src/pdf/content/ContentStream.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,58,33,17,8
+src/pdf/content/FontResource.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,472,415,22,35
+src/pdf/content/FontResource.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,104,38,50,16
+src/pdf/content/InvisibleTextLayer.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,689,500,136,53
+src/pdf/content/InvisibleTextLayer.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,98,19,70,9
+src/pdf/content/ObjectInventory.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,95,79,6,10
+src/pdf/content/ObjectInventory.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,33,12,15,6
+src/pdf/content/PageDecorations.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,119,101,5,13
+src/pdf/content/PageDecorations.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,60,32,16,12
+src/pdf/content/PageGraphics.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,1230,998,136,96
+src/pdf/content/PageGraphics.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,92,45,34,13
+src/pdf/content/ParagraphFormat.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,289,235,31,23
+src/pdf/content/ParagraphFormat.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,137,38,85,14
+src/pdf/content/ReflowPlan.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,16,3,9,4
+src/pdf/content/ReflowPlan.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,77,33,34,10
+src/pdf/content/TableIntegration.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,21,16,1,4
+src/pdf/content/TextReflow.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,191,156,26,9
+src/pdf/content/TextReflow.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,67,41,19,7
+src/pdf/content/TextSplice.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,983,863,55,65
+src/pdf/content/TextSplice.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,60,28,23,9
+src/pdf/content/TrueTypeFace.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,213,182,8,23
+src/pdf/content/TrueTypeFace.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,42,15,18,9
+src/pdf/content/TrueTypeSubset.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,509,407,59,43
+src/pdf/content/TrueTypeSubset.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,95,30,57,8
+src/pdf/content/VerticalWriting.cpp,src,src/pdf,src/pdf/content,.cpp,C++,own-code,280,225,25,30
+src/pdf/content/VerticalWriting.h,src,src/pdf,src/pdf/content,.h,C/C++ header,own-code,192,59,117,16
+src/pdf/convert/DxfExport.cpp,src,src/pdf,src/pdf/convert,.cpp,C++,own-code,1024,829,108,87
+src/pdf/convert/DxfExport.h,src,src/pdf,src/pdf/convert,.h,C/C++ header,own-code,77,32,36,9
+src/pdf/convert/ExportFormats.cpp,src,src/pdf,src/pdf/convert,.cpp,C++,own-code,1136,895,139,102
+src/pdf/convert/ExportFormats.h,src,src/pdf,src/pdf/convert,.h,C/C++ header,own-code,195,54,119,22
+src/pdf/convert/ImageToPdf.cpp,src,src/pdf,src/pdf/convert,.cpp,C++,own-code,1210,956,163,91
+src/pdf/convert/ImageToPdf.h,src,src/pdf,src/pdf/convert,.h,C/C++ header,own-code,110,43,52,15
+src/pdf/convert/PortfolioWriter.cpp,src,src/pdf,src/pdf/convert,.cpp,C++,own-code,424,324,63,37
+src/pdf/convert/PortfolioWriter.h,src,src/pdf,src/pdf/convert,.h,C/C++ header,own-code,53,24,21,8
+src/pdf/document/DocumentProperties.cpp,src,src/pdf,src/pdf/document,.cpp,C++,own-code,193,127,46,20
+src/pdf/document/DocumentProperties.h,src,src/pdf,src/pdf/document,.h,C/C++ header,own-code,70,19,43,8
+src/pdf/document/DocumentWriter.cpp,src,src/pdf,src/pdf/document,.cpp,C++,own-code,247,186,39,22
+src/pdf/document/DocumentWriter.h,src,src/pdf,src/pdf/document,.h,C/C++ header,own-code,84,31,45,8
+src/pdf/document/IncrementalWriter.cpp,src,src/pdf,src/pdf/document,.cpp,C++,own-code,484,394,45,45
+src/pdf/document/IncrementalWriter.h,src,src/pdf,src/pdf/document,.h,C/C++ header,own-code,61,20,32,9
+src/pdf/document/NamedDestination.cpp,src,src/pdf,src/pdf/document,.cpp,C++,own-code,411,296,75,40
+src/pdf/document/NamedDestination.h,src,src/pdf,src/pdf/document,.h,C/C++ header,own-code,51,14,30,7
+src/pdf/document/QpdfBackend.cpp,src,src/pdf,src/pdf/document,.cpp,C++,own-code,70,42,19,9
+src/pdf/document/QpdfBackend.h,src,src/pdf,src/pdf/document,.h,C/C++ header,own-code,25,5,15,5
+src/pdf/forms/BarcodeEncoder.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,167,122,27,18
+src/pdf/forms/BarcodeEncoder.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,35,13,16,6
+src/pdf/forms/FormAppearance.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,795,702,32,61
+src/pdf/forms/FormAppearance.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,64,29,25,10
+src/pdf/forms/FormAutoDetect.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,730,550,102,78
+src/pdf/forms/FormAutoDetect.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,111,36,63,12
+src/pdf/forms/FormAutoTag.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,1026,784,173,69
+src/pdf/forms/FormAutoTag.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,100,22,71,7
+src/pdf/forms/FormData.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,131,113,6,12
+src/pdf/forms/FormData.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,27,10,10,7
+src/pdf/forms/FormDesignParser.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,224,180,21,23
+src/pdf/forms/FormDesignParser.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,119,45,60,14
+src/pdf/forms/FormFieldWriter.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,1094,891,142,61
+src/pdf/forms/FormFieldWriter.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,68,36,20,12
+src/pdf/forms/FormJsEvaluator.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,1690,1486,103,101
+src/pdf/forms/FormJsEvaluator.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,61,22,32,7
+src/pdf/forms/FormRuntime.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,630,547,20,63
+src/pdf/forms/FormRuntime.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,163,91,50,22
+src/pdf/forms/FormScriptStore.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,565,491,49,25
+src/pdf/forms/FormScriptStore.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,63,21,34,8
+src/pdf/forms/FormTemplateStore.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,519,426,45,48
+src/pdf/forms/FormTemplateStore.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,76,33,27,16
+src/pdf/forms/FormToolSettings.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,68,50,7,11
+src/pdf/forms/FormToolSettings.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,47,15,21,11
+src/pdf/forms/QuickJsFormScript.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,395,332,18,45
+src/pdf/forms/QuickJsFormScript.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,41,15,19,7
+src/pdf/forms/XfaScriptRunner.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,815,637,111,67
+src/pdf/forms/XfaScriptRunner.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,77,21,48,8
+src/pdf/forms/XfaSupport.cpp,src,src/pdf,src/pdf/forms,.cpp,C++,own-code,1259,990,164,105
+src/pdf/forms/XfaSupport.h,src,src/pdf,src/pdf/forms,.h,C/C++ header,own-code,188,57,113,18
+src/pdf/kernel/DocumentOpen.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,18,0,18,0
+src/pdf/kernel/DocumentOpen.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,183,120,52,11
+src/pdf/kernel/LayoutBlocks.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,890,747,75,68
+src/pdf/kernel/LayoutBlocks.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,192,65,107,20
+src/pdf/kernel/Navigation.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,48,36,6,6
+src/pdf/kernel/Navigation.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,51,22,20,9
+src/pdf/kernel/PageObjectModel.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,26,5,17,4
+src/pdf/kernel/PageObjectModel.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,928,652,205,71
+src/pdf/kernel/PdfRevisionCounter.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,345,277,46,22
+src/pdf/kernel/PdfRevisionCounter.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,27,3,20,4
+src/pdf/kernel/PdfiumAdapter.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,3372,2813,311,248
+src/pdf/kernel/PdfiumAdapter.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,479,204,217,58
+src/pdf/kernel/SafeSave.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,218,164,33,21
+src/pdf/kernel/SafeSave.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,55,21,26,8
+src/pdf/kernel/StandardFonts.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,61,31,24,6
+src/pdf/kernel/TableStructure.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,116,104,4,8
+src/pdf/kernel/TableStructure.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,35,23,4,8
+src/pdf/kernel/TextPage.cpp,src,src/pdf,src/pdf/kernel,.cpp,C++,own-code,14,10,1,3
+src/pdf/kernel/TextPage.h,src,src/pdf,src/pdf/kernel,.h,C/C++ header,own-code,64,26,28,10
+src/pdf/media/MediaPlayback.cpp,src,src/pdf,src/pdf/media,.cpp,C++,own-code,146,91,31,24
+src/pdf/media/MediaPlayback.h,src,src/pdf,src/pdf/media,.h,C/C++ header,own-code,125,32,74,19
+src/pdf/media/MediaSource.cpp,src,src/pdf,src/pdf/media,.cpp,C++,own-code,971,658,200,113
+src/pdf/media/MediaSource.h,src,src/pdf,src/pdf/media,.h,C/C++ header,own-code,182,50,113,19
+src/pdf/ops/AnchorMover.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,534,477,17,40
+src/pdf/ops/AnchorMover.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,54,24,21,9
+src/pdf/ops/AnchorPlanner.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,75,62,4,9
+src/pdf/ops/AnchorPlanner.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,56,28,19,9
+src/pdf/ops/BatchReplace.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,256,192,42,22
+src/pdf/ops/BatchReplace.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,63,29,26,8
+src/pdf/ops/CrossReference.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,413,318,60,35
+src/pdf/ops/CrossReference.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,156,65,73,18
+src/pdf/ops/DocumentComparer.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,1368,1052,203,113
+src/pdf/ops/DocumentComparer.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,293,106,166,21
+src/pdf/ops/DocumentMerger.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,643,489,108,46
+src/pdf/ops/DocumentMerger.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,98,33,54,11
+src/pdf/ops/DocumentReflow.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,1162,919,164,79
+src/pdf/ops/DocumentReflow.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,136,39,85,12
+src/pdf/ops/LayoutDiff.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,1010,818,121,71
+src/pdf/ops/LayoutDiff.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,157,71,75,11
+src/pdf/ops/OcrSuspicion.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,213,163,29,21
+src/pdf/ops/OcrSuspicion.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,42,11,25,6
+src/pdf/ops/OptionalContent.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,545,437,66,42
+src/pdf/ops/OptionalContent.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,134,53,67,14
+src/pdf/ops/OutlineEditor.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,354,287,38,29
+src/pdf/ops/OutlineEditor.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,83,21,47,15
+src/pdf/ops/OutlineWriter.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,177,167,10,0
+src/pdf/ops/OutlineWriter.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,10,5,5,0
+src/pdf/ops/PageLabels.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,414,301,73,40
+src/pdf/ops/PageLabels.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,90,17,63,10
+src/pdf/ops/PageSplitPlanner.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,89,70,11,8
+src/pdf/ops/PageSplitPlanner.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,66,14,42,10
+src/pdf/ops/SpellChecker.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,1220,1034,109,77
+src/pdf/ops/SpellChecker.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,133,63,51,19
+src/pdf/ops/StreamingEdit.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,1792,1501,189,102
+src/pdf/ops/StreamingEdit.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,346,134,181,31
+src/pdf/ops/TranslationWriter.cpp,src,src/pdf,src/pdf/ops,.cpp,C++,own-code,264,223,20,21
+src/pdf/ops/TranslationWriter.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,144,48,79,17
+src/pdf/ops/spell/ChineseCommonWords.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,generated-data,14254,14248,4,2
+src/pdf/ops/spell/ChineseConfusables.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,own-code,574,559,11,4
+src/pdf/ops/spell/ChineseWords.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,generated-data,45486,45480,4,2
+src/pdf/ops/spell/EnglishCommonWords.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,generated-data,38061,38055,4,2
+src/pdf/ops/spell/EnglishWords.h,src,src/pdf,src/pdf/ops,.h,C/C++ header,generated-data,78909,78903,4,2
+src/pdf/ops/spell/generate_dictionaries.py,src,src/pdf,src/pdf/ops,.py,Python,own-code,367,298,31,38
+src/pdf/security/CertificateChain.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,927,693,144,90
+src/pdf/security/CertificateChain.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,136,49,68,19
+src/pdf/security/PdfSecurity.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,1602,1206,291,105
+src/pdf/security/PdfSecurity.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,169,56,95,18
+src/pdf/security/Redaction.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,285,219,42,24
+src/pdf/security/Redaction.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,77,24,43,10
+src/pdf/security/RsaVerifier.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,329,258,43,28
+src/pdf/security/RsaVerifier.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,37,8,25,4
+src/pdf/security/SignatureInspector.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,1074,849,149,76
+src/pdf/security/SignatureInspector.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,60,29,24,7
+src/pdf/security/SignatureVerifier.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,1549,1217,239,93
+src/pdf/security/SignatureVerifier.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,111,52,43,16
+src/pdf/security/SignatureWorkflow.cpp,src,src/pdf,src/pdf/security,.cpp,C++,own-code,540,428,43,69
+src/pdf/security/SignatureWorkflow.h,src,src/pdf,src/pdf/security,.h,C/C++ header,own-code,181,72,81,28
+src/speech/SpeechEngine.cpp,src,src/speech,src/speech,.cpp,C++,own-code,578,475,47,56
+src/speech/SpeechEngine.h,src,src/speech,src/speech,.h,C/C++ header,own-code,111,52,43,16
+src/speech/SpeechSettings.cpp,src,src/speech,src/speech,.cpp,C++,own-code,21,17,1,3
+src/speech/SpeechSettings.h,src,src/speech,src/speech,.h,C/C++ header,own-code,40,14,19,7
+src/speech/SpeechText.cpp,src,src/speech,src/speech,.cpp,C++,own-code,106,79,11,16
+src/speech/SpeechText.h,src,src/speech,src/speech,.h,C/C++ header,own-code,27,9,12,6
+src/styles/global.css,src,src/styles,src/styles,.css,CSS,own-code,804,792,8,4
+src/tools/ProposalValidator.cpp,src,src/tools,src/tools,.cpp,C++,own-code,289,256,8,25
+src/tools/ProposalValidator.h,src,src/tools,src/tools,.h,C/C++ header,own-code,45,22,15,8
+src/tools/ToolRegistry.cpp,src,src/tools,src/tools,.cpp,C++,own-code,125,103,4,18
+src/tools/ToolRegistry.h,src,src/tools,src/tools,.h,C/C++ header,own-code,51,23,18,10
+tests/AccessibilityWizardTests.cpp,tests,tests,tests,.cpp,C++,own-code,230,166,34,30
+tests/ActionWizardTests.cpp,tests,tests,tests,.cpp,C++,own-code,608,503,25,80
+tests/AiContentDetectionTests.cpp,tests,tests,tests,.cpp,C++,own-code,224,167,21,36
+tests/AiImageGenerationTests.cpp,tests,tests,tests,.cpp,C++,own-code,389,309,37,43
+tests/AiNarrationTests.cpp,tests,tests,tests,.cpp,C++,own-code,210,151,20,39
+tests/AiPanelTests.cpp,tests,tests,tests,.cpp,C++,own-code,246,165,47,34
+tests/AiProviderTests.cpp,tests,tests,tests,.cpp,C++,own-code,371,264,34,73
+tests/AnchorMoverTests.cpp,tests,tests,tests,.cpp,C++,own-code,283,249,13,21
+tests/AnchorPlannerTests.cpp,tests,tests,tests,.cpp,C++,own-code,88,69,5,14
+tests/AnchorXObjectTests.cpp,tests,tests,tests,.cpp,C++,own-code,136,107,10,19
+tests/AnnotationDictionaryTests.cpp,tests,tests,tests,.cpp,C++,own-code,240,180,21,39
+tests/AnnotationFilterTests.cpp,tests,tests,tests,.cpp,C++,own-code,174,146,5,23
+tests/AnnotationShapesTests.cpp,tests,tests,tests,.cpp,C++,own-code,425,300,65,60
+tests/AnnotationSummaryTests.cpp,tests,tests,tests,.cpp,C++,own-code,86,62,8,16
+tests/AnnotationTests.cpp,tests,tests,tests,.cpp,C++,own-code,369,293,21,55
+tests/AnnotationToolkitTests.cpp,tests,tests,tests,.cpp,C++,own-code,650,505,47,98
+tests/AppearanceStreamTests.cpp,tests,tests,tests,.cpp,C++,own-code,465,367,33,65
+tests/AttachmentPanelTests.cpp,tests,tests,tests,.cpp,C++,own-code,259,183,36,40
+tests/AudioRecorderTests.cpp,tests,tests,tests,.cpp,C++,own-code,44,28,8,8
+tests/BarcodeEncoderTests.cpp,tests,tests,tests,.cpp,C++,own-code,184,142,21,21
+tests/BatchEncryptTests.cpp,tests,tests,tests,.cpp,C++,own-code,436,324,47,65
+tests/BatchProcessorTests.cpp,tests,tests,tests,.cpp,C++,own-code,470,354,45,71
+tests/BatchRenameTests.cpp,tests,tests,tests,.cpp,C++,own-code,78,60,5,13
+tests/BatchReplaceTests.cpp,tests,tests,tests,.cpp,C++,own-code,413,330,44,39
+tests/BlankDocumentTests.cpp,tests,tests,tests,.cpp,C++,own-code,254,202,19,33
+tests/BookmarkTreePanelTests.cpp,tests,tests,tests,.cpp,C++,own-code,237,174,32,31
+tests/BrowserPdfPrinterTests.cpp,tests,tests,tests,.cpp,C++,own-code,629,445,86,98
+tests/CertificateChainTests.cpp,tests,tests,tests,.cpp,C++,own-code,390,250,75,65
+tests/ContentEditingTests.cpp,tests,tests,tests,.cpp,C++,own-code,180,153,10,17
+tests/ConversionInputsTests.cpp,tests,tests,tests,.cpp,C++,own-code,1477,1164,175,138
+tests/CustomAppearanceTests.cpp,tests,tests,tests,.cpp,C++,own-code,316,219,55,42
+tests/DataPolicyTests.cpp,tests,tests,tests,.cpp,C++,own-code,278,217,22,39
+tests/DigitalSignatureBackendTests.cpp,tests,tests,tests,.cpp,C++,own-code,76,60,7,9
+tests/DocumentComparerTests.cpp,tests,tests,tests,.cpp,C++,own-code,975,744,111,120
+tests/DocumentConverterTests.cpp,tests,tests,tests,.cpp,C++,own-code,74,57,7,10
+tests/DocumentIndexTests.cpp,tests,tests,tests,.cpp,C++,own-code,437,326,40,71
+tests/DocumentMergerTests.cpp,tests,tests,tests,.cpp,C++,own-code,613,479,66,68
+tests/DocumentOutputTests.cpp,tests,tests,tests,.cpp,C++,own-code,245,176,23,46
+tests/DocumentPipelineTests.cpp,tests,tests,tests,.cpp,C++,own-code,1268,927,208,133
+tests/DocumentPropertiesTests.cpp,tests,tests,tests,.cpp,C++,own-code,270,202,35,33
+tests/DocumentQaTests.cpp,tests,tests,tests,.cpp,C++,own-code,549,417,71,61
+tests/DocumentReflowTests.cpp,tests,tests,tests,.cpp,C++,own-code,576,453,74,49
+tests/DocumentStatisticsTests.cpp,tests,tests,tests,.cpp,C++,own-code,186,143,17,26
+tests/DocumentWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,751,561,86,104
+tests/EmbeddedFileTests.cpp,tests,tests,tests,.cpp,C++,own-code,454,277,117,60
+tests/EncryptionDialogTests.cpp,tests,tests,tests,.cpp,C++,own-code,98,76,8,14
+tests/ExportFormatsTests.cpp,tests,tests,tests,.cpp,C++,own-code,617,494,45,78
+tests/FontFlatteningTests.cpp,tests,tests,tests,.cpp,C++,own-code,308,225,37,46
+tests/FontResourceTests.cpp,tests,tests,tests,.cpp,C++,own-code,321,276,12,33
+tests/FormAppearanceTests.cpp,tests,tests,tests,.cpp,C++,own-code,263,215,13,35
+tests/FormAutoTagTests.cpp,tests,tests,tests,.cpp,C++,own-code,710,509,131,70
+tests/FormDataTests.cpp,tests,tests,tests,.cpp,C++,own-code,77,56,8,13
+tests/FormDesignParserTests.cpp,tests,tests,tests,.cpp,C++,own-code,223,179,23,21
+tests/FormFieldWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,594,481,63,50
+tests/FormJsEvaluatorTests.cpp,tests,tests,tests,.cpp,C++,own-code,209,169,14,26
+tests/FormRuntimeTests.cpp,tests,tests,tests,.cpp,C++,own-code,412,342,14,56
+tests/FormScriptStoreTests.cpp,tests,tests,tests,.cpp,C++,own-code,152,114,21,17
+tests/FormTemplateStoreTests.cpp,tests,tests,tests,.cpp,C++,own-code,366,287,31,48
+tests/FormToolSettingsTests.cpp,tests,tests,tests,.cpp,C++,own-code,213,156,35,22
+tests/FuzzTests.cpp,tests,tests,tests,.cpp,C++,own-code,220,167,32,21
+tests/HiddenDataInventoryTests.cpp,tests,tests,tests,.cpp,C++,own-code,974,690,177,107
+tests/I18nTests.cpp,tests,tests,tests,.cpp,C++,own-code,317,239,35,43
+tests/I18nWidgetTests.cpp,tests,tests,tests,.cpp,C++,own-code,116,71,24,21
+tests/IconResourceTests.cpp,tests,tests,tests,.cpp,C++,own-code,97,62,26,9
+tests/ImagePreprocessTests.cpp,tests,tests,tests,.cpp,C++,own-code,128,97,11,20
+tests/ImageToPdfTests.cpp,tests,tests,tests,.cpp,C++,own-code,964,757,113,94
+tests/IncrementalWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,496,381,55,60
+tests/InkGeometryTests.cpp,tests,tests,tests,.cpp,C++,own-code,59,36,11,12
+tests/InvisibleTextLayerTests.cpp,tests,tests,tests,.cpp,C++,own-code,406,310,54,42
+tests/InvoiceLayoutTests.cpp,tests,tests,tests,.cpp,C++,own-code,347,269,34,44
+tests/IpcProtocolTests.cpp,tests,tests,tests,.cpp,C++,own-code,67,46,8,13
+tests/LanguagePackTests.cpp,tests,tests,tests,.cpp,C++,own-code,339,245,48,46
+tests/LargeFileOpenTests.cpp,tests,tests,tests,.cpp,C++,own-code,609,459,84,66
+tests/LastWaveUiTests.cpp,tests,tests,tests,.cpp,C++,own-code,843,621,135,87
+tests/LayoutDiffTests.cpp,tests,tests,tests,.cpp,C++,own-code,707,549,78,80
+tests/MeasureGeometryTests.cpp,tests,tests,tests,.cpp,C++,own-code,65,44,9,12
+tests/MediaPreviewPanelTests.cpp,tests,tests,tests,.cpp,C++,own-code,494,354,69,71
+tests/MediaSourceTests.cpp,tests,tests,tests,.cpp,C++,own-code,613,430,103,80
+tests/ModalScrimTests.cpp,tests,tests,tests,.cpp,C++,own-code,79,47,16,16
+tests/MouseShortcutsTests.cpp,tests,tests,tests,.cpp,C++,own-code,116,86,9,21
+tests/NamedDestinationTests.cpp,tests,tests,tests,.cpp,C++,own-code,555,423,59,73
+tests/NavigationHistoryTests.cpp,tests,tests,tests,.cpp,C++,own-code,111,80,11,20
+tests/NavigationTests.cpp,tests,tests,tests,.cpp,C++,own-code,170,119,17,34
+tests/ObjectInventoryTests.cpp,tests,tests,tests,.cpp,C++,own-code,141,109,9,23
+tests/OcrChunkBridgeTests.cpp,tests,tests,tests,.cpp,C++,own-code,119,86,14,19
+tests/OcrServiceTests.cpp,tests,tests,tests,.cpp,C++,own-code,237,177,25,35
+tests/OcrSuspicionTests.cpp,tests,tests,tests,.cpp,C++,own-code,215,169,24,22
+tests/OcrTests.cpp,tests,tests,tests,.cpp,C++,own-code,172,127,22,23
+tests/OfdExportTests.cpp,tests,tests,tests,.cpp,C++,own-code,249,193,18,38
+tests/OfficeExportTests.cpp,tests,tests,tests,.cpp,C++,own-code,291,214,39,38
+tests/OfficeImagesTests.cpp,tests,tests,tests,.cpp,C++,own-code,709,532,118,59
+tests/OfficePackageTests.cpp,tests,tests,tests,.cpp,C++,own-code,332,248,42,42
+tests/OfflineQaTests.cpp,tests,tests,tests,.cpp,C++,own-code,458,365,46,47
+tests/OllamaProviderTests.cpp,tests,tests,tests,.cpp,C++,own-code,160,103,38,19
+tests/OneNoteExporterTests.cpp,tests,tests,tests,.cpp,C++,own-code,625,475,66,84
+tests/OptionalContentTests.cpp,tests,tests,tests,.cpp,C++,own-code,429,327,38,64
+tests/OutlineEditorTests.cpp,tests,tests,tests,.cpp,C++,own-code,439,316,64,59
+tests/OutlineGeneratorTests.cpp,tests,tests,tests,.cpp,C++,own-code,382,291,33,58
+tests/PageAnnotsInjectorTests.cpp,tests,tests,tests,.cpp,C++,own-code,147,105,19,23
+tests/PageAssemblyTests.cpp,tests,tests,tests,.cpp,C++,own-code,390,285,50,55
+tests/PageDecorationsTests.cpp,tests,tests,tests,.cpp,C++,own-code,111,82,10,19
+tests/PageEditingTests.cpp,tests,tests,tests,.cpp,C++,own-code,265,182,46,37
+tests/PageLabelsTests.cpp,tests,tests,tests,.cpp,C++,own-code,457,332,59,66
+tests/PageObjectModelTests.cpp,tests,tests,tests,.cpp,C++,own-code,411,338,40,33
+tests/PageOperationTests.cpp,tests,tests,tests,.cpp,C++,own-code,427,306,56,65
+tests/PageTextLinesTests.cpp,tests,tests,tests,.cpp,C++,own-code,202,151,19,32
+tests/ParagraphFormatTests.cpp,tests,tests,tests,.cpp,C++,own-code,326,262,25,39
+tests/PdfACheckerTests.cpp,tests,tests,tests,.cpp,C++,own-code,822,668,84,70
+tests/PdfAnnotationTests.cpp,tests,tests,tests,.cpp,C++,own-code,262,191,19,52
+tests/PdfIndexTests.cpp,tests,tests,tests,.cpp,C++,own-code,296,211,45,40
+tests/PdfNavigationTests.cpp,tests,tests,tests,.cpp,C++,own-code,251,197,13,41
+tests/PdfRevisionCounterTests.cpp,tests,tests,tests,.cpp,C++,own-code,278,206,41,31
+tests/PdfSecurityTests.cpp,tests,tests,tests,.cpp,C++,own-code,245,203,11,31
+tests/PdfToOfficeTests.cpp,tests,tests,tests,.cpp,C++,own-code,205,135,44,26
+tests/PdfUaCheckerTests.cpp,tests,tests,tests,.cpp,C++,own-code,413,332,43,38
+tests/PdfViewportTests.cpp,tests,tests,tests,.cpp,C++,own-code,271,200,28,43
+tests/PdfiumAdapterTests.cpp,tests,tests,tests,.cpp,C++,own-code,878,749,33,96
+tests/PerfTests.cpp,tests,tests,tests,.cpp,C++,own-code,163,122,26,15
+tests/PortfolioWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,334,244,39,51
+tests/PptGenerationTests.cpp,tests,tests,tests,.cpp,C++,own-code,537,378,72,87
+tests/PreflightCheckerTests.cpp,tests,tests,tests,.cpp,C++,own-code,434,335,59,40
+tests/PresentationLoopTests.cpp,tests,tests,tests,.cpp,C++,own-code,115,74,25,16
+tests/PrintBatchTests.cpp,tests,tests,tests,.cpp,C++,own-code,194,161,11,22
+tests/PrintTemplateTests.cpp,tests,tests,tests,.cpp,C++,own-code,275,218,13,44
+tests/PromptInjectionTests.cpp,tests,tests,tests,.cpp,C++,own-code,89,65,11,13
+tests/ProposalRunnerTests.cpp,tests,tests,tests,.cpp,C++,own-code,195,145,24,26
+tests/ProviderPresetTests.cpp,tests,tests,tests,.cpp,C++,own-code,223,167,33,23
+tests/QuickJsFormScriptTests.cpp,tests,tests,tests,.cpp,C++,own-code,177,148,5,24
+tests/ReadingSchemeTests.cpp,tests,tests,tests,.cpp,C++,own-code,110,80,13,17
+tests/RecordingTests.cpp,tests,tests,tests,.cpp,C++,own-code,605,472,62,71
+tests/RecoveryLogTests.cpp,tests,tests,tests,.cpp,C++,own-code,118,83,16,19
+tests/RedactionTests.cpp,tests,tests,tests,.cpp,C++,own-code,519,389,60,70
+tests/ReflowWriteBackTests.cpp,tests,tests,tests,.cpp,C++,own-code,574,458,65,51
+tests/RenderThreadTests.cpp,tests,tests,tests,.cpp,C++,own-code,96,58,20,18
+tests/RibbonLayoutTests.cpp,tests,tests,tests,.cpp,C++,own-code,224,165,28,31
+tests/RichMedia3dTests.cpp,tests,tests,tests,.cpp,C++,own-code,583,475,43,65
+tests/RsaVerifierTests.cpp,tests,tests,tests,.cpp,C++,own-code,236,171,22,43
+tests/ScannerCaptureTests.cpp,tests,tests,tests,.cpp,C++,own-code,386,290,45,51
+tests/ScreenCaptureTests.cpp,tests,tests,tests,.cpp,C++,own-code,84,61,8,15
+tests/SearchMatcherTests.cpp,tests,tests,tests,.cpp,C++,own-code,149,109,16,24
+tests/SemanticTagWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,997,813,119,65
+tests/ShareUtilsTests.cpp,tests,tests,tests,.cpp,C++,own-code,47,33,6,8
+tests/SignatureInspectorTests.cpp,tests,tests,tests,.cpp,C++,own-code,439,335,43,61
+tests/SignatureVerifierTests.cpp,tests,tests,tests,.cpp,C++,own-code,360,259,45,56
+tests/SignatureWorkflowTests.cpp,tests,tests,tests,.cpp,C++,own-code,508,392,27,89
+tests/SoundFormatTests.cpp,tests,tests,tests,.cpp,C++,own-code,89,65,9,15
+tests/SpeechEngineTests.cpp,tests,tests,tests,.cpp,C++,own-code,200,147,20,33
+tests/SpeechTextTests.cpp,tests,tests,tests,.cpp,C++,own-code,188,156,10,22
+tests/SpellCheckerTests.cpp,tests,tests,tests,.cpp,C++,own-code,222,157,37,28
+tests/StructTreeReaderTests.cpp,tests,tests,tests,.cpp,C++,own-code,391,313,40,38
+tests/TagTreeWriterTests.cpp,tests,tests,tests,.cpp,C++,own-code,733,563,87,83
+tests/TesseractCliEngineTests.cpp,tests,tests,tests,.cpp,C++,own-code,113,88,10,15
+tests/TextExtractionTests.cpp,tests,tests,tests,.cpp,C++,own-code,345,281,28,36
+tests/TextSelectionTests.cpp,tests,tests,tests,.cpp,C++,own-code,296,223,32,41
+tests/TextSpliceTests.cpp,tests,tests,tests,.cpp,C++,own-code,350,293,18,39
+tests/ThemeTests.cpp,tests,tests,tests,.cpp,C++,own-code,218,155,35,28
+tests/ToolRegistryTests.cpp,tests,tests,tests,.cpp,C++,own-code,168,134,15,19
+tests/TrueTypeSubsetTests.cpp,tests,tests,tests,.cpp,C++,own-code,552,444,59,49
+tests/UaGeneratorTests.cpp,tests,tests,tests,.cpp,C++,own-code,844,664,101,79
+tests/UiWiringTests.cpp,tests,tests,tests,.cpp,C++,own-code,590,440,95,55
+tests/UniversalConverterTests.cpp,tests,tests,tests,.cpp,C++,own-code,741,591,64,86
+tests/VeraPdfCheckerTests.cpp,tests,tests,tests,.cpp,C++,own-code,224,164,36,24
+tests/VerticalWritingTests.cpp,tests,tests,tests,.cpp,C++,own-code,497,387,58,52
+tests/ViewFitTests.cpp,tests,tests,tests,.cpp,C++,own-code,79,50,14,15
+tests/ViewModesTests.cpp,tests,tests,tests,.cpp,C++,own-code,392,293,46,53
+tests/ViewSettingsTests.cpp,tests,tests,tests,.cpp,C++,own-code,217,157,34,26
+tests/Wave213dTests.cpp,tests,tests,tests,.cpp,C++,own-code,866,689,95,82
+tests/Wave21DxfTests.cpp,tests,tests,tests,.cpp,C++,own-code,614,515,49,50
+tests/Wave21ExportHtmlTests.cpp,tests,tests,tests,.cpp,C++,own-code,447,327,68,52
+tests/Wave21FlattenTests.cpp,tests,tests,tests,.cpp,C++,own-code,799,630,89,80
+tests/Wave21FormTests.cpp,tests,tests,tests,.cpp,C++,own-code,649,509,79,61
+tests/Wave21ImagePrepTests.cpp,tests,tests,tests,.cpp,C++,own-code,388,309,36,43
+tests/Wave21NavTests.cpp,tests,tests,tests,.cpp,C++,own-code,748,585,83,80
+tests/Wave21OfdTests.cpp,tests,tests,tests,.cpp,C++,own-code,651,491,98,62
+tests/Wave21RtfTests.cpp,tests,tests,tests,.cpp,C++,own-code,200,152,18,30
+tests/Wave21SpellTests.cpp,tests,tests,tests,.cpp,C++,own-code,540,423,61,56
+tests/Wave21StreamTests.cpp,tests,tests,tests,.cpp,C++,own-code,747,595,96,56
+tests/Wave21XfaTests.cpp,tests,tests,tests,.cpp,C++,own-code,566,464,48,54
+tests/WindowsOcrEngineTests.cpp,tests,tests,tests,.cpp,C++,own-code,96,73,9,14
+tests/WizardActionsTests.cpp,tests,tests,tests,.cpp,C++,own-code,522,413,51,58
+tests/WizardDocumentActionsTests.cpp,tests,tests,tests,.cpp,C++,own-code,422,323,45,54
+tests/WizardPrintRangeTests.cpp,tests,tests,tests,.cpp,C++,own-code,121,85,20,16
+tests/WorkerIntegrationTests.cpp,tests,tests,tests,.cpp,C++,own-code,385,276,42,67
+tests/XfaSupportTests.cpp,tests,tests,tests,.cpp,C++,own-code,450,366,40,44
+tests/XfdfTests.cpp,tests,tests,tests,.cpp,C++,own-code,178,136,17,25
+tests/ZoomMemoryTests.cpp,tests,tests,tests,.cpp,C++,own-code,90,60,15,15
+tests/cmake/AccessibilityWizardTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,36,24,8,4
+tests/cmake/ActionWizardTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,27,12,10,5
+tests/cmake/AiContentDetectionTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,21,12,8,1
+tests/cmake/AiImageGenerationTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,30,14,10,6
+tests/cmake/AiNarrationTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,23,12,10,1
+tests/cmake/AnchorMoverTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,25,18,1,6
+tests/cmake/AnchorPlannerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,15,10,1,4
+tests/cmake/AnchorXObjectTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,25,18,1,6
+tests/cmake/AnnotationFilterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,27,16,6,5
+tests/cmake/AnnotationShapesTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,37,19,12,6
+tests/cmake/AnnotationToolkitTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,32,16,11,5
+tests/cmake/AttachmentPanelTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,54,32,14,8
+tests/cmake/BatchEncryptTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,66,41,17,8
+tests/cmake/BatchProcessorTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,14,10,3,1
+tests/cmake/BatchReplaceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,56,38,12,6
+tests/cmake/BlankDocumentTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,25,17,7,1
+tests/cmake/BookmarkTreePanelTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,23,14,7,2
+tests/cmake/BrowserPdfPrinterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,59,30,22,7
+tests/cmake/CertificateChainTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,44,20,15,9
+tests/cmake/ConversionInputsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,92,52,31,9
+tests/cmake/CustomAppearanceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,29,14,10,5
+tests/cmake/DocumentComparerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,73,44,19,10
+tests/cmake/DocumentMergerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,67,45,15,7
+tests/cmake/DocumentPipelineTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,149,105,34,10
+tests/cmake/DocumentPropertiesTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,39,31,5,3
+tests/cmake/DocumentReflowTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,61,37,17,7
+tests/cmake/DocumentStatisticsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,17,13,3,1
+tests/cmake/EmbeddedFileTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,44,29,12,3
+tests/cmake/ExportFormatsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,54,34,12,8
+tests/cmake/FontFlatteningTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,38,25,8,5
+tests/cmake/FontResourceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,29,19,4,6
+tests/cmake/FormAppearanceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,41,34,1,6
+tests/cmake/FormAutoTagTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,50,31,13,6
+tests/cmake/FormDesignParserTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,15,10,4,1
+tests/cmake/FormRuntimeTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,40,31,3,6
+tests/cmake/FormToolSettingsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,15,10,4,1
+tests/cmake/HiddenDataInventoryTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,68,42,16,10
+tests/cmake/ImageToPdfTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,57,31,19,7
+tests/cmake/InvisibleTextLayerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,51,32,13,6
+tests/cmake/InvoiceLayoutTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,26,12,9,5
+tests/cmake/LanguagePackTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,26,17,4,5
+tests/cmake/LargeFileOpenTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,60,32,20,8
+tests/cmake/LastWaveUiTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,125,95,22,8
+tests/cmake/LayoutDiffTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,69,44,18,7
+tests/cmake/MediaPreviewPanelTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,56,27,22,7
+tests/cmake/MediaSourceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,57,23,26,8
+tests/cmake/ModalScrimTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,18,10,4,4
+tests/cmake/NamedDestinationTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,56,36,14,6
+tests/cmake/ObjectInventoryTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,41,34,1,6
+tests/cmake/OcrSuspicionTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,30,16,9,5
+tests/cmake/OfdExportTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,31,20,6,5
+tests/cmake/OfficeExportTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,31,18,8,5
+tests/cmake/OfficeImagesTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,119,68,38,13
+tests/cmake/OfficePackageTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,42,29,10,3
+tests/cmake/OfflineQaTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,43,25,12,6
+tests/cmake/OllamaProviderTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,41,32,6,3
+tests/cmake/OneNoteExporterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,47,19,21,7
+tests/cmake/OptionalContentTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,53,36,11,6
+tests/cmake/OutlineEditorTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,44,31,9,4
+tests/cmake/OutlineGeneratorTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,41,34,3,4
+tests/cmake/PageAssemblyTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,44,31,9,4
+tests/cmake/PageLabelsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,56,36,14,6
+tests/cmake/PageObjectModelTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,44,27,11,6
+tests/cmake/PageTextLinesTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,46,27,12,7
+tests/cmake/ParagraphFormatTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,29,12,12,5
+tests/cmake/PdfACheckerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,54,28,20,6
+tests/cmake/PdfRevisionCounterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,16,10,4,2
+tests/cmake/PdfToOfficeTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,84,54,20,10
+tests/cmake/PdfUaCheckerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,49,26,17,6
+tests/cmake/PortfolioWriterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,52,33,11,8
+tests/cmake/PptGenerationTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,29,12,14,3
+tests/cmake/PreflightCheckerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,59,36,15,8
+tests/cmake/PresentationLoopTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,28,13,11,4
+tests/cmake/PrintBatchTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,15,10,4,1
+tests/cmake/PrintTemplateTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,19,12,6,1
+tests/cmake/ProviderPresetTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,31,23,5,3
+tests/cmake/QuickJsFormScriptTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,19,13,2,4
+tests/cmake/ReadingSchemeTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,16,10,4,2
+tests/cmake/RecordingTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,41,28,11,2
+tests/cmake/RedactionTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,29,19,9,1
+tests/cmake/ReflowWriteBackTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,59,41,12,6
+tests/cmake/RichMedia3dTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,52,29,16,7
+tests/cmake/RsaVerifierTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,25,13,8,4
+tests/cmake/ScannerCaptureTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,57,31,19,7
+tests/cmake/ScreenCaptureTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,24,16,3,5
+tests/cmake/SemanticTagWriterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,58,40,13,5
+tests/cmake/SignatureInspectorTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,51,27,16,8
+tests/cmake/SignatureVerifierTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,54,31,15,8
+tests/cmake/SignatureWorkflowTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,25,13,8,4
+tests/cmake/SpeechEngineTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,23,15,7,1
+tests/cmake/SpeechTextTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,16,10,5,1
+tests/cmake/SpellCheckerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,20,10,7,3
+tests/cmake/StructTreeReaderTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,40,21,13,6
+tests/cmake/TagTreeWriterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,57,38,13,6
+tests/cmake/TextSpliceTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,46,38,2,6
+tests/cmake/ThemeTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,18,10,4,4
+tests/cmake/TrueTypeSubsetTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,49,36,6,7
+tests/cmake/UaGeneratorTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,59,40,14,5
+tests/cmake/UiWiringTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,78,55,16,7
+tests/cmake/UniversalConverterTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,64,39,18,7
+tests/cmake/VeraPdfCheckerTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,31,15,9,7
+tests/cmake/VerticalWritingTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,53,31,15,7
+tests/cmake/ViewModesTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,43,29,7,7
+tests/cmake/ViewSettingsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,45,25,13,7
+tests/cmake/Wave213dTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,47,37,2,8
+tests/cmake/Wave21DxfTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,69,46,15,8
+tests/cmake/Wave21ExportHtmlTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,60,42,10,8
+tests/cmake/Wave21FlattenTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,52,40,5,7
+tests/cmake/Wave21FormTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,53,44,1,8
+tests/cmake/Wave21ImagePrepTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,14,10,1,3
+tests/cmake/Wave21NavTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,63,48,7,8
+tests/cmake/Wave21OfdTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,61,43,10,8
+tests/cmake/Wave21RtfTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,33,20,8,5
+tests/cmake/Wave21SpellTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,23,15,5,3
+tests/cmake/Wave21StreamTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,71,49,14,8
+tests/cmake/Wave21XfaTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,48,30,13,5
+tests/cmake/WizardActionsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,32,14,13,5
+tests/cmake/WizardDocumentActionsTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,32,12,15,5
+tests/cmake/WizardPrintRangeTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,31,16,10,5
+tests/cmake/XfaSupportTests.cmake,tests,tests/cmake,tests/cmake,.cmake,CMake,own-code,49,26,17,6
+tools/pdfium/PDFiumConfig.cmake,tools,tools/pdfium,tools/pdfium,.cmake,CMake,vendored,61,43,9,9
+tools/pdfium/include/cpp/fpdf_deleters.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,86,52,16,18
+tools/pdfium/include/cpp/fpdf_scopers.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,67,38,10,19
+tools/pdfium/include/fpdf_annot.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,1044,211,752,81
+tools/pdfium/include/fpdf_attachment.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,247,52,175,20
+tools/pdfium/include/fpdf_catalog.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,65,10,47,8
+tools/pdfium/include/fpdf_dataavail.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,204,28,154,22
+tools/pdfium/include/fpdf_doc.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,467,83,346,38
+tools/pdfium/include/fpdf_edit.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,1801,407,1255,139
+tools/pdfium/include/fpdf_ext.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,119,12,92,15
+tools/pdfium/include/fpdf_flatten.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,44,3,32,9
+tools/pdfium/include/fpdf_formfill.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,1873,349,1406,118
+tools/pdfium/include/fpdf_fwlevent.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,207,184,15,8
+tools/pdfium/include/fpdf_javascript.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,77,16,50,11
+tools/pdfium/include/fpdf_ppo.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,116,27,76,13
+tools/pdfium/include/fpdf_progressive.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,155,30,111,14
+tools/pdfium/include/fpdf_save.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,93,16,66,11
+tools/pdfium/include/fpdf_searchex.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,39,6,25,8
+tools/pdfium/include/fpdf_signature.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,155,27,115,13
+tools/pdfium/include/fpdf_structtree.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,567,106,422,39
+tools/pdfium/include/fpdf_sysfontinfo.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,322,42,253,27
+tools/pdfium/include/fpdf_text.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,685,115,527,43
+tools/pdfium/include/fpdf_thumbnail.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,59,12,38,9
+tools/pdfium/include/fpdf_transformpage.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,278,80,173,25
+tools/pdfium/include/fpdfview.h,tools,tools/pdfium,tools/pdfium/include,.h,C/C++ header,vendored,1505,310,1071,124
+worker/ParentWatchdog.cpp,worker,worker,worker,.cpp,C++,own-code,105,67,23,15
+worker/ParentWatchdog.h,worker,worker,worker,.h,C/C++ header,own-code,54,18,26,10
+worker/WorkerServer.cpp,worker,worker,worker,.cpp,C++,own-code,273,217,34,22
+worker/WorkerServer.h,worker,worker,worker,.h,C/C++ header,own-code,47,25,11,11
+worker/main.cpp,worker,worker,worker,.cpp,C++,own-code,52,39,6,7

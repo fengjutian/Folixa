@@ -1117,6 +1117,18 @@
     <context>
         <name>aipdf::app::MainWindow</name>
         <message>
+            <source>有 %1 段在原页放不下，已改用整篇重排，把它们连同图表搬到下一页。</source>
+            <translation>%1 block(s) did not fit on the original page; they were moved to the next page together with their charts by a full reflow.</translation>
+        </message>
+        <message>
+            <source>有 %1 段在原页放不下；整篇重排也失败：%2</source>
+            <translation>%1 block(s) did not fit on the original page; the full reflow also failed: %2</translation>
+        </message>
+        <message>
+            <source>有 %1 段在原页放不下；文档没有结构标签，无法跨页搬运，已保留原文。</source>
+            <translation>%1 block(s) did not fit on the original page; the document has no structure tags, so they cannot be moved across pages and the original text was kept.</translation>
+        </message>
+        <message>
             <source>集中设置缩放、页面布局、面板显示与视图旋转</source>
             <translation>Set zoom, page layout, panel visibility and view rotation in one place</translation>
         </message>

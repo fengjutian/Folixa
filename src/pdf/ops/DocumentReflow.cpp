@@ -192,6 +192,9 @@ struct LayoutChunk {
     int pageIndex = -1;
     QRectF bounds;
     QVector<ParagraphLine> lines;
+    // 表格专用：这一块覆盖原表的哪几行（左闭右开）。0 行表示整块。
+    int firstRow = 0;
+    int rowCount = 0;
 };
 
 // 排好版的一个条目。
@@ -496,22 +499,24 @@ QByteArray writeReflowedDocument(const QByteArray& sourceBytes, QVector<LayoutIt
                 }
             } else if (item.kind == PageObjectKind::Table) {
                 // 表格：先画格子，再把单元格文字写进去。
-                const int rows = qMax(1, item.rowCount);
+                // 块里记的是这张表的一行区间（跨页时会被拆成多块）。
+                const int totalRows = qMax(1, item.rowCount);
                 const int columns = qMax(1, item.columnCount);
                 const double rowHeight = tableRowHeight(geometry.paragraph);
+                const int firstRow = chunk.firstRow;
+                const int rowCount = chunk.rowCount > 0 ? chunk.rowCount : totalRows;
                 QVector<double> columnLeft(columns, 0.0);
                 double offset = chunk.bounds.left();
                 for (int column = 0; column < columns; ++column) {
                     columnLeft[column] = offset;
                     offset += item.columnWidths.value(column, 0.0);
                 }
-                for (int row = 0; row < rows; ++row) {
+                for (int localRow = 0; localRow < rowCount; ++localRow) {
                     for (int column = 0; column < columns; ++column) {
                         const double left = columnLeft.value(column, chunk.bounds.left());
                         const double width = item.columnWidths.value(column, 0.0);
-                        const double bottom =
-                            chunk.bounds.bottom() + row * rowHeight;
-                        const QRectF cell(left, bottom, width, rowHeight);
+                        const double top = chunk.bounds.top() - localRow * rowHeight;
+                        const QRectF cell(left, top - rowHeight, width, rowHeight);
                         if (!insertBorderRect(context, page, cell, 0.5)) {
                             ok = false;
                             break;
@@ -521,14 +526,11 @@ QByteArray writeReflowedDocument(const QByteArray& sourceBytes, QVector<LayoutIt
                 }
                 if (ok) {
                     for (const PageTableCell& cell : item.cells) {
+                        if (cell.row < firstRow || cell.row >= firstRow + rowCount) continue;
                         const double left = columnLeft.value(cell.column, chunk.bounds.left());
-                        // 行序要翻过来：网格识别的行 0 是**最上面**一行，
-                        // 而边框是从下往上摆的（行 0 是最下面一行）。
-                        // 不翻的话，单元格文字会跑到表格外面去，
-                        // 甚至和正文撞在同一条基线上（表格就认不出来了）。
-                        const int rowFromBottom = rows - 1 - cell.row;
-                        const double baseline = chunk.bounds.bottom() +
-                                               rowFromBottom * rowHeight + rowHeight * 0.3;
+                        const int localRow = cell.row - firstRow;
+                        const double baseline = chunk.bounds.top() -
+                                                (localRow + 1) * rowHeight + rowHeight * 0.3;
                         const QString text = cell.text;
                         if (text.isEmpty()) continue;
                         if (!insertTextRun(context, page, text, left + 2.0, baseline,
@@ -891,15 +893,6 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
             if (geometry.contentTop - cursor < tableHeight) {
                 startNewPage();
             }
-            if (geometry.contentTop - cursor < tableHeight) {
-                ReflowDropped itemDropped;
-                itemDropped.tag = QStringLiteral("Table");
-                itemDropped.reason = i18n::tr("aipdf::pdf::DocumentReflow",
-                                               "这张表在新页宽下放不下一整页，没能搬过去");
-                itemDropped.pageIndex = item.sourcePage;
-                dropped.append(itemDropped);
-                continue;
-            }
             // 列宽：按原表格各列的宽度比例分摊新页宽。
             QVector<double> sourceWidths(columns, 0.0);
             for (const PageTableCell& cell : item.cells) {
@@ -915,11 +908,56 @@ DocumentReflowResult reflowTaggedDocument(const QByteArray& pdfBytes, const Refl
                         contentWidth * sourceWidths.at(column) / sourceTotal;
                 }
             }
-            LayoutChunk chunk;
-            chunk.pageIndex = pageIndex;
-            chunk.bounds = QRectF(geometry.contentLeft, cursor, contentWidth, tableHeight);
-            item.chunks.append(chunk);
-            cursor += tableHeight + options.paragraphSpacing;
+            if (geometry.contentTop - cursor >= tableHeight) {
+                LayoutChunk chunk;
+                chunk.pageIndex = pageIndex;
+                chunk.bounds = QRectF(geometry.contentLeft, cursor, contentWidth, tableHeight);
+                chunk.firstRow = 0;
+                chunk.rowCount = rows;
+                item.chunks.append(chunk);
+                cursor += tableHeight + options.paragraphSpacing;
+            } else {
+                // 一整张放不下一页：按行拆到多页，行不会被裁掉。
+                if (rowHeight <= 0.0) {
+                    ReflowDropped itemDropped;
+                    itemDropped.tag = QStringLiteral("Table");
+                    itemDropped.reason = i18n::tr("aipdf::pdf::DocumentReflow",
+                                                   "这张表算不出行高，没能搬过去");
+                    itemDropped.pageIndex = item.sourcePage;
+                    dropped.append(itemDropped);
+                    continue;
+                }
+                int row = 0;
+                bool tableFailed = false;
+                while (row < rows) {
+                    if (geometry.contentTop - cursor < rowHeight) startNewPage();
+                    const int fit = static_cast<int>(
+                        std::floor((geometry.contentTop - cursor) / rowHeight));
+                    if (fit <= 0) {
+                        ReflowDropped itemDropped;
+                        itemDropped.tag = QStringLiteral("Table");
+                        itemDropped.reason = i18n::tr(
+                            "aipdf::pdf::DocumentReflow",
+                            "这张表的一行都放不进新页，没能搬过去");
+                        itemDropped.pageIndex = item.sourcePage;
+                        dropped.append(itemDropped);
+                        tableFailed = true;
+                        break;
+                    }
+                    const int take = qMin(fit, rows - row);
+                    LayoutChunk chunk;
+                    chunk.pageIndex = pageIndex;
+                    chunk.bounds = QRectF(geometry.contentLeft, cursor, contentWidth,
+                                          take * rowHeight);
+                    chunk.firstRow = row;
+                    chunk.rowCount = take;
+                    item.chunks.append(chunk);
+                    cursor += take * rowHeight + options.paragraphSpacing;
+                    row += take;
+                    if (row < rows) startNewPage();
+                }
+                if (tableFailed) continue;
+            }
         } else {
             // 图片与矢量：按原尺寸搬过去；放不下就等比缩小到内容宽度。
             QSizeF size = item.sourceBounds.size();

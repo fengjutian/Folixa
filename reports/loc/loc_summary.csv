@@ -1,0 +1,5 @@
+﻿scope,files,total,code,comment,blank
+A_all_tracked_code,944,448624,378513,43695,26416
+B_excl_generated_data,939,261860,191804,43679,26377
+C_own_code,914,251524,189545,36443,25536
+D_src_tests_worker,838,230075,171808,35149,23118
