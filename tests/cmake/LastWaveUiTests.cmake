@@ -44,6 +44,8 @@ qt_add_executable(LastWaveUiTests
     ${CMAKE_SOURCE_DIR}/src/pdf/annot/RichMedia3d.h
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentReflow.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/ops/DocumentReflow.h
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/TablePagination.cpp
+    ${CMAKE_SOURCE_DIR}/src/pdf/ops/TablePagination.h
     ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/pdf/compliance/TagTreeWriter.h
     ${CMAKE_SOURCE_DIR}/src/doc/convert/UniversalConverter.cpp

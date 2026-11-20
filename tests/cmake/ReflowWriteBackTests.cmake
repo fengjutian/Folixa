@@ -17,6 +17,8 @@ qt_add_executable(ReflowWriteBackTests
     ${CMAKE_CURRENT_LIST_DIR}/../ReflowWriteBackTests.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.h
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PageObjectModel.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/kernel/PageObjectModel.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ReflowPlan.cpp

@@ -69,6 +69,8 @@ qt_add_executable(DocumentPipelineTests
     # ---- 分支流程涉及的领域层模块 ----
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ParagraphFormat.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/content/ParagraphFormat.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/TextReflow.cpp

@@ -22,6 +22,8 @@ qt_add_executable(DocumentReflowTests
     ${CMAKE_CURRENT_LIST_DIR}/../DocumentReflowTests.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/ops/DocumentReflow.h
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/ops/TablePagination.h
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/compliance/StructTreeReader.h
     ${AIPDF_REPO_ROOT}/src/pdf/content/ContentStream.cpp

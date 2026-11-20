@@ -485,7 +485,12 @@ private slots:
     }
 
     void theGateBlocksWhenATableCannotFit() {
-        const DocumentReflowResult result = reflowTaggedDocument(hugeTablePdf(), defaultOptions());
+        // 页高小到一行的放不下：表格没法拆，必须被门禁拦住。
+        ReflowOptions options = defaultOptions();
+        options.pageHeight = 20.0;
+        options.marginTop = 8.0;
+        options.marginBottom = 8.0;
+        const DocumentReflowResult result = reflowTaggedDocument(hugeTablePdf(), options);
         QVERIFY(!result.ok());
         QVERIFY2(result.bytes.isEmpty(), "门禁拦住时不能产出字节");
         QVERIFY2(result.report.error.contains(QStringLiteral("已阻止写回")),
