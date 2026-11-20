@@ -8,6 +8,8 @@
 
 using aipdf::pdf::AnchorImageMove;
 using aipdf::pdf::AnchorMoveResult;
+using aipdf::pdf::AnchorPathMove;
+using aipdf::pdf::moveAnchoredGraphics;
 using aipdf::pdf::moveAnchoredImages;
 
 namespace {
@@ -71,6 +73,31 @@ QByteArray makePdfWithImage(double x = 100, double y = 500, double w = 50, doubl
     return toBytes(pdf);
 }
 
+// 只有一条内容流、没有字体的空页。
+QByteArray makePdfWithContent(const QByteArray& content) {
+    QPDF pdf;
+    pdf.emptyPDF();
+    QPDFObjectHandle page = QPDFObjectHandle::newDictionary();
+    page.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
+    QPDFObjectHandle box = QPDFObjectHandle::newArray();
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(0));
+    box.appendItem(QPDFObjectHandle::newInteger(600));
+    box.appendItem(QPDFObjectHandle::newInteger(800));
+    page.replaceKey("/MediaBox", box);
+    page.replaceKey("/Resources", QPDFObjectHandle::newDictionary());
+    page.replaceKey("/Contents",
+                    pdf.makeIndirectObject(pdf.newStream(content.toStdString())));
+    const QPDFObjectHandle pageRef = pdf.makeIndirectObject(page);
+    QPDFObjectHandle pages = QPDFObjectHandle::newDictionary();
+    pages.replaceKey("/Type", QPDFObjectHandle::newName("/Pages"));
+    QPDFObjectHandle kids = QPDFObjectHandle::newArray();
+    kids.appendItem(pageRef);
+    pages.replaceKey("/Kids", kids);
+    pages.replaceKey("/Count", QPDFObjectHandle::newInteger(1));
+    pdf.getRoot().replaceKey("/Pages", pdf.makeIndirectObject(pages));
+    return toBytes(pdf);
+}
 QString contentOf(const QByteArray& bytes) {
     QPDF pdf;
     pdf.processMemoryFile("content.pdf", bytes.constData(), static_cast<size_t>(bytes.size()));
@@ -92,6 +119,9 @@ private slots:
     void reportsMissingImage();
     void noMovesKeepsBytes();
     void movesManyPlacements();
+    void movesRectanglePath();
+    void movesCurvePath();
+    void reportsMissingPath();
 };
 
 void AnchorMoverTests::movesImageAtMatchingRect() {
@@ -148,6 +178,42 @@ void AnchorMoverTests::movesManyPlacements() {
             QStringLiteral("q 1 0 0 1 0 %1 cm").arg(QString::number(-delta, 'f', 3));
         QVERIFY2(content.contains(expected), qPrintable(content));
     }
+}
+void AnchorMoverTests::movesRectanglePath() {
+    const QByteArray pdf = makePdfWithContent("0 0 0 rg 100 500 50 40 re f");
+    AnchorPathMove move;
+    move.from = QRectF(100, 500, 50, 40);
+    move.deltaY = 30.0;
+    const AnchorMoveResult result = moveAnchoredGraphics(pdf, {}, {move});
+    QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
+    QCOMPARE(result.movedPaths, 1);
+    const QString content = contentOf(result.bytes);
+    QVERIFY2(content.contains(QStringLiteral("100 470 50 40 re")), qPrintable(content));
+}
+
+void AnchorMoverTests::movesCurvePath() {
+    const QByteArray pdf =
+        makePdfWithContent("0 0 0 RG 100 500 m 120 520 140 520 160 500 c S");
+    AnchorPathMove move;
+    // 曲线按控制点取保守包围盒。
+    move.from = QRectF(100, 500, 60, 20);
+    move.deltaY = 10.0;
+    const AnchorMoveResult result = moveAnchoredGraphics(pdf, {}, {move});
+    QVERIFY2(result.ok(), qPrintable(result.errors.join(QStringLiteral("; "))));
+    QCOMPARE(result.movedPaths, 1);
+    const QString content = contentOf(result.bytes);
+    QVERIFY2(content.contains(QStringLiteral("100 490 m")), qPrintable(content));
+    QVERIFY2(content.contains(QStringLiteral("160 490 c")), qPrintable(content));
+}
+
+void AnchorMoverTests::reportsMissingPath() {
+    const QByteArray pdf = makePdfWithContent("100 500 50 40 re f");
+    AnchorPathMove move;
+    move.from = QRectF(10, 10, 5, 5);
+    const AnchorMoveResult result = moveAnchoredGraphics(pdf, {}, {move});
+    QVERIFY(!result.ok());
+    QVERIFY2(result.errors.first().contains(QStringLiteral("没找到")),
+             qPrintable(result.errors.join(QStringLiteral("; "))));
 }
 QTEST_MAIN(AnchorMoverTests)
 #include "AnchorMoverTests.moc"

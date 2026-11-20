@@ -1909,8 +1909,12 @@ void MainWindow::buildUi() {
                 ":/icons/annotation.svg", "attachment", "edit.attachment");
     addEditTool(attachmentEditGroup, "图像标注", "在页面上添加图片标注",
                 ":/icons/annotation.svg", "imagestamp", "edit.imageAnnotation");
-    addEditTool(attachmentEditGroup, "音频和视频", "在页面上添加声音批注",
-                ":/icons/annotation.svg", "sound", "edit.sound");
+    // 「音频和视频」：来源是录制中心的产物或本机音视频文件，落成页面上的附件。
+    // 页面里**不播放**——用户点开附件时由阅读器交给系统上注册的外部程序去放。
+    addRibbonCommand(attachmentEditGroup, "音频和视频",
+                     "把录制中心或本机的音视频挂到页面上（用外部播放器打开）",
+                     ":/icons/annotation.svg", [this] { attachMediaToCurrentPage(); }, true,
+                     "edit.sound");
     addUnavailableEditCommand(attachmentEditGroup, "添加 3D");
     // 表单不是占位页：仓库已有 AcroForm 枚举、填写、扁平化和数据交换能力，
     // 这里必须把真实入口接出来。建域/XFA 等尚未具备对象级写入能力的命令仍然
@@ -2248,8 +2252,9 @@ void MainWindow::buildUi() {
     addRibbonCommand(documentBatchGroup, "OFD 批量转换", "调用已安装的 OFD 转换器批量转为 PDF",
                      ":/icons/ofd-batch.svg", [this] { batchConvertOfd(); }, true,
                      "documentManagement.ofdConvert");
-    // 录制：复用 Windows 自带的录屏能力，声音直接写成 PDF 声音批注；
-    // 截图保存当前 Folixa 窗口，不把尚未实现的自有视频编码器伪装成可用功能。
+    // 录制：自己抓帧、自己编码（`app::ScreenRecorder` → `app::MotionJpegAviWriter`，
+    // 产出 Motion-JPEG AVI，不引外部编码器）；声音录成 WAV 文件。
+    // PDF 里的声音批注是另一条路（批注级附件，`edit.sound`），两处不是一回事。
     const int recordTab = ribbonBar_->addTab(tr("录制"));
     auto* recordStartGroup = ribbonBar_->addGroup(recordTab, tr("开始录制"));
     addRibbonCommand(recordStartGroup, "录制中心", "选择录制方式并管理输出文件",
@@ -4954,6 +4959,78 @@ void MainWindow::startAudioRecording() {
     file.write(wav);
     file.close();
     registerRecording(RecordingKind::Audio, output, 0, 0, 0);
+}
+
+void MainWindow::attachMediaToCurrentPage() {
+    PdfView* view = currentView();
+    if (view == nullptr) {
+        statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
+        return;
+    }
+
+    // 两个来源：录制中心里已经录好的，或本机磁盘上的。
+    const QStringList choices{ tr("录制中心的音视频"), tr("本机音视频文件") };
+    bool accepted = false;
+    const QString choice = QInputDialog::getItem(this, tr("音频和视频"), tr("从哪里取:"),
+                                                  choices, 0, false, &accepted);
+    if (!accepted) {
+        return;
+    }
+
+    QString path;
+    if (choice == choices.at(0)) {
+        RecordingLibrary* library = recordingLibrary();
+        if (library == nullptr) {
+            return;
+        }
+        // 只挑音视频：截图不是能播的东西，混进来只会让人选错。
+        const QVector<RecordingEntry> media = library->mediaEntries();
+        if (media.isEmpty()) {
+            QMessageBox::information(this, tr("音频和视频"),
+                                     tr("录制中心里还没有音视频。先到「录制」页录一段。"));
+            return;
+        }
+        QStringList labels;
+        labels.reserve(media.size());
+        for (const RecordingEntry& entry : media) {
+            labels.append(QStringLiteral("%1（%2）")
+                              .arg(entry.displayName(), RecordingLibrary::kindLabel(entry.kind)));
+        }
+        bool picked = false;
+        // getItem 返回的是**选中的那一项的文本**，不是索引，所以拿回来再找位置。
+        const QString chosen = QInputDialog::getItem(this, tr("音频和视频"), tr("选一段:"),
+                                                      labels, 0, false, &picked);
+        if (!picked) {
+            return;
+        }
+        const int index = labels.indexOf(chosen);
+        if (index < 0) {
+            return;
+        }
+        path = media.at(index).path;
+    } else {
+        path = QFileDialog::getOpenFileName(
+            this, tr("选择音视频文件"), QString(),
+            tr("音视频 (*.avi *.mp4 *.mov *.webm *.mkv *.wav *.mp3 *.m4a *.wma *.ogg *.flac)"));
+        if (path.isEmpty()) {
+            return;
+        }
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("音频和视频"), tr("读不了这个文件：%1").arg(path));
+        return;
+    }
+    const QByteArray data = file.readAll();
+    file.close();
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("音频和视频"), tr("这个文件是空的。"));
+        return;
+    }
+
+    // 交给视图：下一次点页面时把附件放下去。
+    view->activateAttachmentPlacement(QFileInfo(path).fileName(), data);
 }
 
 void MainWindow::registerRecording(RecordingKind kind, const QString& path, qint64 durationMs,

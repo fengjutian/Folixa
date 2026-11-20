@@ -11,6 +11,7 @@
 using aipdf::pdf::annotationDictionaryExtras;
 using aipdf::pdf::Annotation;
 using aipdf::pdf::AnnotationType;
+using aipdf::pdf::mimeTypeForFileName;
 
 namespace {
 
@@ -36,6 +37,8 @@ private slots:
     void stampWritesStandardName();
     void measureWritesScaleAndLength();
     void attachmentBuildsFilespecAndStream();
+    void mimeTypeIsGuessedFromFileName();
+    void unknownSuffixFallsBackToOctetStream();
     void nonAsciiFileNameUsesUtf16();
     void commonMetadataIsWritten();
     void appearancePropertiesAreWritten();
@@ -139,6 +142,31 @@ void AnnotationDictionaryTests::attachmentBuildsFilespecAndStream() {
     QVERIFY(parts.objects.at(1).contains("hello attachment"));
     // 文件流的 /Length 必须与实际字节数一致，否则阅读器会读歪。
     QVERIFY(parts.objects.at(1).contains("/Length 16"));
+}
+
+void AnnotationDictionaryTests::mimeTypeIsGuessedFromFileName() {
+    // 音视频附件必须带上 MIME：阅读器靠它决定「点开用什么程序放」。
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("clip.avi")), QByteArray("video/x-msvideo"));
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("clip.mp4")), QByteArray("video/mp4"));
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("voice.wav")), QByteArray("audio/wav"));
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("song.mp3")), QByteArray("audio/mpeg"));
+    // 大小写不固定是 Windows 的常态，按原样比对会漏掉一半文件。
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("CLIP.AVI")), QByteArray("video/x-msvideo"));
+}
+
+void AnnotationDictionaryTests::unknownSuffixFallsBackToOctetStream() {
+    // 认不出来就说不知道：application/octet-stream 是 PDF 规范里的默认值，
+    // 比编一个具体类型诚实。
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("payload.bin")),
+             QByteArray("application/octet-stream"));
+    QCOMPARE(mimeTypeForFileName(QStringLiteral("no-extension")),
+             QByteArray("application/octet-stream"));
+    // 视频附件的 MIME 要真的写进嵌入文件流里。
+    Annotation annotation = make(AnnotationType::FileAttachment);
+    annotation.attachmentName = QStringLiteral("clip.avi");
+    annotation.attachmentData = QByteArray("fake-avi-bytes");
+    const auto parts = annotationDictionaryParts(annotation);
+    QVERIFY(parts.objects.at(1).contains("/Subtype (video/x-msvideo)"));
 }
 
 void AnnotationDictionaryTests::nonAsciiFileNameUsesUtf16() {

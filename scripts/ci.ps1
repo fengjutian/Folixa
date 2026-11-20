@@ -312,6 +312,15 @@ try {
     Invoke-Native '跨文档主张守卫的负例对照' 'python' @(
         'scripts/test-doc-claims-negative.py'
     )
+    # partial 守卫：矩阵里每条 partial 都必须用加粗标出降级边界，且与评分卡口径
+    # 对得上（评分卡判「对齐」而矩阵还挂着 partial 的，必须在豁免表里登记理由；
+    # 豁免过期也算错——降级补上了、矩阵升成 aligned，豁免不能留着当通行证）。
+    Invoke-Native 'partial 边界守卫' 'python' @(
+        'scripts/check-partial-boundaries.py'
+    )
+    Invoke-Native 'partial 边界守卫的负例对照' 'python' @(
+        'scripts/test-partial-boundaries-negative.py'
+    )
     Invoke-Native 'i18n 覆盖校验' 'python' @(
         'scripts/check-i18n.py', '--src', 'src', '--ts', 'src/i18n/ai-pdf-editor_en.ts'
     )

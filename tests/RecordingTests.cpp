@@ -164,6 +164,7 @@ private slots:
     void aviRejectsInvalidFrameSize();
     void aviWithNoFrameIsStillStructurallyValid();
     void libraryRoundTripsEntries();
+    void mediaEntriesOnlyKeepsAudioAndVideo();
     void libraryUpdatesSamePathInsteadOfDuplicating();
     void libraryRemovesEntryAndFile();
     void libraryReportsBrokenIndex();
@@ -316,6 +317,42 @@ void RecordingTests::libraryRoundTripsEntries() {
     QCOMPARE(entries.at(1).path, screen.path);
     QCOMPARE(entries.at(1).width, 1280);
     QCOMPARE(entries.at(1).durationMs, 5000);
+}
+
+// 挂附件时只该挑音视频：截图混进来只会让人选错。
+void RecordingTests::mediaEntriesOnlyKeepsAudioAndVideo() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    RecordingLibrary library(dir.filePath(QStringLiteral("recordings.json")));
+
+    RecordingEntry video;
+    video.kind = RecordingKind::Screen;
+    video.path = dir.filePath(QStringLiteral("clip.avi"));
+    video.createdAt = QDateTime::fromString(QStringLiteral("2026-11-20T10:00:00"), Qt::ISODate);
+
+    RecordingEntry audio;
+    audio.kind = RecordingKind::Audio;
+    audio.path = dir.filePath(QStringLiteral("voice.wav"));
+    audio.createdAt = QDateTime::fromString(QStringLiteral("2026-11-20T11:00:00"), Qt::ISODate);
+
+    RecordingEntry shot;
+    shot.kind = RecordingKind::Screenshot;
+    shot.path = dir.filePath(QStringLiteral("shot.png"));
+    shot.createdAt = QDateTime::fromString(QStringLiteral("2026-11-20T12:00:00"), Qt::ISODate);
+
+    QString error;
+    QVERIFY(library.add(video, &error));
+    QVERIFY(library.add(audio, &error));
+    QVERIFY(library.add(shot, &error));
+
+    const QVector<RecordingEntry> media = library.mediaEntries();
+    QCOMPARE(media.size(), 2);
+    // 顺序跟着 entries()：新的在前（这里是音频在视频前）。
+    QCOMPARE(media.at(0).kind, RecordingKind::Audio);
+    QCOMPARE(media.at(1).kind, RecordingKind::Screen);
+    for (const RecordingEntry& entry : media) {
+        QVERIFY(entry.kind != RecordingKind::Screenshot);
+    }
 }
 
 // 同一个路径登记两次只能有一条。

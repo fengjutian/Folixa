@@ -197,6 +197,11 @@ private:
     void startScreenRecording(bool presentPdf);
     // 声音录制：录一段麦克风，产出 WAV 文件并登记进录制列表。
     void startAudioRecording();
+    // 把音视频挂成页面附件：来源可以是录制中心的产物，也可以是本机文件。
+    //
+    // 边界：挂上去的是**附件**，页面里不播放 —— 用户点开附件时由阅读器
+    // 交给系统上注册的外部程序去放（PDF 页面内嵌播放是另一件事）。
+    void attachMediaToCurrentPage();
     // 结束当前录制（用户点了「停止录制」，或 PDF 放映结束）。
     void finishScreenRecording();
     // 把一次录制登记进录制列表。

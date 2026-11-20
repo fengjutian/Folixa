@@ -8,6 +8,7 @@
 #include <qpdf/QPDFWriter.hh>
 
 #include <QHash>
+#include <QSet>
 
 #include <algorithm>
 #include <cmath>
@@ -69,28 +70,78 @@ int nextSignificant(const QVector<ContentToken>& tokens, int index) {
     return -1;
 }
 
-QVector<double> lastNumbers(const QVector<ContentToken>& tokens, int index, int count) {
-    QVector<double> values;
-    for (int i = index - 1; i >= 0 && values.size() < count; --i) {
-        if (tokens.at(i).type == ContentTokenType::Number) values.append(tokens.at(i).raw.toDouble());
+// 取 index 之前连续的 count 个数字 token（返回 token 下标，按原顺序）。
+QVector<int> lastNumberIndices(const QVector<ContentToken>& tokens, int index, int count) {
+    QVector<int> indices;
+    for (int i = index - 1; i >= 0 && indices.size() < count; --i) {
+        if (tokens.at(i).type == ContentTokenType::Number) indices.append(i);
+        else if (tokens.at(i).type != ContentTokenType::Whitespace &&
+                 tokens.at(i).type != ContentTokenType::Comment) {
+            break;
+        }
     }
-    std::reverse(values.begin(), values.end());
-    return values;
+    std::reverse(indices.begin(), indices.end());
+    return indices;
 }
 
-bool sameRect(const QRectF& left, const QRectF& right) {
-    return std::abs(left.left() - right.left()) < 1.5 &&
-           std::abs(left.top() - right.top()) < 1.5 &&
-           std::abs(left.width() - right.width()) < 1.5 &&
-           std::abs(left.height() - right.height()) < 1.5;
+bool sameRect(const QRectF& left, const QRectF& right, double tolerance = 2.5) {
+    return std::abs(left.left() - right.left()) < tolerance &&
+           std::abs(left.top() - right.top()) < tolerance &&
+           std::abs(left.width() - right.width()) < tolerance &&
+           std::abs(left.height() - right.height()) < tolerance;
+}
+
+bool isPathConstruction(const QByteArray& op) {
+    return op == "m" || op == "l" || op == "c" || op == "v" || op == "y" || op == "re" ||
+           op == "h";
+}
+
+bool isPainting(const QByteArray& op) {
+    return op == "S" || op == "s" || op == "f" || op == "F" || op == "f*" || op == "B" ||
+           op == "B*" || op == "b" || op == "b*" || op == "n";
+}
+
+// 第一条路径的几何：点对的 token 下标 + 页面包围盒 + 构造时的 CTM。
+struct PathObject {
+    QVector<QPair<int, int>> points;
+    QRectF bounds;
+    Matrix matrix;
+    bool hasPoint = false;
+    bool used = false;
+};
+
+void includePoint(PathObject* path, double x, double y) {
+    const QPointF point = transform(path->matrix, x, y);
+    if (!path->hasPoint) {
+        path->bounds = QRectF(point, point);
+        path->hasPoint = true;
+        return;
+    }
+    path->bounds.setLeft(qMin(path->bounds.left(), point.x()));
+    path->bounds.setRight(qMax(path->bounds.right(), point.x()));
+    path->bounds.setTop(qMin(path->bounds.top(), point.y()));
+    path->bounds.setBottom(qMax(path->bounds.bottom(), point.y()));
+}
+
+void addPoint(PathObject* path, int xIndex, int yIndex, double x, double y) {
+    includePoint(path, x, y);
+    path->points.append({xIndex, yIndex});
+}
+
+QByteArray formatNumber(double value) {
+    QByteArray text = QByteArray::number(value, 'f', 3);
+    while (text.endsWith('0')) text.chop(1);
+    if (text.endsWith('.')) text.chop(1);
+    return text;
 }
 
 }  // namespace
 
-AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
-                                    const QVector<AnchorImageMove>& moves) {
+AnchorMoveResult moveAnchoredGraphics(const QByteArray& pdfBytes,
+                                      const QVector<AnchorImageMove>& images,
+                                      const QVector<AnchorPathMove>& paths) {
     AnchorMoveResult result;
-    if (moves.isEmpty()) {
+    if (images.isEmpty() && paths.isEmpty()) {
         result.bytes = pdfBytes;
         return result;
     }
@@ -98,12 +149,15 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
         result.errors.append(QStringLiteral("PDF 字节为空"));
         return result;
     }
-    QHash<int, QVector<AnchorImageMove>> byPage;
-    for (const AnchorImageMove& move : moves) byPage[move.pageIndex].append(move);
-    QHash<int, QVector<bool>> used;
-    for (auto it = byPage.constBegin(); it != byPage.constEnd(); ++it) {
-        used.insert(it.key(), QVector<bool>(it.value().size(), false));
-    }
+
+    QHash<int, QVector<AnchorImageMove>> imagesByPage;
+    for (const AnchorImageMove& move : images) imagesByPage[move.pageIndex].append(move);
+    QHash<int, QVector<AnchorPathMove>> pathsByPage;
+    for (const AnchorPathMove& move : paths) pathsByPage[move.pageIndex].append(move);
+
+    QSet<int> pageSet;
+    for (auto it = imagesByPage.constBegin(); it != imagesByPage.constEnd(); ++it) pageSet.insert(it.key());
+    for (auto it = pathsByPage.constBegin(); it != pathsByPage.constEnd(); ++it) pageSet.insert(it.key());
 
     try {
         QPDF pdf;
@@ -112,8 +166,7 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
         const std::vector<QPDFObjectHandle> pages = pdf.getAllPages();
         bool changed = false;
 
-        for (auto it = byPage.constBegin(); it != byPage.constEnd(); ++it) {
-            const int pageIndex = it.key();
+        for (int pageIndex : pageSet) {
             if (pageIndex < 0 || pageIndex >= static_cast<int>(pages.size())) {
                 result.errors.append(QStringLiteral("页码越界：%1").arg(pageIndex));
                 continue;
@@ -138,14 +191,143 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
                 continue;
             }
             const QVector<ContentToken>& tokens = parsed.tokens;
-            QVector<bool>& pageUsed = used[pageIndex];
 
+            // ---- 第一遍：解析路径，算出要改哪些数字 ----
+            QVector<PathObject> pathObjects;
+            {
+                Matrix ctm;
+                QVector<Matrix> stack;
+                QVector<int> pending;
+                PathObject current;
+                bool active = false;
+                for (int i = 0; i < tokens.size(); ++i) {
+                    const ContentToken& token = tokens.at(i);
+                    if (token.type == ContentTokenType::Number) {
+                        pending.append(i);
+                        continue;
+                    }
+                    if (token.type != ContentTokenType::Operator) {
+                        pending.clear();
+                        continue;
+                    }
+                    const QByteArray& op = token.raw;
+                    if (op == "q") {
+                        stack.append(ctm);
+                    } else if (op == "Q") {
+                        if (!stack.isEmpty()) ctm = stack.takeLast();
+                    } else if (op == "cm") {
+                        const QVector<int> indices = lastNumberIndices(tokens, i, 6);
+                        if (indices.size() == 6) {
+                            Matrix m;
+                            m.a = tokens.at(indices.at(0)).raw.toDouble();
+                            m.b = tokens.at(indices.at(1)).raw.toDouble();
+                            m.c = tokens.at(indices.at(2)).raw.toDouble();
+                            m.d = tokens.at(indices.at(3)).raw.toDouble();
+                            m.e = tokens.at(indices.at(4)).raw.toDouble();
+                            m.f = tokens.at(indices.at(5)).raw.toDouble();
+                            ctm = multiply(m, ctm);
+                        }
+                    } else if (isPathConstruction(op)) {
+                        if (!active) {
+                            current = PathObject{};
+                            current.matrix = ctm;
+                            active = true;
+                        }
+                        const int needed = op == "c" ? 6 : (op == "v" || op == "y" ? 4
+                                                : op == "re" ? 4 : op == "h" ? 0 : 2);
+                        const QVector<int> indices = lastNumberIndices(tokens, i, needed);
+                        if (indices.size() == needed && needed > 0) {
+                            if (op == "re") {
+                                const double x = tokens.at(indices.at(0)).raw.toDouble();
+                                const double y = tokens.at(indices.at(1)).raw.toDouble();
+                                const double w = tokens.at(indices.at(2)).raw.toDouble();
+                                const double h = tokens.at(indices.at(3)).raw.toDouble();
+                                addPoint(&current, indices.at(0), indices.at(1), x, y);
+                                includePoint(&current, x + w, y + h);
+                            } else {
+                                for (int p = 0; p + 1 < indices.size(); p += 2) {
+                                    const double x = tokens.at(indices.at(p)).raw.toDouble();
+                                    const double y = tokens.at(indices.at(p + 1)).raw.toDouble();
+                                    addPoint(&current, indices.at(p), indices.at(p + 1), x, y);
+                                }
+                            }
+                        }
+                    } else if (isPainting(op)) {
+                        if (active) {
+                            if (current.hasPoint) pathObjects.append(current);
+                            active = false;
+                        }
+                    }
+                    pending.clear();
+                }
+                if (active && current.hasPoint) pathObjects.append(current);
+            }
+
+            // ---- 第一遍续：把命中的路径点改掉（记 token 下标 → 新数字） ----
+            QHash<int, QByteArray> overrides;
+            const QVector<AnchorPathMove>& pagePathMoves = pathsByPage.value(pageIndex);
+            QVector<bool> pathMatched(pagePathMoves.size(), false);
+            for (int moveIndex = 0; moveIndex < pagePathMoves.size(); ++moveIndex) {
+                const AnchorPathMove& move = pagePathMoves.at(moveIndex);
+                PathObject* match = nullptr;
+                for (PathObject& object : pathObjects) {
+                    if (object.used) continue;
+                    if (sameRect(object.bounds, move.from)) {
+                        match = &object;
+                        break;
+                    }
+                }
+                if (match == nullptr) continue;
+                match->used = true;
+                pathMatched[moveIndex] = true;
+                const Matrix& m = match->matrix;
+                const double det = m.a * m.d - m.b * m.c;
+                if (std::abs(det) < 1e-9) {
+                    result.errors.append(QStringLiteral("第 %1 页路径的 CTM 不可逆").arg(pageIndex + 1));
+                    continue;
+                }
+                // 页面空间向量 (0, -deltaY) 换算回用户空间。
+                const double pageX = 0.0;
+                const double pageY = -move.deltaY;
+                const double userX = (pageX * m.d - pageY * m.c) / det;
+                const double userY = (pageY * m.a - pageX * m.b) / det;
+                for (const QPair<int, int>& point : match->points) {
+                    const double x = tokens.at(point.first).raw.toDouble();
+                    const double y = tokens.at(point.second).raw.toDouble();
+                    overrides.insert(point.first, formatNumber(x + userX));
+                    overrides.insert(point.second, formatNumber(y + userY));
+                }
+                ++result.movedPaths;
+                changed = true;
+            }
+            for (int m = 0; m < pagePathMoves.size(); ++m) {
+                if (pathMatched.value(m)) continue;
+                const QRectF& rect = pagePathMoves.at(m).from;
+                {
+                    result.errors.append(
+                        QStringLiteral("第 %1 页没找到要移动的路径（%2, %3, %4×%5）")
+                            .arg(pageIndex + 1)
+                            .arg(rect.x(), 0, 'f', 1)
+                            .arg(rect.y(), 0, 'f', 1)
+                            .arg(rect.width(), 0, 'f', 1)
+                            .arg(rect.height(), 0, 'f', 1));
+                }
+            }
+
+            // ---- 第二遍：重建内容流（路径改数字 + 图片包 cm） ----
+            const QVector<AnchorImageMove>& pageImageMoves = imagesByPage.value(pageIndex);
+            QVector<bool> imageUsed(pageImageMoves.size(), false);
             Matrix ctm;
             QVector<Matrix> stack;
             QByteArray output;
-            int pendingClose = -1;  // 正在为哪个 Do 收尾 Q
+            int pendingClose = -1;
             for (int i = 0; i < tokens.size(); ++i) {
                 const ContentToken& token = tokens.at(i);
+                if (token.type == ContentTokenType::Number) {
+                    const auto override = overrides.constFind(i);
+                    output += override != overrides.constEnd() ? override.value() : token.raw;
+                    continue;
+                }
                 if (token.type == ContentTokenType::Operator) {
                     bool skipRaw = false;
                     if (token.raw == "q") {
@@ -158,19 +340,17 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
                             skipRaw = true;
                         }
                     } else if (token.raw == "cm") {
-                        const QVector<double> values = lastNumbers(tokens, i, 6);
-                        if (values.size() == 6) {
+                        const QVector<int> indices = lastNumberIndices(tokens, i, 6);
+                        if (indices.size() == 6) {
                             Matrix m;
-                            m.a = values.at(0);
-                            m.b = values.at(1);
-                            m.c = values.at(2);
-                            m.d = values.at(3);
-                            m.e = values.at(4);
-                            m.f = values.at(5);
+                            m.a = tokens.at(indices.at(0)).raw.toDouble();
+                            m.b = tokens.at(indices.at(1)).raw.toDouble();
+                            m.c = tokens.at(indices.at(2)).raw.toDouble();
+                            m.d = tokens.at(indices.at(3)).raw.toDouble();
+                            m.e = tokens.at(indices.at(4)).raw.toDouble();
+                            m.f = tokens.at(indices.at(5)).raw.toDouble();
                             ctm = multiply(m, ctm);
                         }
-                    } else if (token.raw == "Do" && pendingClose < 0) {
-                        // 没有配对的图片 Do：照常输出。
                     }
                     if (!skipRaw) output += token.raw;
                     continue;
@@ -180,19 +360,18 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
                     if (next >= 0 && tokens.at(next).raw == "Do") {
                         const QRectF bounds = unitSquareBounds(ctm);
                         int match = -1;
-                        for (int m = 0; m < byPage.value(pageIndex).size(); ++m) {
-                            if (pageUsed.value(m)) continue;
-                            if (sameRect(bounds, byPage.value(pageIndex).at(m).from)) {
+                        for (int m = 0; m < pageImageMoves.size(); ++m) {
+                            if (imageUsed.value(m)) continue;
+                            if (sameRect(bounds, pageImageMoves.at(m).from)) {
                                 match = m;
                                 break;
                             }
                         }
                         if (match >= 0) {
-                            const double delta = byPage.value(pageIndex).at(match).deltaY;
-                            output += "q 1 0 0 1 0 " +
-                                      QByteArray::number(-delta, 'f', 3) + " cm ";
+                            const double delta = pageImageMoves.at(match).deltaY;
+                            output += "q 1 0 0 1 0 " + QByteArray::number(-delta, 'f', 3) + " cm ";
                             pendingClose = match;
-                            pageUsed[match] = true;
+                            imageUsed[match] = true;
                             ++result.moved;
                             changed = true;
                         }
@@ -203,6 +382,17 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
                 output += token.raw;
             }
             if (pendingClose >= 0) output += " Q";
+            for (int m = 0; m < pageImageMoves.size(); ++m) {
+                if (imageUsed.value(m)) continue;
+                const QRectF& rect = pageImageMoves.at(m).from;
+                result.errors.append(
+                    QStringLiteral("第 %1 页没找到要移动的图片（%2, %3, %4×%5）")
+                        .arg(pageIndex + 1)
+                        .arg(rect.x(), 0, 'f', 1)
+                        .arg(rect.y(), 0, 'f', 1)
+                        .arg(rect.width(), 0, 'f', 1)
+                        .arg(rect.height(), 0, 'f', 1));
+            }
 
             if (output != bytes) {
                 stream.replaceStreamData(output.toStdString(), QPDFObjectHandle::newNull(),
@@ -210,22 +400,7 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
             }
         }
 
-        for (auto it = byPage.constBegin(); it != byPage.constEnd(); ++it) {
-            const QVector<bool>& pageUsed = used.value(it.key());
-            for (int m = 0; m < it.value().size(); ++m) {
-                if (pageUsed.value(m)) continue;
-                const QRectF& rect = it.value().at(m).from;
-                result.errors.append(
-                    QStringLiteral("第 %1 页没找到要移动的图片（%2, %3, %4×%5）")
-                        .arg(it.key() + 1)
-                        .arg(rect.x(), 0, 'f', 1)
-                        .arg(rect.y(), 0, 'f', 1)
-                        .arg(rect.width(), 0, 'f', 1)
-                        .arg(rect.height(), 0, 'f', 1));
-            }
-        }
         if (!result.errors.isEmpty()) return result;
-
         if (changed) {
             QPDFWriter writer(pdf);
             writer.setOutputMemory();
@@ -244,6 +419,11 @@ AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
         result.errors.append(QString::fromUtf8(exception.what()));
     }
     return result;
+}
+
+AnchorMoveResult moveAnchoredImages(const QByteArray& pdfBytes,
+                                    const QVector<AnchorImageMove>& moves) {
+    return moveAnchoredGraphics(pdfBytes, moves, {});
 }
 
 }  // namespace aipdf::pdf

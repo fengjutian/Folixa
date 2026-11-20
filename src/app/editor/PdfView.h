@@ -390,6 +390,11 @@ public slots:
     // 本地电子签章：选中的签章在下一次点击页面时落下；骑缝章会拆分到全部页面。
     void activateSignaturePlacement(const QByteArray& image, const QString& name);
     bool applyRidingSeamSignature(const QByteArray& image, const QString& name);
+    // 附件放置：文件已经选好了（录制中心的产物或本机文件），下一次点击页面时落下。
+    //
+    // 为什么单独一条入口：附件工具自己会弹文件选择框，而这里的文件是从外面
+    // （录制中心）挑好的，弹第二次框等于让用户再找一遍同一个文件。
+    void activateAttachmentPlacement(const QString& fileName, const QByteArray& data);
     // 表单数据：FDF 导入导出（CSV 在面板里）。
     void importFormFdfDialog();
     void exportFormFdfDialog();
@@ -686,6 +691,10 @@ private:
     bool ownerPermissionsUnlocked_ = false;
     QByteArray pendingSignatureImage_;
     QString pendingSignatureName_;
+    // 已经选好、等着落到页面上的附件（录制中心的产物或本机音视频文件）。
+    // 为空表示没在等，走附件工具自己的文件选择框。
+    QString pendingAttachmentName_;
+    QByteArray pendingAttachmentData_;
     // 朗读引擎：系统语音合成（Windows PowerShell + System.Speech）。
     // 声明在 document_ 之后，析构时先于文档句柄释放。
     std::unique_ptr<speech::SpeechEngine> speechEngine_;

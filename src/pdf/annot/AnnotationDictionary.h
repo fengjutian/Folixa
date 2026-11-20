@@ -36,4 +36,14 @@ AnnotationDictionaryParts annotationDictionaryParts(const Annotation& annotation
 // 手写 `/Contents (` + toLatin1() 会把中文变成 ?，反斜杠还会把右括号转义掉。
 QByteArray annotationTextString(const QString& text);
 
+// 按文件名后缀猜 MIME 类型（写入嵌入文件流的 /Subtype）。
+//
+// 为什么需要它：PDF 规范里嵌入文件流的 /Subtype 写的是 MIME 类型，
+// 阅读器靠它决定「点开这个附件用什么程序打开」。缺了这一项，
+// 挂进去的视频附件在别的阅读器里可能只被当成一坨二进制。
+//
+// 认不出来时返回 application/octet-stream —— 这是 PDF 规范里的默认值，
+// 也是一个诚实的答案：不知道就说不知道，别编一个具体类型。
+QByteArray mimeTypeForFileName(const QString& fileName);
+
 }  // namespace aipdf::pdf

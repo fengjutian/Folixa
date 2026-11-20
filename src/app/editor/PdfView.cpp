@@ -1043,8 +1043,22 @@ void PdfView::setDocument(pdf::PdfDocument document, const QString& path) {
             });
     connect(canvas_, &PageCanvas::attachmentRequested, this,
             [this](int pageIndex, const QPointF& userPoint) {
+                if (!annotationController_) {
+                    return;
+                }
+                // 文件已经选好（录制中心 / 外部挑来的）：直接落下，不再弹选择框。
+                if (!pendingAttachmentData_.isEmpty()) {
+                    const QString name = pendingAttachmentName_;
+                    const QByteArray data = pendingAttachmentData_;
+                    pendingAttachmentName_.clear();
+                    pendingAttachmentData_.clear();
+                    annotationController_->addAttachment(pageIndex, userPoint, name, data);
+                    annotationController_->setTool(AnnotationController::Tool::None);
+                    emit statusMessage(tr("附件已放置；保存文档后写入 PDF。"));
+                    return;
+                }
                 const QString path = QFileDialog::getOpenFileName(this, tr("添加附件"));
-                if (path.isEmpty() || !annotationController_) {
+                if (path.isEmpty()) {
                     return;
                 }
                 QFile file(path);
@@ -5815,10 +5829,19 @@ void PdfView::activateSignaturePlacement(const QByteArray& image, const QString&
     emit statusMessage(tr("请在页面上单击签章位置；按其他工具可取消。"));
 }
 
+void PdfView::activateAttachmentPlacement(const QString& fileName, const QByteArray& data) {
+    if (!annotationController_ || fileName.isEmpty() || data.isEmpty()) {
+        return;
+    }
+    pendingAttachmentName_ = fileName;
+    pendingAttachmentData_ = data;
+    annotationController_->setTool(AnnotationController::Tool::Attachment);
+    emit statusMessage(tr("请在页面上单击放置附件的位置；按其他工具可取消。"));
+}
+
 bool PdfView::applyRidingSeamSignature(const QByteArray& imageBytes, const QString& name) {
     QImage image;
     if (!annotationController_ || pageCount_ < 1 || !image.loadFromData(imageBytes)) return false;
-
     // 沿图片宽度均分：每页只保存自己那一条，合拢纸张才能看到完整签章。
     const int pages = pageCount_;
     int created = 0;
@@ -5866,6 +5889,12 @@ void PdfView::activateAnnotationTool(const QString& id) {
     if (id != QStringLiteral("imagestamp")) {
         pendingSignatureImage_.clear();
         pendingSignatureName_.clear();
+    }
+    // 切到别的工具就取消「等着落地的附件」：否则下一次点页面会挂上一个
+    // 用户早就忘了的文件。
+    if (id != QStringLiteral("attachment")) {
+        pendingAttachmentName_.clear();
+        pendingAttachmentData_.clear();
     }
     if (id == QStringLiteral("undo")) {
         undoAnnotation();

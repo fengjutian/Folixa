@@ -60,6 +60,13 @@ public:
     // 清单内容，按录制时间**倒序**（新的在前）。
     QVector<RecordingEntry> entries() const;
 
+    // 清单里能当音视频附件用的条目（视频 + 音频，截图不算），同样按时间倒序。
+    //
+    // 为什么单独一个方法：往 PDF 里挂附件时只该挑音视频，
+    // 「筛选规则」放在这里才能被单元测试钉住；界面上自己再写一遍筛选条件，
+    // 迟早和这里对不上。
+    QVector<RecordingEntry> mediaEntries() const;
+
     // 登记一条录制并落盘。同一路径重复登记时更新原条目而不是追加两条。
     bool add(const RecordingEntry& entry, QString* error = nullptr);
 

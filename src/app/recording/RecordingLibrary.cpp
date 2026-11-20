@@ -170,6 +170,18 @@ QVector<RecordingEntry> RecordingLibrary::entries() const {
     return sorted;
 }
 
+QVector<RecordingEntry> RecordingLibrary::mediaEntries() const {
+    QVector<RecordingEntry> media;
+    // entries() 已经排好序（新的在前），这里只做筛选，不再重排 —— 重排会把顺序打乱。
+    for (const RecordingEntry& entry : entries()) {
+        // 截图是图片，不是音视频；往 PDF 里挂附件时只挑能播的。
+        if (entry.kind == RecordingKind::Audio || entry.isVideo()) {
+            media.append(entry);
+        }
+    }
+    return media;
+}
+
 bool RecordingLibrary::contains(const QString& path) const {
     for (const RecordingEntry& entry : entries_) {
         if (entry.path.compare(path, Qt::CaseInsensitive) == 0) return true;

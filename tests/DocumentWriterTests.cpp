@@ -77,6 +77,7 @@ private slots:
     void inMemoryAnnotationHasNoAppearance();
     void qpdfGateRejectsBrokenBytes();
     void attachmentIsEmbeddedInSavedBytes();
+    void videoAttachmentCarriesMimeType();
     void replyAndStateSurviveSaveAndReopen();
     void imageStampAndSoundAreEmbedded();
     void nativeSoundAnnotationIsInjected();
@@ -338,6 +339,37 @@ void DocumentWriterTests::attachmentIsEmbeddedInSavedBytes() {
     QVERIFY(saved.bytes.contains("/FS "));
 
     // 顺带过一遍结构校验：多出两个对象后 xref 仍然要自洽。
+    QString qpdfError;
+    if (aipdf::pdf::qpdfBackendAvailable()) {
+        QVERIFY2(aipdf::pdf::verifyWithQpdf(saved.bytes, &qpdfError), qPrintable(qpdfError));
+    }
+}
+
+void DocumentWriterTests::videoAttachmentCarriesMimeType() {
+    // 录制中心的产物是 .avi；挂进 PDF 后，阅读器要能认出这是视频，
+    // 点开才会交给播放器 —— 靠的是嵌入文件流上的 /Subtype（MIME）。
+    const auto opened = openDocument(fixturePath(QStringLiteral("annotation.pdf")));
+    QVERIFY(opened.document.isValid());
+    auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+
+    Annotation annotation;
+    annotation.id = 78;
+    annotation.pageIndex = 0;
+    annotation.type = AnnotationType::FileAttachment;
+    annotation.rect = QRectF(100.0, 400.0, 20.0, 20.0);
+    annotation.color = QColor(120, 120, 120);
+    annotation.attachmentName = QStringLiteral("Folixa-screen.avi");
+    annotation.attachmentData = QByteArray("RIFF....AVI-MJPEG-PAYLOAD");
+    QVERIFY(page->setAnnotations({ annotation }));
+
+    const SaveBytes saved = DocumentWriter::serializeForSave(opened.document, { annotation });
+    QVERIFY2(saved.ok, qPrintable(saved.error));
+    QVERIFY2(saved.bytes.contains("/Subtype (video/x-msvideo)"),
+             "视频附件没有写 MIME 类型");
+    QVERIFY2(saved.bytes.contains("RIFF....AVI-MJPEG-PAYLOAD"),
+             "视频内容没有真的写进 PDF");
+
     QString qpdfError;
     if (aipdf::pdf::qpdfBackendAvailable()) {
         QVERIFY2(aipdf::pdf::verifyWithQpdf(saved.bytes, &qpdfError), qPrintable(qpdfError));

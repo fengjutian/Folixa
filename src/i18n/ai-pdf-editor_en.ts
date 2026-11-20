@@ -9597,6 +9597,8 @@ If you need to keep the signatures, do not modify and save this file again after
     <message><source>锚点规划跳过：读不出页面对象模型：%1</source><translation>Anchor planning skipped: cannot read the page object model: %1</translation></message>
     <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 个可安全移动、%3 个有冲突；本版本只报告、不自动搬</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 can move safely and %3 conflict; this version only reports and does not move them</translation></message>
     <message><source>已改写内容流，搬动 %1 张图片</source><translation>Content streams rewritten; moved %1 images</translation></message>
+    <message><source>已改写内容流，搬动 %1 张图片、%2 条路径</source><translation>Content streams rewritten; moved %1 images and %2 paths</translation></message>
+    <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片、%3 条路径会改写内容流</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 images and %3 paths will rewrite the content stream</translation></message>
     <message><source>第 %1 页锚点冲突，已拒绝整页重排：%2</source><translation>Anchor conflict on page %1; the page was not reflowed: %2</translation></message>
     <message><source>锚点搬迁失败，已拒绝写回：%1</source><translation>Anchor move failed; write-back refused: %1</translation></message>
     <message><source>锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片会改写内容流</source><translation>Anchor planning: %1 objects need to follow their paragraphs; %2 images will rewrite the content stream</translation></message>

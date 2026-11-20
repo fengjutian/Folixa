@@ -7,7 +7,7 @@
 文件,文件操作,关闭,aligned,—,标签页关闭并清理
 文件,打印,打印,aligned,H1,范围与份数可用；输出到打印机或 PDF
 文件,打印,批量打印,aligned,D9,"批量打印：多文件 + 份数 + 页码范围（支持 `1-3,5` 语法），逐个走系统打印对话框，失败项在汇总框列出；**总页数恒为「未知」**（领域层 totalPages 恒 -1，不显示假数字）；`doc::PrintBatch`，`PrintBatchTests`"
-文件,打印,高级打印,partial,H1,双面/多页合一取决于打印驱动
+文件,打印,高级打印,partial,H1,**双面/多页合一取决于打印驱动**
 文件,打印,发票打印,aligned,—,发票打印：填发票要素（抬头、税号、金额、日期、备注等）→ 预览版式 → 打印 / 导出 PDF；币种与小数位 / 千分位格式可选，**税号与税率按用户填的写，不替用户编造**；版式计算在领域层（`doc::InvoiceLayout`，`InvoiceLayoutTests` 25 条）
 文件,打印,打印模板,aligned,—,打印模板：模板名 / 份数 / 纸张 / 缩放（适应页面 / 不缩放 / 缩小到可打印 / 比例，比例合法区间 10–399%）/ 页码范围，可保存后直接套用；`doc::PrintTemplate`，`PrintTemplateTests`
 文件,共享与恢复,共享,na,—,云协作非目标
@@ -90,9 +90,9 @@
 编辑,导航,书签,aligned,B3,新建/改名/删除/排序/层级编辑都可点；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测
 编辑,导航,自动创建书签,aligned,B3,优先读文档的标签树判定标题（H1–H6 的层级 + 元素下的文字，含标题文字挂在后代节点的情况与层级跳级），文档没有结构标签时才回退到字高估算，并在界面上明说这次走的是估算（`pdf::generateOutline` / `pdf::generateOutlineFromStructTree`）；生成的大纲能写回文档并读回；`Wave21NavTests` 16 条 + `OutlineGeneratorTests` 16 条
 编辑,导航,交叉引用,aligned,—,自动识别文中的交叉引用（「见第 N 页」「详见第 N 章」「参见 3.2 节」「see page N」等中英文写法），按页码命中（高置信度）、标题书签命中（中置信度）、未解析三档给结论并逐条说明原因，认出来的引用能一键变成可点击跳转（`pdf::scanCrossReferences` / `pdf::crossReferenceLinkSpec` / `pdf::insertCrossReferenceLink`）；相对引用（「见前页」「见下文」）与「见附录 A」这类非数字目标列入未解析，界面给出候选让用户挑；`Wave21NavTests` 16 条
-编辑,附件,文件附件,partial,C8,只有批注级附件；文档级附件面板是空壳，未参与构建
+编辑,附件,文件附件,partial,C8,**只有批注级附件**；**文档级附件面板是空壳，未参与构建**
 编辑,附件,图像标注,aligned,C7,图片图章
-编辑,附件,音频&视频,partial,C8,录音以 WAV 附件保存；无视频
+编辑,附件,音频&视频,partial,C8,编辑页「附件 → 音频和视频」（`edit.sound`）：来源可选**录制中心的产物**（视频 / 音频）或本机音视频文件，选好后点页面放置，落成回形针附件（`/FileAttachment` + 内嵌文件流，**带 MIME 类型**，阅读器点开会交给系统上注册的外部程序播放）；**页面内不播放音视频**；WAV 声音批注仍走注释工具栏的「声音」
 编辑,3D,添加3D,aligned,A11,3D 注解能写能读回，而且**能渲染、能旋转**：U3D 静态网格自研解码（ECMA-363 无压缩剖面）→ 自写 z-buffer 光栅化 → 轨道相机渲染成位图，Ribbon「查看 3D 模型」里拖动可旋转、滚轮可缩放（`pdf::threeDRenderModel` / `threeDRenderMesh`，`Wave213dTests` 20 条）；用算术压缩剖面的 U3D 解不出网格时**退回降级海报并在界面上标明「非 3D 模型」**，不把海报当模型转；3D 注解按规范写 `/3D`、`/3DB`、`/3DD`、`/3DV` 与 Filespec、降级海报写进普通外观（`pdf::writeThreeDAnnotation` / `readRichMedia` / `readThreeDFallbackImage`，`RichMedia3dTests` 27 条）；**音视频文件能在「插入多媒体」对话框里预览解码并播放**（Windows Media Foundation + 系统声卡，`pdf::openMediaFile` / `MediaDecoder` / `MediaPlaybackController`，`MediaSourceTests` 22 条 + `MediaPreviewPanelTests` 17 条），多媒体注解写进文档时带结构
 页面管理,页面,插入,aligned,D1,插入空白页；也可从别的文件插入页面
 页面管理,页面,删除,aligned,D1,删除当前页，可撤销
@@ -183,8 +183,8 @@
 保护,密文,擦除,aligned,G4,删相交对象，文字层读不到；页面其余仍是矢量文字；有专项单测
 保护,密文,保护密文,aligned,G4,整页位图化落实标记，页面失去文字层；有专项单测
 保护,隐私,隐藏数据,partial,G3,「清理隐藏信息」逐项勾选（`pdf::enumerateHiddenData` 列 16 类隐藏数据与各自条数，`pdf::sanitizeHiddenDataSelective` 只清勾选的类，界面 `app::HiddenDataDialog`）：**嵌入文件本体与附件引用点默认不勾**（要删得自己勾）；清完用同一套枚举复验，勾了的类必须归零、没勾的类必须不变；加密文档给打开密码即可枚举与逐项清理，清理后仍保持加密（枚举与清理都吃 password；写出器保留原加密；复验用同一个密码）；批注级与字段级 `/AA` 动作各成一类（`annotation-actions` / `field-actions`），可分别清理；批处理也能用源文件密码处理加密文件（`batch.sourcePassword`）；增量历史计数改走文档自己的 xref 链（内层 PDF 的 %%EOF 不会被数进来）；`HiddenDataInventoryTests` 18 条 + `EmbeddedFileTests` 12 条 + `DocumentWriterTests` 16 条 + `PdfRevisionCounterTests` 9 条
-保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；PDF 解析仍在主进程
-保护,文档,限制访问,partial,G1,AES-256 + 七项权限位 + 运行时拦截；需带 qpdf 的构建
+保护,文档,安全文档,partial,G8,AI 调用走独立 Worker；**PDF 解析仍在主进程**
+保护,文档,限制访问,aligned,G1,限制访问已实现并有界面入口（Ribbon「保护 → 文档安全 → 加密与权限」，`EncryptionDialog`）：保存时用 **AES-256（R6）** 加密，打开密码与所有者密码可选；**七项权限位逐项可勾**（打印 / 高质量打印 / 复制 / 批注 / 表单 / 页面组装 / 其它修改，无障碍提取按 PDF 2.0 规范恒允许）；权限位在**运行时也拦**（复制 / 导出 / 页面组装 / 表单填写 / 内容修改 / 批注 / 打印各自检查）；**qpdf 是必需依赖**（不再有「没有 qpdf 的构建」）；`PdfSecurityTests` 12 条 + `BatchEncryptTests` 13 条
 保护,文档,批量加密,aligned,G9,批量加密已实现：选一个目录 → 逐个 AES-256 加密 → 写到输出目录（`doc::makeEncryptStep` + `doc::runBatch`，Ribbon「批量加密」（`protect.batchEncrypt`）入口已启用；批处理对话框也有「加密（AES-256）」步骤）；**打开密码必须非空**（空密码谁都能打开，那不叫加密）；每一步都有「用密码重新打开」的读回自检，打不开就不产出文件；源文件本身已加密时，用源文件密码解开旧的再按新设置加密（`doc::makeEncryptStep` 的 sourcePassword），没有源文件密码就明确失败而不是产出谁也读不了的文件
 保护,设置,设置,partial,—,有「保护」标签页与「加密与权限」入口（AES-256 加密 + 权限位，`EncryptionDialog`）；**权限位随保存写入，没有独立的权限管理面板**（不能事后单独改权限而不重新加密）
 保护,企业,敏感度,na,—,企业敏感度标签
@@ -194,7 +194,7 @@
 保护,签名,验证,aligned,G6,验签改为逐项密码学判定：自实现 RSA 验签（`RsaVerifier`）+ 内容摘要比对 + OCSP/TSA 解析；签名列表多一列判定，成立显绿、不成立显中文原因；`SignatureVerifierTests` 14 条 + `RsaVerifierTests` 14 条
 电子签章,签署,对外签署,na,—,云端电子签平台
 电子签章,签署,对内签署,na,—,同上
-电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；无对外平台
+电子签章,签章,管理对外签章,partial,G5,本地签章库（PNG 存本地）可管理；**无对外平台**
 电子签章,签章,骑缝章,aligned,G5,骑缝章有入口与实现
 电子签章,签署,邀请他人签署,na,—,需要服务端
 电子签章,签章,签章,aligned,G5,签章已实现并有界面入口（Ribbon「电子签章 → 签章 → 签章」（`signature.place`）：本地签章库（`app::SignatureDialog`）可导入 PNG/JPEG 或**手写签名**创建，签章可改名可删除；选中的签章放到页面上；「骑缝章」把签章切分后放到每页右侧；签章仅存在本机应用数据目录，不外传
@@ -228,8 +228,8 @@
 辅助工具,阅读,阅读顺序,aligned,J5,阅读顺序：能读既有 StructTreeRoot（`pdf::readStructTree`），支持 `/K` 三种形态、`/Parent` 反查、防环，读出 `/Alt`、`/Lang`、`/ActualText` 与 MCID 对应的实际文字，有界面入口；**语义树的阅读顺序按读屏的取文路径回读**（`pdf::semanticReadingOrder` / `pdf::semanticReadingText`：结构树 → 标记内容 → 文字，逐节点取文，与期望串全等断言）；**读屏软件实测未验证**（本机没有读屏软件，真机朗读要人工补做）；`StructTreeReaderTests` 18 条 + `SemanticTagWriterTests` 20 条 + `UaGeneratorTests` 15 条
 辅助工具,阅读,设置替代文本,partial,J5,批注可写 /Alt 并落盘；有专项单测；**图像与表单域的替代文本由 `pdf::generateAltTexts` 自动推断**（表格取表头文字、图像取邻近的说明文字、表单域取提示文字与字段名），**没有依据的不写**并把原因列进 issues，不编一句；**界面上的这条命令作用在选中的批注上**，图像与表单域的替代文本随语义标签树一起写进文档（见「自动添加标签到文档中」）；`AltTextGeneratorTests`（在 `SemanticTagWriterTests` 里）
 辅助工具,阅读,设置区域阅读顺序,partial,J5,能看文档标签树里已经写好的顺序；这条命令读的是**行级**顺序（`pdf::readTaggedOrder`），语义树的顺序在「读取标签树」那条命令里看；行聚类与选区同规则（`PageTextLinesTests` 11 条）
-辅助工具,阅读,更改区域顺序,partial,J5,可调整当前页各行先后并写进标签树；这条命令是行级操作（`pdf::writeTaggedStructure`），语义树由「自动添加标签到文档中」那条命令生成；行聚类与选区同规则（`PageTextLinesTests` 11 条）
-辅助工具,阅读,应用区域顺序,partial,J5,整篇按从上到下的默认顺序写标签树（行级）；语义树（Document / Part / Sect / 标题 / 段落 / 列表 / 表格 / 图 / 表单域）由「自动添加标签到文档中」那条命令生成
+辅助工具,阅读,更改区域顺序,partial,J5,可调整当前页各行先后并写进标签树；**这条命令是行级操作**（`pdf::writeTaggedStructure`），语义树由「自动添加标签到文档中」那条命令生成；行聚类与选区同规则（`PageTextLinesTests` 11 条）
+辅助工具,阅读,应用区域顺序,partial,J5,整篇按从上到下的默认顺序写标签树（**行级**）；语义树（Document / Part / Sect / 标题 / 段落 / 列表 / 表格 / 图 / 表单域）由「自动添加标签到文档中」那条命令生成
 论文工具,查重,论文查重,aligned,—,本地重复度检测并输出报告
 论文工具,查重,查重历史,aligned,—,历史存在本地设置里
 文档管理,组织,文档雷达,aligned,—,本地文档概述显示页数、大小、时间与管理属性
@@ -246,14 +246,14 @@
 文档管理,发票,发票转图片,aligned,—,复用逐页图片导出通路
 文档管理,发票,发票合并,aligned,—,复用 PDF 页面合并通路
 文档管理,批量,批量重命名,aligned,D9,本地安全批量重命名并拒绝外部覆盖
-文档管理,批量,OFD批量转换,partial,—,依赖本机外部转换器；支持进度、取消、超时与失败汇总
+文档管理,批量,OFD批量转换,partial,—,**依赖本机外部转换器**；支持进度、取消、超时与失败汇总
 录制,录制,PDF录制,aligned,—,PDF 演示录制已实现并有界面入口（Ribbon「录制 → PDF 录制」，`record.pdf`）：先放映当前 PDF，**放映过程由本程序自己抓帧录下来**（`app::ScreenRecorder` 定时抓帧 → JPEG → 自研 MJPEG/AVI 封装 `app::MotionJpegAviWriter`），**放映一关就自动收尾**（`PdfView::presentationClosed` 信号），产出真正的视频文件并登记进录制列表；**不支持 H.264/MP4**（不引外部编码器是依赖政策的硬约束，代价是文件比 MP4 大）；**只录画面没有声音**；录的是主屏（放映是全屏的）；`RecordingTests` 17 条 + 独立校验 `scripts/verify-recordings.py`（另写一份 AVI 解析器 + PIL 真解码）
 录制,录制,屏幕录制,aligned,—,屏幕录制已实现并有界面入口（Ribbon「录制 → 屏幕录制」，`record.screen`）：**区域框选**与**整个窗口**两种范围（与主页截图共用同一套选区层），**由本程序自己抓帧产出真正的视频文件**（`app::ScreenRecorder` → `app::MotionJpegAviWriter`），状态条上有红点计时与「停止录制」按钮，录完自动登记进录制列表；**不支持 H.264/MP4**（同上，依赖政策决定）；默认 10 帧 / 秒、宽度最宽 1280 像素，**只录画面没有声音**，抓的是屏幕像素（被别的窗口挡住就录不到）；**按选区落在哪块屏上决定录哪块屏**（多屏时不再一律抓主屏），选区按设备像素比换算后裁剪；`RecordingTests` 17 条 + `scripts/verify-recordings.py` 独立校验
 录制,录制,声音录制,aligned,C8,声音录制已实现并有界面入口（Ribbon「录制 → 声音录制」，`record.audio`）：`app::AudioRecorder`（Win32 waveIn，零外部依赖）录一段麦克风 → 完整 WAV 字节 → 落盘成文件 → 登记进录制列表；**只收麦克风输入，不录系统声音**（不混音）；没有录音设备时明确报错而不是静默失败；把音频嵌进 PDF 页面的「声音批注」仍在注释工具栏里；`AudioRecorderTests` 2 条（没有录音设备时验证的是优雅失败：给出原因，不崩、不留半个文件）
 录制,录制,截图,aligned,—,截图：录制页的截图与主页共用同一套区域框选选区层，可框选区域或整个窗口；`ScreenCaptureTests` 7 条
 录制,录制,录制列表,aligned,—,录制中心已实现并有界面入口（Ribbon「录制 → 录制列表」与「录制中心」，`record.list` / `record.center`）：`app::RecordingCenterDialog` 列出全部录制产物（名称 / 类型 / 时长 / 大小 / 时间），可**打开**、**在文件夹中显示**、**删除**（连磁盘上的文件一起删，删除前有确认）；索引是应用数据目录下的 `recordings.json`，**与磁盘对不上时自动对账**（文件被用户删掉的条目会清掉，目录里新出现的 `Folixa-*` 会被补进来）；只管本程序录出来的产物，不扫别处的文件
 帮助,帮助,用户手册,aligned,—,应用内手册窗口
-帮助,帮助,帮助中心,partial,—,打开仓库 Issues 页面，不是站内帮助中心
+帮助,帮助,帮助中心,partial,—,打开仓库 Issues 页面，**不是站内帮助中心**
 帮助,帮助,命令行帮助,aligned,—,命令行用法对话框
 帮助,帮助,发表想法,na,—,反馈平台
 帮助,帮助,在线教程,na,—,在线内容

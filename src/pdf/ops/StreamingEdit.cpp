@@ -1398,6 +1398,7 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
 
     // 锚点搬迁：先规划；有冲突就拒绝整页，不硬搬。
     QVector<AnchorImageMove> imageMoves;
+    QVector<AnchorPathMove> pathMoves;
     {
         QString modelError;
         const DocumentObjectModel model =
@@ -1455,15 +1456,18 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
                     if (decision.kind == QStringLiteral("图片")) {
                         imageMoves.append(
                             AnchorImageMove{page, decision.from, decision.deltaY});
+                    } else {
+                        pathMoves.append(AnchorPathMove{page, decision.from, decision.deltaY});
                     }
                 }
             }
             if (total > 0) {
                 result.report.notes.append(
                     i18n::tr("aipdf::pdf::StreamingEdit",
-                             "锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片会改写内容流")
+                             "锚点规划：%1 个对象需要跟随段落移动，其中 %2 张图片、%3 条路径会改写内容流")
                         .arg(total)
-                        .arg(imageMoves.size()));
+                        .arg(imageMoves.size())
+                        .arg(pathMoves.size()));
             }
         }
     }
@@ -1485,8 +1489,8 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         return result;
     }
 
-    if (!imageMoves.isEmpty()) {
-        const AnchorMoveResult moved = moveAnchoredImages(written, imageMoves);
+    if (!imageMoves.isEmpty() || !pathMoves.isEmpty()) {
+        const AnchorMoveResult moved = moveAnchoredGraphics(written, imageMoves, pathMoves);
         if (!moved.ok()) {
             result.report.error =
                 i18n::tr("aipdf::pdf::StreamingEdit", "锚点搬迁失败，已拒绝写回：%1")
@@ -1495,8 +1499,9 @@ StreamingReflowResult reflowDocumentStream(const QByteArray& pdfBytes,
         }
         written = moved.bytes;
         result.report.notes.append(
-            i18n::tr("aipdf::pdf::StreamingEdit", "已改写内容流，搬动 %1 张图片")
-                .arg(moved.moved));
+            i18n::tr("aipdf::pdf::StreamingEdit", "已改写内容流，搬动 %1 张图片、%2 条路径")
+                .arg(moved.moved)
+                .arg(moved.movedPaths));
     }
     const QVector<PageObjectInventory> afterInventory =
         pageObjectInventory(written, &inventoryError);
