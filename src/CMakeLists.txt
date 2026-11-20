@@ -87,6 +87,8 @@ qt_add_executable(AiPdfEditor WIN32
     app/dialogs/ViewSettingsDialog.cpp
     app/dialogs/SignatureDialog.h
     app/dialogs/SignatureDialog.cpp
+    app/dialogs/SignatureWorkflowDialog.h
+    app/dialogs/SignatureWorkflowDialog.cpp
     app/shell/RibbonBar.h
     app/shell/RibbonBar.cpp
     app/controllers/LastWaveWriter.cpp
