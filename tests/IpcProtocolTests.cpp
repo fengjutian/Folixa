@@ -55,10 +55,11 @@ private slots:
         QCOMPARE(parsed.object().value("type").toString(), QString("event"));
     }
 
-    void protocolVersionIsThree() {
-        // v0.10.0 加了事件帧（2），v0.11.0 加了整篇问答的 context 载荷（3）。
+    void protocolVersionIsFour() {
+        // v0.10.0 加了事件帧（2），v0.11.0 加了整篇问答的 context 载荷（3），
+        // v0.15.0 给隔离解析进程加了 pdf.edit / pdf.save 两个编辑操作（4）。
         // 旧 Worker 处理不了新载荷，版本号必须跟着涨。
-        QCOMPARE(aipdf::ipc::kProtocolVersion, 3);
+        QCOMPARE(aipdf::ipc::kProtocolVersion, 4);
     }
 };
 

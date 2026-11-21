@@ -27,4 +27,5 @@ C8,docs/FOXIT_BENCHMARK.md,加密文档不补 MIME,第二十八轮,加密文档�
 G8,docs/FOXIT_BENCHMARK.md,安全模式下为只读,第二十八轮,安全文档已可编辑：表单填写、批注与保存都是送进隔离进程执行的指令，主进程仍不持有该 PDF 的字节
 G8,docs/FOXIT_BENCHMARK.md,代价是只读,第二十八轮,同上：只读的限制在第二十七轮已经解除，隔离进程里现在能改也能存
 H9,docs/FOXIT_BENCHMARK.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八轮,剪贴板里的文字与图片现在能合成同一份 PDF（doc::clipboardMixedToPdf：正文在前、图片一图一页）
+H9,docs/FOXIT_BENCHMARK.md,剪贴板里的文字与图片分稿，不合并成一份,,剪贴板里的文字与图片现在能合成同一份 PDF（doc::clipboardMixedToPdf：正文在前、图片一图一页）；§2 能力表是当前口径的陈述，整份文件都要守，所以 since 留空
 H9,docs/VERSION_AUDIT.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句

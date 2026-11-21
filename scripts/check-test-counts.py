@@ -17,9 +17,13 @@
 范围（当前口径才要求准）：
   - docs/FOXIT_BENCHMARK.md 的第 2 节能力表 —— 当前能力陈述
   - docs/benchmark/foxit-features.csv 全部行 —— 矩阵唯一数据源
-  - docs/VERSION_AUDIT.md 的最新一轮段 —— 本轮重算记录
+  - docs/VERSION_AUDIT.md 的**最新一轮**盘点段 —— 本轮重算记录
 不在范围（历史存档，保留原样）：
-  - 版本审计的更早轮次段：仓库自述是「当时看到的账」存档
+  - 版本审计的更早轮次段：仓库自述是「当时看到的账」存档。
+    这不是放宽，是**不能改**：第 27 轮记下的「ScreenAnnotationTests 6 条」
+    在那天是真的（那轮只加了 6 条用例），本轮又补了 5 条用例之后实测是 11 条 ——
+    把存档改成 11 条，存档就成了假账。所以门禁只查最新一轮段，
+    更早轮次段的条数漂移**不算失败**。
   - 评分卡第 3 节校准记录、第 4~7 节
   - 负例对照里的「N 条变红」：那是变红的用例数，不是目标总数
 
@@ -46,6 +50,8 @@ COUNT_RE = re.compile(r"(`?)([A-Za-z][A-Za-z0-9]*Tests)\1\s*[（(]?\s*(\d+)\s*�
 TOTALS_RE = re.compile(
     r"Totals:\s*(\d+)\s+passed,\s*(\d+)\s+failed,\s*(\d+)\s+skipped"
 )
+# 版本审计的盘点段标题（`### 1.12 2026-11-21 第二十八次盘点（...）`）。
+ROUND_HEADER_RE = re.compile(r"^### 1\.\d+ ", re.M)
 
 
 def read_text(path: str) -> str:
@@ -81,6 +87,21 @@ def line_ranges(text: str, start_marker: str, end_marker: str) -> set[int]:
     """半开区间 [start, end) 内的行号（1-based）。"""
     start = text.index(start_marker)
     end = text.index(end_marker)
+    return set(range(text[:start].count("\n") + 1, text[:end].count("\n") + 1))
+
+
+def latest_round_range(text: str) -> set[int]:
+    """版本审计里**最新一轮**盘点段的行号（1-based）。
+
+    取「## 1. 结论」之前的最后一个 `### 1.N` 段 —— 那是本轮的记录。
+    更早的轮次段是历史存档：它们记的是「当时看到的账」，
+    之后的轮次又加了用例，条数自然对不上；改存档就是改假账。
+    """
+    end = text.index("## 1. 结论")
+    starts = [m.start() for m in ROUND_HEADER_RE.finditer(text, 0, end)]
+    if not starts:
+        return set()
+    start = starts[-1]
     return set(range(text[:start].count("\n") + 1, text[:end].count("\n") + 1))
 
 
@@ -129,7 +150,7 @@ def main() -> int:
     score_text = read_text(SCORE)
     audit_text = read_text(AUDIT)
     score_range = line_ranges(score_text, "### A. 阅读与显示", "## 3. 汇总与达标线")
-    audit_range = line_ranges(audit_text, "## 1.4 ", "## 1. 结论")
+    audit_range = latest_round_range(audit_text)
 
     problems: list[str] = []
     problems += check(SCORE, score_range, truth)
