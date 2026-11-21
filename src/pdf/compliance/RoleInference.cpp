@@ -78,8 +78,8 @@ bool looksLikeShortHeading(const QString& text) {
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty()) return false;
     if (trimmed.size() > 60) return false;
-    if (trimmed.endsWith(QLatin1Char('。')) || trimmed.endsWith(QLatin1Char('.')) ||
-        trimmed.endsWith(QLatin1Char('；')) || trimmed.endsWith(QLatin1Char(';'))) {
+    if (trimmed.endsWith(QChar(0x3002)) || trimmed.endsWith(QLatin1Char('.')) ||
+        trimmed.endsWith(QChar(0xFF1B)) || trimmed.endsWith(QLatin1Char(';'))) {
         return false;
     }
     return true;

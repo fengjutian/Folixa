@@ -28,4 +28,6 @@ G8,docs/FOXIT_BENCHMARK.md,安全模式下为只读,第二十八轮,安全文档
 G8,docs/FOXIT_BENCHMARK.md,代价是只读,第二十八轮,同上：只读的限制在第二十七轮已经解除，隔离进程里现在能改也能存
 H9,docs/FOXIT_BENCHMARK.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八轮,剪贴板里的文字与图片现在能合成同一份 PDF（doc::clipboardMixedToPdf：正文在前、图片一图一页）
 H9,docs/FOXIT_BENCHMARK.md,剪贴板里的文字与图片分稿，不合并成一份,,剪贴板里的文字与图片现在能合成同一份 PDF（doc::clipboardMixedToPdf：正文在前、图片一图一页）；§2 能力表是当前口径的陈述，整份文件都要守，所以 since 留空
+J5,docs/FOXIT_BENCHMARK.md,本机没有读屏软件,,本机装着 Windows 自带的『讲述人』（C:\Windows\System32\Narrator.exe），只是没装 NVDA / Acrobat；而且实测 Edge 与 Chrome 的 PDF 插件不把带标签内容暴露给无障碍树，真机朗读在这台机器上做不了 —— 这句是 2026-11-21 之前的旧说法
+J5,docs/FOXIT_FEATURE_MATRIX.md,本机没有读屏软件,,同上：矩阵文档由 foxit-features.csv 生成，CSV 里的话术已改，但旧话术仍要挡住
 H9,docs/VERSION_AUDIT.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句

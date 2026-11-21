@@ -655,6 +655,10 @@ TextSpliceResult splicePageText(const QByteArray& pdfBytes, const TextSpliceTarg
         QPDFObjectHandle page = pages.at(static_cast<size_t>(target.pageIndex));
         page.coalesceContentStreams();
         PageFontList scanFonts = readPageFonts(pdfBytes, target.pageIndex);
+        // 后面会给这一页追加一份回退字体（`scanFonts.fonts.append(decoded)`）。
+        // QVector 扩容会把已有元素搬到新地址，而 ShowSpan 里存的是元素指针；
+        // 不预留槽位，Release 下这些指针会在追加后悬空（Debug 只是碰巧没触发）。
+        scanFonts.fonts.reserve(scanFonts.fonts.size() + 1);
 
         // 文本可能藏在页内容流里，也可能藏在 Form XObject 里。
         // 两类流都收进 containers，改写时按各自的对象写回。

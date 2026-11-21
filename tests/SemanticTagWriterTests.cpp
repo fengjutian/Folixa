@@ -693,6 +693,24 @@ void SemanticTagWriterTests::roleInferenceFindsHeadingParagraphAndList() {
         item.fontSize = 12.0;
         blocks.append(item);
     }
+    {
+        // 中文句号结尾的短句不是标题：QLatin1Char('。') 会把多字节字面量截断，
+        // 这个正文字号虽然比基线大，也必须落回 P，不能误判成 H1。
+        SemanticBlock body;
+        body.pageIndex = 1;
+        body.rect = QRectF(72, 700, 200, 12);
+        body.text = QStringLiteral("正文基线");
+        body.fontSize = 10.0;
+        blocks.append(body);
+    }
+    {
+        SemanticBlock sentence;
+        sentence.pageIndex = 1;
+        sentence.rect = QRectF(220, 680, 300, 12);
+        sentence.text = QStringLiteral("这是一句完整的中文正文。");
+        sentence.fontSize = 18.0;
+        blocks.append(sentence);
+    }
 
     const aipdf::pdf::RoleInferenceResult result =
         aipdf::pdf::inferSemanticRoles(blocks);
@@ -700,6 +718,8 @@ void SemanticTagWriterTests::roleInferenceFindsHeadingParagraphAndList() {
     QCOMPARE(result.blocks.at(0).role, StructRole::H1);
     QCOMPARE(result.blocks.at(1).role, StructRole::P);
     QCOMPARE(result.blocks.at(3).role, StructRole::LI);
+    // 中文句号结尾的句子即使字号更大，也只能是段落。
+    QCOMPARE(result.blocks.at(5).role, StructRole::P);
     // 树：Document → Part → Sect → H1 / P / L。
     QCOMPARE(result.tree.nodes.at(result.tree.rootIndex).role, StructRole::Document);
     bool sawPart = false;

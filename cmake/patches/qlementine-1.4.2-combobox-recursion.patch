@@ -1,0 +1,24 @@
+Fix an infinite recursion in Qlementine 1.4.2's QComboBox event filter.
+
+`ComboboxItemViewFilter::eventFilter` handles `QEvent::ChildAdded` on the
+combo box and compares the added child with `_comboBox->view()`. Calling
+`view()` creates the private popup container if it does not exist yet, which
+emits another `ChildAdded` event and re-enters the same filter. With Qt 6.8.3
+the result is an unbounded recursion and a stack overflow (0xC00000FD) as
+soon as a QComboBox is constructed.
+
+The filter already stores the view it was created for in `_view`; compare
+against that pointer instead of asking the combo box to create/look up its
+view again.
+
+--- a/lib/src/style/eventFilters/ComboboxItemViewFilter.hpp
++++ b/lib/src/style/eventFilters/ComboboxItemViewFilter.hpp
+@@ -46,7 +46,7 @@ protected:
+         if (watchedObject == _comboBox) {
+           const auto* childEvent = static_cast<QChildEvent*>(evt);
+           const auto* child = childEvent->child();
+-          if (child == _comboBox->view()) {
++          if (child == _view) {
+             if (auto* qlementine = qobject_cast<QlementineStyle*>(_comboBox->style())) {
+               _comboBox->setItemDelegate(new ComboBoxDelegate(_comboBox, *qlementine));
+             }

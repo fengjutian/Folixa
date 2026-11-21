@@ -19,7 +19,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $script:Failures = 0
-$allowedStates = @('Planned', 'In Progress', 'Verification', 'Released', 'Blocked')
+$allowedStates = @('Planned', 'In Progress', 'Verification', 'Released', 'Delivered', 'Blocked')
 
 function Test-Check {
     param(

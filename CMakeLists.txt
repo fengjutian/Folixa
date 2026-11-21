@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(AiPdfEditor VERSION 0.15.0 LANGUAGES C CXX)
+project(AiPdfEditor VERSION 1.0.0 LANGUAGES C CXX)
 
 # 应用图标：Windows 资源里嵌一份（资源管理器、任务栏与文件关联用），
 # 运行时窗口图标用同一份设计的 SVG（src/app/icons/app.svg），
@@ -82,6 +82,13 @@ FetchContent_Declare(
     # Release v1.4.2. The immutable commit keeps builds reproducible even if
     # an upstream tag is moved.
     GIT_TAG 13f72eb8b53bafd9ac24e5562d8ddc28d5440469
+    # v1.4.2 的 QComboBox 事件过滤器在 Qt 6.8.3 下会无限递归、启动即栈溢出。
+    # 补丁只把 `_comboBox->view()` 换成过滤器自己保存的 `_view`；
+    # 脚本幂等，CI 每次全新克隆时自动应用。
+    PATCH_COMMAND
+        ${CMAKE_COMMAND}
+        -DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/qlementine-1.4.2-combobox-recursion.patch
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/apply-qlementine-patch.cmake
 )
 FetchContent_MakeAvailable(qlementine)
 

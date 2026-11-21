@@ -334,6 +334,18 @@ try {
         'scripts/test-test-counts-negative.py'
     )
 
+    # 朗读稿复核：用一个**独立于本程序代码**的取文器读本程序产出的带标签 PDF，
+    # 按 PDF/UA-1 的取文路径产出朗读稿并逐条判定（内容元素必须有文字或替代文本、
+    # /ParentTree 与标记内容双射、朗读顺序与页上标记内容顺序一致）。
+    # 样例由本程序真实写入路径产出（跑 UaGeneratorTests 时落盘），所以这道门
+    # 盯的是「产物能不能被另一个实现读懂」，而不是「自己能不能读懂自己」。
+    Invoke-Native '朗读稿复核（独立取文器）' 'python' @(
+        'scripts/verify-screen-reader.py', '--all'
+    )
+    Invoke-Native '朗读稿复核的负例对照' 'python' @(
+        'scripts/test-screen-reader-negative.py'
+    )
+
     Write-Host '=== 版本一致性 ===' -ForegroundColor Cyan
     # 这一行必须单独一行：跟 Write-Host 写在一行会被当成 Write-Host 的参数吃掉，
     # $versionArgs 拿不到值，check-version.ps1 就不会去比对 exe 与安装包。

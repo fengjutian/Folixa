@@ -2,6 +2,8 @@
 #include "pdf/compliance/StructTreeModel.h"
 #include "pdf/compliance/UaGenerator.h"
 
+#include <QDir>
+#include <QFile>
 #include <QHash>
 #include <QRegularExpression>
 #include <QSet>
@@ -28,6 +30,29 @@ using aipdf::pdf::UaGeneratorOptions;
 using aipdf::pdf::UaGeneratorResult;
 
 namespace {
+
+// 把产物落盘，给**独立于本程序代码**的校验脚本用。
+//
+// 为什么要有这个钩子：本程序自己的读回链路（结构树 → 标记内容 → 文字）
+// 证明的是「自己能读懂自己写的」。要证明「读屏软件也读得懂」，
+// 就得让**另一套实现**读同一份 PDF —— 落盘就是给那套实现一个入口。
+//
+// 约定沿用仓库里已有的做法（AIPDF_OFFICE_DUMP_DIR 等）：
+// 没设环境变量就不落盘，平时跑单测不会污染目录。
+void dumpIfRequested(const QString& name, const QByteArray& bytes) {
+    const QString directory = qEnvironmentVariable("AIPDF_A11Y_DUMP_DIR");
+    if (directory.isEmpty() || bytes.isEmpty()) {
+        return;
+    }
+    QDir().mkpath(directory);
+    const QString path = QDir(directory).filePath(name);
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return;
+    }
+    file.write(bytes);
+    file.close();
+}
 
 #ifdef AIPDF_WITH_QPDF
 #define REQUIRE_QPDF() \
@@ -497,6 +522,8 @@ void UaGeneratorTests::generatedDocumentHasSemanticShape() {
     const UaGeneratorResult result = aipdf::pdf::generateUaPdf(buildTextPdf(), options);
     QVERIFY2(!result.bytes.isEmpty(), qPrintable(result.error));
 
+    dumpIfRequested(QStringLiteral("ua-text.pdf"), result.bytes);
+
     const RawTree tree = readTreeIndependently(result.bytes);
     QVERIFY(tree.rootIndex >= 0);
     QCOMPARE(tree.elements.at(tree.rootIndex).type, QStringLiteral("Document"));
@@ -628,6 +655,8 @@ void UaGeneratorTests::formFieldsCarryRoleAndTitle() {
     options.title = QStringLiteral("Generated accessible form");
     const UaGeneratorResult result = aipdf::pdf::generateUaPdf(buildFormPdf(), options);
     QVERIFY2(!result.bytes.isEmpty(), qPrintable(result.error));
+
+    dumpIfRequested(QStringLiteral("ua-form.pdf"), result.bytes);
 
     const RawTree tree = readTreeIndependently(result.bytes);
     QStringList formTitles;

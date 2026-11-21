@@ -19,7 +19,7 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\verify-dependencies.ps1
     powershell -ExecutionPolicy Bypass -File scripts\verify-dependencies.ps1 `
-        -PackagePath dist\ai-pdf-editor-0.15.0-win64.zip
+        -PackagePath dist\ai-pdf-editor-1.0.0-win64.zip
 #>
 param(
     [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..'),
@@ -214,6 +214,7 @@ if ($packageEntries.Count -gt 0) {
     $owners = [ordered]@{
         '^AiPdfEditor\.exe$'                                                            = 'project'
         '^PdfAiWorker\.exe$'                                                            = 'project'
+        '^PdfParseWorker\.exe$'                                                         = 'project'
         '^pdfium\.dll$'                                                                 = 'PDFium'
         # qpdf 是必需依赖：每个包都必须带 qpdf30.dll，且能归到登记表里的 qpdf 行。
         '^qpdf[0-9]*\.dll$'                                                             = 'qpdf'

@@ -87,6 +87,7 @@ AI PDF Editor 是一个采用 C++20、Qt 6 和 PDFium 规划实现的原生 PDF 
   conda 版保持 `Library/bin` + `share/tessdata` 结构）——应用会自动找到它。
 
 `tools/tess/` 不进仓库（约 1 GB），语言包目录也可以用 `AIPDF_TESSDATA_PREFIX` 指定。
+
 ## 构建环境
 
 固定组合：
@@ -135,18 +136,6 @@ $env:AIPDF_MINGW_ROOT = 'C:\Qt\Tools\mingw1310_64'
 
 工具链文件在 `cmake/toolchains/qt-mingw.cmake`。vcpkg 以 `builtin-baseline` 固定版本，
 当前不引入源码构建的第三方依赖。
-
-## OCR 引擎（可选）
-
-扫描件识别优先用本机的 Tesseract；没装时退回 Windows 自带 OCR（Win10+ 无需安装）。
-
-想用 Tesseract，二选一：
-
-- 把 `tesseract.exe` 放到 PATH，或用环境变量 `AIPDF_TESSERACT_PATH` 指定；
-- 放到仓库的 `tools/tess/`（解压版放 `tesseract.exe` 同级 + `tessdata/`，
-  conda 版保持 `Library/bin` + `share/tessdata` 结构）——应用会自动找到它。
-
-`tools/tess/` 不进仓库（约 1 GB），语言包目录也可以用 `AIPDF_TESSDATA_PREFIX` 指定。
 
 ## 本地运行（Windows Debug）
 
@@ -371,11 +360,13 @@ canonical、Open Graph、Twitter 分享卡、JSON-LD、robots.txt 与 sitemap.xm
 - [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 - [隐私与许可证审计](docs/PRIVACY_AUDIT.md)
 
-本项目实行“一项主要任务对应一个软件版本”。当前开发版本为
-[`0.15.0`](docs/versions/v0.15.0.md)，只有当前版本通过验收后才进入下一版本。
+本项目实行“一项主要任务对应一个软件版本”。当前正式版本为
+[`1.0.0`](docs/versions/v1.0.0.md)（2026-11-21 发布），它把 `v0.15.0` 之后落地的
+1.1–1.11 能力整体收口为首个 Windows x64 正式版；这些能力版本不再单独发版，
+状态记为 `Delivered`，详见 [版本任务索引](docs/versions/README.md)。
 
-1.0 之后的能力路线以 [对标基线](docs/FOXIT_BENCHMARK.md) 为准：先补齐打印、批注互操作、
-表单、加密与签名，再做内容编辑，最后按 102 项评分卡收敛到 2.0。
+1.0 之后的路线仍以 [对标基线](docs/FOXIT_BENCHMARK.md) 为准：先补发布工程
+（安装器、代码签名、更新通道）与真机/性能验收，再按 102 项评分卡收敛到 2.0。
 
 ## 开发规范
 
