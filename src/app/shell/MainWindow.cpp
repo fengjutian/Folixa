@@ -2178,20 +2178,20 @@ void MainWindow::buildUi() {
     }
     const int accessibilityTab = ribbonBar_->addTab(tr("辅助工具"));
     auto* accessibilityTagGroup = ribbonBar_->addGroup(accessibilityTab, tr("标签"));
-    addRibbonCommand(accessibilityTagGroup, "自动添加文档标签",
+    addRibbonCommand(accessibilityTagGroup, "文档标签",
                      "给整篇文档写一棵语义标签树（标题 / 段落 / 列表 / 表格 / 图 / 表单域）", ":/icons/protect.svg",
                      [this] {
         if (wiringActions_ != nullptr) { wiringActions_->autoTagDocument(); }
     }, true, "accessibility.autoTagDocument");
     // 自动给表单域写标签树 + 替代文本（替换原来的禁用占位）。
-    addRibbonCommand(accessibilityTagGroup, "自动添加表单域标签",
+    addRibbonCommand(accessibilityTagGroup, "表单标签",
                      "给表单域写标签树与替代文本，让读屏软件能念出来", ":/icons/form.svg",
                      [this] {
         if (wiringActions_ != nullptr) { wiringActions_->autoTagFormFields(); }
     }, true, "accessibility.autoTagForms");
     // 一键生成 PDF/UA：推断语义角色 → 写语义树 → 补元数据 → 对产物重跑检查器。
     // 界面上必须写清楚「不是合规认证」——正式认证要 veraPDF。
-    addRibbonCommand(accessibilityTagGroup, "生成 PDF/UA 文件",
+    addRibbonCommand(accessibilityTagGroup, "生成 PDF/UA",
                      "按语义标签树生成一份 PDF/UA 文件（这是本项目检查器的判定，不是合规认证）",
                      ":/icons/protect.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->generateUaPdf(); }
@@ -2203,7 +2203,7 @@ void MainWindow::buildUi() {
         if (auto* view = currentView()) view->showAccessibilityCheck();
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "accessibility.fullCheck");
-    addRibbonCommand(accessibilityCheckGroup, "辅助功能报告",
+    addRibbonCommand(accessibilityCheckGroup, "检查报告",
                      "把辅助功能检查结果保存为 HTML", ":/icons/annotation.svg", [this] {
         if (auto* view = currentView()) view->exportAccessibilityReport();
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
@@ -2232,7 +2232,7 @@ void MainWindow::buildUi() {
                      "核对当前页文字的逻辑顺序", ":/icons/pages.svg",
                      showReadingOrder, true, "accessibility.readingOrder");
     // 读取文档里既有的标签树（别的工具写出来的树也认）。
-    addRibbonCommand(accessibilityReadingGroup, "读取标签树",
+    addRibbonCommand(accessibilityReadingGroup, "标签树",
                      "读出文档里的标签树（标签、页码、层级、替代文本与语言）",
                      ":/icons/pages.svg", [this] {
         if (wiringActions_ != nullptr) { wiringActions_->structTree(); }
@@ -2240,19 +2240,19 @@ void MainWindow::buildUi() {
     addRibbonCommand(accessibilityReadingGroup, "替代文本",
                      "给选中的批注写一句给读屏软件念的说明", ":/icons/edit.svg",
                      [this] { setSelectedAnnotationAltText(); }, true, "accessibility.alternativeText");
-    addRibbonCommand(accessibilityReadingGroup, "区域阅读顺序",
+    addRibbonCommand(accessibilityReadingGroup, "区域顺序",
                      "查看文档标签树里已经写好的阅读顺序", ":/icons/pages.svg",
                      [this] {
         if (auto* view = currentView()) { view->showRegionReadingOrderDialog(); }
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "accessibility.regionReadingOrder");
-    addRibbonCommand(accessibilityReadingGroup, "更改区域顺序",
+    addRibbonCommand(accessibilityReadingGroup, "调整顺序",
                      "调整当前页各行的先后顺序并写进标签树", ":/icons/move-down.svg",
                      [this] {
         if (auto* view = currentView()) { view->changeRegionReadingOrderDialog(); }
         else statusBar()->showMessage(tr("请先打开一份 PDF。"), 3000);
     }, true, "accessibility.changeRegionOrder");
-    addRibbonCommand(accessibilityReadingGroup, "应用区域顺序",
+    addRibbonCommand(accessibilityReadingGroup, "应用顺序",
                      "按视觉顺序重排选区里的语义元素，选区外的内容不变", ":/icons/save.svg",
                      [this] {
         if (auto* view = currentView()) { view->applyRegionReadingOrder(); }

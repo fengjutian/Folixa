@@ -140,13 +140,13 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     frame->setAccessibleName(title);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
-    groupLayout->setContentsMargins(7, 0, 7, 0);
+    groupLayout->setContentsMargins(5, 0, 5, 0);
     groupLayout->setSpacing(0);
 
     auto* content = new QWidget(frame);
     auto* contentLayout = new QHBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(4);
+    contentLayout->setSpacing(2);
     groupLayout->addWidget(content, 1);
 
     // 插到弹簧之前。

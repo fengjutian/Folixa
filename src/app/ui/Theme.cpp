@@ -232,19 +232,21 @@ QTabBar::close-button { image: url(:/icons/close.svg); subcontrol-position: righ
 QTabBar::close-button:hover { background: #E4EAF5; }
 /* 主文档标签比通用页签更像一条轻量工作区，不画厚重的“选项卡盒子”。 */
 QTabBar#documentTabBar {
-    background: #F7F7F8; border-bottom: 1px solid #E4E4E7;
+    background: #FFFFFF; border-bottom: 1px solid #E8E8EB;
 }
 QTabBar#documentTabBar::tab {
     min-height: 32px; max-height: 32px; min-width: 200px; max-width: 320px;
-    margin: 4px 2px 3px 2px; padding: 0 12px; border: 1px solid transparent;
-    border-radius: 6px; background: transparent; color: #52525B;
+    margin: 4px 2px 0 2px; padding: 0 12px; border: 1px solid transparent;
+    border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+    background: #FFFFFF; color: #52525B;
     font-family: "Microsoft YaHei UI"; font-size: 12px; font-weight: 400;
 }
 QTabBar#documentTabBar::tab:selected {
-    color: #242424; background: #FFFFFF; border-color: #D9D9DE; font-weight: 600;
+    color: #242424; background: #FFFFFF; border-color: transparent;
+    border-bottom-color: #4169C1; font-weight: 600;
 }
 QTabBar#documentTabBar::tab:hover:!selected {
-    color: #3159B8; background: #ECECF0;
+    color: #3159B8; background: #F7F9FC;
 }
 QTabBar#documentTabBar::close-button {
     margin-left: 8px; padding: 3px; border-radius: 4px;
