@@ -8,6 +8,8 @@
 #include <QApplication>
 #include <QDialog>
 #include <QEvent>
+#include <QVBoxLayout>
+#include <QLabel>
 #include <QTest>
 #include <QTimer>
 
@@ -22,6 +24,7 @@ private slots:
     void scrimFollowsParentResize();
     void scrimIgnoresMouseEvents();
     void execWithScrimCleansUpAfterTheDialog();
+    void execWithScrimCentersFinalLayoutSize();
 };
 
 void ModalScrimTests::scrimCoversTheWholeParent() {
@@ -73,6 +76,32 @@ void ModalScrimTests::execWithScrimCleansUpAfterTheDialog() {
     // 蒙层是 deleteLater 收的：把延迟删除事件跑完再查。
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(window.findChildren<ModalScrim*>().isEmpty());
+}
+
+void ModalScrimTests::execWithScrimCentersFinalLayoutSize() {
+    QWidget window;
+    window.setAttribute(Qt::WA_DontShowOnScreen, true);
+    window.setGeometry(100, 80, 1000, 720);
+    window.show();
+
+    QDialog dialog(&window);
+    dialog.setAttribute(Qt::WA_DontShowOnScreen, true);
+    dialog.resize(300, 200);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* content = new QLabel(QStringLiteral("large settings content"), &dialog);
+    content->setMinimumSize(680, 500);
+    layout->addWidget(content);
+
+    QRect shownGeometry;
+    QTimer::singleShot(0, &dialog, [&dialog, &shownGeometry] {
+        shownGeometry = dialog.geometry();
+        dialog.accept();
+    });
+    execWithScrim(dialog, &window);
+
+    const QPoint expectedCenter = QRect(window.mapToGlobal(QPoint(0, 0)), window.size()).center();
+    QVERIFY(qAbs(shownGeometry.center().x() - expectedCenter.x()) <= 2);
+    QVERIFY(qAbs(shownGeometry.center().y() - expectedCenter.y()) <= 2);
 }
 
 QTEST_MAIN(ModalScrimTests)

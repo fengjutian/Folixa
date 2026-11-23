@@ -1,8 +1,6 @@
 #include "app/panels/AiPanel.h"
 
-#include "app/dialogs/AiSettingsDialog.h"
 #include "app/controllers/DocumentQaController.h"
-#include "app/ui/ModalScrim.h"
 #include "app/controllers/IndexController.h"
 #include "app/ui/Language.h"
 #include "app/controllers/LastWaveBridge.h"
@@ -11,7 +9,6 @@
 #include "app/dialogs/UploadPreviewDialog.h"
 #include "ai/settings/AuditLog.h"
 #include "ai/chat/ChatTypes.h"
-#include "ai/settings/CredentialStore.h"
 #include "doc/index/OfflineQa.h"
 #include "ai/settings/ProviderConfig.h"
 #include "ai/provider/ProviderFactory.h"
@@ -32,7 +29,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollBar>
@@ -109,10 +105,6 @@ void AiPanel::buildUi() {
 
     providerLabel_ = new QLabel(tr("AI 服务：正在启动"), this);
     providerLabel_->setObjectName(QStringLiteral("aiProviderLabel"));
-    settingsButton_ = new QPushButton(QString(), this);
-    settingsButton_->setObjectName(QStringLiteral("aiSettingsButton"));
-    texts_.bind([this] { settingsButton_->setText(tr("设置")); });
-    texts_.bind([this] { settingsButton_->setToolTip(tr("设置服务商与 API 密钥")); });
     newChatButton_ = new QPushButton(QString(), this);
     newChatButton_->setObjectName(QStringLiteral("aiNewChatButton"));
     texts_.bind([this] { newChatButton_->setText(tr("新对话")); });
@@ -121,7 +113,6 @@ void AiPanel::buildUi() {
     titleRow->addWidget(title);
     titleRow->addStretch(1);
     titleRow->addWidget(newChatButton_);
-    titleRow->addWidget(settingsButton_);
     headerLayout->addLayout(titleRow);
     headerLayout->addWidget(subtitle);
     providerLabel_->setWordWrap(true);
@@ -293,7 +284,6 @@ void AiPanel::buildUi() {
         requestAsk(prompt_->text());
     });
     connect(cancelButton_, &QPushButton::clicked, this, &AiPanel::cancelRequest);
-    connect(settingsButton_, &QPushButton::clicked, this, &AiPanel::openSettings);
     connect(newChatButton_, &QPushButton::clicked, this, &AiPanel::startNewConversation);
     connect(prompt_, &QLineEdit::returnPressed, this, [this]() {
         requestAsk(prompt_->text());
@@ -1041,72 +1031,6 @@ void AiPanel::startNewConversation() {
     // 欢迎内容由常驻文案绑定生成；这样切换语言后仍只有一套文案来源。
     retranslateUi();
     focusPrompt();
-}
-
-void AiPanel::openSettings() {
-    const ai::ProviderConfig current = ai::ProviderConfig::load();
-
-    AiSettingsDialog dialog(this);
-    dialog.applyConfig(current.providerId,
-                       current.baseUrl,
-                       current.model,
-                       current.hasCredential(),
-                       current.inputPricePerMillion,
-                       current.outputPricePerMillion,
-                       current.timeoutMs,
-                       current.dataMode);
-    // 带蒙层显示：弹窗之外的内容压暗。
-    if (aipdf::app::execWithScrim(dialog, this) != QDialog::Accepted) {
-        return;
-    }
-
-    ai::ProviderConfig updated = current;
-    updated.providerId = dialog.providerId();
-    updated.baseUrl = dialog.baseUrl();
-    updated.model = dialog.model();
-    updated.inputPricePerMillion = dialog.inputPricePerMillion();
-    updated.outputPricePerMillion = dialog.outputPricePerMillion();
-    updated.timeoutMs = dialog.timeoutMs();
-    // 数据策略：未知值在这里就被归一成 local（dataModeFromId 的兜底）。
-    updated.dataMode = ai::dataModeId(ai::dataModeFromId(dialog.dataMode()));
-
-    // 密钥单独处理：只进凭据管理器，不进配置文件、不进日志。
-    const QString target =
-        ai::CredentialStore::targetNameFor(updated.providerId);
-    if (dialog.clearCredential()) {
-        QString error;
-        if (!ai::CredentialStore::remove(target, &error)) {
-            QMessageBox::warning(this, tr("删除密钥失败"), error);
-            return;
-        }
-        trace(QStringLiteral("ai credential removed provider=%1")
-                  .arg(updated.providerId));
-    }
-    const QString key = dialog.apiKey();
-    if (!key.isEmpty()) {
-        QString error;
-        if (!ai::CredentialStore::store(target, key, &error)) {
-            QMessageBox::warning(this, tr("保存密钥失败"), error);
-            return;
-        }
-        trace(QStringLiteral("ai credential stored provider=%1")
-                  .arg(updated.providerId));
-    }
-
-    if (!updated.save()) {
-        QMessageBox::warning(
-            this,
-            tr("保存设置失败"),
-            tr("配置文件写不进去，检查 %1 是否可写。")
-                .arg(ai::ProviderConfig::configFilePath()));
-        return;
-    }
-
-    // 设置变了：Worker 下次建 Provider 时会重新读配置与凭据，
-    // 这里立刻把新的服务商状态拉回来显示。
-    refreshProviderStatus();
-    appendMessage(tr("<div class='scope'>▸ 已更新 AI 服务设置：%1</div>")
-                      .arg(ai::providerDisplayName(updated.providerId).toHtmlEscaped()));
 }
 
 void AiPanel::reloadProviderSettings() {

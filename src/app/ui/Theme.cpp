@@ -514,11 +514,11 @@ QLabel#aiSectionLabel { color: #344156; font-size: 12px; font-weight: 650; }
 QLabel#aiScopeLabel, QLabel#aiUsageLabel, QLabel#aiCitationStatus {
     color: #7C8799; font-size: 11px;
 }
-QPushButton#aiSettingsButton, QPushButton#aiNewChatButton {
+QPushButton#aiNewChatButton {
     min-height: 28px; padding: 0 9px; border: 1px solid transparent;
     border-radius: 6px; background: transparent; color: #596579;
 }
-QPushButton#aiSettingsButton:hover, QPushButton#aiNewChatButton:hover { background: #EEF3FC; color: #3159B8; border-color: #CAD7EA; }
+QPushButton#aiNewChatButton:hover { background: #EEF3FC; color: #3159B8; border-color: #CAD7EA; }
 QPushButton#aiScopePageButton, QPushButton#aiScopeDocumentButton {
     min-height: 32px; padding: 0 12px; border-radius: 6px;
     background: #F5F6F8; border: 1px solid #E1E4EA; color: #596579;

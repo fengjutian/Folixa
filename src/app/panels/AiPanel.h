@@ -98,8 +98,6 @@ public:
     // 取消当前这次生成。
     void cancelRequest();
 
-    // 打开「AI 服务设置」：选服务商、填地址与模型、存 API 密钥。
-    void openSettings();
     // 全局设置页保存后重新读取服务商状态。
     void reloadProviderSettings();
 
@@ -202,7 +200,6 @@ private:
     QPushButton* summaryButton_ = nullptr;
     QPushButton* explainButton_ = nullptr;
     QPushButton* translateButton_ = nullptr;
-    QPushButton* settingsButton_ = nullptr;
     QPushButton* newChatButton_ = nullptr;
     QPushButton* scopePageButton_ = nullptr;
     QPushButton* scopeDocumentButton_ = nullptr;

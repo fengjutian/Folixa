@@ -2,8 +2,10 @@
 
 #include <QDialog>
 #include <QEvent>
+#include <QLayout>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QScreen>
 
 namespace aipdf::app {
 
@@ -14,6 +16,36 @@ namespace {
 // 深色主题下同样的黑会更沉一些，这是对的：
 // 暗色界面本来已经暗，再压一层反而更聚焦于弹窗。
 constexpr int kScrimAlpha = 120;
+constexpr int kDialogScreenMargin = 16;
+
+void centerDialogAfterLayout(QDialog& dialog, QWidget* window) {
+    dialog.ensurePolished();
+    if (QLayout* layout = dialog.layout()) {
+        layout->activate();
+    }
+
+    // 先用布局的最终需求修正尺寸，再定位。否则窗口管理器会按旧尺寸居中，
+    // show 时布局又把窗口撑大，最终只能被系统夹到屏幕顶边。
+    QSize finalSize = dialog.size().expandedTo(dialog.minimumSizeHint());
+    if (dialog.sizeHint().isValid()) {
+        finalSize = finalSize.expandedTo(dialog.sizeHint());
+    }
+    dialog.resize(finalSize);
+
+    const QRect parentRect(window->mapToGlobal(QPoint(0, 0)), window->size());
+    QRect available = window->screen() != nullptr
+                          ? window->screen()->availableGeometry()
+                          : parentRect;
+    available.adjust(kDialogScreenMargin, kDialogScreenMargin,
+                     -kDialogScreenMargin, -kDialogScreenMargin);
+
+    QPoint topLeft = parentRect.center() - QPoint(dialog.width() / 2, dialog.height() / 2);
+    topLeft.setX(qBound(available.left(), topLeft.x(),
+                        qMax(available.left(), available.right() - dialog.width() + 1)));
+    topLeft.setY(qBound(available.top(), topLeft.y(),
+                        qMax(available.top(), available.bottom() - dialog.height() + 1)));
+    dialog.move(topLeft);
+}
 
 }  // namespace
 
@@ -79,6 +111,7 @@ int execWithScrim(QDialog& dialog, QWidget* parent) {
     }
     auto* scrim = new ModalScrim(window);
     scrim->show();
+    centerDialogAfterLayout(dialog, window);
     const int result = dialog.exec();
     scrim->hide();
     scrim->deleteLater();
