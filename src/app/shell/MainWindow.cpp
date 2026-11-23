@@ -368,6 +368,16 @@ void MainWindow::buildUi() {
     tabs->tabBar()->setUsesScrollButtons(true);
     tabs->tabBar()->setFont(QApplication::font());
     tabs->tabBar()->setFixedHeight(38);
+    // Windows 原生样式会用 Button 调色板填充标签右侧的空白，某些主题下会变成
+    // 一整块深灰。给标签容器与标签条显式使用应用表面色，避免 QSS 只覆盖标签本身。
+    QPalette tabPalette = tabs->palette();
+    const QColor tabSurface = theme::surfaceColor();
+    tabPalette.setColor(QPalette::Window, tabSurface);
+    tabPalette.setColor(QPalette::Base, tabSurface);
+    tabPalette.setColor(QPalette::Button, tabSurface);
+    tabs->setPalette(tabPalette);
+    tabs->tabBar()->setPalette(tabPalette);
+    tabs->tabBar()->setAutoFillBackground(true);
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();

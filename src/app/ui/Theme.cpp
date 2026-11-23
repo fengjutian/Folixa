@@ -144,9 +144,19 @@ QTabBar#ribbonTabs::tab:selected { color: #24499D; font-weight: 600; }
 QStackedWidget#ribbonPages { background: #FFFFFF; }
 /* 滚动区的 viewport 会按窗口底色自绘，必须一起点成白色，否则 Ribbon 下半截发灰。 */
 QScrollArea#ribbonPageScroll,
-QScrollArea#ribbonPageScroll > QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
-QScrollArea#ribbonPageScroll QScrollBar:horizontal { height: 6px; margin: 0; background: #F5F7FA; }
-QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal { background: #D5DCE8; border-radius: 3px; min-width: 40px; }
+QScrollArea#ribbonPageScroll QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
+/* Ribbon 溢出滚动条：不画常驻轨道，只保留一条低对比度细滑块。 */
+QScrollArea#ribbonPageScroll QScrollBar:horizontal {
+    height: 4px; margin: 0 10px; border: 0; background: transparent;
+}
+QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal {
+    min-width: 48px; border: 0; border-radius: 2px; background: #CBD2DE;
+}
+QScrollArea#ribbonPageScroll QScrollBar::handle:horizontal:hover { background: #8792A3; }
+QScrollArea#ribbonPageScroll QScrollBar::add-line:horizontal,
+QScrollArea#ribbonPageScroll QScrollBar::sub-line:horizontal { width: 0; background: transparent; }
+QScrollArea#ribbonPageScroll QScrollBar::add-page:horizontal,
+QScrollArea#ribbonPageScroll QScrollBar::sub-page:horizontal { background: transparent; }
 QFrame#ribbonGroup { border: 0; border-right: 1px solid #E8EBF0; background: transparent; }
 QLabel#ribbonGroupTitle { color: #98A2B3; font-size: 10px; font-weight: 400; padding-top: 2px; }
 QToolButton[ribbonCommand="true"] {
@@ -208,6 +218,7 @@ QToolBar#documentToolBar QToolButton:disabled, QToolBar#annotationToolBar QToolB
 
 /* -------------------------------------------------------------- 标签页 -- */
 QTabWidget::pane { border: 0; background: #F3F4F6; }
+QTabWidget#documentTabs { background: #FFFFFF; }
 QTabBar { background: #FFFFFF; }
 QTabBar::tab {
     min-height: 30px; margin: 5px 2px 0 2px; padding: 0 16px;
