@@ -549,7 +549,8 @@ void MainWindow::buildUi() {
             view->startPresentation();
         }
     });
-    menuBar()->hide();
+    menuBar()->setObjectName(QStringLiteral("mainMenuBar"));
+    menuBar()->show();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
     // 命令对象仍保留，用于承载既有 QAction、菜单和快捷键；可视入口已经收进
@@ -992,8 +993,9 @@ void MainWindow::buildUi() {
     // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
     // Ribbon 放进顶部 Dock：不动中央 QTabWidget，避免换中央控件时的生命周期问题。
     ribbonBar_ = new RibbonBar(this);
-    // 标签条 32 + 命令按钮 54 + 页面上下留白 4；不再为分组标题预留一行。
-    ribbonBar_->setFixedHeight(90);
+    // 标签条 32 + 命令按钮 54 + 页面上下留白 4 + 溢出滚动条 4；
+    // 不再为分组标题预留一行。
+    ribbonBar_->setFixedHeight(94);
     ribbonDock_ = new QDockWidget(QString(), this);
     ribbonDock_->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -2469,6 +2471,22 @@ void MainWindow::buildUi() {
                              tr("保护"), tr("电子签章"), tr("共享"), tr("辅助工具"),
                              tr("论文工具"), tr("文档管理"), tr("录制"), tr("帮助"),
                              tr("AI 助手")});
+    // Menu Bar 与 Ribbon 并存：文件、视图沿用已有的完整菜单，其余分类从
+    // Ribbon 自动投影，确保两种入口触发同一套命令与启用状态。
+    menuBar()->removeAction(viewMenu->menuAction());
+    ribbonBar_->appendMenusTo(menuBar(), {tr("文件"), tr("视图")});
+    QAction* formMenuAction = nullptr;
+    for (QAction* action : menuBar()->actions()) {
+        if (RibbonBar::stripMnemonics(action->text()) == tr("表单")) {
+            formMenuAction = action;
+            break;
+        }
+    }
+    if (formMenuAction != nullptr) {
+        menuBar()->insertAction(formMenuAction, viewMenu->menuAction());
+    } else {
+        menuBar()->addAction(viewMenu->menuAction());
+    }
 
 
     navigationDock_ = new QDockWidget(QString(), this);

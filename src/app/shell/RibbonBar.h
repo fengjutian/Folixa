@@ -8,6 +8,7 @@
 
 class QHBoxLayout;
 class QLabel;
+class QMenuBar;
 class QStackedWidget;
 class QTabBar;
 class QToolButton;
@@ -77,6 +78,9 @@ public:
     void setCompactMode(bool compact);
     // 按标题重排标签与对应内容页；未列出的标签保持在末尾。
     void setTabOrder(const QStringList& titles);
+    // 把 Ribbon 命令投影为下拉菜单；命令仍由原按钮执行，不复制业务接线。
+    // skippedTitles 用于保留主窗口已有的、更完整的菜单（例如“文件”“视图”）。
+    void appendMenusTo(QMenuBar* menuBar, const QStringList& skippedTitles = {});
 
     // Ribbon 的内容宽度由所有标签页里最宽的一页决定；如果直接把它当最小宽度，
     // 主窗口会被撑得比屏幕还宽，PDF 画布也跟着被挤到屏幕外。

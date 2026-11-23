@@ -90,6 +90,7 @@ private slots:
     void ribbonFitsAtStandardSize();
     void ribbonFitsAtMinimumSize();
     void tabOrderKeepsContentAttached();
+    void compactModeRestoresEnoughCommandHeight();
 
 private:
     void verifySize(const QSize& requested, const QString& name);
@@ -210,6 +211,15 @@ void RibbonLayoutTests::tabOrderKeepsContentAttached() {
         QVERIFY(button->parentWidget() != nullptr);
         QVERIFY(button->parentWidget()->parentWidget() != nullptr);
     }
+}
+
+void RibbonLayoutTests::compactModeRestoresEnoughCommandHeight() {
+    RibbonBar ribbon;
+    ribbon.addTab(QStringLiteral("视图"));
+    ribbon.setCompactMode(true);
+    QCOMPARE(ribbon.height(), 32);
+    ribbon.setCompactMode(false);
+    QCOMPARE(ribbon.height(), 94);
 }
 
 QTEST_MAIN(RibbonLayoutTests)

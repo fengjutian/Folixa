@@ -74,11 +74,15 @@ QWidget {
 QAbstractItemView, QPushButton, QToolButton, QCheckBox, QRadioButton,
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QSlider { outline: 0; }
 QMainWindow, QDialog { background: #F3F4F6; }
-QMenuBar { background: #FFFFFF; border-bottom: 1px solid #E6EAF2; padding: 2px 8px; }
-QMenuBar::item { padding: 6px 10px; border-radius: 6px; }
+QMenuBar#mainMenuBar {
+    min-height: 30px; max-height: 30px; background: #FFFFFF;
+    border-bottom: 1px solid #E6EAF2; padding: 0 8px;
+}
+QMenuBar#mainMenuBar::item { padding: 5px 9px; margin: 1px 0; border-radius: 4px; }
 QMenuBar::item:selected, QMenu::item:selected { background: #F1F4FF; color: #3555B7; }
-QMenu { background: #FFFFFF; border: 1px solid #E3E7EE; padding: 6px; }
-QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
+QMenu { background: #FFFFFF; border: 1px solid #D9DEE8; padding: 5px; }
+QMenu::item { min-height: 24px; padding: 5px 30px 5px 10px; border-radius: 4px; }
+QMenu::separator { height: 1px; background: #E8EBF0; margin: 5px 8px; }
 
 /* ---------------------------------------------------------- 顶部命令栏 -- */
 QToolBar#commandBar {

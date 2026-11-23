@@ -2,6 +2,10 @@
 #include "app/ui/Theme.h"
 
 #include <QHBoxLayout>
+#include <QAction>
+#include <QFrame>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPainter>
 #include <QSizePolicy>
 #include <QScrollArea>
@@ -336,7 +340,9 @@ void RibbonBar::setCompactMode(bool compact) {
     }
     compactMode_ = compact;
     pages_->setVisible(!compact);
-    setFixedHeight(compact ? tabs_->height() : 90);
+    // 32px 标签栏 + 54px 命令按钮 + 4px 页面留白 + 4px 溢出滚动条。
+    // 少算滚动条会把按钮文字底部裁掉。
+    setFixedHeight(compact ? tabs_->height() : 94);
     updateGeometry();
 }
 
@@ -363,6 +369,51 @@ void RibbonBar::setTabOrder(const QStringList& titles) {
         pages_->insertWidget(target, container);
     }
     pages_->setCurrentIndex(tabs_->currentIndex());
+}
+
+void RibbonBar::appendMenusTo(QMenuBar* menuBar, const QStringList& skippedTitles) {
+    if (menuBar == nullptr) {
+        return;
+    }
+    for (int tabIndex = 0; tabIndex < tabs_->count(); ++tabIndex) {
+        const QString title = stripMnemonics(tabs_->tabText(tabIndex));
+        if (skippedTitles.contains(title)) {
+            continue;
+        }
+        auto* menu = menuBar->addMenu(title);
+        menu->setObjectName(QStringLiteral("ribbonMenu.%1").arg(tabIndex));
+        const QHBoxLayout* pageLayout = pageLayouts_.at(tabIndex);
+        bool haveCommands = false;
+        for (int itemIndex = 0; itemIndex < pageLayout->count(); ++itemIndex) {
+            auto* frame = qobject_cast<QFrame*>(pageLayout->itemAt(itemIndex)->widget());
+            if (frame == nullptr || !frame->property("ribbonGroup").toBool()) {
+                continue;
+            }
+            const QList<QToolButton*> buttons = frame->findChildren<QToolButton*>();
+            if (buttons.isEmpty()) {
+                continue;
+            }
+            if (haveCommands) {
+                menu->addSeparator();
+            }
+            for (QToolButton* button : buttons) {
+                auto* action = menu->addAction(button->icon(), stripMnemonics(button->text()));
+                action->setObjectName(button->objectName() + QStringLiteral(".menu"));
+                action->setToolTip(button->toolTip());
+                action->setStatusTip(button->toolTip());
+                action->setCheckable(button->isCheckable());
+                action->setChecked(button->isChecked());
+                action->setEnabled(button->isEnabled());
+                connect(action, &QAction::triggered, button, &QToolButton::click);
+                connect(menu, &QMenu::aboutToShow, action, [action, button] {
+                    action->setText(stripMnemonics(button->text()));
+                    action->setEnabled(button->isEnabled());
+                    action->setChecked(button->isChecked());
+                });
+            }
+            haveCommands = true;
+        }
+    }
 }
 
 }  // namespace aipdf::app
