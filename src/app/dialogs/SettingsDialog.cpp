@@ -127,6 +127,11 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     const int themeIndex = theme_->findData(currentTheme);
     theme_->setCurrentIndex(themeIndex >= 0 ? themeIndex : 0);
     appearanceForm->addRow(tr("主题"), theme_);
+    menuBarVisible_ = new QCheckBox(tr("显示菜单栏（与 Ribbon 同时显示）"), appearanceCard);
+    menuBarVisible_->setObjectName(QStringLiteral("settingsMenuBarVisible"));
+    menuBarVisible_->setChecked(
+        settings.value(QStringLiteral("appearance/menuBarVisible"), false).toBool());
+    appearanceForm->addRow(tr("界面模式"), menuBarVisible_);
     fontFamily_ = new QFontComboBox(appearanceCard);
     fontFamily_->setObjectName(QStringLiteral("settingsFontFamily"));
     fontFamily_->setCurrentFont(qApp->font());
@@ -255,5 +260,6 @@ QString SettingsDialog::languagePreference() const { return language_->currentDa
 QString SettingsDialog::selectedTheme() const { return theme_->currentData().toString(); }
 bool SettingsDialog::navigationVisibleOnStartup() const { return navigationVisible_->isChecked(); }
 bool SettingsDialog::aiVisibleOnStartup() const { return aiVisible_->isChecked(); }
+bool SettingsDialog::menuBarVisible() const { return menuBarVisible_->isChecked(); }
 
 }  // namespace aipdf::app

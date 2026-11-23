@@ -22,6 +22,7 @@ public:
     QString languagePreference() const;
     bool navigationVisibleOnStartup() const;
     bool aiVisibleOnStartup() const;
+    bool menuBarVisible() const;
     // 主题（light / dark / system）。
     QString selectedTheme() const;
 
@@ -38,6 +39,7 @@ private:
     QComboBox* theme_ = nullptr;
     QCheckBox* navigationVisible_ = nullptr;
     QCheckBox* aiVisible_ = nullptr;
+    QCheckBox* menuBarVisible_ = nullptr;
     QFontComboBox* fontFamily_ = nullptr;
     QSpinBox* fontSize_ = nullptr;
     QLabel* fontPreview_ = nullptr;

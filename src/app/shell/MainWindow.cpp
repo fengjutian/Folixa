@@ -379,6 +379,8 @@ void MainWindow::buildUi() {
     tabPalette.setColor(QPalette::Button, tabSurface);
     tabs->setPalette(tabPalette);
     tabs->tabBar()->setPalette(tabPalette);
+    tabs->setAttribute(Qt::WA_StyledBackground, true);
+    tabs->setAutoFillBackground(true);
     tabs->tabBar()->setAutoFillBackground(true);
     // QTabBar 不扩展时，标签右侧由 QTabWidget 的原生布局绘制，不属于 tabBar，
     // Windows 样式会在那里露出 Button 灰色。用一个可伸展角落控件明确铺成白色。
@@ -550,7 +552,10 @@ void MainWindow::buildUi() {
         }
     });
     menuBar()->setObjectName(QStringLiteral("mainMenuBar"));
-    menuBar()->show();
+    // Ribbon 是默认界面。Menu Bar 是给偏好传统桌面菜单的用户提供的可选入口；
+    // 不能无条件 show，否则顶部会多占一行，菜单溢出时右上角还会露出裁切按钮。
+    menuBar()->setVisible(
+        QSettings().value(QStringLiteral("appearance/menuBarVisible"), false).toBool());
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
     // 命令对象仍保留，用于承载既有 QAction、菜单和快捷键；可视入口已经收进
@@ -3109,9 +3114,12 @@ void MainWindow::buildUi() {
         settings.setValue(QStringLiteral("appearance/theme"), selectedTheme);
         settings.setValue(QStringLiteral("appearance/fontFamily"), selected.family());
         settings.setValue(QStringLiteral("appearance/fontPointSize"), selected.pointSize());
+        settings.setValue(QStringLiteral("appearance/menuBarVisible"),
+                          dialog.menuBarVisible());
         settings.setValue(QStringLiteral("workspace/navigationVisible"),
                           dialog.navigationVisibleOnStartup());
         settings.setValue(QStringLiteral("workspace/aiVisible"), dialog.aiVisibleOnStartup());
+        menuBar()->setVisible(dialog.menuBarVisible());
         i18n::LanguageManager::instance().setPreference(dialog.languagePreference());
 
         navigationUserVisible_ = dialog.navigationVisibleOnStartup();

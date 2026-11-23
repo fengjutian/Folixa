@@ -222,6 +222,9 @@ QToolBar#documentToolBar QToolButton:disabled, QToolBar#annotationToolBar QToolB
 /* -------------------------------------------------------------- 标签页 -- */
 QTabWidget::pane { border: 0; background: #F3F4F6; }
 QTabWidget#documentTabs { background: #FFFFFF; }
+/* 文档页签右侧的空白属于 QTabWidget/pane，不属于 QTabBar。
+   单独覆盖它，避免 Windows 原生样式用 Button 色刷成灰条。 */
+QTabWidget#documentTabs::pane { border: 0; background: #FFFFFF; }
 QWidget#documentTabStripFill { background: #FFFFFF; border-bottom: 1px solid #E8E8EB; }
 QTabBar { background: #FFFFFF; }
 QTabBar::tab {
