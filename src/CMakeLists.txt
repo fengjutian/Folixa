@@ -31,6 +31,10 @@ qt_add_executable(AiPdfEditor WIN32
     i18n/Translate.h
     app/ui/Theme.cpp
     app/ui/Theme.h
+    app/ui/FluentTokens.cpp
+    app/ui/FluentTokens.h
+    app/ui/components/FluentControls.cpp
+    app/ui/components/FluentControls.h
     app/ui/ModalScrim.cpp
     app/ui/ModalScrim.h
     app/ui/ReadingScheme.cpp

@@ -342,45 +342,60 @@ QFrame#annotationActionsCard QDoubleSpinBox {
 QFrame#annotationFilterCard QLineEdit:focus,
 QFrame#annotationFilterCard QComboBox:focus,
 QFrame#annotationActionsCard QDoubleSpinBox:focus { border-color: #5277E8; background: #FFFFFF; }
-/* 批注类型选择器：去掉原生的方形箭头按钮，弹层采用舒展的菜单节奏。 */
-QComboBox[annotationTypeFilter="true"] {
+/* Fluent 基础控件：动态属性由 FluentControls 设置，颜色仍由主题集中管理。 */
+QLineEdit[fluentControl="true"],
+QComboBox[fluentControl="true"] {
+    border: 1px solid #CBD2DE; border-radius: 4px;
+    background: #FFFFFF; color: #202A3A;
+}
+QLineEdit[fluentControl="true"] { padding: 0 10px; }
+QLineEdit[fluentControl="true"]:hover,
+QComboBox[fluentControl="true"]:hover { border-color: #C4D3EA; background: #FAFBFD; }
+QLineEdit[fluentControl="true"]:focus,
+QComboBox[fluentControl="true"]:focus,
+QComboBox[fluentControl="true"]:on { border: 2px solid #5277E8; background: #FFFFFF; }
+QLineEdit[fluentControl="true"]:disabled,
+QComboBox[fluentControl="true"]:disabled {
+    background: #F7F8FA; border-color: #EEF1F6; color: #AAB2C0;
+}
+QComboBox[fluentControl="true"] {
     padding: 0 34px 0 11px; font-weight: 600; selection-background-color: transparent;
 }
-QComboBox[annotationTypeFilter="true"]:hover {
+QComboBox[fluentControl="true"]:hover {
     border-color: #C4D3EA; background: #FFFFFF; color: #3159B8;
 }
-QComboBox[annotationTypeFilter="true"]:on {
+QComboBox[fluentControl="true"]:on {
     border-color: #5277E8; background: #FFFFFF; color: #24499D;
 }
-QComboBox[annotationTypeFilter="true"]::drop-down {
+QComboBox[fluentControl="true"]::drop-down {
     subcontrol-origin: padding; subcontrol-position: top right;
     width: 30px; border: 0; background: transparent;
 }
-QComboBox[annotationTypeFilter="true"]::down-arrow {
+QComboBox[fluentControl="true"]::down-arrow {
     image: url(:/icons/chevron-down.svg); width: 16px; height: 16px;
 }
-QListView#annotationTypePopup {
+QListView[fluentPopup="true"] {
     min-width: 196px; background: #FFFFFF; color: #465267;
     border: 1px solid #D9E1EC; border-radius: 10px; padding: 6px;
     selection-background-color: #E9F0FB; selection-color: #24499D;
 }
-QListView#annotationTypePopup::item {
+QListView[fluentPopup="true"]::item {
     min-height: 30px; padding: 0 10px; margin: 1px 0; border-radius: 6px;
 }
-QListView#annotationTypePopup::item:hover {
+QListView[fluentPopup="true"]::item:hover {
     background: #F1F4FF; color: #3159B8;
 }
-QListView#annotationTypePopup::item:selected {
+QListView[fluentPopup="true"]::item:selected {
     background: #E9F0FB; color: #24499D; font-weight: 600;
 }
-QListView#annotationTypePopup QScrollBar:vertical {
+QListView[fluentPopup="true"] QScrollBar:vertical {
     width: 8px; margin: 7px 2px 7px 0; background: transparent;
 }
-QListView#annotationTypePopup QScrollBar::handle:vertical {
+QListView[fluentPopup="true"] QScrollBar::handle:vertical {
     min-height: 28px; border-radius: 3px; background: #C8D1DF;
 }
-QListView#annotationTypePopup QScrollBar::add-line:vertical,
-QListView#annotationTypePopup QScrollBar::sub-line:vertical { height: 0; }
+QListView[fluentPopup="true"] QScrollBar::add-line:vertical,
+QListView[fluentPopup="true"] QScrollBar::sub-line:vertical { height: 0; }
 QFrame#annotationFilterCard QPushButton,
 QFrame#annotationActionsCard QPushButton {
     min-height: 31px; border-radius: 7px; background: #F8F9FB;
@@ -390,6 +405,34 @@ QFrame#annotationFilterCard QPushButton:hover,
 QFrame#annotationActionsCard QPushButton:hover {
     background: #EEF3FC; border-color: #C4D3EA; color: #3159B8;
 }
+QPushButton[fluentControl="true"] {
+    padding: 0 12px; border: 1px solid #CBD2DE; border-radius: 4px;
+    background: #FFFFFF; color: #202A3A; font-weight: 600;
+}
+QPushButton[fluentControl="true"]:hover {
+    background: #F5F8FD; border-color: #C3D0F3;
+}
+QPushButton[fluentControl="true"]:pressed {
+    background: #E9F0FB; border-color: #9FB4EF;
+}
+QPushButton[fluentControl="true"]:focus { border: 2px solid #5277E8; }
+QPushButton[fluentControl="true"]:disabled {
+    background: #F7F8FA; border-color: #EEF1F6; color: #AAB2C0;
+}
+QPushButton[fluentAppearance="primary"],
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"] {
+    background: #4169C1; border-color: #4169C1; color: #FFFFFF;
+}
+QPushButton[fluentAppearance="primary"]:hover,
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:hover {
+    background: #365AA8; border-color: #365AA8; color: #FFFFFF;
+}
+QPushButton[fluentAppearance="primary"]:pressed,
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:pressed {
+    background: #24499D; border-color: #24499D; color: #FFFFFF;
+}
+QPushButton[fluentAppearance="subtle"] { background: transparent; border-color: transparent; }
+QPushButton[fluentAppearance="danger"] { color: #D1434F; background: #FDECEE; }
 QPushButton#annotationApplyAppearance {
     background: #EEF3FC; border-color: #C4D3EA; color: #24499D; font-weight: 600;
 }

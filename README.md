@@ -349,6 +349,7 @@ canonical、Open Graph、Twitter 分享卡、JSON-LD、robots.txt 与 sitemap.xm
 - [福昕功能矩阵（17 个标签页截图 + 276 条命令的对齐状态）](docs/FOXIT_FEATURE_MATRIX.md)
 - [技术设计](docs/AI_PDF_EDITOR_TECHNICAL_DESIGN.md)
 - [Prism Document UI 设计规范](docs/UI_DESIGN_SYSTEM.md)
+- [Fluent 2 对齐与迁移规范](docs/FLUENT2_ALIGNMENT.md)
 - [版本与任务管理规范](docs/VERSIONING.md)
 - [版本任务索引](docs/versions/README.md)
 - [1.x 版本审计（计划 vs 代码）](docs/VERSION_AUDIT.md)

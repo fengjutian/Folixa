@@ -4,6 +4,7 @@
 #include "app/ui/ReadingScheme.h"
 #include "app/ui/Theme.h"
 #include "app/ui/AccessibilityPlan.h"
+#include "app/ui/components/FluentControls.h"
 #include "app/dialogs/AccessibilityWizard.h"
 
 #include "app/ui/Language.h"
@@ -77,7 +78,6 @@
 #include <QSlider>
 #include <QHeaderView>
 #include <QLineEdit>
-#include <QListView>
 #include <QTableWidget>
 #include <QShortcut>
 #include <QButtonGroup>
@@ -3458,9 +3458,9 @@ QWidget* MainWindow::createAnnotationTab() {
     filterLayout->setSpacing(8);
     auto* filterInputs = new QHBoxLayout();
     filterInputs->setSpacing(6);
-    annotationFilterTypeBox_ = new QComboBox(filterCard);
+    auto* annotationTypeBox = new FluentComboBox(filterCard);
+    annotationFilterTypeBox_ = annotationTypeBox;
     annotationFilterTypeBox_->setObjectName(QStringLiteral("annotationFilter.type"));
-    annotationFilterTypeBox_->setProperty("annotationTypeFilter", true);
     annotationFilterTypeBox_->addItem(tr("全部类型"), -1);
     for (pdf::AnnotationType type : {pdf::AnnotationType::Highlight, pdf::AnnotationType::Underline,
                                      pdf::AnnotationType::StrikeOut, pdf::AnnotationType::Squiggly,
@@ -3474,32 +3474,25 @@ QWidget* MainWindow::createAnnotationTab() {
         annotationFilterTypeBox_->addItem(pdf::annotationTypeName(type),
                                           static_cast<int>(type));
     }
-    // The native combo popup is cramped here (17 annotation types in a 96 px menu).
-    // Give this high-traffic filter its own roomy, scrollable menu instead of changing
-    // every combo box in the application.
-    auto* typePopup = new QListView(annotationFilterTypeBox_);
-    typePopup->setObjectName(QStringLiteral("annotationTypePopup"));
-    typePopup->setMinimumWidth(196);
-    typePopup->setUniformItemSizes(true);
-    typePopup->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    annotationFilterTypeBox_->setView(typePopup);
-    annotationFilterTypeBox_->setMaxVisibleItems(9);
+    annotationTypeBox->setPopupMinimumWidth(196);
+    annotationTypeBox->setVisibleItemLimit(9);
     annotationFilterTypeBox_->setMinimumWidth(112);
-    annotationFilterTypeBox_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     annotationFilterTypeBox_->setMinimumContentsLength(6);
     filterInputs->addWidget(annotationFilterTypeBox_);
-    annotationFilterKeywordEdit_ = new QLineEdit(filterCard);
+    annotationFilterKeywordEdit_ = new FluentLineEdit(filterCard);
     annotationFilterKeywordEdit_->setObjectName(QStringLiteral("annotationFilter.keyword"));
     annotationFilterKeywordEdit_->setPlaceholderText(tr("正文或作者"));
     filterInputs->addWidget(annotationFilterKeywordEdit_, 1);
     filterLayout->addLayout(filterInputs);
     auto* filterActions = new QHBoxLayout();
     filterActions->setSpacing(6);
-    annotationFilterApplyButton_ = new QPushButton(QString(), filterCard);
+    auto* filterApplyButton = new FluentButton(QString(), filterCard);
+    filterApplyButton->setAppearance(FluentButtonAppearance::Primary);
+    annotationFilterApplyButton_ = filterApplyButton;
     texts_.bind([this] { annotationFilterApplyButton_->setText(tr("筛选")); });
     annotationFilterApplyButton_->setObjectName(QStringLiteral("annotationFilter.apply"));
     filterActions->addWidget(annotationFilterApplyButton_);
-    annotationFilterSelectAllButton_ = new QPushButton(QString(), filterCard);
+    annotationFilterSelectAllButton_ = new FluentButton(QString(), filterCard);
     texts_.bind([this] { annotationFilterSelectAllButton_->setText(tr("全选结果")); });
     annotationFilterSelectAllButton_->setObjectName(QStringLiteral("annotationFilter.selectAll"));
     filterActions->addWidget(annotationFilterSelectAllButton_);
