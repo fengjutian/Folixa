@@ -2735,9 +2735,18 @@ void MainWindow::buildUi() {
     auto* quickCardLayout = new QVBoxLayout(aiQuickCard_);
     quickCardLayout->setContentsMargins(16, 14, 16, 16);
     quickCardLayout->setSpacing(6);
-    auto* quickCardTitle = new QLabel(QStringLiteral("✦  Folixa AI"), aiQuickCard_);
+    auto* quickTitleRow = new QHBoxLayout();
+    quickTitleRow->setContentsMargins(0, 0, 0, 0);
+    quickTitleRow->setSpacing(8);
+    auto* quickCardIcon = new QLabel(aiQuickCard_);
+    quickCardIcon->setPixmap(QIcon(QStringLiteral(":/icons/ai-assistant.svg")).pixmap(20, 20));
+    quickCardIcon->setFixedSize(20, 20);
+    auto* quickCardTitle = new QLabel(QStringLiteral("Folixa AI"), aiQuickCard_);
     quickCardTitle->setObjectName(QStringLiteral("aiQuickTitle"));
-    quickCardLayout->addWidget(quickCardTitle);
+    quickTitleRow->addWidget(quickCardIcon);
+    quickTitleRow->addWidget(quickCardTitle);
+    quickTitleRow->addStretch(1);
+    quickCardLayout->addLayout(quickTitleRow);
     // 一行上下文说明：AI 动作作用于什么、为什么现在是灰的，都写在这里。
     aiQuickSubtitle_ = new QLabel(QString(), aiQuickCard_);
     aiQuickSubtitle_->setObjectName(QStringLiteral("aiQuickSubtitle"));
@@ -2821,9 +2830,17 @@ void MainWindow::buildUi() {
     updateAiQuickActions();
     updateNavigationHeader(navigationPages_ != nullptr ? navigationPages_->currentIndex() : 0);
 
-    aiFloatingButton_ = new QPushButton(QStringLiteral("✦"), tabs_);
+    aiFloatingButton_ = new QPushButton(tabs_);
     aiFloatingButton_->setObjectName(QStringLiteral("aiFloatingButton"));
-    aiFloatingButton_->setFixedSize(44, 44);
+    aiFloatingButton_->setIcon(QIcon(QStringLiteral(":/icons/ai-assistant.svg")));
+    aiFloatingButton_->setIconSize(QSize(22, 22));
+    aiFloatingButton_->setFixedSize(40, 40);
+    aiFloatingButton_->setCursor(Qt::PointingHandCursor);
+    auto* floatingShadow = new QGraphicsDropShadowEffect(aiFloatingButton_);
+    floatingShadow->setBlurRadius(12);
+    floatingShadow->setOffset(0, 3);
+    floatingShadow->setColor(QColor(32, 42, 58, 38));
+    aiFloatingButton_->setGraphicsEffect(floatingShadow);
     texts_.bind([this] { aiFloatingButton_->setToolTip(tr("AI 快捷操作")); });
     connect(aiFloatingButton_, &QPushButton::clicked, this, [this] {
         const bool show = !aiQuickCard_->isVisible();

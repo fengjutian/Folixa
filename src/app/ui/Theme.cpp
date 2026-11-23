@@ -549,8 +549,12 @@ QPushButton#aiQuickAction[primary="true"] { color: #2E4E93; background: #EEF3FC;
 QPushButton#aiQuickAction[primary="true"]:hover { background: #E5EDF9; border-color: #B8CAE6; }
 QPushButton#aiQuickAction:hover { color: #365AA8; background: #F3F7FC; border-color: #B8CAE6; }
 QPushButton#aiQuickAction:disabled { color: #9AA3B4; background: #FAFAFD; border-color: #EEECF6; }
-QPushButton#aiFloatingButton { color: white; background: #4169C1; border: 0; border-radius: 22px; font-size: 19px; font-weight: 700; }
-QPushButton#aiFloatingButton:hover { background: #365AA8; }
+QPushButton#aiFloatingButton {
+    background: rgba(255, 255, 255, 245); border: 1px solid #D3DCEB;
+    border-radius: 10px; padding: 0;
+}
+QPushButton#aiFloatingButton:hover { background: #F2F6FC; border-color: #9FB4D7; }
+QPushButton#aiFloatingButton:pressed { background: #E5EDF9; border-color: #7F9BCB; }
 
 /* ------------------------------------------------------ 导航 / 缩略图 -- */
 QListWidget#thumbnailList { background: #F7F8FB; border: 0; padding: 10px 4px; outline: 0; }
