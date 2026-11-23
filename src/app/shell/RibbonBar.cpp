@@ -2,7 +2,6 @@
 #include "app/ui/Theme.h"
 
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QPainter>
 #include <QSizePolicy>
 #include <QScrollArea>
@@ -137,6 +136,8 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     auto* frame = new QFrame(pageWidgets_.at(tabIndex));
     frame->setObjectName(QStringLiteral("ribbonGroup"));
     frame->setProperty("ribbonGroup", true);
+    // 分组名只保留给辅助功能，不再占用一整行显示空间。
+    frame->setAccessibleName(title);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     auto* groupLayout = new QVBoxLayout(frame);
     groupLayout->setContentsMargins(7, 0, 7, 0);
@@ -147,11 +148,6 @@ QHBoxLayout* RibbonBar::addGroup(int tabIndex, const QString& title) {
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(4);
     groupLayout->addWidget(content, 1);
-
-    auto* label = new QLabel(title, frame);
-    label->setObjectName(QStringLiteral("ribbonGroupTitle"));
-    label->setAlignment(Qt::AlignHCenter);
-    groupLayout->addWidget(label);
 
     // 插到弹簧之前。
     pageLayouts_.at(tabIndex)->insertWidget(pageLayouts_.at(tabIndex)->count() - 1, frame);
@@ -340,7 +336,7 @@ void RibbonBar::setCompactMode(bool compact) {
     }
     compactMode_ = compact;
     pages_->setVisible(!compact);
-    setFixedHeight(compact ? tabs_->height() : 104);
+    setFixedHeight(compact ? tabs_->height() : 90);
     updateGeometry();
 }
 

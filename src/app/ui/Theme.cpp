@@ -158,7 +158,6 @@ QScrollArea#ribbonPageScroll QScrollBar::sub-line:horizontal { width: 0; backgro
 QScrollArea#ribbonPageScroll QScrollBar::add-page:horizontal,
 QScrollArea#ribbonPageScroll QScrollBar::sub-page:horizontal { background: transparent; }
 QFrame#ribbonGroup { border: 0; border-right: 1px solid #E8EBF0; background: transparent; }
-QLabel#ribbonGroupTitle { color: #98A2B3; font-size: 10px; font-weight: 400; padding-top: 2px; }
 QToolButton[ribbonCommand="true"] {
     min-height: 54px; padding: 2px 4px 1px 4px; border: 1px solid transparent;
     border-radius: 6px; background: transparent; color: #465267;
@@ -233,20 +232,24 @@ QTabBar::close-button { image: url(:/icons/close.svg); subcontrol-position: righ
 QTabBar::close-button:hover { background: #E4EAF5; }
 /* 主文档标签比通用页签更像一条轻量工作区，不画厚重的“选项卡盒子”。 */
 QTabBar#documentTabBar {
-    background: #FAFAFA; border-bottom: 1px solid #E0E0E0;
+    background: #F7F7F8; border-bottom: 1px solid #E4E4E7;
 }
 QTabBar#documentTabBar::tab {
-    min-height: 37px; max-height: 37px; min-width: 92px; max-width: 280px;
-    margin: 0; padding: 0 14px; border: 0; border-bottom: 2px solid transparent;
-    border-radius: 0; background: transparent; color: #616161;
+    min-height: 32px; max-height: 32px; min-width: 200px; max-width: 320px;
+    margin: 4px 2px 3px 2px; padding: 0 12px; border: 1px solid transparent;
+    border-radius: 6px; background: transparent; color: #52525B;
     font-family: "Microsoft YaHei UI"; font-size: 12px; font-weight: 400;
 }
 QTabBar#documentTabBar::tab:selected {
-    color: #242424; background: #FFFFFF; border-bottom-color: #4169C1; font-weight: 600;
+    color: #242424; background: #FFFFFF; border-color: #D9D9DE; font-weight: 600;
 }
 QTabBar#documentTabBar::tab:hover:!selected {
-    color: #3159B8; background: #F0F0F0;
+    color: #3159B8; background: #ECECF0;
 }
+QTabBar#documentTabBar::close-button {
+    margin-left: 8px; padding: 3px; border-radius: 4px;
+}
+QTabBar#documentTabBar::close-button:hover { background: #E8E8EC; }
 
 /* -------------------------------------------------------------- 面板 -- */
 QDockWidget { color: #202A3A; font-weight: 600; }

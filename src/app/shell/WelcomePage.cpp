@@ -93,9 +93,9 @@ protected:
         const QRectF box = QRectF(rect()).adjusted(1.5, 1.5, -1.5, -1.5);
         const qreal radius = 14.0;
 
-        const QColor fill = hovered_ ? QColor(0xFA, 0xF8, 0xFF) : QColor(255, 255, 255);
+        const QColor fill = hovered_ ? QColor(0xF5, 0xF8, 0xFF) : QColor(255, 255, 255);
         painter.setBrush(fill);
-        QPen border(hovered_ ? QColor(0x8B, 0x5C, 0xF6) : QColor(0xE4, 0xE4, 0xE7));
+        QPen border(hovered_ ? QColor(0x41, 0x69, 0xC1) : QColor(0xE4, 0xE4, 0xE7));
         border.setWidthF(1.0);
         painter.setPen(border);
         painter.drawRoundedRect(box, radius, radius);
@@ -103,10 +103,10 @@ protected:
         // 顶部的上传图标：浅色圆底 + 箭头。
         const QRectF badge(box.center().x() - 22, box.top() + 26, 44, 44);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(hovered_ ? QColor(0xED, 0xE9, 0xFE) : QColor(0xF5, 0xF3, 0xFF));
+        painter.setBrush(hovered_ ? QColor(0xE5, 0xED, 0xFC) : QColor(0xF0, 0xF4, 0xFC));
         painter.drawEllipse(badge);
 
-        QPen arrow(hovered_ ? QColor(0x6D, 0x28, 0xD9) : QColor(0x7C, 0x3A, 0xED));
+        QPen arrow(hovered_ ? QColor(0x31, 0x59, 0xB8) : QColor(0x41, 0x69, 0xC1));
         arrow.setWidthF(2.0);
         arrow.setCapStyle(Qt::RoundCap);
         arrow.setJoinStyle(Qt::RoundJoin);

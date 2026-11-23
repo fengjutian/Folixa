@@ -366,8 +366,10 @@ void MainWindow::buildUi() {
     tabs->tabBar()->setObjectName(QStringLiteral("documentTabBar"));
     tabs->tabBar()->setElideMode(Qt::ElideMiddle);
     tabs->tabBar()->setUsesScrollButtons(true);
+    tabs->tabBar()->setExpanding(false);
+    tabs->tabBar()->setSelectionBehaviorOnRemove(QTabBar::SelectPreviousTab);
     tabs->tabBar()->setFont(QApplication::font());
-    tabs->tabBar()->setFixedHeight(38);
+    tabs->tabBar()->setFixedHeight(40);
     // Windows 原生样式会用 Button 调色板填充标签右侧的空白，某些主题下会变成
     // 一整块深灰。给标签容器与标签条显式使用应用表面色，避免 QSS 只覆盖标签本身。
     QPalette tabPalette = tabs->palette();
@@ -982,9 +984,8 @@ void MainWindow::buildUi() {
     // Ribbon 必须独占一行；否则会和顶部命令栏挤在同一行，被裁到窗口外面。
     // Ribbon 放进顶部 Dock：不动中央 QTabWidget，避免换中央控件时的生命周期问题。
     ribbonBar_ = new RibbonBar(this);
-    // 标签条 34 + 分组标题 / 按钮 / 上下留白。比 104 多出的这一截不是装饰：
-    // 104 时分组标题正好被挤没（只剩按钮），再叠上横向滚动条就整行消失。
-    ribbonBar_->setFixedHeight(104);
+    // 标签条 32 + 命令按钮 54 + 页面上下留白 4；不再为分组标题预留一行。
+    ribbonBar_->setFixedHeight(90);
     ribbonDock_ = new QDockWidget(QString(), this);
     ribbonDock_->setObjectName(QStringLiteral("ribbonDock"));
     ribbonDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);

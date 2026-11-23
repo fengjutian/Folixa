@@ -122,18 +122,10 @@ void RibbonLayoutTests::verifySize(const QSize& requested, const QString& name) 
     QCOMPARE(tabBar->currentIndex(), 0);
     QVERIFY(tabBar->isVisible());
 
-    // 3) 分组标题必须真的占到高度：被按钮挤成 0 高是最隐蔽的回归。
+    // 3) 分组标题不再生成可见控件，避免底部标题行浪费垂直空间。
     const QList<QLabel*> groupTitles =
         harness.ribbon()->findChildren<QLabel*>(QStringLiteral("ribbonGroupTitle"));
-    QVERIFY(!groupTitles.isEmpty());
-    bool titleVisible = false;
-    for (QLabel* title : groupTitles) {
-        if (title->isVisible() && title->height() >= 10) {
-            titleVisible = true;
-            break;
-        }
-    }
-    QVERIFY2(titleVisible, "Ribbon 分组标题没有被画出来");
+    QVERIFY2(groupTitles.isEmpty(), "Ribbon 分组标题不应再占用垂直空间");
 
     // 4) 停在窄标签页时不该有横向滚动条；切到超宽页才允许出现。
     auto activeScroll = [&harness]() -> QScrollArea* {
