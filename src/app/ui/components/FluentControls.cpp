@@ -3,6 +3,8 @@
 #include "app/ui/FluentTokens.h"
 
 #include <QAbstractItemView>
+#include <QAction>
+#include <QIcon>
 #include <QListView>
 #include <QStyle>
 
@@ -80,6 +82,12 @@ void FluentLineEdit::setControlSize(FluentControlSize size) {
     refreshDynamicStyle(this);
 }
 
+FluentSearchBox::FluentSearchBox(QWidget* parent) : FluentLineEdit(parent) {
+    setProperty("fluentSearchBox", true);
+    addAction(QIcon(QStringLiteral(":/icons/search.svg")), QLineEdit::LeadingPosition);
+    setClearButtonEnabled(true);
+}
+
 FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
     setProperty("fluentControl", true);
     auto* popup = new QListView(this);
@@ -110,6 +118,45 @@ int FluentComboBox::popupMinimumWidth() const {
 
 void FluentComboBox::setVisibleItemLimit(int count) {
     setMaxVisibleItems(qMax(1, count));
+}
+
+FluentToolButton::FluentToolButton(QWidget* parent) : QToolButton(parent) {
+    setProperty("fluentControl", true);
+    refreshProperties();
+}
+
+void FluentToolButton::setAppearance(FluentButtonAppearance appearance) {
+    if (appearance_ == appearance) return;
+    appearance_ = appearance;
+    refreshProperties();
+}
+
+void FluentToolButton::setControlSize(FluentControlSize size) {
+    if (size_ == size) return;
+    size_ = size;
+    refreshProperties();
+}
+
+void FluentToolButton::refreshProperties() {
+    const char* appearance = "subtle";
+    switch (appearance_) {
+        case FluentButtonAppearance::Primary: appearance = "primary"; break;
+        case FluentButtonAppearance::Secondary: appearance = "secondary"; break;
+        case FluentButtonAppearance::Danger: appearance = "danger"; break;
+        case FluentButtonAppearance::Subtle: break;
+    }
+    const int side = controlHeight(size_);
+    setProperty("fluentAppearance", appearance);
+    setProperty("fluentSize", sizeName(size_));
+    setFixedSize(side, side);
+    setIconSize(QSize(size_ == FluentControlSize::Large ? 20 : 16,
+                      size_ == FluentControlSize::Large ? 20 : 16));
+    refreshDynamicStyle(this);
+}
+
+FluentCard::FluentCard(QWidget* parent) : QFrame(parent) {
+    setProperty("fluentCard", true);
+    setFrameShape(QFrame::NoFrame);
 }
 
 }  // namespace aipdf::app

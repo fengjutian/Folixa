@@ -1,8 +1,10 @@
 #pragma once
 
 #include <QComboBox>
+#include <QFrame>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QToolButton>
 
 namespace aipdf::app {
 
@@ -35,7 +37,7 @@ private:
     FluentControlSize size_ = FluentControlSize::Medium;
 };
 
-class FluentLineEdit final : public QLineEdit {
+class FluentLineEdit : public QLineEdit {
 public:
     explicit FluentLineEdit(QWidget* parent = nullptr);
 
@@ -44,6 +46,11 @@ public:
 
 private:
     FluentControlSize size_ = FluentControlSize::Medium;
+};
+
+class FluentSearchBox final : public FluentLineEdit {
+public:
+    explicit FluentSearchBox(QWidget* parent = nullptr);
 };
 
 class FluentComboBox final : public QComboBox {
@@ -58,6 +65,27 @@ public:
 
 private:
     FluentControlSize size_ = FluentControlSize::Medium;
+};
+
+class FluentToolButton final : public QToolButton {
+public:
+    explicit FluentToolButton(QWidget* parent = nullptr);
+
+    void setAppearance(FluentButtonAppearance appearance);
+    FluentButtonAppearance appearance() const { return appearance_; }
+    void setControlSize(FluentControlSize size);
+    FluentControlSize controlSize() const { return size_; }
+
+private:
+    void refreshProperties();
+
+    FluentButtonAppearance appearance_ = FluentButtonAppearance::Subtle;
+    FluentControlSize size_ = FluentControlSize::Medium;
+};
+
+class FluentCard final : public QFrame {
+public:
+    explicit FluentCard(QWidget* parent = nullptr);
 };
 
 }  // namespace aipdf::app
