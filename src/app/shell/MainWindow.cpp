@@ -380,6 +380,14 @@ void MainWindow::buildUi() {
     tabs->setPalette(tabPalette);
     tabs->tabBar()->setPalette(tabPalette);
     tabs->tabBar()->setAutoFillBackground(true);
+    // QTabBar 不扩展时，标签右侧由 QTabWidget 的原生布局绘制，不属于 tabBar，
+    // Windows 样式会在那里露出 Button 灰色。用一个可伸展角落控件明确铺成白色。
+    auto* tabStripFill = new QWidget(tabs);
+    tabStripFill->setObjectName(QStringLiteral("documentTabStripFill"));
+    tabStripFill->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    tabStripFill->setFixedHeight(40);
+    tabStripFill->setAttribute(Qt::WA_StyledBackground, true);
+    tabs->setCornerWidget(tabStripFill, Qt::TopRightCorner);
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
@@ -3181,6 +3189,9 @@ void MainWindow::syncTabBar() {
         hasDocumentTab = hasDocumentTab || !workspaceTab;
     }
     tabs_->tabBar()->setVisible(hasDocumentTab);
+    if (QWidget* fill = tabs_->findChild<QWidget*>(QStringLiteral("documentTabStripFill"))) {
+        fill->setVisible(hasDocumentTab);
+    }
     if (ribbonBar_ != nullptr) {
         ribbonBar_->setCompactMode(onWorkspace);
         if (onWorkspace) {

@@ -218,6 +218,7 @@ QToolBar#documentToolBar QToolButton:disabled, QToolBar#annotationToolBar QToolB
 /* -------------------------------------------------------------- 标签页 -- */
 QTabWidget::pane { border: 0; background: #F3F4F6; }
 QTabWidget#documentTabs { background: #FFFFFF; }
+QWidget#documentTabStripFill { background: #FFFFFF; border-bottom: 1px solid #E8E8EB; }
 QTabBar { background: #FFFFFF; }
 QTabBar::tab {
     min-height: 30px; margin: 5px 2px 0 2px; padding: 0 16px;
@@ -501,41 +502,45 @@ QToolButton[railButton="true"]:pressed { background: #E4EAF4; }
 QToolButton[railButton="true"]:checked { background: transparent; }
 
 /* ---------------------------------------------------------------- AI -- */
-QWidget#aiPanel { background: #F6F8FB; }
-QFrame#aiHeader, QFrame#aiContextCard {
-    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 12px;
+QWidget#aiPanel { background: #FFFFFF; }
+QFrame#aiHeader {
+    background: #FFFFFF; border: 0; border-bottom: 1px solid #E8EBF0;
 }
-QLabel#aiTitle { color: #24499D; font-size: 18px; font-weight: 700; }
+QFrame#aiContextCard { background: #FFFFFF; border: 0; }
+QLabel#aiTitle { color: #202A3A; font-size: 17px; font-weight: 700; }
 QLabel#aiSubtitle { color: #67748A; font-size: 12px; }
-QLabel#aiProviderLabel { color: #8A95A8; font-size: 11px; padding-top: 4px; }
-QLabel#aiSectionLabel { color: #465267; font-size: 12px; font-weight: 600; }
+QLabel#aiProviderLabel { color: #8A95A8; font-size: 11px; padding-top: 3px; }
+QLabel#aiSectionLabel { color: #344156; font-size: 12px; font-weight: 650; }
 QLabel#aiScopeLabel, QLabel#aiUsageLabel, QLabel#aiCitationStatus {
     color: #7C8799; font-size: 11px;
 }
 QPushButton#aiSettingsButton, QPushButton#aiNewChatButton {
-    min-height: 28px; padding: 0 10px; border: 1px solid #E0E5ED;
-    border-radius: 7px; background: #F8F9FB; color: #596579;
+    min-height: 28px; padding: 0 9px; border: 1px solid transparent;
+    border-radius: 6px; background: transparent; color: #596579;
 }
 QPushButton#aiSettingsButton:hover, QPushButton#aiNewChatButton:hover { background: #EEF3FC; color: #3159B8; border-color: #CAD7EA; }
 QPushButton#aiScopePageButton, QPushButton#aiScopeDocumentButton {
-    min-height: 32px; padding: 0 12px; border-radius: 7px;
-    background: #F5F7FA; border: 1px solid #E3E8F0; color: #596579;
+    min-height: 32px; padding: 0 12px; border-radius: 6px;
+    background: #F5F6F8; border: 1px solid #E1E4EA; color: #596579;
 }
 QPushButton#aiScopePageButton:checked, QPushButton#aiScopeDocumentButton:checked {
     color: #24499D; background: #EAF1FF; border-color: #B9CBEA; font-weight: 600;
 }
-QPushButton#aiSummaryButton, QPushButton#aiExplainButton, QPushButton#aiTranslateButton {
-    min-height: 34px; padding: 0 8px; border-radius: 8px;
+QPushButton#aiSummaryButton, QPushButton#aiExplainButton,
+QPushButton#aiTranslateButton, QPushButton#aiOfflineButton {
+    min-height: 36px; padding: 0 10px; border-radius: 7px;
     background: #FFFFFF; border: 1px solid #DCE3EC; color: #39475D;
 }
-QPushButton#aiSummaryButton:hover, QPushButton#aiExplainButton:hover, QPushButton#aiTranslateButton:hover {
+QPushButton#aiSummaryButton:hover, QPushButton#aiExplainButton:hover,
+QPushButton#aiTranslateButton:hover, QPushButton#aiOfflineButton:hover {
     color: #3159B8; background: #F1F5FC; border-color: #B9CBEA;
 }
 QWidget#aiPanel QTextBrowser#aiConversation {
-    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 12px; padding: 8px;
+    background: #FFFFFF; border: 0; border-top: 1px solid #EEF0F4;
+    border-radius: 0; padding: 8px 0;
 }
 QListWidget#aiCitationList { background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px; padding: 4px; }
-QFrame#aiComposer { background: #FFFFFF; border: 1px solid #C9D5E6; border-radius: 12px; }
+QFrame#aiComposer { background: #FFFFFF; border: 1px solid #C9D5E6; border-radius: 10px; }
 QFrame#aiComposer:focus-within { border-color: #5277E8; }
 QFrame#aiComposer QLineEdit { min-height: 36px; padding: 0 6px; border: 0; background: transparent; }
 QFrame#aiComposer QLineEdit:focus { border: 0; }

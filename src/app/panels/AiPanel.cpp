@@ -24,6 +24,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonArray>
@@ -85,19 +86,23 @@ void AiPanel::buildUi() {
     setObjectName(QStringLiteral("aiPanel"));
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(10);
+    layout->setContentsMargins(16, 14, 16, 14);
+    layout->setSpacing(12);
 
     auto* header = new QFrame(this);
     header->setObjectName(QStringLiteral("aiHeader"));
     auto* headerLayout = new QVBoxLayout(header);
-    headerLayout->setContentsMargins(14, 12, 12, 10);
-    headerLayout->setSpacing(3);
+    headerLayout->setContentsMargins(0, 0, 0, 12);
+    headerLayout->setSpacing(4);
     auto* titleRow = new QHBoxLayout();
     titleRow->setSpacing(8);
+    auto* titleIcon = new QLabel(this);
+    titleIcon->setObjectName(QStringLiteral("aiTitleIcon"));
+    titleIcon->setPixmap(QIcon(QStringLiteral(":/icons/ai-assistant.svg")).pixmap(22, 22));
+    titleIcon->setFixedSize(22, 22);
     auto* title = new QLabel(QString(), this);
     title->setObjectName(QStringLiteral("aiTitle"));
-    texts_.bind([this, title] { title->setText(tr("✦  Folixa AI")); });
+    texts_.bind([this, title] { title->setText(tr("Folixa AI")); });
     auto* subtitle = new QLabel(QString(), this);
     subtitle->setObjectName(QStringLiteral("aiSubtitle"));
     texts_.bind([this, subtitle] { subtitle->setText(tr("阅读、理解并定位当前文档内容")); });
@@ -112,6 +117,7 @@ void AiPanel::buildUi() {
     newChatButton_->setObjectName(QStringLiteral("aiNewChatButton"));
     texts_.bind([this] { newChatButton_->setText(tr("新对话")); });
     texts_.bind([this] { newChatButton_->setToolTip(tr("清空当前对话历史")); });
+    titleRow->addWidget(titleIcon);
     titleRow->addWidget(title);
     titleRow->addStretch(1);
     titleRow->addWidget(newChatButton_);
@@ -150,8 +156,8 @@ void AiPanel::buildUi() {
     auto* contextCard = new QFrame(this);
     contextCard->setObjectName(QStringLiteral("aiContextCard"));
     auto* contextLayout = new QVBoxLayout(contextCard);
-    contextLayout->setContentsMargins(12, 10, 12, 10);
-    contextLayout->setSpacing(8);
+    contextLayout->setContentsMargins(0, 0, 0, 0);
+    contextLayout->setSpacing(10);
     auto* scopeRow = new QHBoxLayout();
     scopeRow->setSpacing(4);
     auto* scopeTitle = new QLabel(QString(), this);
@@ -165,8 +171,9 @@ void AiPanel::buildUi() {
     scopeSwitch->addWidget(scopePageButton_, 1);
     scopeSwitch->addWidget(scopeDocumentButton_, 1);
 
-    auto* actions = new QHBoxLayout();
-    actions->setSpacing(6);
+    auto* actions = new QGridLayout();
+    actions->setHorizontalSpacing(8);
+    actions->setVerticalSpacing(8);
     summaryButton_ = new QPushButton(QString(), this);
     summaryButton_->setObjectName(QStringLiteral("aiSummaryButton"));
     texts_.bind([this] { summaryButton_->setText(tr("总结要点")); });
@@ -184,10 +191,10 @@ void AiPanel::buildUi() {
     offlineButton_->setObjectName(QStringLiteral("aiOfflineButton"));
     texts_.bind([this] { offlineButton_->setText(tr("本地离线问答")); });
     texts_.bind([this] { offlineButton_->setToolTip(tr("在本地索引里检索并摘出答案（不联网、不调模型）")); });
-    actions->addWidget(summaryButton_, 1);
-    actions->addWidget(explainButton_, 1);
-    actions->addWidget(translateButton_, 1);
-    actions->addWidget(offlineButton_, 1);
+    actions->addWidget(summaryButton_, 0, 0);
+    actions->addWidget(explainButton_, 0, 1);
+    actions->addWidget(translateButton_, 1, 0);
+    actions->addWidget(offlineButton_, 1, 1);
     contextLayout->addLayout(scopeRow);
     contextLayout->addLayout(scopeSwitch);
     contextLayout->addWidget(scopeLabel_);
@@ -199,11 +206,13 @@ void AiPanel::buildUi() {
     conversation_->setOpenLinks(false);
     conversation_->setOpenExternalLinks(false);
     conversation_->document()->setDefaultStyleSheet(QStringLiteral(
-        "body{font-family:'Microsoft YaHei UI','Segoe UI';color:#253047;font-size:13px;}"
-        ".welcome{background:#F7F9FC;border:1px solid #E5EAF1;padding:16px;margin:6px 2px;}"
-        ".eyebrow{color:#4169C1;font-size:10px;font-weight:600;}"
-        ".message{background:#F7F9FC;padding:12px;margin:8px 2px;}"
-        ".user{background:#EAF1FF;padding:12px;margin:8px 2px;}"
+        "body{font-family:'Microsoft YaHei UI','Segoe UI';color:#253047;font-size:13px;margin:0;}"
+        ".welcome{padding:14px 10px;margin:0;}"
+        ".welcome h3{font-size:17px;margin:8px 0 10px 0;}"
+        ".welcome p{line-height:1.65;margin:7px 0;}"
+        ".eyebrow{color:#4169C1;font-size:10px;font-weight:700;letter-spacing:1px;}"
+        ".message{background:#F7F9FC;padding:12px;margin:8px 0;}"
+        ".user{background:#EAF1FF;padding:12px;margin:8px 0;}"
         ".scope{color:#8792A3;font-size:11px;}"
         ".muted{color:#8792A3;font-size:11px;}"
         ".citations{background:#FFFFFF;border:1px solid #D9E3F2;padding:10px;margin:4px 2px;}"
@@ -255,6 +264,7 @@ void AiPanel::buildUi() {
     texts_.bind([this] { cancelButton_->setText(tr("停止")); });
     texts_.bind([this] { cancelButton_->setToolTip(tr("停止这次生成")); });
     cancelButton_->setEnabled(false);
+    cancelButton_->setVisible(false);
 
     auto* composerFrame = new QFrame(this);
     composerFrame->setObjectName(QStringLiteral("aiComposer"));
@@ -1416,6 +1426,7 @@ void AiPanel::setBusy(bool busy) {
     // Worker 掉线时不能把「发送」点亮：点了也只会换来一句「未连接」。
     sendButton_->setEnabled(!busy && workerReady_);
     cancelButton_->setEnabled(busy);
+    cancelButton_->setVisible(busy);
     if (!busy) {
         activeRequestId_.clear();
     }

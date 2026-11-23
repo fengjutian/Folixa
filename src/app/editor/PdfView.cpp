@@ -1653,7 +1653,25 @@ void PdfView::showCanvasContextMenu(const QPoint& viewportPoint) {
 
     QAction* copyAction = menu.addAction(tr("复制"));
     copyAction->setEnabled(!selection.isEmpty());
-    connect(copyAction, &QAction::triggered, this, &PdfView::copySelection);
+    // 菜单弹出后焦点会离开画布；某些平台/输入法会在菜单动作触发前更新选区。
+    // 这里复制打开菜单时冻结的文本，避免用户明明看见高亮却复制到空字符串。
+    connect(copyAction, &QAction::triggered, this, [this, selection] {
+        if (selection.isEmpty()) {
+            emit statusMessage(tr("没有可复制的文字"));
+            return;
+        }
+        if (!requirePermission(effectivePermissions().allowCopying, tr("复制内容"))) return;
+        QClipboard* clipboard = QGuiApplication::clipboard();
+        if (clipboard == nullptr) {
+            emit statusMessage(tr("无法访问系统剪贴板"));
+            return;
+        }
+        clipboard->setText(selection, QClipboard::Clipboard);
+        trace(QStringLiteral("context copy chars=%1 text=%2")
+                  .arg(selection.size())
+                  .arg(traceText(selection)));
+        emit textCopied(selection.size());
+    });
 
     QAction* selectAllAction = menu.addAction(tr("全选当前页"));
     selectAllAction->setEnabled(textController_ != nullptr);
