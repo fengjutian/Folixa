@@ -2,6 +2,7 @@
 
 #include "app/controllers/IndexController.h"
 #include "app/ui/Language.h"
+#include "app/ui/components/FluentControls.h"
 
 #include "i18n/Translate.h"
 
@@ -55,9 +56,11 @@ void IndexPanel::buildUi() {
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
-    buildButton_ = new QPushButton(this);
+    auto* buildButton = new FluentButton(QString(), this);
+    buildButton->setAppearance(FluentButtonAppearance::Primary);
+    buildButton_ = buildButton;
     buildButton_->setObjectName(QStringLiteral("indexBuildButton"));
-    cancelButton_ = new QPushButton(this);
+    cancelButton_ = new FluentButton(QString(), this);
     cancelButton_->setObjectName(QStringLiteral("indexCancelButton"));
     cancelButton_->setEnabled(false);
     texts_.bind([this] {
@@ -71,13 +74,12 @@ void IndexPanel::buildUi() {
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
-    queryEdit_ = new QLineEdit(this);
+    queryEdit_ = new FluentSearchBox(this);
     queryEdit_->setObjectName(QStringLiteral("indexQueryInput"));
     texts_.bind([this] {
         queryEdit_->setPlaceholderText(tr("检索索引…"));
         queryEdit_->setAccessibleName(tr("检索关键词"));
     });
-    queryEdit_->setClearButtonEnabled(true);
     layout->addWidget(queryEdit_);
 
     results_ = new QListWidget(this);

@@ -1,6 +1,7 @@
 #include "app/panels/SearchPanel.h"
 
 #include "app/ui/Language.h"
+#include "app/ui/components/FluentControls.h"
 #include "app/controllers/TextController.h"
 
 #include "i18n/Translate.h"
@@ -58,19 +59,18 @@ void SearchPanel::buildUi() {
     layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(10);
 
-    auto* controlsCard = new QFrame(this);
+    auto* controlsCard = new FluentCard(this);
     controlsCard->setObjectName(QStringLiteral("searchControlsCard"));
     auto* controlsLayout = new QVBoxLayout(controlsCard);
     controlsLayout->setContentsMargins(12, 12, 12, 12);
     controlsLayout->setSpacing(10);
 
-    queryEdit_ = new QLineEdit(this);
+    queryEdit_ = new FluentSearchBox(this);
     queryEdit_->setObjectName(QStringLiteral("searchQueryInput"));
     texts_.bind([this] {
         queryEdit_->setPlaceholderText(tr("搜索文档…"));
         queryEdit_->setAccessibleName(tr("搜索关键词"));
     });
-    queryEdit_->setClearButtonEnabled(true);
     controlsLayout->addWidget(queryEdit_);
 
     // 检索选项：改了立刻重搜。勾选项本身就是查询的一部分，
@@ -144,18 +144,20 @@ void SearchPanel::buildUi() {
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
-    previousButton_ = new QPushButton(this);
+    previousButton_ = new FluentButton(QString(), this);
     previousButton_->setObjectName(QStringLiteral("searchPreviousButton"));
     makeIconButton(previousButton_, QStringLiteral(":/icons/chevron-up.svg"),
                    QT_TRANSLATE_NOOP("aipdf::app::SearchPanel", "上一处"));
-    nextButton_ = new QPushButton(this);
+    nextButton_ = new FluentButton(QString(), this);
     nextButton_->setObjectName(QStringLiteral("searchNextButton"));
     makeIconButton(nextButton_, QStringLiteral(":/icons/chevron-down.svg"),
                    QT_TRANSLATE_NOOP("aipdf::app::SearchPanel", "下一处"));
     // 清除与停止是动词，图标猜不准：它们短，留着文字反而更好认。
-    clearButton_ = new QPushButton(this);
+    clearButton_ = new FluentButton(QString(), this);
     clearButton_->setObjectName(QStringLiteral("searchClearButton"));
-    stopButton_ = new QPushButton(this);
+    auto* stopButton = new FluentButton(QString(), this);
+    stopButton->setAppearance(FluentButtonAppearance::Danger);
+    stopButton_ = stopButton;
     stopButton_->setObjectName(QStringLiteral("searchStopButton"));
     stopButton_->setEnabled(false);
     texts_.bind([this] {

@@ -15,6 +15,9 @@ private slots:
     void buttonExposesAppearanceAndSize();
     void lineEditUsesStandardControlHeight();
     void comboOwnsAReusablePopup();
+    void searchBoxProvidesSearchAndClearActions();
+    void toolButtonUsesSquareMetrics();
+    void cardExposesThemeProperty();
 };
 
 void FluentComponentsTests::tokenMetricsMatchDocumentedScale() {
@@ -67,6 +70,30 @@ void FluentComponentsTests::comboOwnsAReusablePopup() {
     QCOMPARE(combo.popupMinimumWidth(), 196);
     QCOMPARE(combo.maxVisibleItems(), 8);
     QCOMPARE(combo.height(), 32);
+}
+
+void FluentComponentsTests::searchBoxProvidesSearchAndClearActions() {
+    FluentSearchBox search;
+    QCOMPARE(search.property("fluentSearchBox").toBool(), true);
+    QVERIFY(search.isClearButtonEnabled());
+    QVERIFY(!search.actions().isEmpty());
+    QCOMPARE(search.height(), 32);
+}
+
+void FluentComponentsTests::toolButtonUsesSquareMetrics() {
+    FluentToolButton button;
+    QCOMPARE(button.property("fluentAppearance").toString(), QStringLiteral("subtle"));
+    QCOMPARE(button.size(), QSize(32, 32));
+    button.setAppearance(FluentButtonAppearance::Secondary);
+    button.setControlSize(FluentControlSize::Small);
+    QCOMPARE(button.property("fluentAppearance").toString(), QStringLiteral("secondary"));
+    QCOMPARE(button.size(), QSize(24, 24));
+}
+
+void FluentComponentsTests::cardExposesThemeProperty() {
+    FluentCard card;
+    QCOMPARE(card.property("fluentCard").toBool(), true);
+    QCOMPARE(card.frameShape(), QFrame::NoFrame);
 }
 
 QTEST_MAIN(FluentComponentsTests)

@@ -281,14 +281,8 @@ QListWidget#bookmarkList::item:selected {
 /* 搜索面板：控制项收进一张卡片，结果区保持安静，避免原生控件散落成表单墙。 */
 QWidget#searchPanel { background: #F7F8FB; }
 QFrame#searchControlsCard {
-    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px;
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 8px;
 }
-QLineEdit#searchQueryInput {
-    min-height: 38px; padding: 0 12px; border: 1px solid #CBD2DE;
-    border-radius: 8px; background: #FFFFFF; color: #202A3A;
-}
-QLineEdit#searchQueryInput:hover { border-color: #9FB4EF; }
-QLineEdit#searchQueryInput:focus { border-color: #5277E8; background: #FFFFFF; }
 QWidget#searchPanel QCheckBox { spacing: 7px; color: #465267; font-size: 12px; }
 QWidget#searchPanel QCheckBox::indicator {
     width: 16px; height: 16px; border: 1px solid #CBD2DE;
@@ -329,7 +323,7 @@ QListWidget#searchResults::item:selected { background: #E9F0FB; color: #24499D; 
 
 /* 批注面板：筛选与批量操作各自成组，中间内容区保持清晰。 */
 QFrame#annotationFilterCard, QFrame#annotationActionsCard {
-    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 10px;
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 8px;
 }
 QFrame#annotationFilterCard { margin: 10px 10px 4px 10px; }
 QFrame#annotationActionsCard { margin: 4px 10px 10px 10px; }
@@ -420,24 +414,45 @@ QPushButton[fluentControl="true"]:disabled {
     background: #F7F8FA; border-color: #EEF1F6; color: #AAB2C0;
 }
 QPushButton[fluentAppearance="primary"],
-QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"] {
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"],
+QFrame#annotationActionsCard QPushButton[fluentAppearance="primary"] {
     background: #4169C1; border-color: #4169C1; color: #FFFFFF;
 }
 QPushButton[fluentAppearance="primary"]:hover,
-QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:hover {
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:hover,
+QFrame#annotationActionsCard QPushButton[fluentAppearance="primary"]:hover {
     background: #365AA8; border-color: #365AA8; color: #FFFFFF;
 }
 QPushButton[fluentAppearance="primary"]:pressed,
-QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:pressed {
+QFrame#annotationFilterCard QPushButton[fluentAppearance="primary"]:pressed,
+QFrame#annotationActionsCard QPushButton[fluentAppearance="primary"]:pressed {
     background: #24499D; border-color: #24499D; color: #FFFFFF;
 }
 QPushButton[fluentAppearance="subtle"] { background: transparent; border-color: transparent; }
 QPushButton[fluentAppearance="danger"] { color: #D1434F; background: #FDECEE; }
-QPushButton#annotationApplyAppearance {
-    background: #EEF3FC; border-color: #C4D3EA; color: #24499D; font-weight: 600;
+QFrame#annotationActionsCard QPushButton[fluentAppearance="danger"] {
+    color: #D1434F; background: #FDECEE; border-color: #D1434F;
 }
-QPushButton#annotationRemove { color: #C0562F; background: #FFF3F0; }
-QPushButton#annotationRemove:hover { border-color: #D1434F; background: #FDECEE; }
+QToolButton[fluentControl="true"] {
+    padding: 0; border: 1px solid transparent; border-radius: 4px;
+    background: transparent; color: #465267;
+}
+QToolButton[fluentControl="true"]:hover {
+    background: #F5F8FD; border-color: #C3D0F3; color: #3159B8;
+}
+QToolButton[fluentControl="true"]:pressed,
+QToolButton[fluentControl="true"]:checked {
+    background: #E9F0FB; border-color: #9FB4EF; color: #24499D;
+}
+QToolButton[fluentControl="true"]:focus { border: 2px solid #5277E8; }
+QToolButton[fluentControl="true"]:disabled { color: #AAB2C0; background: transparent; }
+QToolButton[fluentAppearance="secondary"] { background: #FFFFFF; border-color: #CBD2DE; }
+QToolButton[fluentAppearance="primary"] {
+    background: #4169C1; border-color: #4169C1; color: #FFFFFF;
+}
+QFrame[fluentCard="true"] {
+    background: #FFFFFF; border: 1px solid #E3E8F0; border-radius: 8px;
+}
 QListWidget#annotationList {
     margin: 4px 10px; padding: 4px; background: #FFFFFF;
     border: 1px solid #E3E8F0; border-radius: 9px; outline: 0;

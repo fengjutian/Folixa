@@ -2449,7 +2449,9 @@ void MainWindow::buildUi() {
     texts_.bind([this] { navigationDock_->setWindowTitle(tr("导航")); });
     navigationDock_->setObjectName(QStringLiteral("navigationDock"));
     navigationDock_->setMinimumWidth(52);
-    navigationDock_->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+    // 文档页的 52px 图标轨是重新展开导航的唯一入口，不能随 Dock 一起被关闭。
+    // 菜单里的导航动作只收起内容区；工作台和沉浸模式仍可由程序临时隐藏 Dock。
+    navigationDock_->setFeatures(QDockWidget::DockWidgetMovable);
     navigationDock_->setTitleBarWidget(new QWidget(navigationDock_));
     auto* navigation = new QWidget(navigationDock_);
     auto* navigationLayout = new QHBoxLayout(navigation);
@@ -2651,22 +2653,22 @@ void MainWindow::buildUi() {
     // 导航面板建好了，占位动作现在才有开关可接。
     navigationPanelAction_ = navigationPanelAction;
     navigationPanelAction->setCheckable(true);
-    navigationPanelAction->setChecked(true);
+    navigationPanelAction->setChecked(false);
     texts_.bind([this, navigationPanelAction] {
-        navigationPanelAction->setText(tr("显示导航面板"));
+        navigationPanelAction->setText(tr("展开导航面板"));
     });
-    connect(navigationPanelAction, &QAction::toggled, navigationDock_,
-            &QDockWidget::setVisible);
-    connect(navigationDock_, &QDockWidget::visibilityChanged, navigationPanelAction,
-            &QAction::setChecked);
-    // 视图菜单里的开关文案跟着 dock 标题走（Qt 只给一次初值）。
-    QAction* navigationToggleAction = navigationDock_->toggleViewAction();
-    texts_.bind([this, navigationToggleAction] {
-        navigationToggleAction->setText(tr("导航"));
+    connect(navigationPanelAction, &QAction::toggled, this, [this](bool expanded) {
+        if (navigationDock_ == nullptr || isWorkspaceCurrent()) {
+            return;
+        }
+        // 旧设置或窗口状态即使隐藏过 Dock，用户操作后也必须先恢复图标轨。
+        navigationUserVisible_ = true;
+        navigationDock_->show();
+        setNavigationExpanded(expanded);
     });
-    // 视图菜单里这一项同样要能置灰：它直接 toggleViewAction，绕不过 syncTabBar。
-    navigationViewToggleAction_ = navigationToggleAction;
-    viewMenu->addAction(navigationToggleAction);
+    // 主菜单和“视图”菜单共用一个动作，避免一个控制展开、另一个隐藏整个 Dock。
+    navigationViewToggleAction_ = navigationPanelAction;
+    viewMenu->addAction(navigationPanelAction);
 
     aiDock_ = new QDockWidget(QString(), this);
     texts_.bind([this] { aiDock_->setWindowTitle(tr("AI 助手")); });
@@ -2977,10 +2979,10 @@ void MainWindow::buildUi() {
         }
     });
 
-    auto* zoomOutButton = new QToolButton(this);
+    auto* zoomOutButton = new FluentToolButton(this);
     zoomOutButton->setObjectName(QStringLiteral("statusZoomOut"));
     zoomOutButton->setText(QStringLiteral("−"));
-    auto* zoomInButton = new QToolButton(this);
+    auto* zoomInButton = new FluentToolButton(this);
     zoomInButton->setObjectName(QStringLiteral("statusZoomIn"));
     zoomInButton->setText(QStringLiteral("+"));
     statusZoomLabel_ = new QLabel(QStringLiteral("100%"), this);
@@ -3451,7 +3453,7 @@ QWidget* MainWindow::createAnnotationTab() {
     //
     // 为什么放在堆叠页**外面**：没有批注时筛选栏也该看得见（灰着就行），
     // 藏进另一个页里用户就找不到它了。
-    auto* filterCard = new QFrame(page);
+    auto* filterCard = new FluentCard(page);
     filterCard->setObjectName(QStringLiteral("annotationFilterCard"));
     auto* filterLayout = new QVBoxLayout(filterCard);
     filterLayout->setContentsMargins(10, 10, 10, 10);
@@ -3501,7 +3503,7 @@ QWidget* MainWindow::createAnnotationTab() {
     outer->addWidget(filterCard);
     outer->addWidget(stack, 1);
 
-    auto* content = new QFrame(page);
+    auto* content = new FluentCard(page);
     content->setObjectName(QStringLiteral("annotationActionsCard"));
     auto* layout = new QVBoxLayout(content);
     layout->setContentsMargins(10, 10, 10, 10);
@@ -3514,7 +3516,7 @@ QWidget* MainWindow::createAnnotationTab() {
     // 外观属性：颜色 / 线宽 / 不透明度。多选后一次改完。
     auto* appearanceRow = new QHBoxLayout();
     appearanceRow->setSpacing(6);
-    annotationColorButton_ = new QPushButton(QString(), content);
+    annotationColorButton_ = new FluentButton(QString(), content);
     texts_.bind([this] { annotationColorButton_->setText(tr("颜色…")); });
     annotationColorButton_->setObjectName(QStringLiteral("annotationColor"));
     appearanceRow->addWidget(annotationColorButton_);
@@ -3540,22 +3542,26 @@ QWidget* MainWindow::createAnnotationTab() {
     annotationOpacitySlider_->setValue(100);
     opacityRow->addWidget(annotationOpacitySlider_, 1);
     layout->addLayout(opacityRow);
-    annotationApplyAppearanceButton_ = new QPushButton(QString(), content);
+    auto* applyAppearanceButton = new FluentButton(QString(), content);
+    applyAppearanceButton->setAppearance(FluentButtonAppearance::Primary);
+    annotationApplyAppearanceButton_ = applyAppearanceButton;
     texts_.bind([this] {
         annotationApplyAppearanceButton_->setText(tr("应用到所选批注"));
     });
     annotationApplyAppearanceButton_->setObjectName(QStringLiteral("annotationApplyAppearance"));
     layout->addWidget(annotationApplyAppearanceButton_);
 
-    annotationReplyButton_ = new QPushButton(QString(), content);
+    annotationReplyButton_ = new FluentButton(QString(), content);
     texts_.bind([this] { annotationReplyButton_->setText(tr("回复所选")); });
     annotationReplyButton_->setObjectName(QStringLiteral("annotationReply"));
     layout->addWidget(annotationReplyButton_);
-    annotationStateButton_ = new QPushButton(QString(), content);
+    annotationStateButton_ = new FluentButton(QString(), content);
     texts_.bind([this] { annotationStateButton_->setText(tr("设置审阅状态")); });
     annotationStateButton_->setObjectName(QStringLiteral("annotationState"));
     layout->addWidget(annotationStateButton_);
-    annotationRemoveButton_ = new QPushButton(QString(), content);
+    auto* removeAnnotationButton = new FluentButton(QString(), content);
+    removeAnnotationButton->setAppearance(FluentButtonAppearance::Danger);
+    annotationRemoveButton_ = removeAnnotationButton;
     texts_.bind([this] { annotationRemoveButton_->setText(tr("删除所选批注")); });
     annotationRemoveButton_->setObjectName(QStringLiteral("annotationRemove"));
     layout->addWidget(annotationRemoveButton_);
@@ -7170,6 +7176,10 @@ void MainWindow::setNavigationExpanded(bool expanded) {
     navigationPages_->setVisible(expanded);
     if (navigationHeader_ != nullptr) {
         navigationHeader_->setVisible(expanded);
+    }
+    if (navigationPanelAction_ != nullptr) {
+        const QSignalBlocker blocker(navigationPanelAction_);
+        navigationPanelAction_->setChecked(expanded);
     }
     // 收起时把 dock 连同内容一起钉在 rail 的宽度上。只调 resizeDocks 不够：
     // QMainWindow 在窗口尺寸变化/布局重算时会重新分配，空面板又会被撑开，

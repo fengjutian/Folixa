@@ -267,7 +267,8 @@ src/app/ui/
 - [x] LineEdit；
 - [x] ComboBox / Dropdown；
 - [x] ComboBox Popup；
-- [ ] ToolButton / SearchBox；
+- [x] ToolButton / SearchBox；
+- [x] Card；
 - [ ] 独立 Menu / Popup；
 - [ ] CheckBox / RadioButton / Switch；
 - [ ] Slider / SpinBox。
@@ -347,8 +348,10 @@ src/app/ui/
 - 新增 `src/app/ui/FluentTokens.{h,cpp}`，提供语义颜色与尺寸查询；
 - 新增 `src/app/ui/components/FluentControls.{h,cpp}`；
 - 首批组件为 `FluentButton`、`FluentLineEdit`、`FluentComboBox`；
+- 第二批组件为 `FluentToolButton`、`FluentSearchBox`、`FluentCard`；
 - `FluentComboBox` 统一管理列表弹层、平滑滚动、可见项上限与最小宽度；
 - 批注筛选区成为第一个真实调用方；
+- 搜索面板、索引面板、批注操作卡片和状态栏缩放按钮已替换为 Fluent 组件；
 - `FluentComponentsTests` 覆盖 Token、外观属性、三档高度和弹层配置；
 - 未修改批注筛选逻辑、信号连接、数据模型或 PDF 保存路径。
 

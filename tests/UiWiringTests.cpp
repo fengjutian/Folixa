@@ -138,6 +138,8 @@ private slots:
     void printBatchTotalPagesStaysUnknown();
     // 17) 导出到 Office 的说明：要说清导了什么、不保什么。
     void officeExportNoticeStatesWhatIsKept();
+    // 18) 文档页导航只能收成图标轨，不能把重新展开入口一起关闭。
+    void navigationRailCannotBeClosedWithDock();
 };
 
 // ---------------------------------------------------------------- 1 / 2 ----
@@ -584,6 +586,24 @@ void UiWiringTests::officeExportNoticeStatesWhatIsKept() {
     // 负例守卫：只含文字层——不许吹成「图片也带过去了」。
     QVERIFY2(!notice.contains(QStringLiteral("图片已")), qPrintable(notice));
     QVERIFY2(notice.contains(QStringLiteral("文字层")), qPrintable(notice));
+}
+
+// ------------------------------------------------------------------ 18 ----
+
+void UiWiringTests::navigationRailCannotBeClosedWithDock() {
+    QFile file(QStringLiteral(AIPDF_MAINWINDOW_SOURCE));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString source = QString::fromUtf8(file.readAll());
+
+    // 导航 Dock 自己不能被用户关闭，否则 52px 图标轨与重新展开入口会一起消失。
+    QVERIFY(source.contains(QStringLiteral(
+        "navigationDock_->setFeatures(QDockWidget::DockWidgetMovable);")));
+    QVERIFY(!source.contains(QStringLiteral(
+        "connect(navigationPanelAction, &QAction::toggled, navigationDock_")));
+    QVERIFY(!source.contains(QStringLiteral(
+        "navigationViewToggleAction_ = navigationDock_->toggleViewAction()")));
+    // 菜单动作应当控制内容区的展开状态。
+    QVERIFY(source.contains(QStringLiteral("setNavigationExpanded(expanded);")));
 }
 
 QTEST_MAIN(UiWiringTests)

@@ -2064,8 +2064,8 @@
             <translation>Cannot run: %1</translation>
         </message>
         <message>
-            <source>显示导航面板</source>
-            <translation>Show navigation panel</translation>
+            <source>展开导航面板</source>
+            <translation>Expand navigation panel</translation>
         </message>
         <message>
             <source>暂无书签</source>
