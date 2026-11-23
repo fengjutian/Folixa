@@ -158,6 +158,31 @@
 namespace aipdf::app {
 
 namespace {
+// QTabWidget 不会把 TopRightCorner 控件的 Expanding 策略用于填满整行，
+// 它只看 sizeHint()。普通 QWidget 的 sizeHint 无效，因此以前的白色填充实际宽度
+// 接近 0，剩余区域继续露出 Windows 原生的灰色 tab-base。
+class DocumentTabStripFill final : public QWidget {
+public:
+    DocumentTabStripFill(QTabWidget* tabs, QTabBar* tabBar)
+        : QWidget(tabs), tabs_(tabs), tabBar_(tabBar) {
+        setObjectName(QStringLiteral("documentTabStripFill"));
+        setAttribute(Qt::WA_StyledBackground, true);
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    }
+
+    QSize sizeHint() const override {
+        const int tabsWidth = tabs_ != nullptr ? tabs_->contentsRect().width() : 0;
+        const int barWidth = tabBar_ != nullptr ? tabBar_->sizeHint().width() : 0;
+        return QSize(std::max(0, tabsWidth - barWidth), 40);
+    }
+
+    QSize minimumSizeHint() const override { return QSize(0, 40); }
+
+private:
+    QTabWidget* tabs_ = nullptr;
+    QTabBar* tabBar_ = nullptr;
+};
+
 QString documentSettingsKey(const QString& path) {
     return QStringLiteral("documentManagement/documents/") +
            QString::fromLatin1(QCryptographicHash::hash(
@@ -384,11 +409,8 @@ void MainWindow::buildUi() {
     tabs->tabBar()->setAutoFillBackground(true);
     // QTabBar 不扩展时，标签右侧由 QTabWidget 的原生布局绘制，不属于 tabBar，
     // Windows 样式会在那里露出 Button 灰色。用一个可伸展角落控件明确铺成白色。
-    auto* tabStripFill = new QWidget(tabs);
-    tabStripFill->setObjectName(QStringLiteral("documentTabStripFill"));
-    tabStripFill->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto* tabStripFill = new DocumentTabStripFill(tabs, tabs->tabBar());
     tabStripFill->setFixedHeight(40);
-    tabStripFill->setAttribute(Qt::WA_StyledBackground, true);
     tabs->setCornerWidget(tabStripFill, Qt::TopRightCorner);
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);

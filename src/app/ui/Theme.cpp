@@ -620,6 +620,30 @@ QLabel#settingsFontPreview {
 QDialog#settingsDialog QComboBox, QDialog#settingsDialog QFontComboBox,
 QDialog#settingsDialog QSpinBox { min-width: 220px; }
 
+/* 新建空白文档：不混用平台灰底控件，字段与弹层统一使用 Fluent 表面。 */
+QDialog[fluentDialog="newDocument"] { background: #FFFFFF; }
+QDialog[fluentDialog="newDocument"] QLabel { color: #344054; }
+QDialog[fluentDialog="newDocument"] QSpinBox[fluentControl="true"],
+QDialog[fluentDialog="newDocument"] QDoubleSpinBox[fluentControl="true"] {
+    min-height: 34px; padding: 0 10px; color: #202A3A; background: #FFFFFF;
+    border: 1px solid #CBD2DE; border-radius: 6px;
+}
+QDialog[fluentDialog="newDocument"] QSpinBox[fluentControl="true"]:hover,
+QDialog[fluentDialog="newDocument"] QDoubleSpinBox[fluentControl="true"]:hover {
+    border-color: #9FB4EF;
+}
+QDialog[fluentDialog="newDocument"] QSpinBox[fluentControl="true"]:focus,
+QDialog[fluentDialog="newDocument"] QDoubleSpinBox[fluentControl="true"]:focus {
+    border: 2px solid #5277E8;
+}
+QDialog[fluentDialog="newDocument"] QSpinBox[fluentControl="true"]:disabled,
+QDialog[fluentDialog="newDocument"] QDoubleSpinBox[fluentControl="true"]:disabled {
+    color: #98A2B3; background: #F5F6F8; border-color: #EAECF0;
+}
+QDialog[fluentDialog="newDocument"] QLabel#newDocumentHint {
+    color: #667085; background: #F7F9FC; border-radius: 6px; padding: 8px 10px;
+}
+
 /* ------------------------------------------------------------ 欢迎页 -- */
 QScrollArea#welcomeScroll, QScrollArea#welcomeScroll > QWidget { background: transparent; border: 0; }
 QWidget#welcomeContent { background: transparent; }

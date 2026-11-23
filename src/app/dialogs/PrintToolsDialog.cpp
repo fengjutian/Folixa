@@ -1,4 +1,5 @@
 #include "app/dialogs/PrintToolsDialog.h"
+#include "app/ui/components/FluentControls.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -45,13 +46,22 @@ const PaperItem kPapers[] = {
 
 NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     setObjectName(QStringLiteral("file.newDocumentDialog"));
+    setProperty("fluentDialog", QStringLiteral("newDocument"));
     setWindowTitle(i18n::tr("aipdf::app::MainWindow", "新建文档"));
-    resize(420, 260);
+    setMinimumWidth(500);
+    resize(500, 350);
 
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 22, 24, 20);
+    layout->setSpacing(18);
     auto* form = new QFormLayout;
+    form->setContentsMargins(0, 0, 0, 0);
+    form->setHorizontalSpacing(18);
+    form->setVerticalSpacing(12);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    paperBox_ = new QComboBox(this);
+    paperBox_ = new FluentComboBox(this);
     paperBox_->setObjectName(QStringLiteral("file.newDocument.paper"));
     paperBox_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "纸张"));
     for (const PaperItem& item : kPapers) {
@@ -59,7 +69,7 @@ NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     }
     form->addRow(i18n::tr("aipdf::app::MainWindow", "纸张:"), paperBox_);
 
-    orientationBox_ = new QComboBox(this);
+    orientationBox_ = new FluentComboBox(this);
     orientationBox_->setObjectName(QStringLiteral("file.newDocument.orientation"));
     orientationBox_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "方向"));
     orientationBox_->addItem(i18n::tr("aipdf::app::MainWindow", "纵向"), static_cast<int>(doc::PageOrientation::Portrait));
@@ -67,6 +77,7 @@ NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     form->addRow(i18n::tr("aipdf::app::MainWindow", "方向:"), orientationBox_);
 
     pageCountSpin_ = new QSpinBox(this);
+    pageCountSpin_->setProperty("fluentControl", true);
     pageCountSpin_->setObjectName(QStringLiteral("file.newDocument.pageCount"));
     pageCountSpin_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "页数"));
     pageCountSpin_->setRange(1, 1000);
@@ -74,6 +85,7 @@ NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     form->addRow(i18n::tr("aipdf::app::MainWindow", "页数:"), pageCountSpin_);
 
     widthSpin_ = new QDoubleSpinBox(this);
+    widthSpin_->setProperty("fluentControl", true);
     widthSpin_->setObjectName(QStringLiteral("file.newDocument.width"));
     widthSpin_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "自定义宽度"));
     widthSpin_->setRange(1.0, 5000.0);
@@ -82,6 +94,7 @@ NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     form->addRow(i18n::tr("aipdf::app::MainWindow", "自定义宽度（点）:"), widthSpin_);
 
     heightSpin_ = new QDoubleSpinBox(this);
+    heightSpin_->setProperty("fluentControl", true);
     heightSpin_->setObjectName(QStringLiteral("file.newDocument.height"));
     heightSpin_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "自定义高度"));
     heightSpin_->setRange(1.0, 5000.0);
@@ -92,13 +105,21 @@ NewDocumentDialog::NewDocumentDialog(QWidget* parent) : QDialog(parent) {
     layout->addLayout(form);
 
     orientationHint_ = new QLabel(this);
-    orientationHint_->setObjectName(QStringLiteral("file.newDocument.hint"));
+    orientationHint_->setObjectName(QStringLiteral("newDocumentHint"));
     orientationHint_->setAccessibleName(i18n::tr("aipdf::app::MainWindow", "提示"));
     orientationHint_->setWordWrap(true);
     layout->addWidget(orientationHint_);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-    buttons->button(QDialogButtonBox::Ok)->setText(i18n::tr("aipdf::app::MainWindow", "创建"));
+    auto* createButton = buttons->button(QDialogButtonBox::Ok);
+    createButton->setText(i18n::tr("aipdf::app::MainWindow", "创建"));
+    createButton->setProperty("fluentControl", true);
+    createButton->setProperty("fluentAppearance", QStringLiteral("primary"));
+    createButton->setMinimumHeight(34);
+    auto* cancelButton = buttons->button(QDialogButtonBox::Cancel);
+    cancelButton->setText(i18n::tr("aipdf::app::MainWindow", "取消"));
+    cancelButton->setProperty("fluentControl", true);
+    cancelButton->setMinimumHeight(34);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);

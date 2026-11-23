@@ -18,6 +18,10 @@ qt_add_executable(UiWiringTests
     ${CMAKE_SOURCE_DIR}/src/app/shell/RibbonBar.h
     ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.cpp
     ${CMAKE_SOURCE_DIR}/src/app/ui/Theme.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/FluentTokens.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/FluentTokens.h
+    ${CMAKE_SOURCE_DIR}/src/app/ui/components/FluentControls.cpp
+    ${CMAKE_SOURCE_DIR}/src/app/ui/components/FluentControls.h
     ${CMAKE_SOURCE_DIR}/src/app/dialogs/AnnotationToolboxDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/app/dialogs/AnnotationToolboxDialog.h
     ${CMAKE_SOURCE_DIR}/src/app/util/ConversionReports.cpp
