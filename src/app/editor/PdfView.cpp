@@ -142,6 +142,27 @@ constexpr double kMinZoom = 0.1;
 constexpr double kMaxZoom = 8.0;
 constexpr double kZoomStep = 1.25;
 
+QString cleanInlineEditorText(QString text) {
+    for (qsizetype index = 0; index < text.size(); ++index) {
+        QChar character = text.at(index);
+        const QChar::Category category = character.category();
+        const bool invalid = character == QChar::ReplacementCharacter ||
+                             category == QChar::Other_Control ||
+                             category == QChar::Other_Format ||
+                             category == QChar::Other_NotAssigned ||
+                             category == QChar::Other_PrivateUse ||
+                             category == QChar::Other_Surrogate;
+        if (invalid && character != QLatin1Char('\n') && character != QLatin1Char('\t')) {
+            text[index] = QLatin1Char(' ');
+        } else if (character == QChar::Nbsp) {
+            text[index] = QLatin1Char(' ');
+        }
+    }
+    text.replace(QRegularExpression(QStringLiteral("[ \\t]+")), QStringLiteral(" "));
+    text.replace(QRegularExpression(QStringLiteral(" *\\n *")), QStringLiteral("\n"));
+    return text.trimmed();
+}
+
 struct AccessibilityAudit {
     int pages = 0;
     int emptyTextPages = 0;
@@ -5050,12 +5071,40 @@ void PdfView::beginInlineTextEdit(int pageIndex, const QPointF& userPoint) {
     }
     PageTransform transform;
     if (!transformForIndexPage(pageIndex, &transform)) return;
+    const QRectF displayBounds = transform.toDisplay(found->bounds);
+    QString editorText = found->text;
+    // 对象级 FPDFTextObj_GetText 会暴露坏 ToUnicode 映射产生的替代字符，
+    // 也不会把 TJ/Td 字距还原为空格。页面文本层已经按几何位置补过词间空格，
+    // 因此优先取落在当前对象矩形里的阅读顺序区间。
+    if (textController_ != nullptr) {
+        if (const TextLayout* layout = textController_->layout(pageIndex)) {
+            const QVector<int>& order = layout->readingOrder();
+            const QVector<LayoutChar>& characters = layout->chars();
+            int first = -1;
+            int last = -1;
+            const QRectF hitBounds = displayBounds.adjusted(-1.5, -1.5, 1.5, 1.5);
+            for (int position = 0; position < order.size(); ++position) {
+                const QRectF charBox = characters.at(order.at(position)).box;
+                if (!charBox.isEmpty() &&
+                    (hitBounds.contains(charBox.center()) || hitBounds.intersects(charBox))) {
+                    if (first < 0) first = position;
+                    last = position;
+                }
+            }
+            if (first >= 0 && last >= first) {
+                const QString visualText = layout->textForRange(first, last + 1);
+                if (!visualText.trimmed().isEmpty()) editorText = visualText;
+            }
+        }
+    }
+    editorText = cleanInlineEditorText(editorText);
     selectedObjectPage_ = pageIndex;
     selectedObjectIndexes_ = {found->index};
     canvas_->setObjectSelection(pageIndex, found->bounds);
     canvas_->beginInlineTextEdit(pageIndex, found->index,
-                                 transform.toDisplay(found->bounds), found->text,
+                                 displayBounds, editorText,
                                  found->fontSize);
+    emit statusMessage(tr("正在编辑文字：按 Ctrl+Enter 保存，按 Esc 或点击外部取消"));
 }
 
 void PdfView::commitInlineTextEdit(int pageIndex, int objectIndex, const QString& text) {

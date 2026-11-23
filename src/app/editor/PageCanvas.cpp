@@ -1903,6 +1903,9 @@ void PageCanvas::beginInlineTextEdit(int pageIndex, int objectIndex, const QRect
     inlineEditDisplayRect_ = displayRect;
     inlineEditor_ = new QPlainTextEdit(viewport());
     inlineEditor_->setPlainText(text);
+    inlineEditor_->setObjectName(QStringLiteral("inlineTextEditor"));
+    inlineEditor_->setAccessibleName(tr("就地文字编辑器"));
+    inlineEditor_->setToolTip(tr("Ctrl+Enter 保存 · Esc 取消 · 点击外部取消"));
     inlineEditor_->setTabChangesFocus(false);
     inlineEditor_->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     QFont font = inlineEditor_->font();
@@ -1940,7 +1943,8 @@ bool PageCanvas::eventFilter(QObject* watched, QEvent* event) {
                 return true;
             }
         } else if (event->type() == QEvent::FocusOut) {
-            finishInlineTextEdit(true);
+            // 失去焦点不再静默写回 PDF。用户必须明确按 Ctrl+Enter 才提交。
+            finishInlineTextEdit(false);
         }
     }
     return QAbstractScrollArea::eventFilter(watched, event);
@@ -1956,7 +1960,11 @@ void PageCanvas::finishInlineTextEdit(bool commit) {
     inlineEditor_ = nullptr;
     inlineEditPage_ = -1;
     inlineEditObject_ = -1;
-    if (commit) emit inlineTextEditCommitted(page, object, text);
+    if (commit) {
+        emit inlineTextEditCommitted(page, object, text);
+    } else {
+        emit hintMessage(tr("已取消文字编辑，PDF 未修改"));
+    }
 }
 
 void PageCanvas::repositionInlineEditor() {
