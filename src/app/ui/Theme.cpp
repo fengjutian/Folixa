@@ -342,6 +342,45 @@ QFrame#annotationActionsCard QDoubleSpinBox {
 QFrame#annotationFilterCard QLineEdit:focus,
 QFrame#annotationFilterCard QComboBox:focus,
 QFrame#annotationActionsCard QDoubleSpinBox:focus { border-color: #5277E8; background: #FFFFFF; }
+/* 批注类型选择器：去掉原生的方形箭头按钮，弹层采用舒展的菜单节奏。 */
+QComboBox[annotationTypeFilter="true"] {
+    padding: 0 34px 0 11px; font-weight: 600; selection-background-color: transparent;
+}
+QComboBox[annotationTypeFilter="true"]:hover {
+    border-color: #C4D3EA; background: #FFFFFF; color: #3159B8;
+}
+QComboBox[annotationTypeFilter="true"]:on {
+    border-color: #5277E8; background: #FFFFFF; color: #24499D;
+}
+QComboBox[annotationTypeFilter="true"]::drop-down {
+    subcontrol-origin: padding; subcontrol-position: top right;
+    width: 30px; border: 0; background: transparent;
+}
+QComboBox[annotationTypeFilter="true"]::down-arrow {
+    image: url(:/icons/chevron-down.svg); width: 16px; height: 16px;
+}
+QListView#annotationTypePopup {
+    min-width: 196px; background: #FFFFFF; color: #465267;
+    border: 1px solid #D9E1EC; border-radius: 10px; padding: 6px;
+    selection-background-color: #E9F0FB; selection-color: #24499D;
+}
+QListView#annotationTypePopup::item {
+    min-height: 30px; padding: 0 10px; margin: 1px 0; border-radius: 6px;
+}
+QListView#annotationTypePopup::item:hover {
+    background: #F1F4FF; color: #3159B8;
+}
+QListView#annotationTypePopup::item:selected {
+    background: #E9F0FB; color: #24499D; font-weight: 600;
+}
+QListView#annotationTypePopup QScrollBar:vertical {
+    width: 8px; margin: 7px 2px 7px 0; background: transparent;
+}
+QListView#annotationTypePopup QScrollBar::handle:vertical {
+    min-height: 28px; border-radius: 3px; background: #C8D1DF;
+}
+QListView#annotationTypePopup QScrollBar::add-line:vertical,
+QListView#annotationTypePopup QScrollBar::sub-line:vertical { height: 0; }
 QFrame#annotationFilterCard QPushButton,
 QFrame#annotationActionsCard QPushButton {
     min-height: 31px; border-radius: 7px; background: #F8F9FB;
