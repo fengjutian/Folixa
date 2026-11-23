@@ -148,6 +148,10 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 #include <algorithm>
 #include <memory>
 
@@ -363,6 +367,7 @@ void MainWindow::buildUi() {
     tabs->tabBar()->setElideMode(Qt::ElideMiddle);
     tabs->tabBar()->setUsesScrollButtons(true);
     tabs->tabBar()->setFont(QApplication::font());
+    tabs->tabBar()->setFixedHeight(38);
     tabs->setTabsClosable(true);
     tabs->setDocumentMode(true);
     auto* welcome = createWelcomePage();
@@ -527,14 +532,16 @@ void MainWindow::buildUi() {
     menuBar()->hide();
 
     // 轻量功能导航：仅当前已交付的阅读功能可用，其余明确标记为后续能力。
-    auto* commandBar = new QToolBar(this);
-    addToolBar(Qt::TopToolBarArea, commandBar);
+    // 命令对象仍保留，用于承载既有 QAction、菜单和快捷键；可视入口已经收进
+    // Ribbon 与标题栏图标，不再显示一整条重复的“工作台 / 菜单 / 搜索”组件。
+    auto* commandBar = new QToolBar(tabs_);
     texts_.bind([this, commandBar] { commandBar->setWindowTitle(tr("功能导航")); });
     commandBar->setObjectName(QStringLiteral("commandBar"));
     commandBar->setMovable(false);
     commandBar->setFloatable(false);
     commandBar->setIconSize(QSize(18, 18));
-    commandBar->setFixedHeight(34);
+    commandBar->setFixedHeight(38);
+    commandBar->hide();
     // 「工作台」是真正的页签：选中态表示当前停在工作台页，点它回最近文档。
     // 旧实现把主菜单挂上「工作台」四个字，长得像页签却弹菜单，语义才对不上。
     auto* workspaceButton = new QToolButton(commandBar);
@@ -544,7 +551,7 @@ void MainWindow::buildUi() {
     workspaceButton->setIconSize(QSize(18, 18));
     workspaceButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     workspaceButton->setCheckable(true);
-    workspaceButton->setFixedSize(104, 28);
+    workspaceButton->setFixedSize(100, 32);
     texts_.bind([this, workspaceButton] {
         workspaceButton->setText(tr("工作台"));
         workspaceButton->setToolTip(tr("工作台：最近文档"));
@@ -561,7 +568,7 @@ void MainWindow::buildUi() {
     appMenuButton->setObjectName(QStringLiteral("appMenuButton"));
     appMenuButton->setIcon(QIcon(QStringLiteral(":/icons/menu.svg")));
     appMenuButton->setIconSize(QSize(16, 16));
-    appMenuButton->setFixedSize(32, 28);
+    appMenuButton->setFixedSize(32, 32);
     texts_.bind([this, appMenuButton] {
         appMenuButton->setToolTip(tr("主菜单"));
         appMenuButton->setAccessibleName(tr("主菜单"));
@@ -3136,10 +3143,16 @@ void MainWindow::syncTabBar() {
         return;
     }
     const bool onWorkspace = isWorkspaceCurrent();
-    // 标签条按「有几页」决定显隐：工作台 + 一份文档时仍要留着，否则回不到文档。
-    // 只剩工作台时整条收起来——一个标签的标签条只是浪费一行高度。
-    const bool onlyWorkspace = tabs_->count() == 1 && onWorkspace;
-    tabs_->tabBar()->setVisible(tabs_->count() > 0 && !onlyWorkspace);
+    // 工作台已有顶栏入口，不在文档标签条里再重复一次；标签条只承载真正的文档。
+    // 这也避免工作台选中时同时出现两块“工作台”，造成两套主导航竞争。
+    bool hasDocumentTab = false;
+    for (int index = 0; index < tabs_->count(); ++index) {
+        QWidget* page = tabs_->widget(index);
+        const bool workspaceTab = page != nullptr && page->property("welcomePage").toBool();
+        tabs_->tabBar()->setTabVisible(index, !workspaceTab);
+        hasDocumentTab = hasDocumentTab || !workspaceTab;
+    }
+    tabs_->tabBar()->setVisible(hasDocumentTab);
     if (ribbonBar_ != nullptr) {
         ribbonBar_->setCompactMode(onWorkspace);
         if (onWorkspace) {
@@ -5818,6 +5831,28 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         }
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
+#ifdef Q_OS_WIN
+    Q_UNUSED(eventType);
+    auto* nativeMessage = static_cast<MSG*>(message);
+    if (nativeMessage != nullptr && nativeMessage->message == WM_NCLBUTTONDOWN &&
+        nativeMessage->wParam == HTSYSMENU) {
+        // 吞掉系统菜单的左键打开行为，把品牌图标作为稳定的 Home 入口。
+        // 右键标题栏仍由 Windows 显示窗口系统菜单。
+        QTimer::singleShot(0, this, [this] { showWorkspace(); });
+        if (result != nullptr) {
+            *result = 0;
+        }
+        return true;
+    }
+#else
+    Q_UNUSED(eventType);
+    Q_UNUSED(message);
+    Q_UNUSED(result);
+#endif
+    return QMainWindow::nativeEvent(eventType, message, result);
 }
 
 void MainWindow::openRecordingFolder() {

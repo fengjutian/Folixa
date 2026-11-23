@@ -140,6 +140,8 @@ private slots:
     void officeExportNoticeStatesWhatIsKept();
     // 18) 文档页导航只能收成图标轨，不能把重新展开入口一起关闭。
     void navigationRailCannotBeClosedWithDock();
+    // 19) 重复命令栏必须隐藏，标题栏 Logo 是 Home 入口。
+    void titleLogoReplacesDuplicateCommandBar();
 };
 
 // ---------------------------------------------------------------- 1 / 2 ----
@@ -604,6 +606,21 @@ void UiWiringTests::navigationRailCannotBeClosedWithDock() {
         "navigationViewToggleAction_ = navigationDock_->toggleViewAction()")));
     // 菜单动作应当控制内容区的展开状态。
     QVERIFY(source.contains(QStringLiteral("setNavigationExpanded(expanded);")));
+}
+
+// ------------------------------------------------------------------ 19 ----
+
+void UiWiringTests::titleLogoReplacesDuplicateCommandBar() {
+    QFile file(QStringLiteral(AIPDF_MAINWINDOW_SOURCE));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString source = QString::fromUtf8(file.readAll());
+
+    QVERIFY(source.contains(QStringLiteral("commandBar->hide();")));
+    QVERIFY(!source.contains(QStringLiteral("tabs_->setCornerWidget(commandBar")));
+    QVERIFY(source.contains(QStringLiteral(
+        "tabs_->tabBar()->setTabVisible(index, !workspaceTab);")));
+    QVERIFY(source.contains(QStringLiteral("nativeMessage->wParam == HTSYSMENU")));
+    QVERIFY(source.contains(QStringLiteral("showWorkspace();")));
 }
 
 QTEST_MAIN(UiWiringTests)

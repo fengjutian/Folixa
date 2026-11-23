@@ -79,6 +79,8 @@ protected:
     void dropEvent(QDropEvent* event) override;
     // 全局鼠标事件过滤：沉浸阅读时光标自动隐藏靠它。
     bool eventFilter(QObject* watched, QEvent* event) override;
+    // Windows 标题栏左上角应用图标：单击回到工作台。
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
     void buildUi();

@@ -82,8 +82,8 @@ QMenu::item { padding: 7px 28px 7px 10px; border-radius: 6px; }
 
 /* ---------------------------------------------------------- 顶部命令栏 -- */
 QToolBar#commandBar {
-    min-height: 34px; max-height: 34px; padding: 0 6px; spacing: 2px;
-    background: #FAFAFB; border: 0; border-bottom: 1px solid #E4E4E7;
+    min-height: 38px; max-height: 38px; padding: 0 8px; spacing: 4px;
+    background: #FAFAFA; border: 0; border-bottom: 1px solid #E0E0E0;
 }
 QToolBar::separator { background: #E8ECF3; width: 1px; margin: 11px 9px; }
 QToolBar#commandBar QToolButton {
@@ -97,20 +97,20 @@ QToolBar#commandBar QToolButton:checked {
 }
 QToolBar#commandBar QToolButton:disabled { color: #B4BDCB; background: transparent; }
 QToolBar#commandBar QToolButton#workspaceButton {
-    min-width: 104px; max-width: 104px; min-height: 28px; max-height: 28px;
-    padding: 0 10px; border: 1px solid transparent; border-radius: 6px;
-    background: transparent; color: #4A576E; font-size: 14px; font-weight: 700;
+    min-width: 100px; max-width: 100px; min-height: 32px; max-height: 32px;
+    padding: 0 10px; border: 1px solid transparent; border-radius: 4px;
+    background: transparent; color: #424242; font-size: 13px; font-weight: 600;
 }
-QToolBar#commandBar QToolButton#workspaceButton:hover { background: #F2F6FD; color: #2F4FA8; }
+QToolBar#commandBar QToolButton#workspaceButton:hover { background: #F5F5F5; color: #3159B8; }
 /* 只有停在工作台页时才点亮：未选中保持安静，不和 Ribbon 的选中页签抢注意力。 */
 QToolBar#commandBar QToolButton#workspaceButton:checked {
-    border-color: #365AA8; background: #4169C1; color: #FFFFFF;
+    border-color: #D9E3F2; background: #E9F0FB; color: #24499D;
 }
-QToolBar#commandBar QToolButton#workspaceButton:checked:hover { background: #365AA8; }
+QToolBar#commandBar QToolButton#workspaceButton:checked:hover { background: #EEF3FC; }
 /* 主菜单只剩一个图标：去掉内边距，让三条横线居中。 */
 QToolBar#commandBar QToolButton#appMenuButton {
-    min-width: 30px; max-width: 30px; min-height: 28px; max-height: 28px;
-    padding: 0; border: 1px solid transparent; border-radius: 6px;
+    min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+    padding: 0; border: 1px solid transparent; border-radius: 4px;
     background: transparent; color: #4A576E;
 }
 QToolBar#commandBar QToolButton#appMenuButton:hover { background: #F2F6FD; }
@@ -221,21 +221,20 @@ QTabBar::tab:hover:!selected { background: #F7F7F8; color: #365AA8; }
 QTabBar::close-button { image: url(:/icons/close.svg); subcontrol-position: right; margin-left: 4px; padding: 2px; border-radius: 4px; }
 QTabBar::close-button:hover { background: #E4EAF5; }
 /* 主文档标签比通用页签更像一条轻量工作区，不画厚重的“选项卡盒子”。 */
-QTabWidget#documentTabs > QTabBar#documentTabBar {
-    background: #F8F9FB; border-bottom: 1px solid #E4E8EF;
+QTabBar#documentTabBar {
+    background: #FAFAFA; border-bottom: 1px solid #E0E0E0;
 }
-QTabWidget#documentTabs > QTabBar#documentTabBar::tab {
-    min-height: 34px; max-height: 34px; min-width: 92px; max-width: 280px;
-    margin: 5px 2px 0 2px; padding: 0 14px; border: 1px solid transparent;
-    border-radius: 8px 8px 0 0; background: transparent; color: #67748A;
+QTabBar#documentTabBar::tab {
+    min-height: 37px; max-height: 37px; min-width: 92px; max-width: 280px;
+    margin: 0; padding: 0 14px; border: 0; border-bottom: 2px solid transparent;
+    border-radius: 0; background: transparent; color: #616161;
     font-family: "Microsoft YaHei UI"; font-size: 12px; font-weight: 400;
 }
-QTabWidget#documentTabs > QTabBar#documentTabBar::tab:selected {
-    color: #202A3A; background: #FFFFFF; border-color: #DCE3EC;
-    border-bottom-color: #FFFFFF; font-weight: 600;
+QTabBar#documentTabBar::tab:selected {
+    color: #242424; background: #FFFFFF; border-bottom-color: #4169C1; font-weight: 600;
 }
-QTabWidget#documentTabs > QTabBar#documentTabBar::tab:hover:!selected {
-    color: #3159B8; background: #EEF3FC;
+QTabBar#documentTabBar::tab:hover:!selected {
+    color: #3159B8; background: #F0F0F0;
 }
 
 /* -------------------------------------------------------------- 面板 -- */
