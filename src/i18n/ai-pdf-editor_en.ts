@@ -709,6 +709,10 @@
     <message><source>本地离线问答</source><translation>Local offline Q&amp;A</translation></message>
     <message><source>本地索引里还没有内容：先建立索引，再问。</source><translation>The local index is empty: build the index first, then ask.</translation></message>
     <message><source>本地离线问答还没有接上：当前文档没有可检索的索引。</source><translation>Local offline Q&amp;A is not connected yet: the current document has no index to search.</translation></message>
+        <message>
+            <source>Folixa AI</source>
+            <translation>Folixa AI</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::AiSettingsDialog</name>
@@ -3848,6 +3852,18 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
     <message><source>点击页面选择箭头指向的位置</source><translation>Click the page to choose where the arrow points</translation></message>
     <message><source>请在同一个页面上选择箭头指向的位置</source><translation>Choose the arrow target on the same page</translation></message>
     <message><source>已取消箭头框</source><translation>Callout cancelled</translation></message>
+        <message>
+            <source>Ctrl+Enter 保存 · Esc 取消 · 点击外部取消</source>
+            <translation>Ctrl+Enter to save · Esc to cancel · click outside to cancel</translation>
+        </message>
+        <message>
+            <source>就地文字编辑器</source>
+            <translation>In-place text editor</translation>
+        </message>
+        <message>
+            <source>已取消文字编辑，PDF 未修改</source>
+            <translation>Text editing cancelled; the PDF was not modified</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PdfView</name>
@@ -6059,6 +6075,18 @@ This is the same thing as “Auxiliary tools → Tags → Auto-tag document”: 
             <source>选区里的语义元素本来就按视觉顺序排好，文档没有修改。</source>
             <translation>The semantic elements in the selection are already in visual order; the document was not modified.</translation>
         </message>
+        <message>
+            <source>无法访问系统剪贴板</source>
+            <translation>Cannot access the system clipboard</translation>
+        </message>
+        <message>
+            <source>正在编辑文字：按 Ctrl+Enter 保存，按 Esc 或点击外部取消</source>
+            <translation>Editing text: press Ctrl+Enter to save, Esc or click outside to cancel</translation>
+        </message>
+        <message>
+            <source>没有可复制的文字</source>
+            <translation>No text to copy</translation>
+        </message>
 </context>
     <context>
         <name>aipdf::app::PresentationWindow</name>
@@ -7786,6 +7814,14 @@ This is the same thing as “Auxiliary tools → Tags → Auto-tag document”: 
         <message>
             <source>配置全局 AI 服务、模型、数据范围和安全凭据。</source>
             <translation>Configure the global AI services, models, data scope and credentials.</translation>
+        </message>
+        <message>
+            <source>显示菜单栏（与 Ribbon 同时显示）</source>
+            <translation>Show menu bar (alongside the Ribbon)</translation>
+        </message>
+        <message>
+            <source>界面模式</source>
+            <translation>Interface mode</translation>
         </message>
     </context>
     <context>

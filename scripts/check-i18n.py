@@ -33,6 +33,13 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
+# Windows 控制台默认是 GBK，打印中文/符号（如 ▸）会抛 UnicodeEncodeError，
+# 让一条「只是提示陈旧词条」的输出把门禁判成失败。统一按 UTF-8 输出，
+# 无法编码的字符替换掉而不是中断检查。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 C_STRING = r'"(?:[^"\\]|\\.)*"'
 CONCAT = rf'({C_STRING}(?:\s*{C_STRING})*)'
 
