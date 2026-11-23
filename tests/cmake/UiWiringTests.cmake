@@ -70,6 +70,7 @@ target_include_directories(UiWiringTests PRIVATE
 # 翻译目录的路径：测试要核对「新增的用户可见文案都登记进去了」。
 target_compile_definitions(UiWiringTests PRIVATE
     AIPDF_I18N_TS_FILE="${CMAKE_SOURCE_DIR}/src/i18n/ai-pdf-editor_en.ts"
+    AIPDF_MAINWINDOW_SOURCE="${CMAKE_SOURCE_DIR}/src/app/shell/MainWindow.cpp"
 )
 
 set_target_properties(UiWiringTests PROPERTIES WIN32_EXECUTABLE FALSE)
