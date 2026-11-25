@@ -468,6 +468,7 @@ private slots:
     void clipboardImageWithEmptyBytesIsReported();
     void clipboardImageWithBrokenBytesIsRejected();
     void clipboardImageWithUnsupportedFormatIsRejected();
+    void clipboardImageWithBrokenTiffIsRejected();
     void clipboardImagePartialSuccessReportsFailedOnes();
     void clipboardImageLimitIsReported();
     void clipboardHtmlDoesNotEmbedImages();
@@ -753,14 +754,16 @@ void ConversionInputsTests::clipboardImageWithBrokenBytesIsRejected() {
 }
 
 void ConversionInputsTests::clipboardImageWithUnsupportedFormatIsRejected() {
-    // 负例：TIFF / GIF / WebP 明确不支持 —— 要点名格式，不能只写「转换失败」。
+    // 负例：GIF / WebP 明确不支持 —— 要点名格式，不能只写「转换失败」。
+    //
+    // （TIFF 不在这里了：TIFF 现在是支持的格式，拿它当「不支持」的样本，
+    // 这条用例就名不副实了。TIFF 字节「认得出但解不开」是另一类问题，
+    // 见下面那条用例。）
     struct Sample {
         QByteArray bytes;
         QString format;
     };
     const QVector<Sample> samples = {
-        {QByteArrayLiteral("II\x2a\x00") + QByteArrayLiteral("not-really-a-tiff"),
-         QStringLiteral("TIFF")},
         {QByteArrayLiteral("GIF89a") + QByteArrayLiteral("not-really-an-image"),
          QStringLiteral("GIF")},
         {QByteArrayLiteral("RIFF") + QByteArray(4, '\0') +
@@ -779,6 +782,24 @@ void ConversionInputsTests::clipboardImageWithUnsupportedFormatIsRejected() {
         QCOMPARE(issue.kind, aipdf::doc::ClipboardImageIssueKind::UnsupportedFormat);
         QCOMPARE(issue.format, sample.format);
     }
+}
+
+void ConversionInputsTests::clipboardImageWithBrokenTiffIsRejected() {
+    // TIFF 现在是**支持**的格式：字节认得出、但内容解不开时，
+    // 要报「数据坏了」（DecodeFailed），不能报成「格式不支持」——
+    // 这两件事给用户的建议完全不同（前者重取数据，后者换来源）。
+    const QByteArray broken =
+        QByteArrayLiteral("II\x2a\x00") + QByteArrayLiteral("not-really-a-tiff");
+    const ConversionResult result = aipdf::doc::clipboardImageToPdf(QVector<QByteArray>{broken});
+    QVERIFY(!result.ok);
+    QVERIFY(result.bytes.isEmpty());
+    QCOMPARE(result.errorKind, aipdf::doc::ConversionErrorKind::ImageDecodeFailed);
+    QCOMPARE(result.clipboardImageOutcome.embedded, 0);
+    QCOMPARE(result.clipboardImageOutcome.issues.size(), 1);
+    const aipdf::doc::ClipboardImageIssue& issue = result.clipboardImageOutcome.issues.at(0);
+    QCOMPARE(issue.kind, aipdf::doc::ClipboardImageIssueKind::DecodeFailed);
+    QCOMPARE(issue.format, QStringLiteral("TIFF"));
+    QVERIFY(!issue.detail.isEmpty());
 }
 
 void ConversionInputsTests::clipboardImagePartialSuccessReportsFailedOnes() {

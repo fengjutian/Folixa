@@ -1413,6 +1413,69 @@ partial 仍是 8 条、aligned 仍是 239 条）。
 **剩下的**：XFA 编辑入口还没有界面验收脚本（`scripts/verify-forms.ps1` 只覆盖表单页签），
 真机扫描、OneNote、veraPDF、Ghostscript 这几类**验证类**工作依旧要外部环境。
 
+### 1.14 2026-11-25 第三十次盘点（TIFF 输入：自研解码器 + 多页 TIFF + 扫描仪链路）
+
+这一轮补的是一条**输入格式能力**：TIFF（含多页 TIFF）。它同时喂饱两条用户路径 ——
+「图片转 PDF」（`pdf::imagesToPdf`）与「从扫描仪」（`app::ScannerCapture`）。
+
+| # | 改什么 | 落在哪 | 验证 |
+|---|---|---|---|
+| 1 | 自研 TIFF 解码器 | `src/pdf/convert/TiffDecoder.{h,cpp}`（新建，不塞进已一千多行的 `ImageToPdf.cpp`）+ `src/pdf/convert/ImageToPdf.{h,cpp}`（`ImageFormat::Tiff`、`decodeImagePages`） | `ImageToPdfTests` 41 条 |
+| 2 | 多页 TIFF 按页展开成多页 PDF | `pdf::imagesToPdf` 改为逐输入调 `decodeImagePages`，页序不变 | `ImageToPdfTests` 41 条 |
+| 3 | 扫描仪点名要 TIFF 传输格式 | `src/app/controllers/ScannerCapture.cpp`（`kWiaFormatTiff` + 传输格式列表 + 报错文案） | `ScannerCaptureTests` 10 条 |
+| 4 | 真实文件交叉复核（libtiff 产出） | `scripts/generate-tiff-fixtures.py`（新建）+ `tests/fixtures/tiff/`（签进仓库的 6 个夹具） | `ImageToPdfTests` 41 条 |
+
+**为什么自研而不引 libtiff**：沿用仓库里 BMP / PNG 的自解路子 —— 部署包实测只有
+gif / ico / jpeg / svg 四个 Qt 图像插件，用 `QImageReader` 在用户机器上会直接失败；
+自研也就不动依赖策略（`docs/DEPENDENCY_POLICY.md`）。
+
+**支持范围**：大端 / 小端；灰度 1 / 2 / 4 / 8 / 16 位（白为最小按规范反相、16 位折高字节）；
+调色板（16 位 ColorMap）；RGB 8 / 16 位；压缩支持未压缩 / LZW / Deflate / PackBits；
+多页 TIFF 沿 IFD 链逐页展开。**明确报错**（不给半张图）：分块（tiled）、
+平面布局（PlanarConfiguration=2）、JPEG-in-TIFF、CCITT、CMYK、BigTIFF、FillOrder=2。
+
+**这一轮真正学到的东西（三条都是「静默出错」型）**：
+
+1. **读标签的列表值时，把返回值只当真假判断用，会把 0 读成 0**。
+   `readList` 里 `if (!readEntryValue(...)) return false;` —— 值的 0 被当成「读失败」，
+   于是位深、条偏移、条字节数全成了 0，解出来是一张全黑的图，**而且不报错**。
+2. **LZW 的表下标必须就是码号**。清码 256 与结束码 257 没有对应字串，但必须**占着两个位置**；
+   少占这两个位置，新建字串会落在 256 而不是 258，码号与表下标错开两格，
+   轻则解出错图，重则读到不存在的表项直接崩。
+3. **码宽增长的门槛差一格就整条流错位**。解码器永远比编码器少一个表项，
+   门槛要相应早一格（`nextCode` 到 511 / 1023 / 2047 时换宽）。差一格的症状是
+   「解出来的图全是噪点」，同样**不报错**。
+
+这三条为什么值得单独写：它们都**不会让测试变红**，只会让输出悄悄变错。
+所以这一轮特意加了**独立实现产出的真实文件**做对拍：夹具由 libtiff（Pillow）写出并
+签进仓库（`tests/fixtures/tiff/`），解码器必须解出与 libtiff 逐像素一致的结果
+（用 FNV-1a 校验值比）才算过。**自造字节 + 自写解码器是发现不了这三条的** ——
+两边一起错也照样全绿。门面上「自己造、自己解」的那批用例只证明了「解码器认得
+自己写的格式」，证不了「解码器认得真实世界的文件」。
+
+**扫描仪那条路为什么自动受益**：WIA 的传输格式 ID 里本来就有 TIFF
+（`wiaFormatTIFF = {B96B3CB1-0728-11D3-9D7B-0000F81EF32E}`，
+GUID 取自微软文档「FormatID Constants」；相邻的 `{B96B3CAF-…}` 是 PNG，别拿错）。
+以前点名要 BMP / JPEG 都失败时只能退回设备默认格式，拿到 TIFF 帧就会直接报
+「格式不支持」；现在传输格式列表里点名要 TIFF，拿到就能解。
+领域层的格式判定与「拼 PDF」两步本来就都走 `pdf::detectImageFormat` /
+`pdf::imagesToPdf`，**没有为 TIFF 单独开一条旁路**。
+
+**这一轮没有把任何矩阵状态上调**：扫描仪那两行仍然是 `partial` ——
+能力补齐了，但**真机取帧仍然没有跑过**（本机没有扫描仪），
+这一条不能因为「TIFF 能解了」就改成 `aligned`。
+aligned 仍是 239 条、partial 仍是 8 条。
+
+**顺带修正的两处「拿旧结论当现状」**：`ScannerCaptureTests` 与
+`ConversionInputsTests` 里都拿 **TIFF 当「格式不支持」的样本**——
+TIFF 现在是支持的格式了，这些负例得换样本（改用 GIF / WebP），
+否则用例名不副实。剪贴板图片那条另外补了一条负例：TIFF 字节**认得出但解不开**
+时要报「数据坏了」（`DecodeFailed`）而不是「格式不支持」——
+这两件事给用户的建议完全不同（前者重取数据，后者换来源）。
+
+**i18n**：扫描仪那句报错文案改成「本程序只支持 BMP、JPEG、PNG 与 TIFF」，
+英文目录同步更新，并把一条早就过期的旧词条（「只支持 BMP 与 JPEG」）一并删掉。
+
 ## 1. 结论
 
 计划中的 1.1 → 1.11 没有按顺序推进。实际代码集中在 **1.1–1.5、1.8、1.10，以及 1.11 的一部分**；
