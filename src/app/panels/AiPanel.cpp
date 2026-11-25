@@ -676,6 +676,26 @@ void AiPanel::requestTranslate() {
     sendTask(ai::Task::Translate, QString());
 }
 
+void AiPanel::requestRewrite() {
+    const QString selection = currentSelection().trimmed();
+    if (selection.isEmpty()) {
+        appendMessage(tr("<b>提示：</b>先在页面上选中一段文字，再点「改写」。"));
+        trace(QStringLiteral("ai rewrite skipped reason=no_selection"));
+        return;
+    }
+    sendTask(ai::Task::Rewrite, QString());
+}
+
+void AiPanel::requestProofread() {
+    const QString selection = currentSelection().trimmed();
+    if (selection.isEmpty()) {
+        appendMessage(tr("<b>提示：</b>先在页面上选中一段文字，再点「校对」。"));
+        trace(QStringLiteral("ai proofread skipped reason=no_selection"));
+        return;
+    }
+    sendTask(ai::Task::Proofread, QString());
+}
+
 void AiPanel::requestAsk(const QString& question) {
     // 范围是「整篇文档」时，提问走检索那一条路。
     if (scope_ == Scope::WholeDocument) {
@@ -874,7 +894,7 @@ void AiPanel::ensureTextThenRun(const QString& task, const QString& question) {
         appendMessage(tr("<b>提示：</b>上一次还在生成，先点「停止」或等它结束。"));
         return;
     }
-    // 解释与翻译要的是选区，不等文本层。
+    // 解释、翻译、改写与校对要的是选区，不等文本层。
     if (task != QLatin1String("summary") && task != QLatin1String("chat")) {
         sendTask(task, question);
         return;
@@ -909,9 +929,10 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
     if (workerClient_ == nullptr) {
         return;
     }
-    // 材料：摘要与提问用当前页，解释与翻译用当前选区。
+    // 材料：摘要与提问用当前页，解释 / 翻译 / 改写 / 校对用当前选区。
     QString material;
-    if (task == QLatin1String("explain") || task == QLatin1String("translate")) {
+    if (task == QLatin1String("explain") || task == QLatin1String("translate") ||
+        task == QLatin1String("rewrite") || task == QLatin1String("proofread")) {
         material = currentSelection();
     } else {
         material = currentPageText();
@@ -983,6 +1004,10 @@ void AiPanel::sendTask(const QString& task, const QString& question) {
         pendingUserTurn_ = tr("请解释我选中的内容");
     } else if (task == QLatin1String("translate")) {
         pendingUserTurn_ = tr("请翻译我选中的内容");
+    } else if (task == QLatin1String("rewrite")) {
+        pendingUserTurn_ = tr("请改写我选中的内容");
+    } else if (task == QLatin1String("proofread")) {
+        pendingUserTurn_ = tr("请校对我选中的内容");
     }
     answerCursor_ = conversation_->textCursor();
     answerCursor_.movePosition(QTextCursor::End);

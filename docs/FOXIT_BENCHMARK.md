@@ -84,7 +84,7 @@
 | F3 | 表单域 JS 子集（计算、校验、格式化） | ✓ | 已具备 | 1.5.0 | 手写子集求值器（`FormJsEvaluator`，18 条单测）+ 对象层读写（`FormScriptStore`，9 条单测）；「JavaScript」可写脚本并写回字段，「计算次序」按 AcroForm `/CO` 执行并可调序写回（PDFium 重新序列化后仍在）；**是白名单子集，不是完整 JS 引擎** |
 | F4 | FDF / XFDF / CSV 数据导入导出 | ✓ | 已具备 | 1.5.0 | CSV、FDF 与 **XFDF 表单数据**都双向可用（XFDF 表单数据与批注 XFDF 分文件，避免对方软件认不得）；`XfdfTests` 有往返单测 |
 | F5 | 表单创建与域属性编辑 | ✓ | 已具备 | 1.5.0 | **原口径是「不做」，因建域与域属性编辑已实现而上调**；建域限制同 E7，域属性含提示、必填、只读与多行，表单面板另加提示列；表单工具设置可统一新建域的字体、字号与颜色（写入 /DA，**标准 14 号字体全部可选**，新建或补写 AcroForm 时都把 14 个字体登记进 /DR /Font，`FormToolSettingsTests` 13 条） |
-| F6 | XFA 静态字段提取（动态逻辑不执行） | ✓ | 对齐 | 1.5.0 | XFA **静态**表单字段已支持：字段名 / 标签 / 类型 / 当前值 / 是否必填可列出并导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**字段值改写已接上**（`pdf::writeXfaFieldValue` / `writeXfaFieldValues`：只替换值所在的那几个字节，XML 结构与节点顺序不动，改完能读回）；**计算脚本子集能执行**（`pdf::runXfaCalculateScripts`：走仓库既有的 `FormJsEvaluator` 白名单子集，多脚本按读写依赖拓扑重排后执行）；**含动态逻辑的 XFA 按静态字段处理**（本仓库没有 XFA SOM / 布局 / 事件运行时，界面必须显示这句提示）；**原口径是「XFA 动态表单」，因没有 XFA 运行时而改名成现在这个名字，不再承诺动态表单的范围**；`Wave21XfaTests` 20 条 |
+| F6 | XFA 静态字段提取（动态逻辑不执行） | ✓ | 对齐 | 1.5.0 | XFA **静态**表单字段已支持：字段名 / 标签 / 类型 / 当前值 / 是否必填可列出并导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`，`XfaSupportTests` 20 条）；**字段值改写已接上**（`pdf::writeXfaFieldValue` / `writeXfaFieldValues`：只替换值所在的那几个字节，XML 结构与节点顺序不动，改完能读回）；**计算脚本子集能执行**（`pdf::runXfaCalculateScripts`：走仓库既有的 `FormJsEvaluator` 白名单子集，多脚本按读写依赖拓扑重排后执行）；**含动态逻辑的 XFA 按静态字段处理**（本仓库没有 XFA SOM / 布局 / 事件运行时，界面必须显示这句提示）；**原口径是「XFA 动态表单」，因没有 XFA 运行时而改名成现在这个名字，不再承诺动态表单的范围**；**字段值改写这一轮接到了界面上**（Ribbon「表单 → 编辑静态 XFA」`form.xfa`：字段清单里改「新值」→ 点「写回文档」写进文档，只交出改过的字段，逐项报成功与失败原因；界面在改值入口旁写明只改值、不动布局、不执行脚本）；`Wave21XfaTests` 20 条 + `LastWaveUiTests` 24 条 |
 
 ### G. 安全与签名（9 项）
 
@@ -124,7 +124,7 @@
 | I2 | 隐藏文本层回写 | ✓ | 对齐 | 1.3.0 | 隐藏文本层回写已实现并有界面入口：把识别文字以渲染模式 3（`3 Tr`）加在页面内容流末尾，可搜索可复制且不改变外观（`pdf::writeInvisibleTextLayer`，`InvisibleTextLayerTests` 16 条）；**同一页重写是「替换」不是「叠加」**（写出的层带 `%AIPDF-OCR-LAYER-BEGIN/END` 标记，写前先摘掉旧层）——不替换的话两层叠在同一坐标，PDFium 只保留一层，第二遍的文字取不到而函数仍返回成功 |
 | I3 | 界面语言切换与缺包检测 | ✓ | 对齐 | 2.0.0 | 界面语言可切换（中 / English / 跟随系统 / 用户安装的语言包），选择持久化到 QSettings；**语言包缺失或解析失败时明确报错、不再静默劣化**（`LanguageManager::apply` 失败即返回 false 并给出原因，界面弹提示；旧实现会谎报「已切换为 English」而界面一个字没变，已修；本轮又补了一条专项用例把它钉住）；**用户侧可安装语言包**：设置 →「界面语言」→「安装语言包…」与主菜单「语言 → 安装语言包…」都能选 `.ts` 文件，校验「能解析且词条非空 + 是本应用的目录 + 目录声明的语言与目标一致」后复制到用户目录（`%LOCALAPPDATA%\AI PDF Editor Project\AI PDF Editor\translations`），**用户目录优先于程序自带**，装完即进可切换列表（语言菜单与设置下拉都会刷新）；**缺包时给可执行引导**：说清包名、目标目录与两个安装入口，不再只报一句错；`I18nTests` 20 条 + `LanguagePackTests` 14 条 |
 | I4 | 版面分析与阅读顺序 | ✓ | 已具备 | 0.13.0 | OCR 结果走同一分块器，行框齐全 |
-| I5 | 扫描仪输入（WIA） | ✓ | 对齐 | — | WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon 两个「从扫描仪」入口（`scan.fromScanner` / `convert.fromScanner`）已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序 + 传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 9 条）；**图像支持 BMP / JPEG / PNG**（PNG 用自研解码器，不依赖 Qt 图像插件；TIFF 明确不支持）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**：枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 28 条 |
+| I5 | 扫描仪输入（WIA） | ✓ | 对齐 | — | WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon 两个「从扫描仪」入口（`scan.fromScanner` / `convert.fromScanner`）已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序 + 传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 10 条）；**图像支持 BMP / JPEG / PNG / TIFF**（PNG 与 TIFF 用自研解码器，不依赖 Qt 图像插件；**TIFF 这一轮补上**，支持大端 / 小端、灰度 1/2/4/8/16 位、调色板、RGB 8/16 位与未压缩 / LZW / Deflate / PackBits 压缩，**多页 TIFF 按页展开成多页 PDF**，页序不变）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**：枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 41 条 |
 
 ### J. 国际化与无障碍（7 项）
 
@@ -154,7 +154,7 @@
 | 编号 | 能力 | 福昕 | 本项目目标 | 版本 | 验收 |
 |---|---|---|---|---|---|
 | L1 | 流式对话与取消 | ✓ | 已具备 | — | 现有验收 |
-| L2 | 页内总结 / 解释 / 翻译选区 | ✓ | 已具备 | — | 选区与当前页的翻译已实现；**整篇翻译也做完了**（`pdf::translateDocument`，Ribbon「整篇翻译」`ai.translateDocument`）：按段把整篇正文交给 AI 服务翻译，译文写回各自的位置——**演示 Provider 的示例译文不写回文档**（那是拼出来的样子）；Provider 返回空、与原文相同、或译文放不进原来的位置时该段保留原文并写明原因；写回后用 PDFium 回读核对「写回段的译文在页面上、没写回段的原文还在」（`Wave21StreamTests` 19 条） |
+| L2 | 页内总结 / 解释 / 翻译 / 改写 / 校对选区 | ✓ | 已具备 | — | 选区与当前页的翻译已实现；**整篇翻译也做完了**（`pdf::translateDocument`，Ribbon「整篇翻译」`ai.translateDocument`）：按段把整篇正文交给 AI 服务翻译，译文写回各自的位置——**演示 Provider 的示例译文不写回文档**（那是拼出来的样子）；Provider 返回空、与原文相同、或译文放不进原来的位置时该段保留原文并写明原因；写回后用 PDFium 回读核对「写回段的译文在页面上、没写回段的原文还在」（`Wave21StreamTests` 19 条）；**AI 快捷卡上的「改写」「校对」也已接上真实动作**（`ai::Task::Rewrite` / `ai::Task::Proofread`，作用于当前选区，走同一套 Provider 与隐私策略） |
 | L3 | 整篇问答 | ✓ | 已具备 | — | 现有验收 |
 | L4 | **引用逐字离线核验** | — | 已具备（超越） | — | 已有负例守卫 |
 | L5 | 数据策略、上传预览、审计 | ± | 已具备（超越） | 0.12.0 | 本地模式零外发 |

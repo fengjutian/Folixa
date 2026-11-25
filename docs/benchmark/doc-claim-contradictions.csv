@@ -31,3 +31,8 @@ H9,docs/FOXIT_BENCHMARK.md,剪贴板里的文字与图片分稿，不合并成�
 J5,docs/FOXIT_BENCHMARK.md,本机没有读屏软件,,本机装着 Windows 自带的『讲述人』（C:\Windows\System32\Narrator.exe），只是没装 NVDA / Acrobat；而且实测 Edge 与 Chrome 的 PDF 插件不把带标签内容暴露给无障碍树，真机朗读在这台机器上做不了 —— 这句是 2026-11-21 之前的旧说法
 J5,docs/FOXIT_FEATURE_MATRIX.md,本机没有读屏软件,,同上：矩阵文档由 foxit-features.csv 生成，CSV 里的话术已改，但旧话术仍要挡住
 H9,docs/VERSION_AUDIT.md,混合内容（文字 + 图片）还不能合成一份 PDF,第二十八次,同上：历史轮次里的旧结论留在存档里，但从第二十八次盘点起不得再出现这句
+F6,docs/UNDEVELOPED_FEATURES.md,仍为禁用命令,,静态 XFA 的字段改写入口这一轮已接通（Ribbon「表单 → 编辑静态 XFA」→ 改值 → 写回文档），这句是 2026-11-24 之前的旧说法
+F6,docs/UNDEVELOPED_FEATURES.md,编辑入口仍然禁用,,同上：矩阵的 aligned 与界面的启用状态这一轮已经一致
+F6,docs/UNDEVELOPED_FEATURES.md,不能伪装成可用功能,,这句是描述旧占位按钮的旧说法：XFA 编辑入口已接通，不再是「不能伪装」的占位
+A11,docs/UNDEVELOPED_FEATURES.md,仍有一个禁用的,,"「添加 3D」占位按钮这一轮已删除，3D 的入口是「插入 3D 模型」与「查看 3D 模型」"
+A11,docs/UNDEVELOPED_FEATURES.md,遗留占位,,同上：「添加 3D」那个占位按钮这一轮已删掉

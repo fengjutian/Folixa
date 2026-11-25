@@ -650,6 +650,18 @@ int PdfUaReportDialog::errorCount() const {
 
 // ================================================================ 任务 Q ====
 
+namespace {
+
+// 表格里「当前值」与「新值」两列的下标。
+//
+// 为什么写死：这两个列下标在只读模式与编辑模式下都一样（编辑模式只是
+// 多显示一列并让它可改），索引混用会让 pendingValues() 取错列。
+constexpr int kXfaCurrentValueColumn = 3;
+constexpr int kXfaEditedValueColumn = 4;
+constexpr int kXfaRequiredColumn = 5;
+
+}  // namespace
+
 XfaFieldsDialog::XfaFieldsDialog(QWidget* parent) : QDialog(parent) {
     setObjectName(QStringLiteral("lastWave.xfaDialog"));
     setWindowTitle(i18n::tr("aipdf::app::LastWavePanels", "XFA 字段"));
@@ -668,16 +680,29 @@ XfaFieldsDialog::XfaFieldsDialog(QWidget* parent) : QDialog(parent) {
     dynamicLabel_->setWordWrap(true);
     layout->addWidget(dynamicLabel_);
 
+    // 编辑模式的边界说明：只读时整块隐藏。
+    scopeLabel_ = new QLabel(this);
+    scopeLabel_->setObjectName(QStringLiteral("lastWave.xfa.scope"));
+    scopeLabel_->setAccessibleName(i18n::tr("aipdf::app::LastWavePanels", "XFA 编辑边界"));
+    scopeLabel_->setWordWrap(true);
+    scopeLabel_->setVisible(false);
+    layout->addWidget(scopeLabel_);
+
     table_ = new QTableWidget(this);
     table_->setObjectName(QStringLiteral("lastWave.xfa.table"));
     table_->setAccessibleName(i18n::tr("aipdf::app::LastWavePanels", "XFA 字段列表"));
-    table_->setColumnCount(5);
-    table_->setHorizontalHeaderLabels({i18n::tr("aipdf::app::LastWavePanels", "名称"), i18n::tr("aipdf::app::LastWavePanels", "标签"), i18n::tr("aipdf::app::LastWavePanels", "类型"), i18n::tr("aipdf::app::LastWavePanels", "当前值"), i18n::tr("aipdf::app::LastWavePanels", "必填")});
+    table_->setColumnCount(6);
+    table_->setHorizontalHeaderLabels({i18n::tr("aipdf::app::LastWavePanels", "名称"), i18n::tr("aipdf::app::LastWavePanels", "标签"), i18n::tr("aipdf::app::LastWavePanels", "类型"), i18n::tr("aipdf::app::LastWavePanels", "当前值"), i18n::tr("aipdf::app::LastWavePanels", "新值"), i18n::tr("aipdf::app::LastWavePanels", "必填")});
     table_->horizontalHeader()->setStretchLastSection(true);
+    // 只读模式下「新值」这一列整列藏起来：留着一列不能改的空格只会让人以为能改。
+    table_->setColumnHidden(kXfaEditedValueColumn, true);
     layout->addWidget(table_, 1);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     exportButton_ = buttons->addButton(i18n::tr("aipdf::app::LastWavePanels", "导出字段 CSV"), QDialogButtonBox::ActionRole);
+    applyButton_ = buttons->addButton(i18n::tr("aipdf::app::LastWavePanels", "写回文档"), QDialogButtonBox::ActionRole);
+    applyButton_->setVisible(false);
+    applyButton_->setEnabled(false);
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(exportButton_, &QPushButton::clicked, this, [this] {
@@ -694,6 +719,11 @@ XfaFieldsDialog::XfaFieldsDialog(QWidget* parent) : QDialog(parent) {
         file.write(exportCsv());
         file.close();
     });
+    connect(applyButton_, &QPushButton::clicked, this, [this] {
+        // 只把**改过的**字段交出去：没改的字段不该被写回。
+        emit applyRequested(pendingValues());
+    });
+    connect(table_, &QTableWidget::itemChanged, this, [this] { refreshApplyButton(); });
 }
 
 void XfaFieldsDialog::setReport(const pdf::XfaReport& report) {
@@ -701,20 +731,99 @@ void XfaFieldsDialog::setReport(const pdf::XfaReport& report) {
     rebuild();
 }
 
+void XfaFieldsDialog::setEditable(bool editable) {
+    if (editable_ == editable) {
+        return;
+    }
+    editable_ = editable;
+    scopeLabel_->setVisible(editable);
+    scopeLabel_->setText(editable ? xfaEditScopeNoticeText() : QString());
+    applyButton_->setVisible(editable);
+    table_->setColumnHidden(kXfaEditedValueColumn, !editable);
+    rebuild();
+}
+
+bool XfaFieldsDialog::isEditable() const {
+    return editable_;
+}
+
 void XfaFieldsDialog::rebuild() {
     summaryLabel_->setText(xfaSummaryText(report_));
     const QString dynamic = xfaDynamicNoticeText(report_);
     dynamicLabel_->setText(dynamic.isEmpty() ? i18n::tr("aipdf::app::LastWavePanels", "这份 XFA 没有动态逻辑：字段都是静态的。") : dynamic);
     const QVector<XfaFieldRow> rows = xfaFieldRows(report_);
+    // 重建期间会逐格 setItem，itemChanged 会连着来一串：
+    // 先静音，免得 refreshApplyButton 在半张表上算出「有改动」。
+    table_->blockSignals(true);
     table_->setRowCount(rows.size());
     for (int index = 0; index < rows.size(); ++index) {
         const XfaFieldRow& row = rows.at(index);
         table_->setItem(index, 0, new QTableWidgetItem(row.name));
         table_->setItem(index, 1, new QTableWidgetItem(row.label));
         table_->setItem(index, 2, new QTableWidgetItem(row.type));
-        table_->setItem(index, 3, new QTableWidgetItem(row.value));
-        table_->setItem(index, 4, new QTableWidgetItem(row.required ? i18n::tr("aipdf::app::LastWavePanels", "是") : i18n::tr("aipdf::app::LastWavePanels", "否")));
+        table_->setItem(index, kXfaCurrentValueColumn, new QTableWidgetItem(row.value));
+        // 「新值」这一格默认可改：其余各列保持不可改。
+        auto* edited = new QTableWidgetItem(row.value);
+        edited->setFlags(edited->flags() | Qt::ItemIsEditable);
+        table_->setItem(index, kXfaEditedValueColumn, edited);
+        table_->setItem(index, kXfaRequiredColumn, new QTableWidgetItem(row.required ? i18n::tr("aipdf::app::LastWavePanels", "是") : i18n::tr("aipdf::app::LastWavePanels", "否")));
     }
+    table_->blockSignals(false);
+    refreshApplyButton();
+}
+
+void XfaFieldsDialog::refreshApplyButton() {
+    if (applyButton_ == nullptr) {
+        return;
+    }
+    applyButton_->setEnabled(editable_ && hasPendingChanges());
+}
+
+QVector<QPair<QString, QString>> XfaFieldsDialog::pendingValues() const {
+    QVector<QPair<QString, QString>> values;
+    if (!editable_) {
+        return values;
+    }
+    for (int row = 0; row < table_->rowCount(); ++row) {
+        const QTableWidgetItem* nameItem = table_->item(row, 0);
+        const QTableWidgetItem* currentItem = table_->item(row, kXfaCurrentValueColumn);
+        const QTableWidgetItem* editedItem = table_->item(row, kXfaEditedValueColumn);
+        if (nameItem == nullptr || editedItem == nullptr) {
+            continue;
+        }
+        const QString name = nameItem->text();
+        if (name.isEmpty()) {
+            continue;
+        }
+        const QString current = currentItem != nullptr ? currentItem->text() : QString();
+        if (editedItem->text() == current) {
+            continue;
+        }
+        values.append(qMakePair(name, editedItem->text()));
+    }
+    return values;
+}
+
+bool XfaFieldsDialog::hasPendingChanges() const {
+    return !pendingValues().isEmpty();
+}
+
+QString XfaFieldsDialog::fieldValue(int row) const {
+    const QTableWidgetItem* item = table_->item(row, kXfaEditedValueColumn);
+    return item != nullptr ? item->text() : QString();
+}
+
+void XfaFieldsDialog::setFieldValue(int row, const QString& value) {
+    QTableWidgetItem* item = table_->item(row, kXfaEditedValueColumn);
+    if (item == nullptr) {
+        return;
+    }
+    item->setText(value);
+    refreshApplyButton();
+}
+
+QString XfaFieldsDialog::scopeNoticeText() const {
+    return scopeLabel_->text();
 }
 
 int XfaFieldsDialog::fieldCount() const {

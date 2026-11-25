@@ -35,6 +35,8 @@ namespace Task {
 inline constexpr auto Summary = "summary";    // 总结当前页
 inline constexpr auto Explain = "explain";    // 解释当前选区
 inline constexpr auto Translate = "translate";// 翻译当前选区
+inline constexpr auto Rewrite = "rewrite";    // 改写当前选区
+inline constexpr auto Proofread = "proofread";// 校对当前选区
 inline constexpr auto Chat = "chat";          // 就当前页提问
 inline constexpr auto DocumentQa = "qa";      // 问整份文档（带引用）
 }  // namespace Task

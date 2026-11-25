@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QByteArray>
+#include <QPair>
 #include <QRectF>
 #include <QString>
 #include <QStringList>
@@ -183,6 +184,10 @@ private:
 // ================================================================ 任务 Q ====
 //
 // 静态 XFA 表单字段。
+//
+// 两种用法，同一个对话框：
+//   * 只读（「转换 → XFA 字段」）：看字段清单、导出 CSV；
+//   * 可编辑（「表单 → 编辑静态 XFA」）：改字段的值，写回文档。
 class XfaFieldsDialog final : public QDialog {
     Q_OBJECT
 
@@ -201,14 +206,42 @@ public:
     // 导出成 CSV。
     QByteArray exportCsv() const;
 
+    // 打开编辑模式：多一列「新值」可以改，并出现「写回文档」按钮。
+    //
+    // 为什么默认是关的：「转换 → XFA 字段」那个入口只做查看与导出，
+    // 不该让用户在一个只读用途的窗口里改值。
+    void setEditable(bool editable);
+    bool isEditable() const;
+    // 用户改过的字段（字段名 → 新值）。
+    //
+    // 只含**与当前值不同**的字段：没改过的字段不该被写回去
+    // ——写回会动 XFA 数据集里的那几个字节，没必要。
+    QVector<QPair<QString, QString>> pendingValues() const;
+    // 有没有待写回的改动。
+    bool hasPendingChanges() const;
+    // 某一行的新值（编辑模式下有效）。
+    QString fieldValue(int row) const;
+    // 设置某一行的新值（测试与程序化改值都用它）。
+    void setFieldValue(int row, const QString& value);
+    // 编辑模式的边界说明（只改值，不改布局、不执行脚本）。
+    QString scopeNoticeText() const;
+
+signals:
+    // 用户点了「写回文档」。
+    void applyRequested(const QVector<QPair<QString, QString>>& values);
+
 private:
     void rebuild();
+    void refreshApplyButton();
 
     pdf::XfaReport report_;
     QLabel* summaryLabel_ = nullptr;
     QLabel* dynamicLabel_ = nullptr;
+    QLabel* scopeLabel_ = nullptr;
     QTableWidget* table_ = nullptr;
     QPushButton* exportButton_ = nullptr;
+    QPushButton* applyButton_ = nullptr;
+    bool editable_ = false;
 };
 
 // ================================================================ 任务 R ====

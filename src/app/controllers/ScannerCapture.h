@@ -28,7 +28,7 @@ enum class ScanErrorKind {
     NoDevice,           // WIA 在了，但本机一台扫描仪都没有
     UserCancelled,      // 用户自己放弃
     TransferFailed,     // 设备在，但取帧失败（被占用、卡纸、驱动报错）
-    UnsupportedImage,   // 取到了帧，但图像格式不是 BMP/JPEG
+    UnsupportedImage,   // 取到了帧，但图像格式不是 BMP/JPEG/PNG/TIFF
     PdfFailed,          // 帧取到了，拼 PDF 失败
 };
 

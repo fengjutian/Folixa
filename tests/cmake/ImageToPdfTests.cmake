@@ -20,6 +20,10 @@ qt_add_executable(ImageToPdfTests
     # ---- 被测的领域层 ----
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.h
+    # TIFF 解码器是单独一个文件（ImageToPdf.cpp 已经一千多行），
+    # 不编进来链接会缺符号。
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/TiffDecoder.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/TiffDecoder.h
     # ---- 被测的应用层（WIA 后端 + 对话框）----
     ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.cpp
     ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.h
@@ -41,6 +45,12 @@ target_link_libraries(ImageToPdfTests PRIVATE
 target_include_directories(ImageToPdfTests PRIVATE
     ${AIPDF_REPO_ROOT}/src
     ${AIPDF_PDFIUM_INCLUDE_DIR}
+)
+
+# 真实 TIFF 夹具（由 libtiff 写出，签进仓库）：用来验解码器读的是
+# 「真实世界的文件」，而不只是自己造、自己解的那一套字节。
+target_compile_definitions(ImageToPdfTests PRIVATE
+    AIPDF_TIFF_FIXTURES_DIR="${AIPDF_REPO_ROOT}/tests/fixtures/tiff"
 )
 
 set_target_properties(ImageToPdfTests PROPERTIES WIN32_EXECUTABLE FALSE)

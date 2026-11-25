@@ -212,6 +212,19 @@ QString xfaDynamicNoticeText(const pdf::XfaReport& report);
 // 一行字段的说明。
 QString xfaFieldRowText(const XfaFieldRow& row);
 
+// 编辑静态 XFA 时的边界说明：**只改字段值**。
+//
+// 为什么必须写清楚：写值这件事是真能做（`pdf::writeXfaFieldValues`），
+// 但用户看到「编辑 XFA」很容易以为能改版式、能跑校验与计算脚本——
+// 那两件事本程序明确不做。界面上要把这条边界摆在改值入口旁边。
+QString xfaEditScopeNoticeText();
+
+// 写回结果的一行说明（成功几项、失败几项）。
+QString xfaWriteResultText(const pdf::XfaWriteReport& report);
+
+// 写回时没改成的那几项，一行一条（字段名 + 中文原因）。
+QStringList xfaWriteFailureLines(const pdf::XfaWriteReport& report);
+
 // ================================================================ 任务 R ====
 
 // 3D / 多媒体注解的边界说明：**只写结构，不渲染、不解码**。

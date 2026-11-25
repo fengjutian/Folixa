@@ -454,6 +454,49 @@ QString xfaFieldRowText(const XfaFieldRow& row) {
     return text;
 }
 
+QString xfaEditScopeNoticeText() {
+    // 这条边界要一次说全：能做什么、不能做什么、做完之后会发生什么。
+    return i18n::tr("aipdf::app::LastWaveBridge",
+                     "这里只能改**字段的值**：改完写回文档；XFA 的布局、事件与脚本不执行，"
+                     "SOM 运行时也不在本程序范围内，表单在阅读器里的实际行为取决于生成器里的那些脚本。");
+}
+
+QString xfaWriteResultText(const pdf::XfaWriteReport& report) {
+    int changed = 0;
+    int failed = 0;
+    for (const pdf::XfaFieldUpdate& update : report.updates) {
+        if (update.ok()) {
+            ++changed;
+        } else {
+            ++failed;
+        }
+    }
+    if (changed == 0 && failed == 0) {
+        return i18n::tr("aipdf::app::LastWaveBridge", "没有改动任何字段。");
+    }
+    if (failed == 0) {
+        return i18n::tr("aipdf::app::LastWaveBridge", "已写回：改了 %1 个 XFA 字段的值。")
+            .arg(changed);
+    }
+    return i18n::tr("aipdf::app::LastWaveBridge",
+                    "已写回：改了 %1 个字段，%2 个没改成。")
+        .arg(changed)
+        .arg(failed);
+}
+
+QStringList xfaWriteFailureLines(const pdf::XfaWriteReport& report) {
+    QStringList lines;
+    for (const pdf::XfaFieldUpdate& update : report.updates) {
+        if (update.ok()) {
+            continue;
+        }
+        lines.append(i18n::tr("aipdf::app::LastWaveBridge", "字段 %1：%2")
+                         .arg(update.field)
+                         .arg(update.error));
+    }
+    return lines;
+}
+
 // ================================================================ 任务 R ====
 
 QString richMediaScopeNoticeText() {

@@ -1819,11 +1819,9 @@ void MainWindow::buildUi() {
             }
         }, true, QString::fromLatin1(objectName));
     };
-    auto addUnavailableEditCommand = [this, &addRibbonCommand, &placeholderIcon](
-                                          QHBoxLayout* group, const char* label) {
-        addRibbonCommand(group, label, "将在后续版本中提供", placeholderIcon(tr(label)),
-                         [] {}, false);
-    };
+    // 以前这里还有一个禁用的「添加 3D」占位按钮：3D 注解早就能写能读能渲染
+    // （「插入 3D 模型」/「查看 3D 模型」两个入口都在），
+    // 留一个永远点不动的按钮只会让人以为 3D 还没做 —— 已经删掉。
 
     auto* contentEditGroup = ribbonBar_->addGroup(contentEditTab, tr("内容"));
     addRibbonCommand(contentEditGroup, "编辑文本", "替换当前选中的文字", ":/icons/edit.svg",
@@ -2020,10 +2018,9 @@ void MainWindow::buildUi() {
                      "把录制中心或本机的音视频挂到页面上（用外部播放器打开）",
                      ":/icons/annotation.svg", [this] { attachMediaToCurrentPage(); }, true,
                      "edit.sound");
-    addUnavailableEditCommand(attachmentEditGroup, "添加 3D");
     // 表单不是占位页：仓库已有 AcroForm 枚举、填写、扁平化和数据交换能力，
-    // 这里必须把真实入口接出来。建域/XFA 等尚未具备对象级写入能力的命令仍然
-    // 保留在 Ribbon 中（不隐藏），但不能伪装成可用功能。
+    // 这里必须把真实入口接出来 —— 表单标签页里的命令现在**全部**是可用的，
+    // 没有「看着在、点不动」的占位。
     const int formTab = ribbonBar_->addTab(tr("表单"));
     const auto showFormsPanel = [this] {
         PdfView* view = currentView();
@@ -2077,8 +2074,13 @@ void MainWindow::buildUi() {
     addRibbonCommand(formTemplateGroup, "套用页面模板", "按模板在当前页创建表单域",
                      ":/icons/template-apply.svg", [this] { applyFormTemplate(); }, true,
                      "form.pageTemplate.apply");
-    addRibbonCommand(formTemplateGroup, "编辑静态 XFA", "PDFium 不提供 XFA 编辑引擎",
-                     ":/icons/xfa.svg", [] {}, false, "form.xfa");
+    // 静态 XFA：字段值能改，改完写回文档。
+    // 边界写在对话框里（只改值，不改布局、不执行脚本）——
+    // 这一条以前是禁用占位，后端早就能写值，只是界面没接出来。
+    addRibbonCommand(formTemplateGroup, "编辑静态 XFA", "改写静态 XFA 表单字段的值并写回文档",
+                     ":/icons/xfa.svg", [this] {
+        if (wiringActions_ != nullptr) { wiringActions_->xfaFormEdit(); }
+    }, true, "form.xfa");
     addRibbonCommand(formTemplateGroup, "计算次序", "调整并执行各字段的计算脚本",
                      ":/icons/calculation-order.svg", [this] { showFormCalculationOrder(); }, true,
                      "form.calculationOrder");
@@ -2819,10 +2821,10 @@ void MainWindow::buildUi() {
          QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "打开完整对话面板，自己提问")},
         {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "改写"),
          QStringLiteral(":/icons/rewrite.svg"),
-         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "将在后续版本中提供")},
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "改写页面上选中的文字")},
         {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "校对"),
          QStringLiteral(":/icons/proofread.svg"),
-         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "将在后续版本中提供")},
+         QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "校对页面上选中的文字")},
         {QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "解释"),
          QStringLiteral(":/icons/explain.svg"),
          QT_TRANSLATE_NOOP("aipdf::app::MainWindow", "解释页面上选中的文字")},
@@ -2851,8 +2853,9 @@ void MainWindow::buildUi() {
                     aiPanel_->focusPrompt();
                 }
             });
-        } else if (index == 3 || index == 4) {
-            // 「解释」与「总结」已经真的能用了，直接接过去。
+        } else if (index >= 1 && index <= 4) {
+            // 「改写」「校对」「解释」与「总结」都接上真实动作了：
+            // 前三个作用于选区，最后一个作用于当前页。
             connect(button, &QPushButton::clicked, this, [this, index] {
                 aiQuickCard_->hide();
                 aiDock_->show();
@@ -2862,8 +2865,12 @@ void MainWindow::buildUi() {
                 }
                 if (index == 4) {
                     aiPanel_->requestSummary();
-                } else {
+                } else if (index == 3) {
                     aiPanel_->requestExplain();
+                } else if (index == 1) {
+                    aiPanel_->requestRewrite();
+                } else {
+                    aiPanel_->requestProofread();
                 }
             });
         } else {
@@ -7268,9 +7275,9 @@ void MainWindow::updateAiQuickActions() {
         if (!hasDocument) {
             aiQuickSubtitle_->setText(tr("打开一份 PDF 后，这些动作才有可用的内容"));
         } else if (!hasSelection) {
-            aiQuickSubtitle_->setText(tr("选中文字后可「解释」；「总结」作用于当前页"));
+            aiQuickSubtitle_->setText(tr("选中文字后可「改写」「校对」「解释」；「总结」作用于当前页"));
         } else {
-            aiQuickSubtitle_->setText(tr("「解释」会用到你选中的这段文字"));
+            aiQuickSubtitle_->setText(tr("「改写」「校对」「解释」会用到你选中的这段文字"));
         }
     }
 
@@ -7283,6 +7290,12 @@ void MainWindow::updateAiQuickActions() {
         if (index == 3) {
             button->setEnabled(hasSelection);
             button->setToolTip(hasSelection ? tr("解释页面上选中的文字")
+                                            : tr("先在页面上选中一段文字"));
+        } else if (index == 1 || index == 2) {
+            // 「改写」与「校对」都作用于选区：没选区就禁掉并说明原因。
+            button->setEnabled(hasSelection);
+            button->setToolTip(hasSelection ? (index == 1 ? tr("改写页面上选中的文字")
+                                                          : tr("校对页面上选中的文字"))
                                             : tr("先在页面上选中一段文字"));
         } else if (index == 4) {
             button->setEnabled(hasDocument);

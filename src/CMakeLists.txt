@@ -443,6 +443,8 @@ qt_add_executable(AiPdfEditor WIN32
     pdf/forms/FormAutoTag.h
     pdf/convert/ImageToPdf.cpp
     pdf/convert/ImageToPdf.h
+    pdf/convert/TiffDecoder.cpp
+    pdf/convert/TiffDecoder.h
     pdf/ops/DocumentComparer.cpp
     pdf/ops/DocumentComparer.h
     pdf/kernel/LayoutBlocks.cpp

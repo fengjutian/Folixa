@@ -1161,6 +1161,87 @@ void WiringActions::xfaFields() {
     dialog.exec();
 }
 
+void WiringActions::xfaFormEdit() {
+    PdfView* view = requireView();
+    if (view == nullptr) {
+        return;
+    }
+    const QString title = i18n::tr("aipdf::app::MainWindow", "编辑静态 XFA");
+    QString error;
+    const QByteArray bytes = view->documentBytes(&error);
+    if (bytes.isEmpty()) {
+        QMessageBox::warning(parentWidget_, title,
+                             error.isEmpty() ? i18n::tr("aipdf::app::MainWindow", "读不到文档内容。") : error);
+        return;
+    }
+    const pdf::XfaReport report = pdf::inspectXfa(bytes, &error);
+    if (!report.isXfa) {
+        // 不是 XFA 不是错误，但要说清楚为什么这个入口在这儿没用。
+        QMessageBox::information(
+            parentWidget_, title,
+            i18n::tr("aipdf::app::MainWindow", "这份文档没有 XFA 表单（没有 /XFA 数据）。"));
+        return;
+    }
+    if (report.status == pdf::XfaStatus::Error) {
+        QMessageBox::warning(parentWidget_, title, report.error);
+        return;
+    }
+    XfaFieldsDialog dialog(parentWidget_);
+    dialog.setReport(report);
+    dialog.setEditable(true);
+    connect(&dialog, &XfaFieldsDialog::applyRequested, this,
+            [this, view, title, &dialog](const QVector<QPair<QString, QString>>& values) {
+                if (values.isEmpty()) {
+                    return;
+                }
+                // 写回前重新读一遍当前内容：对话框开着的时候文档可能被别处改过，
+                // 拿旧字节去写会把那部分改动覆盖掉。
+                QString readError;
+                const QByteArray current = view->documentBytes(&readError);
+                if (current.isEmpty()) {
+                    QMessageBox::warning(parentWidget_, title, readError);
+                    return;
+                }
+                QString writeError;
+                QByteArray written;
+                const pdf::XfaWriteReport writeReport =
+                    pdf::writeXfaFieldValues(current, values, &written, &writeError);
+                const QStringList failures = app::xfaWriteFailureLines(writeReport);
+                if (written.isEmpty()) {
+                    // 一个字段都没改成：文档保持原样，原因要一条条说出来。
+                    QMessageBox::warning(
+                        parentWidget_, title,
+                        failures.isEmpty()
+                            ? (writeError.isEmpty()
+                                   ? i18n::tr("aipdf::app::MainWindow", "没有字段被改动。")
+                                   : writeError)
+                            : failures.join(QStringLiteral("\n")));
+                    return;
+                }
+                QString replaceError;
+                if (!view->replaceDocumentBytes(written, &replaceError)) {
+                    QMessageBox::warning(parentWidget_, title, replaceError);
+                    return;
+                }
+                // 表格里刷新一次：当前值变成改完之后的值，待写回的改动清空。
+                // 不刷新的话，用户会看着一份还是旧值的清单，再点一次就是重复写。
+                const pdf::XfaReport refreshed = pdf::inspectXfa(written, &readError);
+                if (refreshed.isXfa) {
+                    dialog.setReport(refreshed);
+                }
+                // 部分成功也要说清楚：改了几项、哪几项没改成。
+                if (failures.isEmpty()) {
+                    notify(app::xfaWriteResultText(writeReport));
+                } else {
+                    QMessageBox::warning(parentWidget_, title,
+                                         app::xfaWriteResultText(writeReport) +
+                                             QStringLiteral("\n") +
+                                             failures.join(QStringLiteral("\n")));
+                }
+            });
+    dialog.exec();
+}
+
 // ---------------------------------------------------------------- 任务 R ----
 
 void WiringActions::insertRichMedia(bool preferThreeD) {

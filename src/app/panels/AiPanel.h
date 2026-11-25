@@ -78,6 +78,9 @@ public:
     void requestSummary();
     void requestExplain();
     void requestTranslate();
+    // 改写与校对：都作用于**当前选区**（没选区就说没选，不静默改成整页）。
+    void requestRewrite();
+    void requestProofread();
     void requestAsk(const QString& question);
     // 问整篇文档（与范围选择器无关，脚本与快捷入口都用它）。
     void requestDocumentQa(const QString& question);

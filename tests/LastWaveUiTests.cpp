@@ -54,6 +54,7 @@ const RibbonCommandSpec kNewCommands[] = {
     {"插入多媒体", "edit.insertMedia"},
     {"PDF/UA 合规检查", "convert.pdfUa"},
     {"XFA 字段", "convert.xfa"},
+    {"编辑静态 XFA", "form.xfa"},
     {"图层面板", "convert.layers"},
     {"按新页宽重排", "page.reflow"},
     {"本地离线问答", "ai.offlineQa"},
@@ -171,6 +172,10 @@ private slots:
     void wizardBoundaryAndFailureReason();
     // 20) 不可见文字层的「替换」语义要写在界面上。
     void invisibleTextLayerNoticeSaysReplace();
+    // 21) XFA 编辑：只有**改过的**字段会被交出去写回。
+    void xfaEditorCollectsOnlyChangedFields();
+    // 22) XFA 写回结果：逐项说清改了几项、哪一项没改成。
+    void xfaWriteResultReportsPerFieldOutcome();
 };
 
 // ---------------------------------------------------------------- 1 / 2 ----
@@ -837,6 +842,80 @@ void LastWaveUiTests::invisibleTextLayerNoticeSaysReplace() {
     // 不是「又加了一层」：负例守卫。
     QVERIFY2(!notice.contains(QStringLiteral("又加了一层")), qPrintable(notice));
     QVERIFY2(!notice.contains(QStringLiteral("叠加")), qPrintable(notice));
+}
+
+// ------------------------------------------------------------------ 21 ----
+
+void LastWaveUiTests::xfaEditorCollectsOnlyChangedFields() {
+    pdf::XfaReport report;
+    report.status = pdf::XfaStatus::Static;
+    report.isXfa = true;
+    pdf::XfaField first;
+    first.name = QStringLiteral("f1");
+    first.label = QStringLiteral("姓名");
+    first.type = QStringLiteral("textField");
+    first.value = QStringLiteral("张三");
+    report.fields.append(first);
+    pdf::XfaField second;
+    second.name = QStringLiteral("f2");
+    second.type = QStringLiteral("textField");
+    second.value = QStringLiteral("2026");
+    report.fields.append(second);
+
+    app::XfaFieldsDialog dialog;
+    dialog.setReport(report);
+    // 只读模式（「转换 → XFA 字段」那个入口）：不能改值，也不该有可写回的字段。
+    QVERIFY(!dialog.isEditable());
+    QVERIFY(dialog.pendingValues().isEmpty());
+    QVERIFY(!dialog.hasPendingChanges());
+
+    dialog.setEditable(true);
+    QVERIFY(dialog.isEditable());
+    QCOMPARE(dialog.fieldCount(), 2);
+    // 边界说明摆在改值入口旁边：只改值，不执行脚本。
+    const QString scope = dialog.scopeNoticeText();
+    QVERIFY2(scope.contains(QStringLiteral("字段的值")), qPrintable(scope));
+    QVERIFY2(scope.contains(QStringLiteral("不执行")), qPrintable(scope));
+
+    // 没改过的字段不该被写回去（写回要动 XFA 数据集里的字节，没必要）。
+    QVERIFY(!dialog.hasPendingChanges());
+    dialog.setFieldValue(0, QStringLiteral("李四"));
+    QVERIFY(dialog.hasPendingChanges());
+    const QVector<QPair<QString, QString>> pending = dialog.pendingValues();
+    QCOMPARE(pending.size(), 1);
+    QCOMPARE(pending.first().first, QStringLiteral("f1"));
+    QCOMPARE(pending.first().second, QStringLiteral("李四"));
+
+    // 改回原值：又没有待写回的改动了。
+    dialog.setFieldValue(0, QStringLiteral("张三"));
+    QVERIFY(!dialog.hasPendingChanges());
+    QVERIFY(dialog.pendingValues().isEmpty());
+}
+
+// ------------------------------------------------------------------ 22 ----
+
+void LastWaveUiTests::xfaWriteResultReportsPerFieldOutcome() {
+    pdf::XfaWriteReport report;
+    pdf::XfaFieldUpdate changed;
+    changed.field = QStringLiteral("f1");
+    changed.value = QStringLiteral("李四");
+    report.updates.append(changed);
+    pdf::XfaFieldUpdate failed;
+    failed.field = QStringLiteral("f2");
+    failed.error = QStringLiteral("字段「f2」是只读字段，不能改值");
+    report.updates.append(failed);
+    report.ok = false;
+
+    // 摘要要说清改了几项、没改成几项。
+    const QString text = app::xfaWriteResultText(report);
+    QVERIFY2(text.contains(QStringLiteral("1 个字段")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("1 个没改成")), qPrintable(text));
+
+    // 没改成的那几项要逐条列出来（只说「有一个失败」等于让人自己猜是哪一处）。
+    const QStringList failures = app::xfaWriteFailureLines(report);
+    QCOMPARE(failures.size(), 1);
+    QVERIFY2(failures.first().contains(QStringLiteral("f2")), qPrintable(failures.first()));
+    QVERIFY2(failures.first().contains(QStringLiteral("只读")), qPrintable(failures.first()));
 }
 
 QTEST_MAIN(LastWaveUiTests)

@@ -1,5 +1,7 @@
 #include "pdf/convert/ImageToPdf.h"
 
+#include "pdf/convert/TiffDecoder.h"
+
 #include <QtGlobal>
 
 #include <cmath>
@@ -1041,6 +1043,22 @@ ImageFormat detectImageFormat(const QByteArray& bytes) {
     if (bytes.size() >= 8 && bytes.startsWith(QByteArrayLiteral("\x89PNG\r\n\x1a\n"))) {
         return ImageFormat::Png;
     }
+    // TIFF 的头是 4 字节：字节序标记（II 小端 / MM 大端）+ 42。
+    //
+    // 为什么要连 42 一起看：只认「II」或「MM」两个字母会把
+    // 恰好以这两个字母开头的别的文件也当成 TIFF。
+    if (bytes.size() >= 4) {
+        const bool little = bytes.startsWith(QByteArrayLiteral("II"));
+        const bool big = bytes.startsWith(QByteArrayLiteral("MM"));
+        if (little || big) {
+            const quint8 b2 = static_cast<quint8>(bytes.at(2));
+            const quint8 b3 = static_cast<quint8>(bytes.at(3));
+            const bool magic42 = little ? (b2 == 0x2A && b3 == 0x00) : (b2 == 0x00 && b3 == 0x2A);
+            if (magic42) {
+                return ImageFormat::Tiff;
+            }
+        }
+    }
     if (bytes.size() >= 2 && static_cast<quint8>(bytes.at(0)) == 0x42 &&
         static_cast<quint8>(bytes.at(1)) == 0x4d) {
         return ImageFormat::Bmp;
@@ -1049,6 +1067,23 @@ ImageFormat detectImageFormat(const QByteArray& bytes) {
 }
 
 bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail) {
+    QVector<DecodedImage> pages;
+    if (!decodeImagePages(bytes, &pages, detail)) {
+        return false;
+    }
+    if (pages.isEmpty()) {
+        if (detail != nullptr) {
+            *detail = QStringLiteral("image has no pages");
+        }
+        return false;
+    }
+    if (out != nullptr) {
+        *out = pages.first();
+    }
+    return true;
+}
+
+bool decodeImagePages(const QByteArray& bytes, QVector<DecodedImage>* out, QString* detail) {
     const auto fail = [detail](const QString& reason) {
         if (detail != nullptr) {
             *detail = reason;
@@ -1068,12 +1103,14 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail) {
         if (!parseJpegHeader(bytes, &info, detail)) {
             return false;
         }
-        out->width = info.width;
-        out->height = info.height;
-        out->jpeg = bytes;
-        out->jpegComponents = info.components;
+        DecodedImage image;
+        image.width = info.width;
+        image.height = info.height;
+        image.jpeg = bytes;
+        image.jpegComponents = info.components;
         // 4 分量 + Adobe transform 2 = YCCK，值是反的，写进 PDF 要 /Decode 反相。
-        out->jpegInverted = info.components == 4;
+        image.jpegInverted = info.components == 4;
+        out->append(image);
         return true;
     }
     case ImageFormat::Bmp: {
@@ -1083,9 +1120,11 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail) {
         if (!parseBmp(bytes, &width, &height, &rgb, detail)) {
             return false;
         }
-        out->width = width;
-        out->height = height;
-        out->rgb = rgb;
+        DecodedImage image;
+        image.width = width;
+        image.height = height;
+        image.rgb = rgb;
+        out->append(image);
         return true;
     }
     case ImageFormat::Png: {
@@ -1095,9 +1134,26 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail) {
         if (!parsePng(bytes, &width, &height, &rgb, detail)) {
             return false;
         }
-        out->width = width;
-        out->height = height;
-        out->rgb = rgb;
+        DecodedImage image;
+        image.width = width;
+        image.height = height;
+        image.rgb = rgb;
+        out->append(image);
+        return true;
+    }
+    case ImageFormat::Tiff: {
+        // TIFF 一个文件里可能装多页：一页都不能少。
+        QVector<TiffPage> pages;
+        if (!decodeTiff(bytes, &pages, detail)) {
+            return false;
+        }
+        for (const TiffPage& page : pages) {
+            DecodedImage image;
+            image.width = page.width;
+            image.height = page.height;
+            image.rgb = page.rgb;
+            out->append(image);
+        }
         return true;
     }
     case ImageFormat::Unknown:
@@ -1150,49 +1206,59 @@ ImageToPdfResult imagesToPdf(const QVector<QByteArray>& images,
                 QStringLiteral("unsupported image format: %1").arg(describeImageFormat(images.at(i)));
             return result;
         }
-        DecodedImage decoded;
+        // 一个输入可能含**多页**（多页 TIFF）：一页都不能少，
+        // 少一页就是「扫漏了却看不出来」。
+        QVector<DecodedImage> decodedPages;
         QString detail;
-        if (!decodeImage(images.at(i), &decoded, &detail)) {
+        if (!decodeImagePages(images.at(i), &decodedPages, &detail)) {
             result.error = ImageToPdfError::DecodeFailed;
             result.failedIndex = i;
             result.detail = detail;
             return result;
         }
-        const double widthPoints = decoded.width * 72.0 / options.dpi;
-        const double heightPoints = decoded.height * 72.0 / options.dpi;
-        if (!(widthPoints > 0.0) || !(heightPoints > 0.0) ||
-            widthPoints > kMaxPageDimensionPoints || heightPoints > kMaxPageDimensionPoints) {
-            result.error = ImageToPdfError::InvalidPageSize;
-            result.failedIndex = i;
-            result.detail = QStringLiteral("page size out of range for %1x%2 pixels")
-                                .arg(decoded.width)
-                                .arg(decoded.height);
-            return result;
-        }
+        for (const DecodedImage& decoded : decodedPages) {
+            const double widthPoints = decoded.width * 72.0 / options.dpi;
+            const double heightPoints = decoded.height * 72.0 / options.dpi;
+            if (!(widthPoints > 0.0) || !(heightPoints > 0.0) ||
+                widthPoints > kMaxPageDimensionPoints || heightPoints > kMaxPageDimensionPoints) {
+                result.error = ImageToPdfError::InvalidPageSize;
+                result.failedIndex = i;
+                result.detail = QStringLiteral("page size out of range for %1x%2 pixels")
+                                    .arg(decoded.width)
+                                    .arg(decoded.height);
+                return result;
+            }
 
-        PageImage page;
-        page.width = decoded.width;
-        page.height = decoded.height;
-        page.widthPoints = widthPoints;
-        page.heightPoints = heightPoints;
-        if (decoded.isJpeg()) {
-            // JPEG 原样塞进去：不重编码，一个字节都不动。
-            page.filter = "/DCTDecode";
-            page.stream = decoded.jpeg;
-            if (decoded.jpegComponents == 1) {
-                page.colorSpace = "/DeviceGray";
-            } else if (decoded.jpegComponents == 4) {
-                page.colorSpace = "/DeviceCMYK";
-                page.extra = "/Decode [1 0 1 0 1 0 1 0]";
+            PageImage page;
+            page.width = decoded.width;
+            page.height = decoded.height;
+            page.widthPoints = widthPoints;
+            page.heightPoints = heightPoints;
+            if (decoded.isJpeg()) {
+                // JPEG 原样塞进去：不重编码，一个字节都不动。
+                page.filter = "/DCTDecode";
+                page.stream = decoded.jpeg;
+                if (decoded.jpegComponents == 1) {
+                    page.colorSpace = "/DeviceGray";
+                } else if (decoded.jpegComponents == 4) {
+                    page.colorSpace = "/DeviceCMYK";
+                    page.extra = "/Decode [1 0 1 0 1 0 1 0]";
+                } else {
+                    page.colorSpace = "/DeviceRGB";
+                }
             } else {
+                page.filter = "/FlateDecode";
+                page.stream = pdfFlate(decoded.rgb);
                 page.colorSpace = "/DeviceRGB";
             }
-        } else {
-            page.filter = "/FlateDecode";
-            page.stream = pdfFlate(decoded.rgb);
-            page.colorSpace = "/DeviceRGB";
+            pages.append(page);
+            if (pages.size() > kMaxImages) {
+                result.error = ImageToPdfError::EncodeFailed;
+                result.failedIndex = i;
+                result.detail = QStringLiteral("too many pages: %1").arg(pages.size());
+                return result;
+            }
         }
-        pages.append(page);
     }
 
     const QByteArray bytes = buildPdf(pages);

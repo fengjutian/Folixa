@@ -97,7 +97,7 @@
 | 导出与工具 | PDF优化 | 🟨 | H8 | Ghostscript 压缩；**现在有自动化保真门**（`scripts/verify-optimize-fidelity.ps1`：优化后体积不增 + 优化前后渲染逐像素一致，不一致时列出差异页码；已接进 `scripts/ci.ps1`）；**本机没有装 Ghostscript**，应用里真正的「优化压缩」那条路径没有在本机跑过，保真门本地是用 qpdf 那一路验的；**PDF/A 合规认证改走本机 veraPDF**（`pdf::VeraPdfChecker`，没装就如实说没装，不拿预检冒充认证） |
 | 导出与工具 | 索引 | ✅ | — | 本地分块索引与检索 |
 | 导出与工具 | 动作向导 | ✅ | D9 | 动作向导：把文档级操作按步骤编排执行（面板可选打开文件 / 合并 / 拆分 / 加书签 / 加页码 / 加水印 / 加密 / 转换格式 / 打印 / 结束共 10 类），**10 类全部接上了** —— 打开文件换成当前文档、合并写到指定路径（当前文档作为第一份）、拆分按 range/count:N/outline 三种口径写到指定目录、加书签（只加顶层书签、页码越界当场报错）、加页码（右下角、从 1 起）、加水印（页面正中）、加密（AES-256，需带 qpdf 的构建）、转换格式（docx / xlsx / pptx / rtf / txt，整篇导出）、打印（份数 1 到 99、页范围形如 1-3,5）、结束（收尾点）；**参数解释与取值合法性由领域层统一判定**（`doc::parseWizardAction`），每步失败显示领域层给的中文原因，做不到的步骤如实报错、不假装成功；**不是脚本引擎，也不执行文档里的脚本**（`doc::ActionWizard` + `doc::WizardActions`，`ActionWizardTests` 31 条 + `WizardActionsTests` 29 条 + `WizardDocumentActionsTests` 34 条 + `WizardPrintRangeTests` 10 条） |
-| 导出与工具 | 皮肤 | ✅ | — | 界面主题浅色/暗色/跟随系统（设置 → 外观 → 主题，保存后立即生效）+ 阅读配色浅色/夜间/护眼/高对比（视图菜单）；弹窗带半透明蒙层；`ReadingSchemeTests` 6 条、`ThemeTests` 7 条、`ModalScrimTests` 4 条 |
+| 导出与工具 | 皮肤 | ✅ | — | 界面主题浅色/暗色/跟随系统（设置 → 外观 → 主题，保存后立即生效）+ 阅读配色浅色/夜间/护眼/高对比（视图菜单）；弹窗带半透明蒙层；`ReadingSchemeTests` 6 条、`ThemeTests` 7 条、`ModalScrimTests` 5 条 |
 | 最近文档 | 最近文档 | ✅ | — | 显示文件名/路径/时间 |
 | 最近文档 | 云文档 | ➖ | — | 没有云盘接入 |
 | 最近文档 | 添加一个位置 | ➖ | — | 同上 |
@@ -128,7 +128,7 @@
 | 注释 | 高亮 | ✅ | C1 | 文本选区高亮 |
 | 页面 | 旋转页面 | ✅ | D1 | 写页面 /Rotate，可撤销 |
 | 页面 | 插入页面 | ✅ | D1 | 当前页后插入空白页；也可从别的文件插入页面 |
-| 扫描 | 从扫描仪 | 🟨 | I5 | 扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序、传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 9 条）；**图像支持 BMP / JPEG / PNG**（PNG 用自研解码器，不依赖 Qt 图像插件，TIFF 明确不支持）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 28 条 |
+| 扫描 | 从扫描仪 | 🟨 | I5 | 扫描仪输入已实现：WIA 晚绑定枚举设备 → 取帧 → 拼多页 PDF（`app::ScannerCapture` / `ScannerCaptureDialog`，Ribbon「从扫描仪」（`scan.fromScanner`）入口已启用）；**取帧路径已用可注入的假帧源跑通全链路单测**（页序、传输失败 / 格式不支持 / 拼 PDF 失败 / 用户取消四类错误映射，`ScannerCaptureTests` 10 条）；**图像支持 BMP / JPEG / PNG / TIFF**（PNG 与 TIFF 用自研解码器，不依赖 Qt 图像插件；TIFF 支持多页，按页展开成多页 PDF，页序不变）；**只支持 WIA，不支持 TWAIN**；**本机没有扫描仪**，枚举路径已实跑验证、**真机取帧仍然没有跑过**；`ImageToPdfTests` 41 条 |
 | 扫描 | 快速识别 | ✅ | I1 | Tesseract 或 Windows OCR |
 | 扫描 | 优化扫描的PDF | ✅ | I1 | 逐页去噪 + 纠偏已实现并接上界面：连通域去噪（带细笔画保护，表格线与下划线不被当噪点删掉）、投影方差法纠偏（默认 ±5°，0.1° 精修）；整页走一遍「渲染成位图 → 去噪纠偏 → 写回图像化 PDF」（`doc::optimizeScannedPdf`），Ribbon「扫描 → 优化扫描件」（`scan.optimize`）；纠偏角度逐页汇报，界面文案照实说明产物是图像化 PDF；实测 +3.0° 倾斜检出 −3.00°、投影方差提升 7.4 倍、噪点像素 100% 删除且正文墨量零误删；`Wave21ImagePrepTests` 12 条 + `ImagePreprocessTests` 9 条 |
 | 表单 | 填写&签名 | ✅ | F1 | 表单填写 + 证书签名（随包 pyHanko） |
@@ -147,7 +147,7 @@
 | 组 | 命令 | 状态 | 能力 | 说明 |
 |---|---|---|---|---|
 | 输入 | 文件转换 | ✅ | H6 | 文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 25 条），Office / HTML 另走本机 LibreOffice；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」三行），本行不重复计分；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），子集化做不了时退回整份嵌入（文件大一点，但字不丢）；`TrueTypeSubsetTests` 7 条 |
-| 输入 | 从扫描仪 | 🟨 | I5 | 与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG**；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 28 条 + `ScannerCaptureTests` 9 条 |
+| 输入 | 从扫描仪 | 🟨 | I5 | 与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG / TIFF**（TIFF 这一轮补上：自研解码器，含多页 TIFF 展开）；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 41 条 + `ScannerCaptureTests` 10 条 |
 | 输入 | 从剪贴板 | ✅ | H9 | 剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf` / `doc::clipboardMixedToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**文字 + 图片能合成同一份 PDF**（自动模式下正文在前、图片一图一页在后，合成页数会写进结果明细）；剪贴板里的图片也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式认不出 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 59 条 |
 | 输入 | 从网页 | ✅ | H9 | 网页转 PDF 走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**；`BrowserPdfPrinterTests` 22 条 |
 | 输入 | 从CAJ | ➖ | — | 地区性格式 |
@@ -271,7 +271,7 @@
 | 布局 | 连续 | ✅ | A3 | 连续滚动 + 瓦片渲染 |
 | 交互 | 自动滚动 | ✅ | — | 自动滚动：拖选区或批注到视口边缘时按 autoScrollState 算速度；有界面入口与专项单测（`ViewModesTests` 27 条） |
 | 交互 | 页面过渡 | ✅ | — | 页面过渡：淡入淡出/左右滑，用 QTimer + 视口截图覆盖层实现（非 QPropertyAnimation）；有界面入口与专项单测（`ViewModesTests` 27 条） |
-| AI | 助手 | 🟨 | L2 | AI 面板可总结/解释当前页与选区；需配置 Provider：**内置 DeepSeek / Kimi / Qwen / MiniMax 与本机 Ollama**（OpenAI 兼容；预设表 `ai::ProviderPreset` 是唯一来源）；本机模型不需要密钥、且在「本地模式」下照常可用；`ProviderPresetTests` 14 条 + `OllamaProviderTests` 2 条 |
+| AI | 助手 | 🟨 | L2 | AI 面板可总结/解释当前页与选区，并能改写与校对当前选区（`ai::Task::Rewrite` / `ai::Task::Proofread`：走同一套 Provider 与隐私策略，演示模式下标为本地拼的示例）；需配置 Provider：**内置 DeepSeek / Kimi / Qwen / MiniMax 与本机 Ollama**（OpenAI 兼容；预设表 `ai::ProviderPreset` 是唯一来源）；本机模型不需要密钥、且在「本地模式」下照常可用；`ProviderPresetTests` 14 条 + `OllamaProviderTests` 2 条 |
 | 朗读 | 朗读 | ✅ | J4 | 逐词朗读并逐词高亮；朗读设置可调音色 / 语速 / 音量；依赖系统语音合成，长文逐词合成较慢；`speech::SpeechSettings`，`SpeechEngineTests` |
 | 比较 | 比较 | ✅ | L7 | 文档比较已实现，三层结果并排给：① 文字层逐块比对（新增 / 删除 / 修改 / 加页 / 删页，每条带页码与原文、新文片段并能跳页定位）；② 版面块级比对（`pdf::compareDocumentLayout`）：逐页抽出版面块（文字段落 / 图片 / 表格 / 图形），按「内容指纹精确配对 → 归一化 IoU + 文本相似度贪心配对」匹配，给出块级归因——哪一块从哪页哪处挪到了哪页哪处、哪张图被换掉、哪张表少了几列或多了几行；跨页移动也能归因（页级相似度跌破门槛时会在未配对的页之间再配一次）；③ 可选的像素级视觉比对（`comparePixels`，默认关，渲染慢）：逐像素比，列出差异比例与差异区域，纯图形改动也能被检出；尺寸不同的页只比共同区域（不缩放归一化，缩放会造出大面积假差异）；跨文档自动对齐已实现（`autoAlign`，默认开）：先按页指纹精确配对，剩下的页再按相似度贪心配对，插页 / 删页不再让配对整体后移；不比按位置更差就退回按位置配对并写明（`alignmentMode` / `alignmentNote`）；界面新增「版面差异」页签，双击跳页并选中那一块（新文里的页跳不过去时会明说，因为当前打开的是原文）；扫描件没有文字层时不做版面分析并写明原因；批注与表单域由 PDFium 画在内容层之外，版面块枚举看不到，它们的增删由像素通路负责；`DocumentComparerTests` 26 条 + `LayoutDiffTests` 13 条。 |
 | 统计 | 字数统计 | ✅ | — | 总字数/字符数/页数/标题数 + 每页分布；有专项单测 |
@@ -291,7 +291,7 @@
 | 建域 | 按钮 | ✅ | E7 | 可新建并落盘；经典 xref 与交叉引用流都能写 |
 | 建域 | 条形码 | ✅ | E7 | Code128 真条码画进外观流，扫描器能扫出来 |
 | 模板 | 页面模板 | ✅ | — | 页面模板：内置登记表 / 签到表 / 意见反馈表 / 费用报销单四个模板，用户模板与内置模板一起列出（同名以用户的为准）；内置表单位于 `pdf::FormTemplateStore::builtInTemplates`，`FormTemplateStoreTests` 14 条 |
-| XFA | 编辑静态XFA表单 | ✅ | F6 | 静态 XFA 字段可提取与导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`），并补上**字段值改写**（`pdf::writeXfaFieldValue` / `writeXfaFieldValues`：只替换值所在的那几个字节，XML 结构与节点顺序不动，改完能读回）与**计算脚本子集执行**（`pdf::runXfaCalculateScripts`：走仓库既有的 `FormJsEvaluator` 白名单子集，多脚本按读写依赖拓扑重排后执行）；XFA 的动态逻辑、布局、事件与 SOM 运行时仍不在本项目范围内，界面对此有明确提示；`Wave21XfaTests` 20 条 + `XfaSupportTests` 20 条 |
+| XFA | 编辑静态XFA表单 | ✅ | F6 | 静态 XFA 字段可提取与导出 CSV（`pdf::inspectXfa` / `exportXfaFieldsToCsv`），并补上**字段值改写**（`pdf::writeXfaFieldValue` / `writeXfaFieldValues`：只替换值所在的那几个字节，XML 结构与节点顺序不动，改完能读回）与**计算脚本子集执行**（`pdf::runXfaCalculateScripts`：走仓库既有的 `FormJsEvaluator` 白名单子集，多脚本按读写依赖拓扑重排后执行）；XFA 的动态逻辑、布局、事件与 SOM 运行时仍不在本项目范围内，界面对此有明确提示；**Ribbon「表单 → 编辑静态 XFA」（`form.xfa`）已接通**：字段清单里可直接改「新值」，点「写回文档」把改后的值写进 XFA 数据集（只交出改过的字段），逐项报成功与失败原因（字段不存在 / 只读 / 值与类型对不上），界面在改值入口旁写明只改值、不动布局、不执行脚本；`Wave21XfaTests` 20 条 + `XfaSupportTests` 20 条 + `LastWaveUiTests` 24 条 |
 | 计算 | 计算次序 | ✅ | F3 | 按 AcroForm /CO 次序执行计算脚本，可调序并写回 |
 | 设计 | 添加工具提示 | ✅ | F5 | 域属性可填提示，表单面板有提示列 |
 | 填写 | 重置表单 | ✅ | F2 | 恢复字段默认值；没有默认值的清空 |

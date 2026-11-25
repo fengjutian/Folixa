@@ -20,6 +20,10 @@ qt_add_executable(ScannerCaptureTests
     # ---- 被测的领域层 ----
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.cpp
     ${AIPDF_REPO_ROOT}/src/pdf/convert/ImageToPdf.h
+    # TIFF 解码器是单独一个文件，ImageToPdf.cpp 会调它：
+    # 不编进来链接会缺符号（decodeTiff）。
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/TiffDecoder.cpp
+    ${AIPDF_REPO_ROOT}/src/pdf/convert/TiffDecoder.h
     # ---- 被测的应用层（WIA 后端 + 帧源接口）----
     ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.cpp
     ${AIPDF_REPO_ROOT}/src/app/controllers/ScannerCapture.h

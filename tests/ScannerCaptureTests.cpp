@@ -144,6 +144,50 @@ ScannerDevice fakeDevice() {
     return device;
 }
 
+// 造一张 8 位灰度 TIFF（小端、未压缩）。
+//
+// 为什么在这里现造：两个测试目标各自独立编译，不共享夹具；
+// 真实文件（libtiff 写的那些）的对照由 ImageToPdfTests 负责。
+QByteArray makeTiff(int width, int height, const QByteArray& pixels) {
+    QByteArray out;
+    out.append("II");
+    const auto appendU16 = [&out](quint16 value) {
+        out.append(static_cast<char>(value & 0xFF));
+        out.append(static_cast<char>((value >> 8) & 0xFF));
+    };
+    const auto appendU32 = [&out](quint32 value) {
+        for (int index = 0; index < 4; ++index) {
+            out.append(static_cast<char>((value >> (8 * index)) & 0xFF));
+        }
+    };
+    appendU16(42);
+    appendU32(8);  // 第一个 IFD 的偏移
+    const quint32 stripOffset = 8 + 2 + 5 * 12 + 4;
+    appendU16(5);  // 条目数
+    // 256 宽度 / 257 高度 / 258 位深 / 273 条偏移 / 279 条字节数
+    const quint16 tags[] = {256, 257, 258, 273, 279};
+    const quint16 types[] = {4, 4, 3, 4, 4};
+    const quint32 values[] = {static_cast<quint32>(width), static_cast<quint32>(height), 8,
+                               stripOffset, static_cast<quint32>(pixels.size())};
+    for (int index = 0; index < 5; ++index) {
+        appendU16(tags[index]);
+        appendU16(types[index]);
+        appendU32(1);
+        if (types[index] == 3) {
+            // SHORT 值左对齐装在 4 字节的 value 字段里。
+            out.append(static_cast<char>(values[index] & 0xFF));
+            out.append(static_cast<char>((values[index] >> 8) & 0xFF));
+            out.append('\0');
+            out.append('\0');
+        } else {
+            appendU32(values[index]);
+        }
+    }
+    appendU32(0);  // 没有下一个 IFD
+    out.append(pixels);
+    return out;
+}
+
 }  // namespace
 
 class ScannerCaptureTests final : public QObject {
@@ -152,6 +196,7 @@ class ScannerCaptureTests final : public QObject {
 private slots:
     void fakeSourceReturnsFramesInOrder();
     void scanToPdfBuildsPagesInOrder();
+    void tiffFrameBecomesPdfPage();
     void transferFailureMapsToTransferFailed();
     void unsupportedFrameMapsToUnsupportedImage();
     void pdfAssemblyFailureMapsToPdfFailed();
@@ -232,8 +277,41 @@ void ScannerCaptureTests::scanToPdfBuildsPagesInOrder() {
     QCOMPARE(qBlue(rendered.pixel(0, 0)), 0);
 }
 
-// --------------------------------------------------------- 错误映射 ----
+void ScannerCaptureTests::tiffFrameBecomesPdfPage() {
+    FakeFrameSource source;
+    source.devices = {fakeDevice()};
+    // 有些扫描仪默认就交 TIFF：这条链路以前会报「格式不支持」，
+    // 现在必须能一路走到 PDF。
+    source.frames = {makeTiff(2, 1, QByteArray::fromHex("40FF"))};
 
+    ScannerCapture capture(&source);
+    ScannerCaptureOptions options;
+    options.dpi = 72;
+    const ScanOutcome outcome = capture.capture(source.devices.first(), options);
+    QVERIFY2(outcome.ok, qPrintable(outcome.errorMessage));
+    QCOMPARE(outcome.pageCount(), 1);
+
+    QByteArray pdf;
+    const ScanOutcome viaPdf = capture.scanToPdf(options, &pdf);
+    QVERIFY2(viaPdf.ok, qPrintable(viaPdf.errorMessage));
+    QCOMPARE(viaPdf.pageCount(), 1);
+    QVERIFY(!pdf.isEmpty());
+
+    const aipdf::pdf::PdfOpenResult opened =
+        aipdf::pdf::openDocumentFromBytes(pdf, QStringLiteral("scan-tiff.pdf"));
+    QVERIFY2(opened.document.isValid(), qPrintable(opened.errorMessage));
+    QCOMPARE(opened.document.pageCount(), 1);
+
+    // 像素也要对上：TIFF 解成 RGB 再进 PDF，不能串色或串行。
+    const auto page = opened.document.page(0);
+    QVERIFY(page.has_value());
+    const QImage rendered = page->render(1.0);
+    QVERIFY(!rendered.isNull());
+    QCOMPARE(qRed(rendered.pixel(0, 0)), 0x40);
+    QCOMPARE(qRed(rendered.pixel(1, 0)), 0xFF);
+}
+
+// --------------------------------------------------------- 错误映射 ----
 void ScannerCaptureTests::transferFailureMapsToTransferFailed() {
     FakeFrameSource source;
     source.devices = {fakeDevice()};
@@ -264,8 +342,11 @@ void ScannerCaptureTests::transferFailureMapsToTransferFailed() {
 void ScannerCaptureTests::unsupportedFrameMapsToUnsupportedImage() {
     FakeFrameSource source;
     source.devices = {fakeDevice()};
-    // TIFF 头：格式明确不支持，必须点名「TIFF」，而不是笼统地说「格式不对」。
-    source.frames = {QByteArray::fromHex("49492A0000000000")};
+    // GIF 头：格式明确不支持，必须点名「GIF」，而不是笼统地说「格式不对」。
+    //
+    // （这里原来用的是 TIFF 头——TIFF 现在是支持的格式了，
+    // 拿它当「不支持」的样本，这条用例就名不副实了。）
+    source.frames = {QByteArrayLiteral("GIF89a\x01\x00\x01\x00\x00\x00\x00")};
 
     ScannerCapture capture(&source);
     ScannerCaptureOptions options;
@@ -275,7 +356,7 @@ void ScannerCaptureTests::unsupportedFrameMapsToUnsupportedImage() {
     QVERIFY(!outcome.ok);
     QCOMPARE(outcome.errorKind, ScanErrorKind::UnsupportedImage);
     QVERIFY(!outcome.errorMessage.isEmpty());
-    QVERIFY(outcome.errorDetail.contains(QStringLiteral("TIFF")));
+    QVERIFY(outcome.errorDetail.contains(QStringLiteral("GIF")));
     QVERIFY(outcome.frames.isEmpty());
 
     QByteArray pdf;

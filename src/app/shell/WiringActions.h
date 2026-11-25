@@ -98,6 +98,8 @@ public:
     void pdfAVeraPdfCertification();
     // Q：静态 XFA 表单字段。
     void xfaFields();
+    // 编辑静态 XFA：改字段的值并写回文档（只改值，不改布局、不执行脚本）。
+    void xfaFormEdit();
     // R：插入 3D 模型 / 多媒体注解（只写结构，不渲染）。
     void insertRichMedia(bool preferThreeD = true);
     // 页面内播放视频：把 MP4 挂成 /Screen 注解（PDF 2.0 媒体屏幕注解）。

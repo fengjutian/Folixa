@@ -103,6 +103,21 @@ QString systemPromptForTask(const QString& task) {
             "要求：只依据给出的文字翻译，不要解释、不要评论；"
             "保留原有的段落与列表结构；"
             "最后一行写「出处：第 N 页」，N 是页码。");
+    } else if (task == Task::Rewrite) {
+        prompt = QStringLiteral(
+            "你是一个 PDF 阅读助手。请把用户给出的选中文字改写得更清楚、更通顺。"
+            "要求：只改写给出的文字，不补充文档里没有的信息；"
+            "保持原有的段落与列表结构，不改变事实与数字；"
+            "直接给出改写后的正文，不要解释你改了什么；"
+            "最后一行写「出处：第 N 页」，N 是页码。");
+    } else if (task == Task::Proofread) {
+        prompt = QStringLiteral(
+            "你是一个 PDF 阅读助手。请校对用户给出的选中文字。"
+            "要求：逐条指出错别字、别字、标点与语病，"
+            "每条一行，写清楚「原文 → 建议」；"
+            "没有问题就明确说「没有发现问题」，不要编问题；"
+            "不要重写整段文字，不要补充文档里没有的信息；"
+            "最后一行写「出处：第 N 页」，N 是页码。");
     } else {
         prompt = QStringLiteral(
             "你是一个 PDF 阅读助手。请只依据用户给出的这一页文本回答问题。"
@@ -127,6 +142,12 @@ QString userPromptForTask(const QString& task,
     }
     if (task == Task::Translate) {
         return QStringLiteral("以下是选中的文字，请翻译成中文：\n\n") + wrapMaterial(material);
+    }
+    if (task == Task::Rewrite) {
+        return QStringLiteral("以下是选中的文字，请改写：\n\n") + wrapMaterial(material);
+    }
+    if (task == Task::Proofread) {
+        return QStringLiteral("以下是选中的文字，请校对：\n\n") + wrapMaterial(material);
     }
     const QString trimmed = question.trimmed();
     if (trimmed.isEmpty()) {

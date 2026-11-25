@@ -42,7 +42,7 @@ QString scanErrorMessage(ScanErrorKind kind, const QString& detail) {
         break;
     case ScanErrorKind::UnsupportedImage:
         base = i18n::tr("aipdf::app::ScannerCapture",
-                        "扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）");
+                        "扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG、PNG 与 TIFF）");
         break;
     case ScanErrorKind::PdfFailed:
         base = i18n::tr("aipdf::app::ScannerCapture", "扫描结果转成 PDF 失败");
@@ -84,11 +84,16 @@ constexpr const wchar_t* kWiaDeviceManagerProgId = L"WIA.DeviceManager";
 
 // WIA 的传输格式 ID。
 //
-// 为什么点名要格式：领域层只支持 BMP 与 JPEG（JPEG 还能原样嵌进 PDF），
-// 设备默认多半给 BMP，但也有驱动默认给 TIFF——那时只能明确报错，
+// 为什么点名要格式：领域层能解 BMP、JPEG、PNG 与 TIFF（JPEG 还能原样嵌进
+// PDF），设备默认多半给 BMP，但也有驱动默认给别的格式——那时只能明确报错，
 // 不能塞一份解不了的字节进去。
+//
+// GUID 取自 Windows SDK 的 wiaimageformats.h（微软文档「FormatID Constants」）：
+// BMP = {B96B3CAB-…}、JPEG = {B96B3CAE-…}、TIFF = {B96B3CB1-…}。
+// （相邻的 {B96B3CAF-…} 是 PNG，别拿错。）
 constexpr const wchar_t* kWiaFormatBmp = L"{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}";
 constexpr const wchar_t* kWiaFormatJpeg = L"{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}";
+constexpr const wchar_t* kWiaFormatTiff = L"{B96B3CB1-0728-11D3-9D7B-0000F81EF32E}";
 
 // 持有 IDispatch 指针的最小 RAII 包装。
 class ComDispatch {
@@ -656,12 +661,15 @@ QByteArray readImageFileData(IDispatch* imageFile, QString* detail) {
 
 // 从一个 WIA 项上取一张图。
 //
-// 先点名要 BMP，再要 JPEG，最后用设备默认格式。
+// 先点名要 BMP，再要 JPEG，再要 TIFF，最后用设备默认格式。
+//
+// 顺序有讲究：JPEG 能原样嵌进 PDF（不重编码、不掉画质），
+// 所以排在 TIFF 前面——TIFF 要解成 RGB 再压一道。
 QByteArray transferItem(IDispatch* item, QString* detail) {
     if (item == nullptr) {
         return {};
     }
-    const wchar_t* formats[] = {kWiaFormatBmp, kWiaFormatJpeg};
+    const wchar_t* formats[] = {kWiaFormatBmp, kWiaFormatJpeg, kWiaFormatTiff};
     for (const wchar_t* format : formats) {
         ComArgs args;
         args.addBstrWide(format);

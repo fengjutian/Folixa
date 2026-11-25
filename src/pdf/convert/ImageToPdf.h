@@ -8,20 +8,20 @@ namespace aipdf::pdf {
 
 // 图像字节的格式。
 //
-// 为什么认三种：JPEG 能**原样**当 /DCTDecode 塞进 PDF（不重编码、不掉画质），
-// BMP 与 PNG 自己解成 RGB 再 /FlateDecode。这三条路都能保证「扫出来的像素一个不差」。
+// 为什么认四种：JPEG 能**原样**当 /DCTDecode 塞进 PDF（不重编码、不掉画质），
+// BMP、PNG 与 TIFF 自己解成 RGB 再 /FlateDecode。这四条路都能保证「扫出来的像素一个不差」。
 //
 // 为什么 PNG 也要自己解：部署包不一定带 Qt 的 PNG 图像插件
 // （scripts/package.ps1 只保证 gif/ico/jpeg/svg），把「能不能读 PNG」押在部署环境上，
 // 结果就是同一份程序在开发机上能读、在用户机上打不开图。
-//
-// 为什么没有 TIFF：本机 Qt 只部署了 gif/ico/jpeg/svg 图像插件，读 TIFF 会直接失败，
-// 所以 TIFF 明确不支持（而不是「看情况失败」）。
+// TIFF 同理（`pdf/convert/TiffDecoder.h`）：扫描仪与相机经常直接给 TIFF，
+// 而 Qt 的图像插件里没有 TIFF。
 enum class ImageFormat {
     Unknown,  // 认不出来
     Jpeg,
     Bmp,
     Png,
+    Tiff,
 };
 
 // 按字节头猜格式。
@@ -57,7 +57,17 @@ struct DecodedImage {
 //
 // detail 是 ASCII 的技术描述（不是给人读的句子）：领域层不放 tr()，
 // 中文句子由调用方拼，这里只给「到底哪儿不对」的事实。
+//
+// 多页 TIFF：这里只解**第一页**。要一页不少地拿全，用 decodeImagePages。
 bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail = nullptr);
+
+// 解一张图文件里的**所有页**。
+//
+// 为什么需要它：TIFF 一个文件里可以装多页（多页 TIFF），
+// 扫描仪一次给一叠纸时也可能就是一个多页 TIFF。
+// 只解第一页会把后面的页**悄悄丢掉** —— 页数对不上，用户还以为扫全了。
+bool decodeImagePages(const QByteArray& bytes, QVector<DecodedImage>* out,
+                      QString* detail = nullptr);
 
 // 转 PDF 失败的原因。
 //
@@ -66,7 +76,7 @@ bool decodeImage(const QByteArray& bytes, DecodedImage* out, QString* detail = n
 enum class ImageToPdfError {
     None,
     EmptyInput,         // 一张图都没有
-    UnsupportedFormat,  // 不是 JPEG/BMP/PNG（TIFF 走这条路）
+    UnsupportedFormat,  // 不是 JPEG/BMP/PNG/TIFF
     DecodeFailed,       // 头坏了 / 数据被截断
     InvalidPageSize,    // 分辨率或像素尺寸算出来的页面不合法
     EncodeFailed,       // 拼 PDF 失败
@@ -97,6 +107,8 @@ struct ImageToPdfResult {
 };
 
 // 一张图 → 一页 PDF。
+//
+// 多页 TIFF 按页数展开成多页（一页 IFD 一页 PDF）。
 ImageToPdfResult imageToPdf(const QByteArray& imageBytes,
                             const ImageToPdfOptions& options = ImageToPdfOptions());
 
@@ -104,6 +116,9 @@ ImageToPdfResult imageToPdf(const QByteArray& imageBytes,
 //
 // 页序不能乱：扫描仪的自动进纸器一次出几页，顺序就是用户叠纸的顺序，
 // 弄错了等于把文件做废。
+//
+// 一个输入里含多页 TIFF 时，它会**按页展开**接在前面那些页后面
+// （一个多页 TIFF = 若干页，不是一片空白）。
 ImageToPdfResult imagesToPdf(const QVector<QByteArray>& images,
                              const ImageToPdfOptions& options = ImageToPdfOptions());
 

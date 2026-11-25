@@ -107,7 +107,23 @@
             <source>（空）</source>
             <translation>(empty)</translation>
         </message>
-    </context>
+            <message>
+            <source>【演示模式】下面是按选中文字拼出的改写示例（没有真正调用模型）。
+· 原文：%1
+· 要真正的模型改写，请在设置里填 API 密钥。</source>
+            <translation>【Demo mode】Below is a rewrite example assembled from the selected text (no model was actually called).
+· Source: %1
+· To get a real model rewrite, enter an API key in Settings.</translation>
+        </message>
+        <message>
+            <source>【演示模式】下面是按选中文字拼出的校对示例（没有真正调用模型）。
+· 原文：%1
+· 要真正的模型校对，请在设置里填 API 密钥。</source>
+            <translation>【Demo mode】Below is a proofreading example assembled from the selected text (no model was actually called).
+· Source: %1
+· To get a real model proofread, enter an API key in Settings.</translation>
+        </message>
+</context>
     <context>
         <name>aipdf::ai::OpenAiProvider</name>
         <message>
@@ -712,6 +728,22 @@
         <message>
             <source>Folixa AI</source>
             <translation>Folixa AI</translation>
+        </message>
+        <message>
+            <source>&lt;b&gt;提示：&lt;/b&gt;先在页面上选中一段文字，再点「改写」。</source>
+            <translation>&lt;b&gt;Note:&lt;/b&gt; Select some text on the page first, then click "Rewrite".</translation>
+        </message>
+        <message>
+            <source>&lt;b&gt;提示：&lt;/b&gt;先在页面上选中一段文字，再点「校对」。</source>
+            <translation>&lt;b&gt;Note:&lt;/b&gt; Select some text on the page first, then click "Proofread".</translation>
+        </message>
+        <message>
+            <source>请改写我选中的内容</source>
+            <translation>Please rewrite the text I selected</translation>
+        </message>
+        <message>
+            <source>请校对我选中的内容</source>
+            <translation>Please proofread the text I selected</translation>
         </message>
 </context>
     <context>
@@ -3690,6 +3722,38 @@ Only axis-aligned horizontal lines, vertical lines and boxes are recognized, and
         <message>
             <source>在隔离进程中打开（可编辑）</source>
             <translation>Open in the isolated process (editable)</translation>
+        </message>
+        <message>
+            <source>编辑静态 XFA</source>
+            <translation>Edit static XFA</translation>
+        </message>
+        <message>
+            <source>改写静态 XFA 表单字段的值并写回文档</source>
+            <translation>Rewrite the values of static XFA form fields and write them back to the document</translation>
+        </message>
+        <message>
+            <source>这份文档没有 XFA 表单（没有 /XFA 数据）。</source>
+            <translation>This document is not an XFA form (it has no /XFA data).</translation>
+        </message>
+        <message>
+            <source>没有字段被改动。</source>
+            <translation>No field was changed.</translation>
+        </message>
+        <message>
+            <source>改写页面上选中的文字</source>
+            <translation>Rewrite the text selected on the page</translation>
+        </message>
+        <message>
+            <source>校对页面上选中的文字</source>
+            <translation>Proofread the text selected on the page</translation>
+        </message>
+        <message>
+            <source>选中文字后可「改写」「校对」「解释」；「总结」作用于当前页</source>
+            <translation>Select text to enable "Rewrite", "Proofread" and "Explain"; "Summarize" applies to the current page</translation>
+        </message>
+        <message>
+            <source>「改写」「校对」「解释」会用到你选中的这段文字</source>
+            <translation>"Rewrite", "Proofread" and "Explain" will use the text you selected</translation>
         </message>
 </context>
         <context>
@@ -8410,6 +8474,26 @@ Notes: %1</translation></message>
     <message><source>（默认可见）</source><translation>(visible by default)</translation></message>
     <message><source>（默认隐藏）</source><translation>(hidden by default)</translation></message>
     <message><source>：%1</source><translation>: %1</translation></message>
+        <message>
+            <source>没有改动任何字段。</source>
+            <translation>No field was changed.</translation>
+        </message>
+        <message>
+            <source>已写回：改了 %1 个 XFA 字段的值。</source>
+            <translation>Written back: changed the value of %1 XFA field(s).</translation>
+        </message>
+        <message>
+            <source>已写回：改了 %1 个字段，%2 个没改成。</source>
+            <translation>Written back: changed %1 field(s), %2 could not be changed.</translation>
+        </message>
+        <message>
+            <source>这里只能改**字段的值**：改完写回文档；XFA 的布局、事件与脚本不执行，SOM 运行时也不在本程序范围内，表单在阅读器里的实际行为取决于生成器里的那些脚本。</source>
+            <translation>Only the **field values** can be changed here: the changes are written back to the document. The XFA layout, events and scripts are not executed, and the SOM runtime is out of scope for this program; how the form actually behaves in a reader depends on the scripts in the generator.</translation>
+        </message>
+        <message>
+            <source>字段 %1：%2</source>
+            <translation>Field %1: %2</translation>
+        </message>
 </context>
 
 <context>
@@ -8588,6 +8672,14 @@ Notes: %1</translation></message>
     <message><source>高</source><translation>Height</translation></message>
     <message><source>（没有内容被丢掉）</source><translation>(Nothing was dropped)</translation></message>
     <message><source>，有文字没排进去</source><translation>, some text did not fit</translation></message>
+        <message>
+            <source>XFA 编辑边界</source>
+            <translation>XFA editing limits</translation>
+        </message>
+        <message>
+            <source>新值</source>
+            <translation>New value</translation>
+        </message>
 </context>
 
 <context>
@@ -9287,10 +9379,6 @@ Notes: %1</translation></message>
                 <translation>Failed to get an image from the scanner; check that the device is not in use and has no paper jam</translation>
             </message>
             <message>
-                <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP 与 JPEG）</source>
-                <translation>The scanner returned an unsupported image format (only BMP and JPEG are supported)</translation>
-            </message>
-            <message>
                 <source>扫描结果转成 PDF 失败</source>
                 <translation>Failed to convert the scan result to PDF</translation>
             </message>
@@ -9371,8 +9459,8 @@ Notes: %1</translation></message>
                 <translation>DPI</translation>
             </message>
             <message>
-                <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG 与 PNG）</source>
-                <translation>The scanner returned an unsupported image format (only BMP, JPEG and PNG are supported)</translation>
+                <source>扫描仪返回的图像格式不受支持（本程序只支持 BMP、JPEG、PNG 与 TIFF）</source>
+                <translation>The scanner returned an unsupported image format (only BMP, JPEG, PNG and TIFF are supported)</translation>
             </message>
             <message>
                 <source> DPI</source>

@@ -51,6 +51,10 @@ qt_add_executable(ConversionInputsTests
     ${AIPDF_CONVERSION_ROOT}/src/pdf/forms/FormData.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/ImageToPdf.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/ImageToPdf.h
+    # TIFF 解码器是单独一个文件，ImageToPdf.cpp 会调它：
+    # 不编进来链接会缺符号（decodeTiff）。
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/TiffDecoder.cpp
+    ${AIPDF_CONVERSION_ROOT}/src/pdf/convert/TiffDecoder.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Xfdf.cpp
     ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Xfdf.h
     ${AIPDF_CONVERSION_ROOT}/src/pdf/annot/Annotation.cpp

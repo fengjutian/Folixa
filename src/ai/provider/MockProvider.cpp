@@ -175,6 +175,16 @@ QString MockProvider::buildAnswer(const ChatRequest& request) const {
                         "【演示模式】下面是按选中文字拼出的翻译示例（没有真正调用模型）。\n· 原文：%1\n· 要真正的模型翻译，请在设置里填 API 密钥。")
             .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt);
     }
+    if (request.task == Task::Rewrite) {
+        return i18n::tr("aipdf::ai::MockProvider",
+                        "【演示模式】下面是按选中文字拼出的改写示例（没有真正调用模型）。\n· 原文：%1\n· 要真正的模型改写，请在设置里填 API 密钥。")
+            .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt);
+    }
+    if (request.task == Task::Proofread) {
+        return i18n::tr("aipdf::ai::MockProvider",
+                        "【演示模式】下面是按选中文字拼出的校对示例（没有真正调用模型）。\n· 原文：%1\n· 要真正的模型校对，请在设置里填 API 密钥。")
+            .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt);
+    }
     return i18n::tr("aipdf::ai::MockProvider",
                     "【演示模式】收到你的问题，下面是本地拼出的示例回答（没有真正调用模型）。\n· 材料开头：%1\n· 材料长度：%2 字")
         .arg(excerpt.isEmpty() ? i18n::tr("aipdf::ai::MockProvider", "（空）") : excerpt)
