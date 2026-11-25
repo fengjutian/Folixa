@@ -116,7 +116,7 @@
 | 组 | 命令 | 状态 | 能力 | 说明 |
 |---|---|---|---|---|
 | 捕获 | 截图 | ✅ | — | 截图：可框选屏幕区域或整个窗口，主页与录制两处共用同一套选区层；区域与裁剪判据在 `app::ScreenCapture::dragRegion` / `cropRegion`，`ScreenCaptureTests` 7 条 |
-| 捕获 | 剪贴板 | ✅ | H9 | 与「转换|输入|从剪贴板」是同一实现、同一入口 handler（Ribbon「从剪贴板」（`convert.fromClipboard`）），**入口已补到「主页 → 捕获」组**（`home.clipboardToPdf`），照着福昕的「主页 → 捕获 → 剪贴板」找过来的人能找到了；图片与富文本都能转（原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG）；**文字 + 图片能合成同一份 PDF**（`doc::clipboardMixedToPdf`：正文排在前面，图片一图一页依次接在后面）；剪贴板 HTML 里的 `<img>` 位置不作为插页依据（剪贴板 HTML 的 src 常是失效的 file:/// 或 data: URI）；`ConversionInputsTests` 59 条 |
+| 捕获 | 剪贴板 | ✅ | H9 | 与「转换|输入|从剪贴板」是同一实现、同一入口 handler（Ribbon「从剪贴板」（`convert.fromClipboard`）），**入口已补到「主页 → 捕获」组**（`home.clipboardToPdf`），照着福昕的「主页 → 捕获 → 剪贴板」找过来的人能找到了；图片与富文本都能转（原生 PNG / BMP / JPEG 用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG）；**文字 + 图片能合成同一份 PDF**（`doc::clipboardMixedToPdf`：正文排在前面，图片一图一页依次接在后面）；剪贴板 HTML 里的 `<img>` 位置不作为插页依据（剪贴板 HTML 的 src 常是失效的 file:/// 或 data: URI）；`ConversionInputsTests` 60 条 |
 | 导航 | 书签 | ✅ | B3 | 浏览跳转 + 新建/改名/删除 + 排序与层级编辑；**书签树视图 + 拖拽改层级**（独立对话框，层级编辑往返后与写盘一致）；有专项单测 |
 | 显示 | 缩放 | ✅ | A6 | 25%–400% + 适应宽度/页面 |
 | 显示 | 页面适合 | ✅ | A6 | 适合宽度与适合页面 |
@@ -148,7 +148,7 @@
 |---|---|---|---|---|
 | 输入 | 文件转换 | ✅ | H6 | 文件转换：txt / md / csv / json / html 走**不依赖外部引擎**的自建转换（`doc::UniversalConverter`，`UniversalConverterTests` 25 条），Office / HTML 另走本机 LibreOffice；**扫描仪 / 剪贴板 / 网页是另外三个命令**（见「从扫描仪」「从剪贴板」「从网页」三行），本行不重复计分；**中文不再变问号**：内容里有中文时自动嵌入系统里的中文字体，并**只嵌用到的字形**（`pdf::subsetTrueTypeFont` 子集化，10 MB → 几十 KB），子集化做不了时退回整份嵌入（文件大一点，但字不丢）；`TrueTypeSubsetTests` 7 条 |
 | 输入 | 从扫描仪 | 🟨 | I5 | 与「主页|扫描|从扫描仪」同一实现、同一入口 handler（Ribbon「从扫描仪」（`convert.fromScanner`））；**取帧路径已用可注入的假帧源跑通全链路单测**，**图像支持 BMP / JPEG / PNG / TIFF**（TIFF 这一轮补上：自研解码器，含多页 TIFF 展开）；**只支持 WIA**、**本机无扫描仪故真机取帧仍未验证**；`ImageToPdfTests` 41 条 + `ScannerCaptureTests` 10 条 |
-| 输入 | 从剪贴板 | ✅ | H9 | 剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf` / `doc::clipboardMixedToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**文字 + 图片能合成同一份 PDF**（自动模式下正文在前、图片一图一页在后，合成页数会写进结果明细）；剪贴板里的图片也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式认不出 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 59 条 |
+| 输入 | 从剪贴板 | ✅ | H9 | 剪贴板转 PDF 已实现（`doc::clipboardTextToPdf` / `doc::clipboardHtmlToPdf` / `doc::clipboardImageToPdf` / `doc::clipboardMixedToPdf`，Ribbon「从剪贴板」（`convert.fromClipboard`）入口已启用）；剪贴板里有富文本时按富文本排版（保留标题、段落、列表结构），没有富文本才退回纯文本，结果里会写明这次用的是哪一种；**文字 + 图片能合成同一份 PDF**（自动模式下正文在前、图片一图一页在后，合成页数会写进结果明细）；剪贴板里的图片也转（图片模式下每张图单独一页；原生 PNG / BMP / JPEG 直接用系统剪贴板里的原始字节，其它格式经 `QImage` 解码后编成 JPEG；格式认不出 / 解不开 / 太大 / 超上限逐条记原因，不静默丢弃）；纯文本路径靠嵌入系统里的中文字体，并**只嵌用到的字形**（子集化，体积小）；`ConversionInputsTests` 60 条 |
 | 输入 | 从网页 | ✅ | H9 | 网页转 PDF 走**本机浏览器引擎**（Edge / Chrome headless，`doc::BrowserPdfPrinter`）：JavaScript 会执行、CSS 会渲染、脚本动态插的图与 CSS 背景图按**渲染结果**落位；对照实测（Edge 157）：同一份 HTML 注入 40 行 JS 时产物 2 页 43.5 KB、含 2 张图（CSS 背景图 + JS 注入的那张），不注入 JS 时 1 页 12.2 KB、含 1 张图；产物用 PDFium 复验（能打开、页数大于 0）才交出去；**没装浏览器时退回抓正文排版，并在结果里明说走的是这条降级路径**；`BrowserPdfPrinterTests` 22 条 |
 | 输入 | 从CAJ | ➖ | — | 地区性格式 |
 | 输入 | 表单 | ✅ | H10 | 表单数据文件（FDF / XFDF / XML）套进模板 PDF 已实现（`doc::applyFormDataFileToTemplate`，Ribbon「表单」（`convert.fromFormFile`）入口已启用）；**填完仍然是可继续填写的表单，不是拍平的**；填不上的字段逐条列出原因（模板没有同名字段 / 只读域 / 写入失败），不静默跳过 |
